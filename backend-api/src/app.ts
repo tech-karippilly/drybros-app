@@ -1,6 +1,7 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { swaggerDocs } from './config/swagger.js';
 
 dotenv.config();
 
@@ -18,6 +19,9 @@ app.get('/health', (_req: Request, res: Response) => {
         service: 'DRybros Backend API'
     });
 });
+
+/* -------------------- Swagger Docs -------------------- */
+swaggerDocs(app, process.env.PORT || 5000);
 
 /* -------------------- 404 Handler -------------------- */
 app.use((_req: Request, res: Response) => {

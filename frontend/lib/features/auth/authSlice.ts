@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { AuthState, User } from '../../types/auth';
+import { AuthState, User, Franchise } from '../../types/auth';
+import { DUMMY_FRANCHISES } from '../../constants/auth';
 
 const initialState: AuthState = {
     user: null,
@@ -8,6 +9,9 @@ const initialState: AuthState = {
     isAuthenticated: false,
     isLogin: false,
     isLoading: false,
+    activeTab: 'home',
+    franchiseList: DUMMY_FRANCHISES,
+    selectedFranchise: DUMMY_FRANCHISES[0],
 };
 
 const authSlice = createSlice({
@@ -34,12 +38,20 @@ const authSlice = createSlice({
             state.refreshToken = null;
             state.isAuthenticated = false;
             state.isLogin = false;
+            state.selectedFranchise = DUMMY_FRANCHISES[0];
+            state.activeTab = 'home';
         },
         setLoading: (state, action: PayloadAction<boolean>) => {
             state.isLoading = action.payload;
         },
+        setSelectedFranchise: (state, action: PayloadAction<Franchise>) => {
+            state.selectedFranchise = action.payload;
+        },
+        setActiveTab: (state, action: PayloadAction<string>) => {
+            state.activeTab = action.payload;
+        },
     },
 });
 
-export const { setCredentials, logout, setLoading } = authSlice.actions;
+export const { setCredentials, logout, setLoading, setSelectedFranchise, setActiveTab } = authSlice.actions;
 export default authSlice.reducer;

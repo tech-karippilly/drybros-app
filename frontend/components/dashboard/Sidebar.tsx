@@ -1,38 +1,21 @@
 "use client";
 
 import React from 'react';
-import {
-    Users,
-    Truck,
-    BarChart3,
-    CreditCard,
-    Map,
-    MessageSquare,
-    CalendarCheck,
-    WashingMachine,
-    Store
-} from 'lucide-react';
+import { WashingMachine } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAppSelector } from '@/lib/hooks';
+import { useAppSelector, useAppDispatch } from '@/lib/hooks';
+import { setActiveTab } from '@/lib/features/auth/authSlice';
+import { ROLE_MENUS } from '@/lib/constants/dashboard';
 
 interface SidebarProps {
     className?: string;
 }
 
-const navItems = [
-    { icon: Store, label: 'Franchises', id: 'franchises' },
-    { icon: Users, label: 'Staff', id: 'staff' },
-    { icon: Truck, label: 'Drivers', id: 'drivers' },
-    { icon: BarChart3, label: 'Reports', id: 'reports' },
-    { icon: CreditCard, label: 'Payroll & Penalties', id: 'payroll' },
-    { icon: Map, label: 'Trip Management', id: 'trips' },
-    { icon: MessageSquare, label: 'Complaints', id: 'complaints' },
-    { icon: CalendarCheck, label: 'Attendance', id: 'attendance' },
-];
-
 export function Sidebar({ className }: SidebarProps) {
-    const user = useAppSelector((state) => state.auth.user);
-    const [activeTab, setActiveTab] = React.useState('franchises');
+    const { user, activeTab } = useAppSelector((state) => state.auth);
+    const dispatch = useAppDispatch();
+
+    const items = ROLE_MENUS[user?.role as keyof typeof ROLE_MENUS] || ROLE_MENUS.admin;
 
     return (
         <aside className={cn(
@@ -46,23 +29,20 @@ export function Sidebar({ className }: SidebarProps) {
                     </div>
                     <div>
                         <h1 className="text-[#0d121c] dark:text-white text-lg font-bold leading-tight uppercase tracking-tight">Drybros</h1>
-                        <p className="text-[#49659c] dark:text-gray-400 text-xs font-medium">
-                            {user?.role === 'admin' ? 'Admin Dashboard' :
-                                user?.role === 'staff' ? 'Staff Portal' : 'Driver Portal'}
-                        </p>
+                        <p className="text-[#49659c] dark:text-gray-400 text-xs font-medium uppercase tracking-tighter">Portal</p>
                     </div>
                 </div>
             </div>
 
             <nav className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">
-                {navItems.map((item) => (
+                {items.map((item) => (
                     <button
                         key={item.id}
-                        onClick={() => setActiveTab(item.id)}
+                        onClick={() => dispatch(setActiveTab(item.id))}
                         className={cn(
                             "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium w-full text-left",
                             activeTab === item.id
-                                ? "bg-[#0d59f2] text-white"
+                                ? "bg-[#0d59f2] text-white shadow-lg shadow-blue-500/20"
                                 : "text-[#0d121c] dark:text-gray-300 hover:bg-[#e7ebf4] dark:hover:bg-gray-800"
                         )}
                     >

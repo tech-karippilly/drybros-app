@@ -1,10 +1,10 @@
 import { configureStore } from '@reduxjs/toolkit';
-// import authReducer from './features/auth/authSlice'; // Example placeholder
+import authReducer from './features/auth/authSlice';
 
 export const makeStore = () => {
     return configureStore({
         reducer: {
-            // auth: authReducer,
+            auth: authReducer,
         },
     });
 };

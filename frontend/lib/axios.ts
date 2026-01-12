@@ -1,8 +1,11 @@
 import axios from 'axios';
+import { STORAGE_KEYS } from './constants/auth';
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 // Create Axios instance
 const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000',
+    baseURL: BASE_URL,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -29,7 +32,7 @@ api.interceptors.request.use(
     (config) => {
         // Add Authorization header if access token exists
         if (typeof window !== 'undefined') {
-            const token = localStorage.getItem('accessToken');
+            const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
@@ -69,27 +72,23 @@ api.interceptors.response.use(
             isRefreshing = true;
 
             try {
-                const refreshToken = localStorage.getItem('refreshToken');
+                const refreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
 
                 if (!refreshToken) {
                     throw new Error('No refresh token available');
                 }
 
-                // Determine API URL for refresh
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-
                 // Attempt to refresh token
-                // Note: Update URL based on your actual backend route (e.g., /auth/refresh-token)
-                const response = await axios.post(`${apiUrl}/auth/refresh-token`, {
+                const response = await axios.post(`${BASE_URL}/auth/refresh-token`, {
                     refreshToken,
                 });
 
                 const { accessToken, refreshToken: newRefreshToken } = response.data;
 
                 // Save new tokens
-                localStorage.setItem('accessToken', accessToken);
+                localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
                 if (newRefreshToken) {
-                    localStorage.setItem('refreshToken', newRefreshToken);
+                    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, newRefreshToken);
                 }
 
                 // Update default headers
@@ -105,8 +104,8 @@ api.interceptors.response.use(
                 processQueue(refreshError, null);
 
                 // Clear tokens and redirect to login on failure
-                localStorage.removeItem('accessToken');
-                localStorage.removeItem('refreshToken');
+                localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+                localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
 
                 if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
                     window.location.href = '/login';

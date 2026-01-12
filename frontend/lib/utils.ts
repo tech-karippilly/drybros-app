@@ -1,11 +1,29 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { FOCUS_RING as FOCUS_RING_CONST, INPUT_STYLES as INPUT_STYLES_CONST } from './constants/styles';
+import { PASSWORD_VALIDATION_MESSAGES } from './constants/auth';
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
 
-export const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-blue focus-visible:ring-offset-2";
+export const FOCUS_RING = FOCUS_RING_CONST;
 
-export const INPUT_STYLES = "flex w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:placeholder:text-gray-400";
+export const INPUT_STYLES = INPUT_STYLES_CONST;
+
+export function validatePassword(password: string): { isValid: boolean; message: string } {
+    if (password.length < 8) {
+        return { isValid: false, message: PASSWORD_VALIDATION_MESSAGES.LENGTH };
+    }
+    if (!/[A-Z]/.test(password)) {
+        return { isValid: false, message: PASSWORD_VALIDATION_MESSAGES.UPPERCASE };
+    }
+    if (!/[0-9]/.test(password)) {
+        return { isValid: false, message: PASSWORD_VALIDATION_MESSAGES.NUMBER };
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+        return { isValid: false, message: PASSWORD_VALIDATION_MESSAGES.SPECIAL };
+    }
+    return { isValid: true, message: "" };
+}
 

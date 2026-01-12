@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DRybros Frontend - Admin Dashboard
 
-## Getting Started
+This is the official administrative web dashboard for the **DRybros** platform, built with **Next.js**, **TypeScript**, and **Tailwind CSS**.
 
-First, run the development server:
+## 🚀 Features
+
+- **Authentication System**: Complete staff portal with Login, Register, Forgot Password, and Reset Password flows.
+- **State Management**: Powered by **Redux Toolkit** with typed hooks and a structured slice organization.
+- **API Integration**: Configured **Axios** instance with automatic access/refresh token rotation (JWT).
+- **Design System**: 
+  - Custom light and dark mode support.
+  - Reusable UI component library (Button, Modal, Alert, Calendar, DatePicker, etc.).
+  - Consistent typography and form elements.
+- **Modern Tech Stack**: React 19, Next.js 15 (App Router), Lucide Icons, and date-fns.
+
+## 🛠️ Getting Started
+
+First, install the dependencies:
+
+```bash
+npm install
+```
+
+Then, run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🔗 Project Pages (Development)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The following routes are implemented and ready for testing:
 
-## Learn More
+- **[Login Portal](http://localhost:3000/login)**: Staff sign-in page.
+- **[Register Admin](http://localhost:3000/register)**: Administrative account creation.
+- **[Dashboard](http://localhost:3000/dashboard)**: Admin operations homepage.
+- **[Forgot Password](http://localhost:3000/forgot-password)**: Link-based password recovery.
+- **[Reset Password](http://localhost:3000/reset-password?token=example-token)**: Secure password update screen.
+- **[404 Error Page](http://localhost:3000/some-non-existent-page)**: Custom branded error handling.
 
-To learn more about Next.js, take a look at the following resources:
+## 📂 Project Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `app/`: Next.js App Router folders and pages.
+- `components/ui/`: Reusable primitive components (Shadcn style).
+- `lib/`: Utility functions, store configuration, and API clients.
+- `public/`: Static assets and icons.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📝 Scripts
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run dev`: Starts the development server.
+- `npm run build`: Builds the application for production.
+- `npm run start`: Starts the production server.
+- `npm run lint`: Runs ESLint to check for code quality issues.

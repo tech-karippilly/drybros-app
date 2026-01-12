@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
@@ -10,7 +9,7 @@ import { Mail, ArrowLeft } from 'lucide-react';
 
 export default function ForgotPasswordPage() {
     const [isLoading, setIsLoading] = useState(false);
-    const router = useRouter();
+    const [isSubmitted, setIsSubmitted] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -19,15 +18,42 @@ export default function ForgotPasswordPage() {
         // Simulate API call
         setTimeout(() => {
             setIsLoading(false);
-            router.push('/verify-email');
+            setIsSubmitted(true);
         }, 1500);
     };
+
+    if (isSubmitted) {
+        return (
+            <div className="space-y-6 text-center">
+                <div className="flex justify-center">
+                    <div className="h-16 w-16 bg-blue-50 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-theme-blue">
+                        <Mail size={32} />
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <Text variant="h3">Check your email</Text>
+                    <Text variant="muted">
+                        We&apos;ve sent a password reset link to your email address. Please follow the instructions in the email.
+                    </Text>
+                </div>
+                <div className="pt-2">
+                    <Link
+                        href="/login"
+                        className="inline-flex items-center text-sm font-semibold text-theme-blue hover:underline underline-offset-4"
+                    >
+                        <ArrowLeft size={16} className="mr-2" />
+                        Back to login
+                    </Link>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
             <div className="space-y-2 text-center">
                 <Text variant="h3">Forgot Password?</Text>
-                <Text variant="muted">Enter your email and we&apos;ll send you a verification code</Text>
+                <Text variant="muted">Enter your email and we&apos;ll send you a password reset link</Text>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -48,7 +74,7 @@ export default function ForgotPasswordPage() {
                 </div>
 
                 <Button type="submit" className="w-full" isLoading={isLoading} size="lg">
-                    Send Code
+                    Send Reset Link
                 </Button>
 
                 <div className="text-center pt-2">

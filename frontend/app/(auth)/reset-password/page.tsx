@@ -1,20 +1,26 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
-import { CheckCircle2, Eye, EyeOff, Lock } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { CheckCircle2, Eye, EyeOff, Lock, AlertCircle } from 'lucide-react';
 
 export default function ResetPasswordPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const token = searchParams.get('token');
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!token) return;
+
         setIsLoading(true);
 
         // Simulate reset
@@ -27,6 +33,27 @@ export default function ResetPasswordPage() {
             }, 2000);
         }, 1500);
     };
+
+    if (!token) {
+        return (
+            <div className="space-y-6">
+                <div className="space-y-2 text-center">
+                    <Text variant="h3">Invalid Link</Text>
+                    <Text variant="muted">This password reset link is invalid or has expired.</Text>
+                </div>
+                <Alert variant="error">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>
+                        The reset token is missing. Please request a new password reset link.
+                    </AlertDescription>
+                </Alert>
+                <Button onClick={() => router.push('/forgot-password')} className="w-full">
+                    Request new link
+                </Button>
+            </div>
+        );
+    }
 
     if (isSuccess) {
         return (

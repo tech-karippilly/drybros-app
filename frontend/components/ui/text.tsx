@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 
 export type TextVariant = 'h1' | 'h2' | 'h3' | 'subheading' | 'label' | 'error' | 'regular' | 'small' | 'muted';
 
-interface TextProps extends React.HTMLAttributes<HTMLElement> {
+interface TextProps extends Omit<React.AllHTMLAttributes<HTMLElement>, 'as'> {
     variant?: TextVariant;
     as?: React.ElementType;
 }

@@ -10,6 +10,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
+import { useAppDispatch } from '@/lib/hooks';
+import { setCredentials } from '@/lib/features/auth/authSlice';
 
 export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
@@ -17,6 +19,7 @@ export default function LoginPage() {
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
     const { toast } = useToast();
+    const dispatch = useAppDispatch();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -30,6 +33,22 @@ export default function LoginPage() {
             if (!formData.get('email') || !formData.get('password')) {
                 setError('Please fill in all fields.');
             } else {
+                // Dummy data for simulation
+                const dummyUser = {
+                    _id: "user_123",
+                    name: "Admin User",
+                    email: formData.get('email') as string,
+                    role: "admin",
+                    franchise_name: "Main Branch",
+                    franchise_id: "fran_001"
+                };
+
+                dispatch(setCredentials({
+                    user: dummyUser,
+                    accessToken: "dummy_access_token",
+                    refreshToken: "dummy_refresh_token"
+                }));
+
                 toast({
                     title: "Success",
                     description: "Sign in successful. Welcome back!",

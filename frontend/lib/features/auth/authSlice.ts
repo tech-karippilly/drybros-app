@@ -1,10 +1,12 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 interface User {
-    id: string;
+    _id: string;
     email: string;
-    name?: string;
+    name: string;
     role: string;
+    franchise_name?: string;
+    franchise_id?: string;
 }
 
 interface AuthState {
@@ -12,6 +14,7 @@ interface AuthState {
     accessToken: string | null;
     refreshToken: string | null;
     isAuthenticated: boolean;
+    isLogin: boolean; // Added isLogin flag
     isLoading: boolean;
 }
 
@@ -20,6 +23,7 @@ const initialState: AuthState = {
     accessToken: null,
     refreshToken: null,
     isAuthenticated: false,
+    isLogin: false,
     isLoading: false,
 };
 
@@ -29,18 +33,24 @@ const authSlice = createSlice({
     reducers: {
         setCredentials: (
             state,
-            action: PayloadAction<{ user: User; accessToken: string; refreshToken: string }>
+            action: PayloadAction<{
+                user: User;
+                accessToken: string;
+                refreshToken: string;
+            }>
         ) => {
             state.user = action.payload.user;
             state.accessToken = action.payload.accessToken;
             state.refreshToken = action.payload.refreshToken;
             state.isAuthenticated = true;
+            state.isLogin = true;
         },
         logout: (state) => {
             state.user = null;
             state.accessToken = null;
             state.refreshToken = null;
             state.isAuthenticated = false;
+            state.isLogin = false;
         },
         setLoading: (state, action: PayloadAction<boolean>) => {
             state.isLoading = action.payload;

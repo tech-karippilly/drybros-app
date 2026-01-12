@@ -40,6 +40,11 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) to view the web app.
 
+**Available Routes:**
+- [Login](http://localhost:3000/login)
+- [Forgot Password](http://localhost:3000/forgot-password)
+- [Reset Password](http://localhost:3000/reset-password?token=test)
+
 #### 3. Mobile App
 
 ```bash

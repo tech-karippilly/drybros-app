@@ -35,6 +35,7 @@ The following routes are implemented and ready for testing:
 
 - **[Login Portal](http://localhost:3000/login)**: Staff sign-in page.
 - **[Register Admin](http://localhost:3000/register)**: Administrative account creation.
+- **[Dashboard](http://localhost:3000/dashboard)**: Admin operations homepage.
 - **[Forgot Password](http://localhost:3000/forgot-password)**: Link-based password recovery.
 - **[Reset Password](http://localhost:3000/reset-password?token=example-token)**: Secure password update screen.
 - **[404 Error Page](http://localhost:3000/some-non-existent-page)**: Custom branded error handling.

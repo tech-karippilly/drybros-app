@@ -16,6 +16,15 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Project Pages
+
+You can access the following pages in the development environment:
+
+- **[Home](http://localhost:3000/)** - Dashboard landing page.
+- **[Login](http://localhost:3000/login)** - Staff authentication portal.
+- **[Forgot Password](http://localhost:3000/forgot-password)** - Password recovery request link.
+- **[Reset Password](http://localhost:3000/reset-password?token=example-token)** - Password reset completion (requires token).
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

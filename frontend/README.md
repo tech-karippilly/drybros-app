@@ -22,6 +22,7 @@ You can access the following pages in the development environment:
 
 - **[Home](http://localhost:3000/)** - Dashboard landing page.
 - **[Login](http://localhost:3000/login)** - Staff authentication portal.
+- **[Register](http://localhost:3000/register)** - Admin registration page.
 - **[Forgot Password](http://localhost:3000/forgot-password)** - Password recovery request link.
 - **[Reset Password](http://localhost:3000/reset-password?token=example-token)** - Password reset completion (requires token).
 

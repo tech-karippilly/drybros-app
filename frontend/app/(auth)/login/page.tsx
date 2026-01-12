@@ -2,17 +2,20 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, CheckCircle2 } from 'lucide-react';
 
 export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const router = useRouter();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -22,13 +25,39 @@ export default function LoginPage() {
         // Simulate login
         setTimeout(() => {
             setIsLoading(false);
-            // For demo purposes, show an error if fields are empty
             const formData = new FormData(e.target as HTMLFormElement);
             if (!formData.get('email') || !formData.get('password')) {
                 setError('Please fill in all fields.');
+            } else {
+                setIsSuccess(true);
+                // Redirect after success
+                setTimeout(() => {
+                    router.push('/dashboard');
+                }, 1500);
             }
         }, 1500);
     };
+
+    if (isSuccess) {
+        return (
+            <div className="space-y-6 text-center py-4">
+                <div className="flex justify-center">
+                    <div className="h-16 w-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center text-green-600">
+                        <CheckCircle2 size={32} />
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <Text variant="h3">Welcome Back!</Text>
+                    <Text variant="muted">Sign in successful. Accessing your dashboard...</Text>
+                </div>
+                <div className="flex justify-center">
+                    <div className="h-2 w-24 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-theme-blue animate-progress shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">

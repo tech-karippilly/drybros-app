@@ -33,7 +33,7 @@ cd frontend
 npm install
 npm run dev
 ```
-**Routes:** [Login](http://localhost:3000/login) | [Register](http://localhost:3000/register) | [Forgot Password](http://localhost:3000/forgot-password)
+**Routes:** [Login](http://localhost:3000/login) | [Register](http://localhost:3000/register) | [Dashboard](http://localhost:3000/dashboard) | [Forgot Password](http://localhost:3000/forgot-password)
 
 #### 3. Mobile App
 ```bash

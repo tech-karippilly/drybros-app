@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Lock, Mail, User } from 'lucide-react';
+import { validatePassword } from '@/lib/utils';
 
 export default function RegisterPage() {
     const [showPassword, setShowPassword] = useState(false);
@@ -18,10 +19,19 @@ export default function RegisterPage() {
         setIsLoading(true);
         setError(null);
 
+        const formData = new FormData(e.target as HTMLFormElement);
+        const password = formData.get('password') as string;
+
+        const validation = validatePassword(password);
+        if (!validation.isValid) {
+            setError(validation.message);
+            setIsLoading(false);
+            return;
+        }
+
         // Simulate registration
         setTimeout(() => {
             setIsLoading(false);
-            const formData = new FormData(e.target as HTMLFormElement);
             if (!formData.get('name') || !formData.get('email') || !formData.get('password')) {
                 setError('Please fill in all fields.');
             }

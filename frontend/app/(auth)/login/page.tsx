@@ -12,6 +12,7 @@ import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { useAppDispatch } from '@/lib/hooks';
 import { setCredentials } from '@/lib/features/auth/authSlice';
+import { AUTH_ROUTES, ADMIN_DUMMY_USER } from '@/lib/constants/auth';
 
 export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
@@ -33,18 +34,12 @@ export default function LoginPage() {
             if (!formData.get('email') || !formData.get('password')) {
                 setError('Please fill in all fields.');
             } else {
-                // Dummy data for simulation
-                const dummyUser = {
-                    _id: "user_123",
-                    name: "Admin User",
-                    email: formData.get('email') as string,
-                    role: "admin",
-                    franchise_name: "Main Branch",
-                    franchise_id: "fran_001"
-                };
-
+                // Use centralized dummy data for simulation
                 dispatch(setCredentials({
-                    user: dummyUser,
+                    user: {
+                        ...ADMIN_DUMMY_USER,
+                        email: formData.get('email') as string
+                    },
                     accessToken: "dummy_access_token",
                     refreshToken: "dummy_refresh_token"
                 }));
@@ -56,7 +51,7 @@ export default function LoginPage() {
                 });
                 // Redirect after success
                 setTimeout(() => {
-                    router.push('/dashboard');
+                    router.push(AUTH_ROUTES.DASHBOARD);
                 }, 1000);
             }
         }, 1500);

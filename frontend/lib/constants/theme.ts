@@ -16,6 +16,3 @@ export const THEME_COLORS = {
         foreground: '#ededed',
     },
 } as const;
-
-export type ThemeMode = 'light' | 'dark';
-export type ThemeColorKey = keyof typeof THEME_COLORS.light;

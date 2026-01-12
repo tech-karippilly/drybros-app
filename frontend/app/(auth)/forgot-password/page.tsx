@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { Mail, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
+import { AUTH_ROUTES } from '@/lib/constants/auth';
 
 export default function ForgotPasswordPage() {
     const [isLoading, setIsLoading] = useState(false);
@@ -26,9 +27,9 @@ export default function ForgotPasswordPage() {
                 description: "We've sent a password reset link to your email address.",
                 variant: "success",
             });
-            // Keep on page or redirect? Usually stay or go back to login. Let's go back after delay.
+            // Redirect after success
             setTimeout(() => {
-                router.push('/login');
+                router.push(AUTH_ROUTES.LOGIN);
             }, 2000);
         }, 1500);
     };

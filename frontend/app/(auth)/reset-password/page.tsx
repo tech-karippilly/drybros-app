@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Eye, EyeOff, Lock, AlertCircle } from 'lucide-react';
 import { validatePassword } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
+import { AUTH_ROUTES } from '@/lib/constants/auth';
 
 export default function ResetPasswordPage() {
     const [showPassword, setShowPassword] = useState(false);
@@ -52,7 +53,7 @@ export default function ResetPasswordPage() {
             });
             // Wait bit then go to login
             setTimeout(() => {
-                router.push('/login');
+                router.push(AUTH_ROUTES.LOGIN);
             }, 1500);
         }, 1500);
     };

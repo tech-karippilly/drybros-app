@@ -1,7 +1,8 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { TEXT_STYLES } from '@/lib/constants/ui';
 
-export type TextVariant = 'h1' | 'h2' | 'h3' | 'subheading' | 'label' | 'error' | 'regular' | 'small' | 'muted';
+export type TextVariant = keyof typeof TEXT_STYLES;
 
 interface TextProps extends Omit<React.AllHTMLAttributes<HTMLElement>, 'as'> {
     variant?: TextVariant;
@@ -21,22 +22,10 @@ const Text = React.forwardRef<HTMLElement, TextProps>(
                                 'p'
         );
 
-        const styles = {
-            h1: "scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl text-foreground",
-            h2: "scroll-m-20 border-b pb-2 text-3xl font-semibold tracking-tight first:mt-0 text-foreground",
-            h3: "scroll-m-20 text-2xl font-semibold tracking-tight text-foreground",
-            subheading: "text-xl font-medium text-foreground/90",
-            regular: "leading-7 [&:not(:first-child)]:mt-6 text-foreground",
-            label: "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-foreground/90",
-            error: "text-sm font-medium text-theme-red dark:text-theme-red",
-            small: "text-sm font-medium leading-none text-foreground",
-            muted: "text-sm text-gray-500",
-        };
-
         return (
             <Component
                 ref={ref}
-                className={cn(styles[variant], className)}
+                className={cn(TEXT_STYLES[variant], className)}
                 {...props}
             >
                 {children}

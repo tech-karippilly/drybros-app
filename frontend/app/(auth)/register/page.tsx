@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Lock, Mail, User } from 'lucide-react';
 import { validatePassword } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
+import { AUTH_ROUTES } from '@/lib/constants/auth';
 
 export default function RegisterPage() {
     const [showPassword, setShowPassword] = useState(false);
@@ -46,7 +47,7 @@ export default function RegisterPage() {
                 });
                 // Redirect after success
                 setTimeout(() => {
-                    router.push('/login');
+                    router.push(AUTH_ROUTES.LOGIN);
                 }, 1500);
             }
         }, 1500);

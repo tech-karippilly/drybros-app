@@ -1,22 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-
-interface User {
-    _id: string;
-    email: string;
-    name: string;
-    role: string;
-    franchise_name?: string;
-    franchise_id?: string;
-}
-
-interface AuthState {
-    user: User | null;
-    accessToken: string | null;
-    refreshToken: string | null;
-    isAuthenticated: boolean;
-    isLogin: boolean; // Added isLogin flag
-    isLoading: boolean;
-}
+import { AuthState, User } from '../../types/auth';
 
 const initialState: AuthState = {
     user: null,

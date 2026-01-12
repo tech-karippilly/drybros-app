@@ -6,16 +6,17 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { CheckCircle2, Eye, EyeOff, Lock, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Lock, AlertCircle } from 'lucide-react';
 import { validatePassword } from '@/lib/utils';
+import { useToast } from '@/components/ui/toast';
 
 export default function ResetPasswordPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [isSuccess, setIsSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { toast } = useToast();
     const token = searchParams.get('token');
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -44,11 +45,15 @@ export default function ResetPasswordPage() {
         // Simulate reset
         setTimeout(() => {
             setIsLoading(false);
-            setIsSuccess(true);
+            toast({
+                title: "Password Updated!",
+                description: "Your password has been successfully reset. Log in with your new password.",
+                variant: "success",
+            });
             // Wait bit then go to login
             setTimeout(() => {
                 router.push('/login');
-            }, 2000);
+            }, 1500);
         }, 1500);
     };
 
@@ -68,25 +73,6 @@ export default function ResetPasswordPage() {
                 </Alert>
                 <Button onClick={() => router.push('/forgot-password')} className="w-full">
                     Request new link
-                </Button>
-            </div>
-        );
-    }
-
-    if (isSuccess) {
-        return (
-            <div className="space-y-6 text-center py-4">
-                <div className="flex justify-center">
-                    <div className="h-16 w-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center text-green-600">
-                        <CheckCircle2 size={32} />
-                    </div>
-                </div>
-                <div className="space-y-2">
-                    <Text variant="h3">Password Updated!</Text>
-                    <Text variant="muted">Your password has been successfully reset. Redirecting you to login...</Text>
-                </div>
-                <Button onClick={() => router.push('/login')} variant="outline" className="w-full">
-                    Click here if not redirected
                 </Button>
             </div>
         );

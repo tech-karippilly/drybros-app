@@ -2,14 +2,17 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { Mail, ArrowLeft } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
 
 export default function ForgotPasswordPage() {
     const [isLoading, setIsLoading] = useState(false);
-    const [isSubmitted, setIsSubmitted] = useState(false);
+    const { toast } = useToast();
+    const router = useRouter();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -18,36 +21,17 @@ export default function ForgotPasswordPage() {
         // Simulate API call
         setTimeout(() => {
             setIsLoading(false);
-            setIsSubmitted(true);
+            toast({
+                title: "Email Sent",
+                description: "We've sent a password reset link to your email address.",
+                variant: "success",
+            });
+            // Keep on page or redirect? Usually stay or go back to login. Let's go back after delay.
+            setTimeout(() => {
+                router.push('/login');
+            }, 2000);
         }, 1500);
     };
-
-    if (isSubmitted) {
-        return (
-            <div className="space-y-6 text-center">
-                <div className="flex justify-center">
-                    <div className="h-16 w-16 bg-blue-50 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-theme-blue">
-                        <Mail size={32} />
-                    </div>
-                </div>
-                <div className="space-y-2">
-                    <Text variant="h3">Check your email</Text>
-                    <Text variant="muted">
-                        We&apos;ve sent a password reset link to your email address. Please follow the instructions in the email.
-                    </Text>
-                </div>
-                <div className="pt-2">
-                    <Link
-                        href="/login"
-                        className="inline-flex items-center text-sm font-semibold text-theme-blue hover:underline underline-offset-4"
-                    >
-                        <ArrowLeft size={16} className="mr-2" />
-                        Back to login
-                    </Link>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="space-y-6">

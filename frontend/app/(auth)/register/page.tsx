@@ -7,15 +7,16 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Eye, EyeOff, Lock, Mail, User, CheckCircle2 } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, User } from 'lucide-react';
 import { validatePassword } from '@/lib/utils';
+import { useToast } from '@/components/ui/toast';
 
 export default function RegisterPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [isSuccess, setIsSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
+    const { toast } = useToast();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -38,33 +39,18 @@ export default function RegisterPage() {
             if (!formData.get('name') || !formData.get('email') || !formData.get('password')) {
                 setError('Please fill in all fields.');
             } else {
-                setIsSuccess(true);
+                toast({
+                    title: "Account Created!",
+                    description: "Your administrative account has been created successfully.",
+                    variant: "success",
+                });
                 // Redirect after success
                 setTimeout(() => {
                     router.push('/login');
-                }, 2000);
+                }, 1500);
             }
         }, 1500);
     };
-
-    if (isSuccess) {
-        return (
-            <div className="space-y-6 text-center py-4">
-                <div className="flex justify-center">
-                    <div className="h-16 w-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center text-green-600">
-                        <CheckCircle2 size={32} />
-                    </div>
-                </div>
-                <div className="space-y-2">
-                    <Text variant="h3">Account Created!</Text>
-                    <Text variant="muted">Your administrative account has been created successfully. Redirecting you to login...</Text>
-                </div>
-                <Button onClick={() => router.push('/login')} variant="outline" className="w-full">
-                    Click here if not redirected
-                </Button>
-            </div>
-        );
-    }
 
     return (
         <div className="space-y-6">

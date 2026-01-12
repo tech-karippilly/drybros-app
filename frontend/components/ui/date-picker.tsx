@@ -3,7 +3,7 @@
 import * as React from "react"
 import { format } from "date-fns"
 import { Calendar as CalendarIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, FOCUS_RING } from "@/lib/utils"
 import { Calendar } from "./calendar"
 
 export interface DatePickerProps {
@@ -41,8 +41,10 @@ const DatePicker = ({ date, setDate, placeholder = "Pick a date", className }: D
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
                 className={cn(
-                    "flex h-10 w-full items-center justify-start rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-theme-blue focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950",
-                    !date && "text-gray-500"
+                    "flex h-10 w-full items-center justify-start rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950",
+                    FOCUS_RING,
+                    !date && "text-gray-500",
+                    className
                 )}
             >
                 <CalendarIcon className="mr-2 h-4 w-4" />

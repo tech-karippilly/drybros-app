@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Check } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, FOCUS_RING } from "@/lib/utils"
 
 export interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
     label?: string;
@@ -20,7 +20,8 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
                         id={elementId}
                         ref={ref}
                         className={cn(
-                            "peer h-4 w-4 shrink-0 rounded-sm border border-gray-300 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme-blue focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 checked:bg-theme-blue checked:border-theme-blue appearance-none dark:border-gray-600 dark:bg-gray-950",
+                            "peer h-4 w-4 shrink-0 rounded-sm border border-gray-300 ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 checked:bg-theme-blue checked:border-theme-blue appearance-none dark:border-gray-600 dark:bg-gray-950",
+                            FOCUS_RING,
                             className
                         )}
                         {...props}

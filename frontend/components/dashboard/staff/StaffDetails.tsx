@@ -21,10 +21,15 @@ import {
     AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { FireModal, SuspendModal } from './ActionModals';
 
 export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
     const dispatch = useAppDispatch();
     const { selectedStaff } = useAppSelector((state) => state.staff);
+
+    // Modal states
+    const [isFireOpen, setIsFireOpen] = React.useState(false);
+    const [isSuspendOpen, setIsSuspendOpen] = React.useState(false);
 
     if (!selectedStaff) return null;
 
@@ -176,12 +181,7 @@ export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
                             <div className="flex flex-wrap gap-4">
                                 {selectedStaff.status !== 'suspended' && (
                                     <button
-                                        onClick={() => {
-                                            const months = prompt("Enter suspension duration (e.g., 3 months):", "1 month");
-                                            if (months) {
-                                                dispatch(suspendStaff({ id: selectedStaff._id, duration: months }));
-                                            }
-                                        }}
+                                        onClick={() => setIsSuspendOpen(true)}
                                         className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-500 rounded-2xl font-bold hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-all border border-amber-200 dark:border-amber-800"
                                     >
                                         <Ban size={18} />
@@ -190,11 +190,7 @@ export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
                                 )}
                                 {selectedStaff.status !== 'fired' && (
                                     <button
-                                        onClick={() => {
-                                            if (confirm(`Are you sure you want to FIRE ${selectedStaff.name}? This action is irreversible.`)) {
-                                                dispatch(setStaffStatus({ id: selectedStaff._id, status: 'fired' }));
-                                            }
-                                        }}
+                                        onClick={() => setIsFireOpen(true)}
                                         className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-500 rounded-2xl font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-all border border-red-200 dark:border-red-800"
                                     >
                                         <Flame size={18} />
@@ -215,6 +211,27 @@ export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
                     </div>
                 </div>
             </div>
+
+            {/* Action Modals */}
+            <FireModal
+                isOpen={isFireOpen}
+                staffName={selectedStaff.name}
+                onClose={() => setIsFireOpen(false)}
+                onConfirm={() => {
+                    dispatch(setStaffStatus({ id: selectedStaff._id, status: 'fired' }));
+                    setIsFireOpen(false);
+                }}
+            />
+
+            <SuspendModal
+                isOpen={isSuspendOpen}
+                staffName={selectedStaff.name}
+                onClose={() => setIsSuspendOpen(false)}
+                onConfirm={(duration) => {
+                    dispatch(suspendStaff({ id: selectedStaff._id, duration }));
+                    setIsSuspendOpen(false);
+                }}
+            />
         </div>
     );
 }

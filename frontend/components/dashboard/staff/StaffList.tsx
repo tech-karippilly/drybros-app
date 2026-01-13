@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Staff } from '@/lib/types/staff';
+import { FireModal, SuspendModal } from './ActionModals';
 
 interface StaffListProps {
     onCreateClick: () => void;
@@ -36,6 +37,10 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
     const { list, filters, pagination } = useAppSelector((state) => state.staff);
     const dispatch = useAppDispatch();
     const [showFilters, setShowFilters] = useState(false);
+
+    // Modal state
+    const [fireTarget, setFireTarget] = useState<Staff | null>(null);
+    const [suspendTarget, setSuspendTarget] = useState<Staff | null>(null);
 
     // Filter Logic
     const filteredList = useMemo(() => {
@@ -268,10 +273,7 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
                                             </button>
                                             {staff.status !== 'suspended' && (
                                                 <button
-                                                    onClick={() => {
-                                                        const months = prompt(`Suspend ${staff.name} for how long?`, "1 month");
-                                                        if (months) dispatch(suspendStaff({ id: staff._id, duration: months }));
-                                                    }}
+                                                    onClick={() => setSuspendTarget(staff)}
                                                     className="p-2 text-[#49659c] hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all"
                                                     title="Suspend"
                                                 >
@@ -280,9 +282,7 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
                                             )}
                                             {staff.status !== 'fired' && (
                                                 <button
-                                                    onClick={() => {
-                                                        if (confirm(`FIRE ${staff.name}?`)) dispatch(setStaffStatus({ id: staff._id, status: 'fired' }));
-                                                    }}
+                                                    onClick={() => setFireTarget(staff)}
                                                     className="p-2 text-[#49659c] hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                                                     title="Fire"
                                                 >
@@ -352,6 +352,31 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
                     </div>
                 )}
             </div>
+
+            {/* Action Modals */}
+            <FireModal
+                isOpen={!!fireTarget}
+                staffName={fireTarget?.name || ""}
+                onClose={() => setFireTarget(null)}
+                onConfirm={() => {
+                    if (fireTarget) {
+                        dispatch(setStaffStatus({ id: fireTarget._id, status: 'fired' }));
+                        setFireTarget(null);
+                    }
+                }}
+            />
+
+            <SuspendModal
+                isOpen={!!suspendTarget}
+                staffName={suspendTarget?.name || ""}
+                onClose={() => setSuspendTarget(null)}
+                onConfirm={(duration) => {
+                    if (suspendTarget) {
+                        dispatch(suspendStaff({ id: suspendTarget._id, duration }));
+                        setSuspendTarget(null);
+                    }
+                }}
+            />
         </div>
     );
 }

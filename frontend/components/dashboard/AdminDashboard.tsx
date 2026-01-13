@@ -6,6 +6,7 @@ import { RecentActivities } from './RecentActivities';
 import { PlaceholderScreen } from './PlaceholderScreen';
 import { FranchiseManager } from './franchise/FranchiseManager';
 import { StaffManager } from './staff/StaffManager';
+import { PenaltiesManager } from './penalties/PenaltiesManager';
 import { useAppSelector } from '@/lib/hooks';
 import { DashboardLayout } from './DashboardLayout';
 import {
@@ -153,7 +154,7 @@ export function AdminDashboard() {
             case 'reports':
                 return <PlaceholderScreen icon={BarChart3} title="Business Analytics" description="Generate detailed reports on revenue, operational efficiency, and customer satisfaction metrics." />;
             case 'payroll':
-                return <PlaceholderScreen icon={ShieldAlert} title="Penalties & Finance" description="Automated payroll processing, penalty management, and financial disbursement tracking." />;
+                return <PenaltiesManager />;
             case 'trips':
                 return <PlaceholderScreen icon={Map} title="Trip Logistics" description="Optimize delivery routes, monitor live trips, and manage dispatch operations in real-time." />;
             case 'complaints':

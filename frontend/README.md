@@ -2,6 +2,8 @@
 
 This is the official administrative web dashboard for the **DRybros** platform, built with **Next.js**, **TypeScript**, and **Tailwind CSS**.
 
+For the complete project overview and other modules, see the [Main Project README](../README.md).
+
 ## 🚀 Features
 
 - **Authentication System**: Complete staff portal with Login, Register, Forgot Password, and Reset Password flows.

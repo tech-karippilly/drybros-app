@@ -51,6 +51,22 @@ npx expo start
 | Express | Tailwind CSS | TypeScript |
 | JWT | Redux Toolkit | - |
 
+## 📦 Features (Franchise Management)
+
+The administrative dashboard now includes a comprehensive [Franchise Management](./frontend/components/dashboard/franchise) module:
+
+- **Centralized Dashboard**: View all franchise locations with key performance metrics.
+- **Advanced Inventory Control**:
+  - Multi-criteria search (Name, Code, Location).
+  - Dynamic filtering (Status, Staff density, Area).
+  - Responsive pagination for large datasets.
+- **Detailed Operations View**:
+  - Image branding and franchise descriptions.
+  - Live Staff and Driver fleet management.
+  - Performance summaries and operational compliance.
+- **Partner Onboarding**: Seamless form-based enrollment for new locations.
+- **Security Actions**: Block, Delete, or Edit franchise profiles in real-time.
+
 ## ⚖️ License
 
 [MIT](LICENSE)

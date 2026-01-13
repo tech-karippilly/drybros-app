@@ -7,6 +7,11 @@ export interface User {
     franchise_id?: string;
 }
 
+export interface Franchise {
+    _id: string;
+    name: string;
+}
+
 export interface AuthState {
     user: User | null;
     accessToken: string | null;
@@ -14,4 +19,7 @@ export interface AuthState {
     isAuthenticated: boolean;
     isLogin: boolean;
     isLoading: boolean;
+    activeTab: string;
+    franchiseList: Franchise[];
+    selectedFranchise: Franchise | null;
 }

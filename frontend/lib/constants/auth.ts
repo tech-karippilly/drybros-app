@@ -15,7 +15,7 @@ export const ADMIN_DUMMY_USER = {
     _id: "user_123",
     name: "Admin User",
     email: "admin@drybros.com",
-    role: "admin",
+    role: "staff",
     franchise_name: "Main Branch",
     franchise_id: "fran_001"
 } as const;
@@ -26,3 +26,9 @@ export const PASSWORD_VALIDATION_MESSAGES = {
     NUMBER: "Password must contain at least one number.",
     SPECIAL: "Password must contain at least one special character.",
 } as const;
+export const DUMMY_FRANCHISES = [
+    { _id: 'fran_001', name: 'Main Headquarters' },
+    { _id: 'fran_002', name: 'Downtown Branch' },
+    { _id: 'fran_003', name: 'Westside Laundry' },
+    { _id: 'fran_004', name: 'East End Hub' },
+];

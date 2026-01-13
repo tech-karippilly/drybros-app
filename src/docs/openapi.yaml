@@ -1,0 +1,448 @@
+openapi: 3.0.0
+info:
+  title: Drybros Backend API
+  version: 0.0.1
+  description: API documentation for Drybros backend
+
+servers:
+  - url: http://localhost:3000
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: API health status
+
+  /version:
+    get:
+      summary: Version info
+      responses:
+        "200":
+          description: App version info
+
+  /franchises:
+    get:
+      summary: List all franchises
+      responses:
+        "200":
+          description: List of franchises
+
+  /franchises/{id}:
+    get:
+      summary: Get franchise by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Franchise data
+        "404":
+          description: Franchise not found
+
+  /customers:
+    post:
+      summary: Create a customer
+      tags:
+        - Customers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomerRequest"
+      responses:
+        "201":
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+
+  /trips:
+    post:
+      summary: Create a trip
+      tags:
+        - Trips
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTripRequest"
+      responses:
+        "201":
+          description: Trip created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripResponse"
+
+  /trips/{id}/driver-accept:
+    patch:
+      summary: Driver accepts a trip
+      tags:
+        - Trips
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                driverId:
+                  type: integer
+              required:
+                - driverId
+      responses:
+        "200":
+          description: Trip accepted by driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripResponse"
+
+  /trips/{id}/driver-reject:
+    patch:
+      summary: Driver rejects a trip
+      tags:
+        - Trips
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                driverId:
+                  type: integer
+              required:
+                - driverId
+      responses:
+        "200":
+          description: Trip rejected by driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripResponse"
+
+  /trips/{id}/generate-start-otp:
+    post:
+      summary: Generate start OTP for a trip
+      tags:
+        - Trips
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                driverId:
+                  type: integer
+              required:
+                - driverId
+      responses:
+        "200":
+          description: Start OTP generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartOtpResponse"
+
+  /trips/{id}/start:
+    patch:
+      summary: Start trip with OTP
+      tags:
+        - Trips
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartTripRequest"
+      responses:
+        "200":
+          description: Trip started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripResponse"
+
+  /trips/{id}/generate-end-otp:
+    post:
+      summary: Generate end OTP for a trip
+      tags:
+        - Trips
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                driverId:
+                  type: integer
+              required:
+                - driverId
+      responses:
+        "200":
+          description: End OTP generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EndOtpResponse"
+
+  /trips/{id}/end:
+    patch:
+      summary: End trip with OTP and payment
+      tags:
+        - Trips
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EndTripRequest"
+      responses:
+        "200":
+          description: Trip completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripResponse"
+components:
+  schemas:
+    CreateCustomerRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        city:
+          type: string
+        notes:
+          type: string
+        franchiseId:
+          type: integer
+      required:
+        - fullName
+        - phone
+        - franchiseId
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+        fullName:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        city:
+          type: string
+        notes:
+          type: string
+        franchiseId:
+          type: integer
+
+    CustomerResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Customer"
+
+    CreateTripRequest:
+      type: object
+      properties:
+        franchiseId:
+          type: integer
+        driverId:
+          type: integer
+        customerId:
+          type: integer
+        tripType:
+          type: string
+          enum: [CITY_ROUND, CITY_DROPOFF, LONG_ROUND, LONG_DROPOFF]
+        pickupLocation:
+          type: string
+        dropLocation:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        baseAmount:
+          type: number
+        extraAmount:
+          type: number
+      required:
+        - franchiseId
+        - driverId
+        - customerId
+        - tripType
+        - pickupLocation
+        - baseAmount
+
+    Trip:
+      type: object
+      properties:
+        id:
+          type: integer
+        franchiseId:
+          type: integer
+        driverId:
+          type: integer
+          nullable: true
+        customerId:
+          type: integer
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        tripType:
+          type: string
+        status:
+          type: string
+        pickupLocation:
+          type: string
+        dropLocation:
+          type: string
+          nullable: true
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        endedAt:
+          type: string
+          format: date-time
+          nullable: true
+        baseAmount:
+          type: number
+        extraAmount:
+          type: number
+        totalAmount:
+          type: number
+        finalAmount:
+          type: number
+        paymentStatus:
+          type: string
+        paymentMode:
+          type: string
+          nullable: true
+        paymentReference:
+          type: string
+          nullable: true
+
+    TripResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Trip"
+
+    StartOtpResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            tripId:
+              type: integer
+            otp:
+              type: string
+
+    EndOtpResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            tripId:
+              type: integer
+            otp:
+              type: string
+
+    StartTripRequest:
+      type: object
+      properties:
+        driverId:
+          type: integer
+        otp:
+          type: string
+      required:
+        - driverId
+        - otp
+
+    EndTripRequest:
+      type: object
+      properties:
+        driverId:
+          type: integer
+        otp:
+          type: string
+        finalAmount:
+          type: number
+        paymentStatus:
+          type: string
+          enum: [PENDING, PAID, PARTIALLY_PAID]
+        paymentMode:
+          type: string
+          enum: [CASH, UPI, CARD, OTHER]
+        paymentReference:
+          type: string
+        overrideReason:
+          type: string
+      required:
+        - driverId
+        - otp
+        - finalAmount
+        - paymentStatus
+        - paymentMode

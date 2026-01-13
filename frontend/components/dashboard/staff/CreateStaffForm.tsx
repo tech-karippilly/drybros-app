@@ -19,6 +19,7 @@ import {
     AlertCircle
 } from 'lucide-react';
 import { Staff } from '@/lib/types/staff';
+import { generateStaffPassword } from '@/lib/utils/staff-utils';
 
 interface CreateStaffFormProps {
     onClose: () => void;
@@ -32,27 +33,11 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
     const [formData, setFormData] = useState<Partial<Staff>>(() => {
         if (editingStaff) return editingStaff;
 
-        const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        const special = "@#$%&*!";
-        const numbers = "0123456789";
-        const all = "abcdefghijklmnopqrstuvwxyz" + upper + special + numbers;
-
-        let password = "";
-        password += upper[Math.floor(Math.random() * upper.length)];
-        password += special[Math.floor(Math.random() * special.length)];
-        password += numbers[Math.floor(Math.random() * numbers.length)];
-
-        for (let i = 0; i < 5; i++) {
-            password += all[Math.floor(Math.random() * all.length)];
-        }
-
-        password = password.split('').sort(() => Math.random() - 0.5).join('');
-
         return {
             name: '',
             email: '',
             phone: '',
-            password,
+            password: generateStaffPassword(),
             franchiseId: '',
             salary: 0,
             address: '',
@@ -63,24 +48,8 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
         };
     });
 
-    const generatePassword = React.useCallback(() => {
-        const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        const special = "@#$%&*!";
-        const numbers = "0123456789";
-        const all = "abcdefghijklmnopqrstuvwxyz" + upper + special + numbers;
-
-        let password = "";
-        password += upper[Math.floor(Math.random() * upper.length)];
-        password += special[Math.floor(Math.random() * special.length)];
-        password += numbers[Math.floor(Math.random() * numbers.length)];
-
-        for (let i = 0; i < 5; i++) {
-            password += all[Math.floor(Math.random() * all.length)];
-        }
-
-        password = password.split('').sort(() => Math.random() - 0.5).join('');
-
-        setFormData(prev => ({ ...prev, password }));
+    const handleGeneratePassword = React.useCallback(() => {
+        setFormData(prev => ({ ...prev, password: generateStaffPassword() }));
     }, []);
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -209,7 +178,7 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                                     />
                                     <button
                                         type="button"
-                                        onClick={generatePassword}
+                                        onClick={handleGeneratePassword}
                                         className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-[#0d59f2] hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
                                     >
                                         <RotateCcw size={18} />

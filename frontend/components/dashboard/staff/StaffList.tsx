@@ -27,6 +27,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Staff } from '@/lib/types/staff';
 import { FireModal, SuspendModal } from './ActionModals';
+import { StatusBadge } from './StatusBadge';
 
 interface StaffListProps {
     onCreateClick: () => void;
@@ -78,20 +79,6 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
         }));
     };
 
-    const getStatusStyles = (status: Staff['status']) => {
-        switch (status) {
-            case 'active':
-                return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-500";
-            case 'block':
-                return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-500";
-            case 'fired':
-                return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400";
-            case 'suspended':
-                return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-500";
-            default:
-                return "bg-gray-100 text-gray-700";
-        }
-    };
 
     return (
         <div className="flex flex-col gap-6 animate-in fade-in duration-500">
@@ -249,12 +236,7 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className={cn(
-                                            "inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider",
-                                            getStatusStyles(staff.status)
-                                        )}>
-                                            {staff.status}
-                                        </span>
+                                        <StatusBadge status={staff.status} duration={staff.suspensionDuration} />
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FireModal, SuspendModal } from './ActionModals';
+import { StatusBadge } from './StatusBadge';
 
 export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
     const dispatch = useAppDispatch();
@@ -51,15 +52,11 @@ export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
                     <span className="font-bold">Back to Directory</span>
                 </button>
                 <div className="flex items-center gap-3">
-                    <span className={cn(
-                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                        selectedStaff.status === 'active' ? "bg-green-100 text-green-700" :
-                            selectedStaff.status === 'suspended' ? "bg-amber-100 text-amber-700" :
-                                "bg-red-100 text-red-700"
-                    )}>
-                        {selectedStaff.status}
-                        {selectedStaff.suspensionDuration && ` (${selectedStaff.suspensionDuration})`}
-                    </span>
+                    <StatusBadge
+                        status={selectedStaff.status}
+                        duration={selectedStaff.suspensionDuration}
+                        className="px-3 py-1"
+                    />
                     <button
                         onClick={onEditClick}
                         className="p-2.5 bg-[#0d59f2] text-white rounded-xl hover:bg-[#0d59f2]/90 transition-all shadow-lg shadow-blue-500/20 active:scale-95"

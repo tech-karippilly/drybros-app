@@ -1,10 +1,12 @@
 import { configureStore } from '@reduxjs/toolkit';
 import authReducer from './features/auth/authSlice';
+import franchiseReducer from './features/franchise/franchiseSlice';
 
 export const makeStore = () => {
     return configureStore({
         reducer: {
             auth: authReducer,
+            franchise: franchiseReducer,
         },
     });
 };

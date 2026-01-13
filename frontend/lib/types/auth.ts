@@ -1,3 +1,5 @@
+import { Franchise } from './franchise';
+
 export interface User {
     _id: string;
     email: string;
@@ -5,11 +7,6 @@ export interface User {
     role: string;
     franchise_name?: string;
     franchise_id?: string;
-}
-
-export interface Franchise {
-    _id: string;
-    name: string;
 }
 
 export interface AuthState {

@@ -4,12 +4,12 @@ import React from 'react';
 import { KpiStatsGrid } from './KpiStats';
 import { RecentActivities } from './RecentActivities';
 import { PlaceholderScreen } from './PlaceholderScreen';
+import { FranchiseManager } from './franchise/FranchiseManager';
 import { useAppSelector } from '@/lib/hooks';
 import { DashboardLayout } from './DashboardLayout';
 import {
     Wallet,
     ArrowRight,
-    Store,
     Users,
     Truck,
     BarChart3,
@@ -145,7 +145,7 @@ export function AdminDashboard() {
                     </div>
                 );
             case 'franchises':
-                return <PlaceholderScreen icon={Store} title="Franchise Directory" description="Manage and monitor all your franchise locations, performance metrics, and compliance status from one central hub." />;
+                return <FranchiseManager />;
             case 'staff':
                 return <PlaceholderScreen icon={Users} title="Staff Management" description="Oversee your workforce, assign roles, and track performance across all departments and locations." />;
             case 'drivers':

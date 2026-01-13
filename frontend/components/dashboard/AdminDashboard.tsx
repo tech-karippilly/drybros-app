@@ -5,12 +5,12 @@ import { KpiStatsGrid } from './KpiStats';
 import { RecentActivities } from './RecentActivities';
 import { PlaceholderScreen } from './PlaceholderScreen';
 import { FranchiseManager } from './franchise/FranchiseManager';
+import { StaffManager } from './staff/StaffManager';
 import { useAppSelector } from '@/lib/hooks';
 import { DashboardLayout } from './DashboardLayout';
 import {
     Wallet,
     ArrowRight,
-    Users,
     Truck,
     BarChart3,
     Map,
@@ -147,7 +147,7 @@ export function AdminDashboard() {
             case 'franchises':
                 return <FranchiseManager />;
             case 'staff':
-                return <PlaceholderScreen icon={Users} title="Staff Management" description="Oversee your workforce, assign roles, and track performance across all departments and locations." />;
+                return <StaffManager />;
             case 'drivers':
                 return <PlaceholderScreen icon={Truck} title="Fleet & Drivers" description="Real-time monitoring of your delivery fleet, driver assignments, and vehicle maintenance schedules." />;
             case 'reports':

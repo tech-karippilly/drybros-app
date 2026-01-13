@@ -11,13 +11,19 @@ import customerRoutes from "./routes/customer.routes";
 import tripRoutes from "./routes/trip.routes";
 import authRoutes from "./routes/auth.routes";
 
-const app = express();
-app.use(express.json());
+import cors from "cors";
+import path from "path";
+import swaggerUi from "swagger-ui-express";
+import YAML from "yamljs";
+import config from "./config/appConfig";
 
-const config = require("./config/appConfig");
-const path = require("path");
-const swaggerUi = require("swagger-ui-express");
-const YAML = require("yamljs");
+const app = express();
+
+// Middlewares
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 const port = config.port;
 
 // Load Swagger spec
@@ -42,6 +48,14 @@ app.get("/", (req, res) => {
 
 // Error handler
 app.use(errorHandler);
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    status: "error",
+    message: "Endpoint not found",
+  });
+});
 
 app.listen(port, () => {
   console.log(`\n\n\nDrybros backend running at http://localhost:${port}`);

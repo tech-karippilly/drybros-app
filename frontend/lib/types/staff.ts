@@ -18,6 +18,7 @@ export interface Staff {
     customersAttended: number;
     leaveTaken: number;
     attendanceStatus: 'present' | 'absent' | 'on-leave';
+    suspensionDuration?: string;
 }
 
 export interface StaffState {

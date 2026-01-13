@@ -84,6 +84,16 @@ const staffSlice = createSlice({
             const index = state.list.findIndex(s => s._id === action.payload.id);
             if (index !== -1) {
                 state.list[index].status = action.payload.status;
+                if (action.payload.status !== 'suspended') {
+                    state.list[index].suspensionDuration = undefined;
+                }
+            }
+        },
+        suspendStaff: (state, action: PayloadAction<{ id: string; duration: string }>) => {
+            const index = state.list.findIndex(s => s._id === action.payload.id);
+            if (index !== -1) {
+                state.list[index].status = 'suspended';
+                state.list[index].suspensionDuration = action.payload.duration;
             }
         },
         setStaffFilters: (state, action: PayloadAction<Partial<StaffState['filters']>>) => {
@@ -103,6 +113,7 @@ export const {
     updateStaff,
     deleteStaff,
     setStaffStatus,
+    suspendStaff,
     setStaffFilters,
     setStaffPage
 } = staffSlice.actions;

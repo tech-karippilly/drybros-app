@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '@/lib/hooks';
-import { setSelectedStaff } from '@/lib/features/staff/staffSlice';
+import { setSelectedStaff, setStaffStatus, suspendStaff } from '@/lib/features/staff/staffSlice';
 import {
     ArrowLeft,
     Mail,
@@ -15,7 +15,10 @@ import {
     Shield,
     Heart,
     FileCheck,
-    Edit2
+    Edit2,
+    Flame,
+    Ban,
+    AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -45,9 +48,12 @@ export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
                 <div className="flex items-center gap-3">
                     <span className={cn(
                         "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                        selectedStaff.status === 'active' ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                        selectedStaff.status === 'active' ? "bg-green-100 text-green-700" :
+                            selectedStaff.status === 'suspended' ? "bg-amber-100 text-amber-700" :
+                                "bg-red-100 text-red-700"
                     )}>
                         {selectedStaff.status}
+                        {selectedStaff.suspensionDuration && ` (${selectedStaff.suspensionDuration})`}
                     </span>
                     <button
                         onClick={onEditClick}
@@ -158,6 +164,51 @@ export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
                                 ))}
                                 {selectedStaff.documentsCollected.length === 0 && (
                                     <p className="text-sm text-[#49659c] italic">No documents verified yet.</p>
+                                )}
+                            </div>
+                        </div>
+                        {/* Actions Panel */}
+                        <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <div className="flex items-center gap-3 mb-6">
+                                <AlertTriangle className="text-amber-500" size={20} />
+                                <h4 className="font-black text-[#0d121c] dark:text-white uppercase tracking-widest text-xs">Administrative Actions</h4>
+                            </div>
+                            <div className="flex flex-wrap gap-4">
+                                {selectedStaff.status !== 'suspended' && (
+                                    <button
+                                        onClick={() => {
+                                            const months = prompt("Enter suspension duration (e.g., 3 months):", "1 month");
+                                            if (months) {
+                                                dispatch(suspendStaff({ id: selectedStaff._id, duration: months }));
+                                            }
+                                        }}
+                                        className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-500 rounded-2xl font-bold hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-all border border-amber-200 dark:border-amber-800"
+                                    >
+                                        <Ban size={18} />
+                                        <span>Suspend Staff</span>
+                                    </button>
+                                )}
+                                {selectedStaff.status !== 'fired' && (
+                                    <button
+                                        onClick={() => {
+                                            if (confirm(`Are you sure you want to FIRE ${selectedStaff.name}? This action is irreversible.`)) {
+                                                dispatch(setStaffStatus({ id: selectedStaff._id, status: 'fired' }));
+                                            }
+                                        }}
+                                        className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-500 rounded-2xl font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-all border border-red-200 dark:border-red-800"
+                                    >
+                                        <Flame size={18} />
+                                        <span>Fire Employee</span>
+                                    </button>
+                                )}
+                                {(selectedStaff.status === 'suspended' || selectedStaff.status === 'fired' || selectedStaff.status === 'block') && (
+                                    <button
+                                        onClick={() => dispatch(setStaffStatus({ id: selectedStaff._id, status: 'active' }))}
+                                        className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#0d59f2]/10 text-[#0d59f2] rounded-2xl font-bold hover:bg-[#0d59f2]/20 transition-all border border-[#0d59f2]/20"
+                                    >
+                                        <FileCheck size={18} />
+                                        <span>Reactivate Profile</span>
+                                    </button>
                                 )}
                             </div>
                         </div>

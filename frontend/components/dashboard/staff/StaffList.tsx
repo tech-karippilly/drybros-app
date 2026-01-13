@@ -5,7 +5,9 @@ import { useAppSelector, useAppDispatch } from '@/lib/hooks';
 import {
     setSelectedStaff,
     setStaffFilters,
-    setStaffPage
+    setStaffPage,
+    setStaffStatus,
+    suspendStaff
 } from '@/lib/features/staff/staffSlice';
 import {
     Plus,
@@ -18,7 +20,9 @@ import {
     Phone,
     User,
     AlertCircle,
-    Edit2
+    Edit2,
+    Flame,
+    Ban
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Staff } from '@/lib/types/staff';
@@ -262,6 +266,29 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
                                             >
                                                 <Edit2 size={18} />
                                             </button>
+                                            {staff.status !== 'suspended' && (
+                                                <button
+                                                    onClick={() => {
+                                                        const months = prompt(`Suspend ${staff.name} for how long?`, "1 month");
+                                                        if (months) dispatch(suspendStaff({ id: staff._id, duration: months }));
+                                                    }}
+                                                    className="p-2 text-[#49659c] hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all"
+                                                    title="Suspend"
+                                                >
+                                                    <Ban size={18} />
+                                                </button>
+                                            )}
+                                            {staff.status !== 'fired' && (
+                                                <button
+                                                    onClick={() => {
+                                                        if (confirm(`FIRE ${staff.name}?`)) dispatch(setStaffStatus({ id: staff._id, status: 'fired' }));
+                                                    }}
+                                                    className="p-2 text-[#49659c] hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                                    title="Fire"
+                                                >
+                                                    <Flame size={18} />
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

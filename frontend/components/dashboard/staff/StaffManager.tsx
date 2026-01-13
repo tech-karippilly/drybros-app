@@ -1,33 +1,45 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppSelector } from '@/lib/hooks';
 import { StaffList } from './StaffList';
+import { StaffDetails } from './StaffDetails';
+import { CreateStaffForm } from './CreateStaffForm';
+import { Staff } from '@/lib/types/staff';
 
 export function StaffManager() {
     const { selectedStaff } = useAppSelector((state) => state.staff);
+    const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
 
-    // Later we can add StaffDetails view here
-    if (selectedStaff) {
-        return (
-            <div className="flex flex-col gap-4">
-                <button
-                    onClick={() => window.location.reload()} // Temporary way to go back until it's connected
-                    className="text-sm text-[#0d59f2] font-bold"
-                >
-                    &larr; Back to List
-                </button>
-                <div className="p-8 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800">
-                    <h2 className="text-2xl font-bold dark:text-white">{selectedStaff.name}</h2>
-                    <p className="text-[#49659c]">Detailed view coming soon...</p>
-                </div>
-            </div>
-        );
+    const handleEdit = (staff: Staff) => {
+        setEditingStaff(staff);
+        setIsCreateOpen(true);
+    };
+
+    const handleClose = () => {
+        setIsCreateOpen(false);
+        setEditingStaff(null);
+    };
+
+    // If a staff is selected, show details view
+    if (selectedStaff && !isCreateOpen) {
+        return <StaffDetails onEditClick={() => handleEdit(selectedStaff)} />;
     }
 
     return (
         <div className="relative">
-            <StaffList />
+            <StaffList
+                onCreateClick={() => setIsCreateOpen(true)}
+                onEditClick={handleEdit}
+            />
+
+            {isCreateOpen && (
+                <CreateStaffForm
+                    onClose={handleClose}
+                    editingStaff={editingStaff}
+                />
+            )}
         </div>
     );
 }

@@ -8,22 +8,27 @@ import {
     setStaffPage
 } from '@/lib/features/staff/staffSlice';
 import {
+    Plus,
     Search,
     Filter as FilterIcon,
     ChevronLeft,
     ChevronRight,
     X,
-    MoreVertical,
     Mail,
     Phone,
-    DollarSign,
     User,
-    AlertCircle
+    AlertCircle,
+    Edit2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Staff } from '@/lib/types/staff';
 
-export function StaffList() {
+interface StaffListProps {
+    onCreateClick: () => void;
+    onEditClick: (staff: Staff) => void;
+}
+
+export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
     const { list, filters, pagination } = useAppSelector((state) => state.staff);
     const dispatch = useAppDispatch();
     const [showFilters, setShowFilters] = useState(false);
@@ -82,9 +87,18 @@ export function StaffList() {
     return (
         <div className="flex flex-col gap-6 animate-in fade-in duration-500">
             {/* Header */}
-            <div>
-                <h2 className="text-2xl font-bold text-[#0d121c] dark:text-white">Staff Directory</h2>
-                <p className="text-[#49659c] dark:text-gray-400">Manage your workforce, track salaries, and monitor employment status.</p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl font-bold text-[#0d121c] dark:text-white">Staff Directory</h2>
+                    <p className="text-[#49659c] dark:text-gray-400">Manage your workforce, track salaries, and monitor employment status.</p>
+                </div>
+                <button
+                    onClick={onCreateClick}
+                    className="flex items-center justify-center gap-2 px-4 py-2 bg-[#0d59f2] text-white rounded-lg font-bold hover:bg-[#0d59f2]/90 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                >
+                    <Plus size={18} />
+                    <span>Create Staff</span>
+                </button>
             </div>
 
             {/* Controls */}
@@ -221,7 +235,7 @@ export function StaffList() {
                                     </td>
                                     <td className="px-6 py-4 text-sm font-bold text-[#0d121c] dark:text-white">
                                         <div className="flex items-center gap-1">
-                                            <DollarSign size={14} className="text-green-600" />
+                                            <span className="text-green-600 font-bold">₹</span>
                                             <span>{staff.salary.toLocaleString()}</span>
                                         </div>
                                     </td>
@@ -241,8 +255,12 @@ export function StaffList() {
                                             >
                                                 <User size={18} />
                                             </button>
-                                            <button className="p-2 text-[#49659c] hover:text-gray-900 dark:hover:text-white rounded-lg transition-all">
-                                                <MoreVertical size={18} />
+                                            <button
+                                                onClick={() => onEditClick(staff)}
+                                                className="p-2 text-[#49659c] hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-all"
+                                                title="Edit"
+                                            >
+                                                <Edit2 size={18} />
                                             </button>
                                         </div>
                                     </td>

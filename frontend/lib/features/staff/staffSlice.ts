@@ -7,28 +7,35 @@ const initialState: StaffState = {
             _id: 'st_001',
             name: 'Alice Smith',
             email: 'alice@drybros.com',
-            phone: '+1 234 567 8910',
+            phone: '9876543210',
+            franchiseId: 'fran_001',
             franchises_code: 'DB-MAIN-001',
             salary: 45000,
-            status: 'active'
+            address: '789 Oak Lane, Downtown',
+            emergencyContact: '9000000001',
+            relationship: 'Spouse',
+            documentsCollected: ['Identity', 'Degree'],
+            status: 'active',
+            customersAttended: 124,
+            leaveTaken: 2,
+            attendanceStatus: 'present'
         },
         {
             _id: 'st_002',
             name: 'Bob Wilson',
             email: 'bob@drybros.com',
-            phone: '+1 234 567 8911',
+            phone: '9876543211',
+            franchiseId: 'fran_001',
             franchises_code: 'DB-MAIN-001',
             salary: 38000,
-            status: 'active'
-        },
-        {
-            _id: 'st_003',
-            name: 'David Lee',
-            email: 'david@greenwash.com',
-            phone: '+1 234 567 8912',
-            franchises_code: 'DB-WEST-002',
-            salary: 40000,
-            status: 'suspended'
+            address: '456 Pine St, Downtown',
+            emergencyContact: '9000000002',
+            relationship: 'Brother',
+            documentsCollected: ['Identity'],
+            status: 'active',
+            customersAttended: 88,
+            leaveTaken: 5,
+            attendanceStatus: 'on-leave'
         }
     ],
     selectedStaff: null,
@@ -44,7 +51,7 @@ const initialState: StaffState = {
     pagination: {
         currentPage: 1,
         itemsPerPage: 10,
-        totalItems: 3
+        totalItems: 2
     }
 };
 

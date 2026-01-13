@@ -3,9 +3,21 @@ export interface Staff {
     name: string;
     email: string;
     phone: string;
+    password?: string;
+    profilePic?: string;
+    franchiseId: string;
     franchises_code: string;
     salary: number;
+    address: string;
+    emergencyContact: string;
+    relationship: string;
+    documentsCollected: string[]; // e.g., ["Identity", "Certificate"]
     status: 'active' | 'fired' | 'block' | 'suspended';
+
+    // Performance/Stats
+    customersAttended: number;
+    leaveTaken: number;
+    attendanceStatus: 'present' | 'absent' | 'on-leave';
 }
 
 export interface StaffState {
@@ -15,7 +27,7 @@ export interface StaffState {
     error: string | null;
     filters: {
         name: string;
-        salary: string; // Range or exact? User said "salary" filter, usually implies range or comparison
+        salary: string;
         status: string;
         email: string;
         phone: string;

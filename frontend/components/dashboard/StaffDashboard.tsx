@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { PlaceholderScreen } from './PlaceholderScreen';
+import { PenaltiesManager } from './penalties/PenaltiesManager';
 import { useAppSelector } from '@/lib/hooks';
 import { DashboardLayout } from './DashboardLayout';
 import {
@@ -72,7 +73,7 @@ export function StaffDashboard() {
             case 'reports':
                 return <PlaceholderScreen icon={BarChart3} title="Staff Reports" description="Generate performance reports and operational logs for your shifts." />;
             case 'payroll':
-                return <PlaceholderScreen icon={ShieldAlert} title="Penalties Inquiry" description="Access payroll status, deductions, and financial records." />;
+                return <PenaltiesManager />;
             case 'trips':
                 return <PlaceholderScreen icon={Map} title="Trip Monitoring" description="Assist with trip tracking and logistics coordination." />;
             case 'complaints':

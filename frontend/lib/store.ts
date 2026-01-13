@@ -2,6 +2,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import authReducer from './features/auth/authSlice';
 import franchiseReducer from './features/franchise/franchiseSlice';
 import staffReducer from './features/staff/staffSlice';
+import penaltiesReducer from './features/penalties/penaltiesSlice';
 
 export const makeStore = () => {
     return configureStore({
@@ -9,6 +10,7 @@ export const makeStore = () => {
             auth: authReducer,
             franchise: franchiseReducer,
             staff: staffReducer,
+            penalties: penaltiesReducer,
         },
     });
 };

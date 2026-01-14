@@ -178,7 +178,7 @@ export const updateDriver = createAsyncThunk(
             // Let's change the reducer to handle partial updates coming back from this action, 
             // OR simpler: just return the payload as is and cast it, letting the reducer merge.
             
-            return { _id: id, ...data }; 
+            return data; 
         } catch (error: any) {
              return rejectWithValue(DRIVERS_STRINGS.UPDATE_ERROR);
         }

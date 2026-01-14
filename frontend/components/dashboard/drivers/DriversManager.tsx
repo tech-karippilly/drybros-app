@@ -16,6 +16,7 @@ export function DriversManager() {
         
     const handleEditClick = (driver: GetDriver) => {
         setSelectedDriver(driver);
+        setIsDetailsOpen(false);
         setIsFormOpen(true);
     };
 
@@ -23,6 +24,30 @@ export function DriversManager() {
         setSelectedDriver(driver);
         setIsDetailsOpen(true);
     };
+
+    const handleBackToList = () => {
+        setIsDetailsOpen(false);
+        setSelectedDriver(null);
+    };
+
+    // If viewing driver details, show full-page details view
+    if (isDetailsOpen && selectedDriver) {
+        return (
+            <>
+                <DriverDetails
+                    driver={selectedDriver}
+                    onBack={handleBackToList}
+                    onEdit={() => handleEditClick(selectedDriver)}
+                />
+                
+                <DriverForm
+                    isOpen={isFormOpen}
+                    driver={selectedDriver}
+                    onClose={() => setIsFormOpen(false)}
+                />
+            </>
+        );
+    }
 
     return (
         <>
@@ -36,12 +61,6 @@ export function DriversManager() {
                 isOpen={isFormOpen}
                 driver={selectedDriver}
                 onClose={() => setIsFormOpen(false)}
-            />
-
-            <DriverDetails
-                isOpen={isDetailsOpen}
-                driver={selectedDriver}
-                onClose={() => setIsDetailsOpen(false)}
             />
         </>
     );

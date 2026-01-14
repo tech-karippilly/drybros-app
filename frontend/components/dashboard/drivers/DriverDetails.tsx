@@ -1,21 +1,37 @@
 "use client";
 
 import React from 'react';
-import { 
-    X, Phone, Mail, MapPin, Calendar, CreditCard, 
-    FileText, Briefcase, Star, TrendingUp, Clock, User
+import {
+    ArrowLeft,
+    Phone,
+    Mail,
+    MapPin,
+    Calendar,
+    CreditCard,
+    FileText,
+    Briefcase,
+    Star,
+    TrendingUp,
+    Clock,
+    Edit2,
+    FileCheck,
+    Heart,
+    Shield,
+    AlertTriangle,
+    Ban,
+    User
 } from 'lucide-react';
 import { GetDriver, DriverStatus } from '@/lib/types/drivers';
 import { cn } from '@/lib/utils';
 
 interface DriverDetailsProps {
-    isOpen: boolean;
-    onClose: () => void;
     driver: GetDriver | null;
+    onBack: () => void;
+    onEdit: () => void;
 }
 
-export function DriverDetails({ isOpen, onClose, driver }: DriverDetailsProps) {
-    if (!isOpen || !driver) return null;
+export function DriverDetails({ driver, onBack, onEdit }: DriverDetailsProps) {
+    if (!driver) return null;
 
     const StatusBadge = ({ status }: { status: DriverStatus }) => {
         const styles = {
@@ -25,133 +41,271 @@ export function DriverDetails({ isOpen, onClose, driver }: DriverDetailsProps) {
             [DriverStatus.TERMINATED]: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
         };
         return (
-            <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider", styles[status] || styles[DriverStatus.INACTIVE])}>
-                {status}
+            <span className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider", styles[status] || styles[DriverStatus.INACTIVE])}>
+                {status === DriverStatus.ACTIVE ? 'Active' : status === DriverStatus.INACTIVE ? 'Inactive' : status === DriverStatus.BLOCKED ? 'Blocked' : 'Terminated'}
             </span>
         );
     };
 
-    const InfoCard = ({ icon: Icon, label, value, subValue }: any) => (
-        <div className="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800">
-            <div className="p-2 bg-white dark:bg-gray-800 rounded-lg text-[#0d59f2] shadow-sm">
-                <Icon size={18} />
-            </div>
-            <div>
-                <p className="text-xs text-[#49659c] font-black uppercase tracking-wider mb-0.5">{label}</p>
-                <p className="font-bold text-[#0d121c] dark:text-gray-100">{value || 'N/A'}</p>
-                {subValue && <p className="text-xs text-[#49659c] mt-0.5">{subValue}</p>}
-            </div>
-        </div>
-    );
+    const stats = [
+        { label: 'Total Trips', value: driver.trips.length, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' },
+        { label: 'Current Rating', value: driver.currentRating.toFixed(1), icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' },
+        { label: 'Daily Target', value: `₹${driver.dailyTargetAmount}`, icon: Clock, color: 'text-green-600', bg: 'bg-green-50' },
+    ];
 
     return (
-        <div className="fixed inset-0 bg-[#0d121c]/40 backdrop-blur-sm z-[100] flex justify-end">
-            <div className="w-full max-w-md bg-white dark:bg-[#101622] h-full shadow-2xl overflow-hidden animate-in slide-in-from-right duration-300 flex flex-col">
-                <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-gray-800 z-10 sticky top-0">
-                    <h3 className="font-bold text-lg dark:text-white">Driver Profile</h3>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors text-[#49659c]">
-                        <X size={20} />
+        <div className="flex flex-col gap-8 animate-in slide-in-from-right duration-500">
+            {/* Top Navigation */}
+            <div className="flex items-center justify-between">
+                <button
+                    onClick={onBack}
+                    className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-[#49659c] hover:text-[#0d121c] dark:hover:text-white transition-all shadow-sm group"
+                >
+                    <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
+                    <span className="font-bold">Back to Directory</span>
+                </button>
+                <div className="flex items-center gap-3">
+                    <StatusBadge status={driver.status} />
+                    <button
+                        onClick={onEdit}
+                        className="p-2.5 bg-[#0d59f2] text-white rounded-xl hover:bg-[#0d59f2]/90 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                    >
+                        <Edit2 size={18} />
                     </button>
                 </div>
+            </div>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar">
-                    {/* Header */}
-                    <div className="p-6 text-center border-b border-gray-100 dark:border-gray-800 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-[#101622]">
-                        <div className="size-24 rounded-full bg-[#0d59f2] text-white flex items-center justify-center text-3xl font-bold mx-auto mb-4 shadow-lg shadow-blue-500/30">
-                            {driver.profilePhoto ? <img src={driver.profilePhoto} alt="" className="size-full rounded-full object-cover" /> : driver.firstName.charAt(0)}
-                        </div>
-                        <h2 className="text-2xl font-bold text-[#0d121c] dark:text-white">{driver.firstName} {driver.lastName}</h2>
-                        <div className="flex items-center justify-center gap-2 mt-2">
-                             <StatusBadge status={driver.status} />
-                             <span className="text-sm font-medium text-[#49659c]">ID: {driver._id}</span>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Profile Card */}
+                <div className="lg:col-span-1 space-y-8">
+                    <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 p-8 shadow-sm">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="size-32 rounded-3xl bg-[#0d59f2]/10 border-4 border-white dark:border-gray-800 shadow-xl flex items-center justify-center text-[#0d59f2] text-4xl font-black mb-6">
+                                {driver.profilePhoto ? <img src={driver.profilePhoto} alt="" className="size-full rounded-3xl object-cover" /> : driver.firstName.charAt(0)}
+                            </div>
+                            <h3 className="text-2xl font-black text-[#0d121c] dark:text-white">{driver.firstName} {driver.lastName}</h3>
+                            <p className="text-[#49659c] font-bold uppercase tracking-widest text-[10px] mt-1">Driver ID: {driver._id}</p>
+
+                            <div className="w-full mt-8 pt-8 border-t border-gray-50 dark:border-gray-800 space-y-4 text-left">
+                                <div className="flex items-center gap-3">
+                                    <div className="size-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-[#49659c]">
+                                        <Phone size={16} />
+                                    </div>
+                                    <span className="text-sm font-bold text-[#0d121c] dark:text-white truncate">{driver.driverPhone}</span>
+                                </div>
+                                {driver.driverAltPhone && (
+                                    <div className="flex items-center gap-3">
+                                        <div className="size-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-[#49659c]">
+                                            <Phone size={16} />
+                                        </div>
+                                        <span className="text-sm font-bold text-[#0d121c] dark:text-white">{driver.driverAltPhone}</span>
+                                    </div>
+                                )}
+                                <div className="flex items-center gap-3">
+                                    <div className="size-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-[#49659c]">
+                                        <MapPin size={16} />
+                                    </div>
+                                    <span className="text-sm font-bold text-[#0d121c] dark:text-white leading-tight">{driver.address}, {driver.city}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Quick Stats */}
-                    <div className="grid grid-cols-3 gap-0 border-b border-gray-100 dark:border-gray-800">
-                        <div className="p-4 text-center border-r border-gray-100 dark:border-gray-800">
-                            <div className="flex items-center justify-center gap-1.5 text-[#0d59f2] mb-1">
-                                <TrendingUp size={16} />
-                                <span className="font-bold text-lg">0</span>
-                            </div>
-                            <p className="text-[10px] font-black uppercase text-[#49659c] tracking-wider">Trips</p>
+                    {/* Daily Target Glance */}
+                    <div className="bg-[#0d121c] dark:bg-black rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-8 opacity-10 transition-opacity group-hover:opacity-20 translate-x-4 -translate-y-4">
+                            <Briefcase size={120} />
                         </div>
-                        <div className="p-4 text-center border-r border-gray-100 dark:border-gray-800">
-                             <div className="flex items-center justify-center gap-1.5 text-orange-500 mb-1">
-                                <Star size={16} fill="currentColor" />
-                                <span className="font-bold text-lg">0.0</span>
-                            </div>
-                            <p className="text-[10px] font-black uppercase text-[#49659c] tracking-wider">Rating</p>
+                        <h4 className="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Daily Target</h4>
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-3xl font-black italic">₹</span>
+                            <span className="text-4xl font-black">{driver.dailyTargetAmount.toLocaleString()}</span>
                         </div>
-                        <div className="p-4 text-center">
-                             <div className="flex items-center justify-center gap-1.5 text-green-600 mb-1">
-                                <Clock size={16} />
-                                <span className="font-bold text-lg">0h</span>
-                            </div>
-                            <p className="text-[10px] font-black uppercase text-[#49659c] tracking-wider">Online</p>
+                        <p className="text-[#49659c] text-xs font-bold mt-2">Revenue Goal</p>
+                    </div>
+                    {/* Actions Panel */}
+                    <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <div className="flex items-center gap-3 mb-6">
+                            <AlertTriangle className="text-amber-500" size={20} />
+                            <h4 className="font-black text-[#0d121c] dark:text-white uppercase tracking-widest text-xs">Administrative Actions</h4>
+                        </div>
+                        <div className="flex flex-wrap gap-4">
+                            {driver.status !== DriverStatus.BLOCKED && driver.status !== DriverStatus.TERMINATED && (
+                                <button
+                                    onClick={() => {/* TODO: Implement block driver */}}
+                                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-500 rounded-2xl font-bold hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-all border border-amber-200 dark:border-amber-800"
+                                >
+                                    <Ban size={18} />
+                                    <span>Block Driver</span>
+                                </button>
+                            )}
+                            {driver.status !== DriverStatus.TERMINATED && (
+                                <button
+                                    onClick={() => {/* TODO: Implement terminate driver */}}
+                                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-500 rounded-2xl font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-all border border-red-200 dark:border-red-800"
+                                >
+                                    <Ban size={18} />
+                                    <span>Terminate Driver</span>
+                                </button>
+                            )}
+                            {(driver.status === DriverStatus.BLOCKED || driver.status === DriverStatus.INACTIVE || driver.status === DriverStatus.TERMINATED) && (
+                                <button
+                                    onClick={() => {/* TODO: Implement reactivate driver */}}
+                                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#0d59f2]/10 text-[#0d59f2] rounded-2xl font-bold hover:bg-[#0d59f2]/20 transition-all border border-[#0d59f2]/20"
+                                >
+                                    <FileCheck size={18} />
+                                    <span>Reactivate Profile</span>
+                                </button>
+                            )}
                         </div>
                     </div>
+                </div>
 
-                    <div className="p-6 space-y-8">
-                        {/* Contact Info */}
-                        <section className="space-y-4">
-                            <h4 className="text-xs font-black uppercase tracking-widest text-[#49659c] flex items-center gap-2">
-                                <User size={14} /> Contact Information
-                            </h4>
-                            <div className="grid gap-3">
-                                <InfoCard icon={Phone} label="Mobile Number" value={driver.driverPhone} subValue={driver.driverAltPhone ? `Alt: ${driver.driverAltPhone}` : null} />
-                                <InfoCard icon={MapPin} label="Address" value={`${driver.address}, ${driver.city}`} subValue={`${driver.state} - ${driver.pincode}`} />
-                            </div>
-                        </section>
 
-                        {/* Employment */}
-                         <section className="space-y-4">
-                            <h4 className="text-xs font-black uppercase tracking-widest text-[#49659c] flex items-center gap-2">
-                                <Briefcase size={14} /> Employment
-                            </h4>
-                            <div className="grid gap-3">
-                                <InfoCard icon={Briefcase} label="Franchise" value={driver.franchiseName || 'N/A'} subValue={driver.assignedCity ? `Assigned to: ${driver.assignedCity}` : null} />
-                                <InfoCard icon={Calendar} label="Date of Joining" value={new Date(driver.dateOfJoining).toLocaleDateString()} subValue={driver.employmentType} />
+                {/* Dashboard & Metrics */}
+                <div className="lg:col-span-2 space-y-8">
+                    {/* Performance Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {stats.map((stat, i) => (
+                            <div key={i} className="bg-white dark:bg-gray-900 p-6 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col gap-4">
+                                <div className={cn("size-12 rounded-2xl flex items-center justify-center", stat.bg, stat.color)}>
+                                    <stat.icon size={24} />
+                                </div>
+                                <div>
+                                    <p className="text-xs font-black text-[#49659c] uppercase tracking-widest">{stat.label}</p>
+                                    <p className="text-3xl font-black text-[#0d121c] dark:text-white mt-1">{stat.value}</p>
+                                </div>
                             </div>
-                        </section>
+                        ))}
+                    </div>
 
-                        {/* Legal */}
-                        <section className="space-y-4">
-                            <h4 className="text-xs font-black uppercase tracking-widest text-[#49659c] flex items-center gap-2">
-                                <FileText size={14} /> Legal Documents
-                            </h4>
-                             <div className="grid gap-3">
-                                <InfoCard icon={CreditCard} label="Driving License" value={driver.licenseNumber} subValue={`Expires: ${new Date(driver.licenseExpiryDate).toLocaleDateString()}`} />
-                                {driver.licenseType && <InfoCard icon={FileText} label="License Type" value={driver.licenseType} />}
+                    {/* Information Grids */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Emergency Contact */}
+                        {(driver.contactName || driver.contactNumber) && (
+                            <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <Heart className="text-red-500" size={20} />
+                                    <h4 className="font-black text-[#0d121c] dark:text-white uppercase tracking-widest text-xs">Emergency Contact</h4>
+                                </div>
+                                <div className="space-y-6">
+                                    {driver.contactName && (
+                                        <div>
+                                            <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">Contact Name</p>
+                                            <p className="font-bold text-[#0d121c] dark:text-white mt-1">{driver.contactName}</p>
+                                        </div>
+                                    )}
+                                    {driver.contactNumber && (
+                                        <div>
+                                            <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">Phone Number</p>
+                                            <p className="font-bold text-[#0d121c] dark:text-white mt-1 tracking-wider">{driver.contactNumber}</p>
+                                        </div>
+                                    )}
+                                    {driver.relationship && (
+                                        <div>
+                                            <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">Relationship</p>
+                                            <p className="font-bold text-[#0d121c] dark:text-white mt-1">{driver.relationship}</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </section>
+                        )}
+
+                        {/* Documents */}
+                        <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <div className="flex items-center gap-3 mb-6">
+                                <Shield className="text-[#0d59f2]" size={20} />
+                                <h4 className="font-black text-[#0d121c] dark:text-white uppercase tracking-widest text-xs">Documents Verified</h4>
+                            </div>
+                            <div className="space-y-3">
+                                {driver.documentsCollected.map((doc, i) => (
+                                    <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800">
+                                        <FileCheck size={16} className="text-green-600" />
+                                        <span className="text-sm font-bold text-[#49659c] dark:text-gray-300">{doc}</span>
+                                    </div>
+                                ))}
+                                {driver.documentsCollected.length === 0 && (
+                                    <p className="text-sm text-[#49659c] italic">No documents verified yet.</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Employment Details */}
+                        <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <div className="flex items-center gap-3 mb-6">
+                                <Briefcase className="text-[#0d59f2]" size={20} />
+                                <h4 className="font-black text-[#0d121c] dark:text-white uppercase tracking-widest text-xs">Employment Details</h4>
+                            </div>
+                            <div className="space-y-6">
+                                <div>
+                                    <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">Franchise</p>
+                                    <p className="font-bold text-[#0d121c] dark:text-white mt-1">{driver.franchiseName}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">Assigned City</p>
+                                    <p className="font-bold text-[#0d121c] dark:text-white mt-1">{driver.assignedCity}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">Employment Type</p>
+                                    <p className="font-bold text-[#0d121c] dark:text-white mt-1 capitalize">{driver.employmentType === 0 ? 'Full Time' : driver.employmentType === 1 ? 'Part Time' : 'Contract'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">Date of Joining</p>
+                                    <p className="font-bold text-[#0d121c] dark:text-white mt-1">{new Date(driver.dateOfJoining).toLocaleDateString()}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* License Details */}
+                        <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <div className="flex items-center gap-3 mb-6">
+                                <FileText className="text-[#0d59f2]" size={20} />
+                                <h4 className="font-black text-[#0d121c] dark:text-white uppercase tracking-widest text-xs">License Information</h4>
+                            </div>
+                            <div className="space-y-6">
+                                <div>
+                                    <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">License Number</p>
+                                    <p className="font-bold text-[#0d121c] dark:text-white mt-1 font-mono">{driver.licenseNumber}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">License Type</p>
+                                    <p className="font-bold text-[#0d121c] dark:text-white mt-1">{driver.licenseType}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">Expiry Date</p>
+                                    <p className="font-bold text-[#0d121c] dark:text-white mt-1">{new Date(driver.licenseExpiryDate).toLocaleDateString()}</p>
+                                </div>
+                            </div>
+                        </div>
+
 
                         {/* Bank Details */}
-                         <section className="space-y-4">
-                            <h4 className="text-xs font-black uppercase tracking-widest text-[#49659c] flex items-center gap-2">
-                                <CreditCard size={14} /> Bank Details
-                            </h4>
-                            <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800 space-y-3">
-                                <div className="flex justify-between">
-                                    <span className="text-xs text-[#49659c]">Account Holder</span>
-                                    <span className="text-sm font-bold dark:text-white">{driver.accountHolderName}</span>
+                        <div className="md:col-span-2 bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <div className="flex items-center gap-3 mb-6">
+                                <CreditCard className="text-[#0d59f2]" size={20} />
+                                <h4 className="font-black text-[#0d121c] dark:text-white uppercase tracking-widest text-xs">Bank Information</h4>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">Account Holder</p>
+                                    <p className="font-bold text-[#0d121c] dark:text-white mt-1">{driver.accountHolderName}</p>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-xs text-[#49659c]">Account Number</span>
-                                    <span className="text-sm font-bold font-mono dark:text-white">{driver.bankAccountNumber}</span>
+                                <div>
+                                    <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">Account Number</p>
+                                    <p className="font-bold text-[#0d121c] dark:text-white mt-1 font-mono">{driver.bankAccountNumber}</p>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-xs text-[#49659c]">IFSC Code</span>
-                                    <span className="text-sm font-bold font-mono dark:text-white">{driver.ifscCode}</span>
+                                <div>
+                                    <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">IFSC Code</p>
+                                    <p className="font-bold text-[#0d121c] dark:text-white mt-1 font-mono">{driver.ifscCode}</p>
                                 </div>
-                                 {driver.upiId && (
-                                     <div className="flex justify-between">
-                                        <span className="text-xs text-[#49659c]">UPI ID</span>
-                                        <span className="text-sm font-bold dark:text-white">{driver.upiId}</span>
+                                {driver.upiId && (
+                                    <div>
+                                        <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">UPI ID</p>
+                                        <p className="font-bold text-[#0d121c] dark:text-white mt-1">{driver.upiId}</p>
                                     </div>
                                 )}
                             </div>
-                        </section>
+                        </div>
                     </div>
                 </div>
             </div>

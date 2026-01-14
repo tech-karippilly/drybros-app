@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GetDriver, DriverStatus } from '@/lib/types/drivers';
+import { DeleteDriverModal, BanDriverModal } from './ActionModals';
 
 // Helper for status badge
 const DriverStatusBadge = ({ status }: { status: DriverStatus }) => {
@@ -74,6 +75,10 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
+    // Modal state for confirmations
+    const [deleteTarget, setDeleteTarget] = useState<GetDriver | null>(null);
+    const [banTarget, setBanTarget] = useState<GetDriver | null>(null);
+
     useEffect(() => {
         dispatch(fetchDrivers());
     }, [dispatch]);
@@ -127,17 +132,7 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
         setCurrentPage(1);
     };
 
-    const handleDelete = async (id: number) => {
-         if (confirm('Are you sure you want to delete this driver?')) {
-             await dispatch(deleteDriver(id));
-         }
-    };
 
-    const handleBan = async (id: number) => {
-        if (confirm('Are you sure you want to ban/block this driver?')) {
-            await dispatch(banDriver(id));
-        }
-    };
 
     return (
         <div className="flex flex-col gap-6 animate-in fade-in duration-500">
@@ -304,14 +299,14 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
                                                 <Edit2 size={18} />
                                             </button>
                                             <button
-                                                 onClick={() => handleBan(driver._id)}
+                                                 onClick={() => setBanTarget(driver)}
                                                  className="p-2 text-[#49659c] hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all"
                                                  title="Ban Driver"
                                             >
                                                 <Ban size={18} />
                                             </button>
                                             <button
-                                                onClick={() => handleDelete(driver._id)}
+                                                onClick={() => setDeleteTarget(driver)}
                                                 className="p-2 text-[#49659c] hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                                                 title="Delete"
                                             >
@@ -380,6 +375,31 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
                     </div>
                 )}
             </div>
+
+            {/* Action Modals */}
+            <DeleteDriverModal
+                isOpen={!!deleteTarget}
+                driverName={deleteTarget ? `${deleteTarget.firstName} ${deleteTarget.lastName}` : ""}
+                onClose={() => setDeleteTarget(null)}
+                onConfirm={() => {
+                    if (deleteTarget) {
+                        dispatch(deleteDriver(deleteTarget._id));
+                        setDeleteTarget(null);
+                    }
+                }}
+            />
+
+            <BanDriverModal
+                isOpen={!!banTarget}
+                driverName={banTarget ? `${banTarget.firstName} ${banTarget.lastName}` : ""}
+                onClose={() => setBanTarget(null)}
+                onConfirm={() => {
+                    if (banTarget) {
+                        dispatch(banDriver(banTarget._id));
+                        setBanTarget(null);
+                    }
+                }}
+            />
         </div>
     );
 }

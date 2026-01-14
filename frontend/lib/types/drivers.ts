@@ -36,6 +36,7 @@ export interface CreateDriverInput{
     userId :number; // foreign key to users table
     firstName: string;
     lastName: string;
+    email: string;
     driverPhone: string;
     driverAltPhone :string | null;
 
@@ -79,6 +80,7 @@ export interface UpdateDriverInput{
     userId :number; // foreign key to users table
     firstName: string | null;
     lastName: string | null;
+    email: string | null;
     driverPhone: string | null;
     driverAltPhone :string | null;
 

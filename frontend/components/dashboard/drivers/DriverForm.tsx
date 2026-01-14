@@ -26,7 +26,7 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
     
     const [isSubmitting, setIsSubmitting] = useState(false);
     
-    const [formData, setFormData] = useState<Partial<Omit<CreateDriverInput, 'franchiseId'>> & { franchiseId?: string | number, password?: string, email?: string, status?: DriverStatus }>(() => {
+    const getInitialFormData = (driver: GetDriver | null): Partial<Omit<CreateDriverInput, 'franchiseId'>> & { franchiseId?: string | number, password?: string, email?: string, status?: DriverStatus } => {
         if (driver) {
              return { 
                  ...driver,
@@ -60,7 +60,15 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
             documentsCollected: [],
             franchiseId: ''
         };
-    });
+    };
+
+    const [formData, setFormData] = useState(getInitialFormData(driver));
+
+    React.useEffect(() => {
+        if (isOpen) {
+            setFormData(getInitialFormData(driver));
+        }
+    }, [isOpen, driver]);
 
     const handleGeneratePassword = React.useCallback(() => {
         setFormData(prev => ({ ...prev, password: generateDriverPassword() }));
@@ -80,6 +88,7 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
     const validateForm = () => {
         if (!formData.firstName?.trim()) return false;
         if (!formData.lastName?.trim()) return false;
+        if (!formData.email?.trim()) return false;
         if (!formData.driverPhone?.trim()) return false;
         if (!formData.licenseNumber?.trim()) return false;
         if (!formData.franchiseId) return false;
@@ -98,6 +107,7 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                 const updatePayload: UpdateDriverInput = {
                     _id: driver._id, userId: driver.userId,
                     firstName: formData.firstName || null, lastName: formData.lastName || null,
+                    email: formData.email || null,
                     driverPhone: formData.driverPhone || null, driverAltPhone: formData.driverAltPhone || null,
                     dateOfBirth: formData.dateOfBirth || null, gender: formData.gender || null,
                     profilePhoto: formData.profilePhoto || null, licenseNumber: formData.licenseNumber || null,
@@ -182,13 +192,14 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                             </div>
                              <div className="space-y-2">
                                 <label className="text-xs font-black text-[#49659c] uppercase tracking-widest flex items-center gap-2">
-                                    <Mail size={14} /> Email Address
+                                    <Mail size={14} /> Email Address *
                                 </label>
                                 <input
+                                    required
                                     type="email"
                                     value={formData.email || ''}
                                     onChange={e => setFormData({ ...formData, email: e.target.value })}
-                                    placeholder="Optional email"
+                                    placeholder="driver@example.com"
                                     className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
                                 />
                             </div>

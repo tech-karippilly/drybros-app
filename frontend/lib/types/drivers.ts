@@ -126,6 +126,7 @@ export interface GetDriver{
     lastName: string;
     driverPhone: string;
     driverAltPhone :string | null;
+    email: string;
     status: DriverStatus;
     complaintCount: number;
     bannedGlobally: boolean;

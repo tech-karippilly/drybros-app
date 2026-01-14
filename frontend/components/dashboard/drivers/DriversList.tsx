@@ -11,6 +11,7 @@ import {
     ChevronRight,
     X,
     Phone,
+    Mail,
     AlertCircle,
     Edit2,
     Trash2,
@@ -265,12 +266,10 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
                                             <Phone size={12} />
                                             <span>{driver.driverPhone}</span>
                                         </div>
-                                         {driver.driverAltPhone && (
-                                            <div className="flex items-center gap-1.5 text-xs text-[#49659c] mt-1">
-                                                <span className="text-[10px] opacity-70">Alt:</span>
-                                                <span>{driver.driverAltPhone}</span>
-                                            </div>
-                                        )}
+                                        <div className="flex items-center gap-1.5 text-xs text-[#49659c] mt-1">
+                                            <Mail size={12} />
+                                            <span>{driver.email}</span>
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4">
                                          <span className="text-sm font-medium dark:text-gray-300">{driver.franchiseName || 'N/A'}</span>

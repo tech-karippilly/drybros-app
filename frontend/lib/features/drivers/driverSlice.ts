@@ -14,6 +14,7 @@ const DUMMY_DRIVERS: GetDriver[] = [
         lastName: "Kumar",
         driverPhone: "9876543210",
         driverAltPhone: "9876543211",
+        email: "some@example.com",
         status: DriverStatus.ACTIVE,
         complaintCount: 0,
         bannedGlobally: false,
@@ -55,6 +56,7 @@ const DUMMY_DRIVERS: GetDriver[] = [
         lastName: "Singh",
         driverPhone: "9123456789",
         driverAltPhone: null,
+        email: "some@example.com",
         status: DriverStatus.INACTIVE,
         complaintCount: 1,
         bannedGlobally: false,
@@ -209,6 +211,18 @@ export const banDriver = createAsyncThunk(
     }
 );
 
+export const reactivateDriver = createAsyncThunk(
+    'drivers/reactivateDriver',
+    async (id: number, { rejectWithValue }) => {
+        try {
+            await delay(DELAY_MS);
+            return { _id: id, status: DriverStatus.ACTIVE };
+        } catch (error: any) {
+            return rejectWithValue("Failed to reactivate driver");
+        }
+    }
+);
+
 const driversSlice = createSlice({
     name: 'drivers',
     initialState,
@@ -248,6 +262,15 @@ const driversSlice = createSlice({
         // Ban
         builder
             .addCase(banDriver.fulfilled, (state, action) => {
+                 const index = state.drivers.findIndex(d => d._id === action.payload._id);
+                if (index !== -1) {
+                    state.drivers[index].status = action.payload.status;
+                }
+            });
+
+        // Reactivate
+        builder
+            .addCase(reactivateDriver.fulfilled, (state, action) => {
                  const index = state.drivers.findIndex(d => d._id === action.payload._id);
                 if (index !== -1) {
                     state.drivers[index].status = action.payload.status;

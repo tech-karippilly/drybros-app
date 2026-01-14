@@ -45,7 +45,10 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                  pincode: driver.pincode || '',
                  licenseNumber: driver.licenseNumber || '',
                  franchiseId: driver.franchiseId || '',
-                 status: driver.status
+                 status: driver.status,
+                 // Ensure email and password are always defined for controlled inputs
+                 email: (driver as any).email || '',
+                 password: ''
              };
         }
         return {

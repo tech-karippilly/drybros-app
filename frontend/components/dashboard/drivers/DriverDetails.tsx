@@ -23,6 +23,9 @@ import {
 } from 'lucide-react';
 import { GetDriver, DriverStatus } from '@/lib/types/drivers';
 import { cn } from '@/lib/utils';
+import { useAppDispatch } from '@/lib/hooks';
+import { deleteDriver, banDriver, reactivateDriver } from '@/lib/features/drivers/driverSlice';
+import { DeleteDriverModal, BanDriverModal } from './ActionModals';
 
 interface DriverDetailsProps {
     driver: GetDriver | null;
@@ -31,6 +34,10 @@ interface DriverDetailsProps {
 }
 
 export function DriverDetails({ driver, onBack, onEdit }: DriverDetailsProps) {
+    const dispatch = useAppDispatch();
+    const [deleteTarget, setDeleteTarget] = React.useState(false);
+    const [banTarget, setBanTarget] = React.useState(false);
+
     if (!driver) return null;
 
     const StatusBadge = ({ status }: { status: DriverStatus }) => {
@@ -103,6 +110,12 @@ export function DriverDetails({ driver, onBack, onEdit }: DriverDetailsProps) {
                                 )}
                                 <div className="flex items-center gap-3">
                                     <div className="size-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-[#49659c]">
+                                        <Mail size={16} />
+                                    </div>
+                                    <span className="text-sm font-bold text-[#0d121c] dark:text-white truncate">{driver.email}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className="size-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-[#49659c]">
                                         <MapPin size={16} />
                                     </div>
                                     <span className="text-sm font-bold text-[#0d121c] dark:text-white leading-tight">{driver.address}, {driver.city}</span>
@@ -129,11 +142,11 @@ export function DriverDetails({ driver, onBack, onEdit }: DriverDetailsProps) {
                             <AlertTriangle className="text-amber-500" size={20} />
                             <h4 className="font-black text-[#0d121c] dark:text-white uppercase tracking-widest text-xs">Administrative Actions</h4>
                         </div>
-                        <div className="flex flex-wrap gap-4">
+                        <div className="flex flex-col gap-4">
                             {driver.status !== DriverStatus.BLOCKED && driver.status !== DriverStatus.TERMINATED && (
                                 <button
-                                    onClick={() => {/* TODO: Implement block driver */}}
-                                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-500 rounded-2xl font-bold hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-all border border-amber-200 dark:border-amber-800"
+                                    onClick={() => setBanTarget(true)}
+                                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-500 rounded-2xl font-bold hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-all border border-amber-200 dark:border-amber-800"
                                 >
                                     <Ban size={18} />
                                     <span>Block Driver</span>
@@ -141,20 +154,11 @@ export function DriverDetails({ driver, onBack, onEdit }: DriverDetailsProps) {
                             )}
                             {driver.status !== DriverStatus.TERMINATED && (
                                 <button
-                                    onClick={() => {/* TODO: Implement terminate driver */}}
-                                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-500 rounded-2xl font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-all border border-red-200 dark:border-red-800"
+                                    onClick={() => setDeleteTarget(true)}
+                                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-500 rounded-2xl font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-all border border-red-200 dark:border-red-800"
                                 >
                                     <Ban size={18} />
-                                    <span>Terminate Driver</span>
-                                </button>
-                            )}
-                            {(driver.status === DriverStatus.BLOCKED || driver.status === DriverStatus.INACTIVE || driver.status === DriverStatus.TERMINATED) && (
-                                <button
-                                    onClick={() => {/* TODO: Implement reactivate driver */}}
-                                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#0d59f2]/10 text-[#0d59f2] rounded-2xl font-bold hover:bg-[#0d59f2]/20 transition-all border border-[#0d59f2]/20"
-                                >
-                                    <FileCheck size={18} />
-                                    <span>Reactivate Profile</span>
+                                    <span>Delete Driver</span>
                                 </button>
                             )}
                         </div>
@@ -309,6 +313,28 @@ export function DriverDetails({ driver, onBack, onEdit }: DriverDetailsProps) {
                     </div>
                 </div>
             </div>
+
+            {/* Action Modals */}
+            <DeleteDriverModal
+                isOpen={deleteTarget}
+                driverName={`${driver.firstName} ${driver.lastName}`}
+                onClose={() => setDeleteTarget(false)}
+                onConfirm={() => {
+                    dispatch(deleteDriver(driver._id));
+                    setDeleteTarget(false);
+                    onBack();
+                }}
+            />
+
+            <BanDriverModal
+                isOpen={banTarget}
+                driverName={`${driver.firstName} ${driver.lastName}`}
+                onClose={() => setBanTarget(false)}
+                onConfirm={() => {
+                    dispatch(banDriver(driver._id));
+                    setBanTarget(false);
+                }}
+            />
         </div>
     );
 }

@@ -93,6 +93,7 @@ paths:
           schema:
             type: string
             format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
       responses:
         "200":
           description: Role data
@@ -113,6 +114,7 @@ paths:
           schema:
             type: string
             format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
       requestBody:
         required: true
         content:
@@ -141,6 +143,7 @@ paths:
           schema:
             type: string
             format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
       responses:
         "204":
           description: Role deleted successfully

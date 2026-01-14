@@ -27,7 +27,8 @@ export async function getRoleById(
   next: NextFunction
 ) {
   try {
-    const id = req.params.id;
+    // Validation middleware ensures id is a valid UUID string
+    const id = String(req.params.id);
     const role = await getRole(id);
     res.json({ data: role });
   } catch (err) {
@@ -41,8 +42,8 @@ export async function createRoleHandler(
   next: NextFunction
 ) {
   try {
-    const data = req.body;
-    const role = await createRole(data);
+    // req.body is already validated by Zod middleware
+    const role = await createRole(req.body);
     res.status(201).json({ data: role });
   } catch (err) {
     next(err);
@@ -55,9 +56,9 @@ export async function updateRoleHandler(
   next: NextFunction
 ) {
   try {
-    const id = req.params.id;
-    const data = req.body;
-    const role = await updateRole(id, data);
+    // Validation middleware ensures id is a valid UUID string
+    const id = String(req.params.id);
+    const role = await updateRole(id, req.body);
     res.json({ data: role });
   } catch (err) {
     next(err);
@@ -70,7 +71,8 @@ export async function deleteRoleHandler(
   next: NextFunction
 ) {
   try {
-    const id = req.params.id;
+    // Validation middleware ensures id is a valid UUID string
+    const id = String(req.params.id);
     await deleteRole(id);
     res.status(204).send();
   } catch (err) {

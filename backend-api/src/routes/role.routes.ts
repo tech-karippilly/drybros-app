@@ -7,6 +7,13 @@ import {
   updateRoleHandler,
   deleteRoleHandler,
 } from "../controllers/role.controller";
+import { z } from "zod";
+import { validate, validateParams } from "../middlewares/validation";
+import {
+  createRoleSchema,
+  updateRoleSchema,
+  uuidSchema,
+} from "../types/role.dto";
 
 const router = express.Router();
 
@@ -14,15 +21,28 @@ const router = express.Router();
 router.get("/", getRoles);
 
 // GET /roles/:id
-router.get("/:id", getRoleById);
+router.get(
+  "/:id",
+  validateParams(z.object({ id: uuidSchema })),
+  getRoleById
+);
 
 // POST /roles
-router.post("/", createRoleHandler);
+router.post("/", validate(createRoleSchema), createRoleHandler);
 
 // PUT /roles/:id
-router.put("/:id", updateRoleHandler);
+router.put(
+  "/:id",
+  validateParams(z.object({ id: uuidSchema })),
+  validate(updateRoleSchema),
+  updateRoleHandler
+);
 
 // DELETE /roles/:id
-router.delete("/:id", deleteRoleHandler);
+router.delete(
+  "/:id",
+  validateParams(z.object({ id: uuidSchema })),
+  deleteRoleHandler
+);
 
 export default router;

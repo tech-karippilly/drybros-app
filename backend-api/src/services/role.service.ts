@@ -7,74 +7,79 @@ import {
   updateRole as repoUpdateRole,
   deleteRole as repoDeleteRole,
 } from "../repositories/role.repository";
+import { NotFoundError, ConflictError } from "../utils/errors";
+import {
+  CreateRoleDTO,
+  UpdateRoleDTO,
+  RoleResponseDTO,
+  toRoleResponseDTO,
+  toRoleResponseDTOArray,
+} from "../types/role.dto";
 
-export async function listRoles() {
-  return getAllRoles();
+export async function listRoles(): Promise<RoleResponseDTO[]> {
+  const roles = await getAllRoles();
+  return toRoleResponseDTOArray(roles);
 }
 
-export async function getRole(id: string) {
+export async function getRole(id: string): Promise<RoleResponseDTO> {
   const role = await getRoleById(id);
   if (!role) {
-    const error = new Error("Role not found") as any;
-    error.statusCode = 404;
-    throw error;
+    throw new NotFoundError("Role not found");
   }
-  return role;
+  return toRoleResponseDTO(role);
 }
 
-export async function createRole(data: {
-  name: string;
-  description?: string;
-  isActive?: boolean;
-}) {
+export async function createRole(data: CreateRoleDTO): Promise<RoleResponseDTO> {
   // Check if role with same name already exists
   const existing = await getRoleByName(data.name);
   if (existing) {
-    const error = new Error("Role with this name already exists") as any;
-    error.statusCode = 400;
-    throw error;
+    throw new ConflictError("Role with this name already exists");
   }
 
-  return repoCreateRole(data);
+  const role = await repoCreateRole({
+    name: data.name,
+    description: data.description ?? null,
+    isActive: data.isActive ?? true,
+  });
+
+  return toRoleResponseDTO(role);
 }
 
 export async function updateRole(
   id: string,
-  data: {
-    name?: string;
-    description?: string;
-    isActive?: boolean;
-  }
-) {
+  data: UpdateRoleDTO
+): Promise<RoleResponseDTO> {
   // Check if role exists
   const existing = await getRoleById(id);
   if (!existing) {
-    const error = new Error("Role not found") as any;
-    error.statusCode = 404;
-    throw error;
+    throw new NotFoundError("Role not found");
   }
 
-  // If name is being updated, check if new name already exists
-  if (data.name && data.name !== existing.name) {
+  // If name is being updated, check for conflicts
+  if (data.name !== undefined && data.name !== existing.name) {
     const nameExists = await getRoleByName(data.name);
     if (nameExists) {
-      const error = new Error("Role with this name already exists") as any;
-      error.statusCode = 400;
-      throw error;
+      throw new ConflictError("Role with this name already exists");
     }
   }
 
-  return repoUpdateRole(id, data);
+  const role = await repoUpdateRole(id, {
+    ...(data.name !== undefined && { name: data.name }),
+    ...(data.description !== undefined && {
+      description: data.description ?? null,
+    }),
+    ...(data.isActive !== undefined && { isActive: data.isActive }),
+  });
+
+  return toRoleResponseDTO(role);
 }
 
-export async function deleteRole(id: string) {
+export async function deleteRole(id: string): Promise<void> {
   // Check if role exists
   const existing = await getRoleById(id);
   if (!existing) {
-    const error = new Error("Role not found") as any;
-    error.statusCode = 404;
-    throw error;
+    throw new NotFoundError("Role not found");
   }
 
-  return repoDeleteRole(id);
+  await repoDeleteRole(id);
 }

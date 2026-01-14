@@ -3,7 +3,15 @@ import prisma from "../config/prismaClient";
 
 export async function getAllRoles() {
   return prisma.role.findMany({
-    orderBy: { id: "asc" },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+    },
   });
 }
 

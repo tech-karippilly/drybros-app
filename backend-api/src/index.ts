@@ -10,6 +10,7 @@ import errorHandler from "./middlewares/errorHandler";
 import customerRoutes from "./routes/customer.routes";
 import tripRoutes from "./routes/trip.routes";
 import authRoutes from "./routes/auth.routes";
+import roleRoutes from "./routes/role.routes";
 
 import cors from "cors";
 import path from "path";
@@ -41,6 +42,7 @@ app.use("/drivers", driverRoutes);
 app.use("/customers", customerRoutes);
 app.use("/trips", tripRoutes);
 app.use("/auth", authRoutes);
+app.use("/roles", roleRoutes);
 
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Drybros backend root 🚗" });

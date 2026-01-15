@@ -28,7 +28,7 @@ export interface Driver {
     currentRating : number | null;
     createdAt :string; // ISO string
     updatedAt :string; // ISO string
-    trips : Trip[];
+    // trips : Trip[];
 
 }
 
@@ -134,7 +134,7 @@ export interface GetDriver{
     currentRating : number;
     createdAt :string; // ISO string
     updatedAt :string; // ISO string
-    trips : Trip[];
+    // trips : Trip[];
 
     // personal details
     dateOfBirth: string; // ISO Date string
@@ -187,39 +187,6 @@ export enum GenderType {
     FEMALE,
     OTHER,
 }
-
-export enum TripType {
-  CITY_ROUND,
-  CITY_DROPOFF,
-  LONG_ROUND,
-  LONG_DROPOFF,
-}
-
-export enum TripStatus {
-  REQUESTED,
-  ASSIGNED,
-  DRIVER_ACCEPTED,
-  DRIVER_ON_THE_WAY,
-  IN_PROGRESS,
-  COMPLETED,
-  CANCELLED_BY_CUSTOMER,
-  CANCELLED_BY_OFFICE,
-  REJECTED_BY_DRIVER,
-}
-
-export enum PaymentStatus {
-  PENDING,
-  PAID,
-  PARTIALLY_PAID
-}
-
-export enum PaymentMode {
-  CASH,
-  UPI,
-  CARD,
-  OTHER,
-}
-
 export enum UserRole {
   ADMIN,
   OFFICE_STAFF,
@@ -232,62 +199,3 @@ export enum EmploymentType {
   CONTRACT,
 }
 
-export interface Customer {
-  id        :number;
-  fullName  :string;
-  phone     :string;
-  email     :string;
-  city      :string;
-  notes     :string | null;
-
-  franchiseId :number;
-  franchise   :Franchise;
-
-  createdAt :string;
-  updatedAt :string;
-
-  trips     :Trip[]
-}
-
-export interface Trip {
-  id           :number;
-
-  franchiseId  :number;
-  franchise    :Franchise;
-
-  driverId     :number | null;
-  driver       :Driver | null;
-
-  customerId    :number;
-  customer      :Customer;
-
-  customerName  :string;
-  customerPhone :string;
-
-  tripType     :TripType;
-  status       :TripStatus;
-
-  pickupLocation :string;
-  dropLocation   :string | null;
-
-  scheduledAt   :string | null;
-  startedAt     :string | null;
-  endedAt       :string | null;
-
-  startOtp      :string | null;
-  endOtp        :string | null;
-
-  baseAmount       :number;
-  extraAmount      :number;
-  totalAmount      :number;
-  finalAmount      :number;
-  isAmountOverridden :boolean;
-  overrideReason    :string | null;
-
-  paymentStatus     :PaymentStatus;
-  paymentMode       :PaymentMode | null;
-  paymentReference  :string | null;
-
-  createdAt      :string;
-  updatedAt      :string;
-}

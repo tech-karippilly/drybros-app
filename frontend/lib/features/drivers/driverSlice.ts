@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
-import { GetDriver, CreateDriverInput, UpdateDriverInput, DriverStatus, GenderType, EmploymentType, Trip, TripType, TripStatus, PaymentStatus, PaymentMode } from "@/lib/types/drivers";
+import { GetDriver, CreateDriverInput, UpdateDriverInput, DriverStatus, GenderType, EmploymentType } from "@/lib/types/drivers";
 import { DRIVERS_STRINGS } from "@/lib/constants/drivers";
 
 // Constants
@@ -22,7 +22,7 @@ const DUMMY_DRIVERS: GetDriver[] = [
         currentRating: 4.8,
         createdAt: "2024-01-01T10:00:00Z",
         updatedAt: "2024-01-15T10:00:00Z",
-        trips: [], // Can populate with dummy trips if needed
+        // trips: [], // Can populate with dummy trips if needed
         dateOfBirth: "1990-05-15",
         gender: GenderType.MALE,
         profilePhoto: "",
@@ -64,7 +64,7 @@ const DUMMY_DRIVERS: GetDriver[] = [
         currentRating: 4.2,
         createdAt: "2024-02-01T10:00:00Z",
         updatedAt: "2024-02-01T10:00:00Z",
-        trips: [],
+        // trips: [],
         dateOfBirth: "1988-08-20",
         gender: GenderType.MALE,
         profilePhoto: "",
@@ -140,7 +140,7 @@ export const createDriver = createAsyncThunk(
                 currentRating: 5.0,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
-                trips: [],
+                // trips: [],
                 franchiseName: "Assigned Franchise", // In real apps this would arguably come from backend relation
                 profilePhoto: "",
                 licenseFront: "",

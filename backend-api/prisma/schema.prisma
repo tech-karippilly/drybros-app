@@ -1,33 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id          Int       @id @default(autoincrement())
+  fullName    String
+  phone       String    @unique
+  email       String?
+  city        String?
+  notes       String?
+  franchiseId Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+  Franchise   Franchise @relation(fields: [franchiseId], references: [id])
+  Trip        Trip[]
+}
+
+model Driver {
+  id                Int          @id @default(autoincrement())
+  franchiseId       Int
+  firstName         String
+  lastName          String
+  phone             String       @unique
+  altPhone          String?
+  status            DriverStatus @default(ACTIVE)
+  complaintCount    Int          @default(0)
+  bannedGlobally    Boolean      @default(false)
+  dailyTargetAmount Int?
+  currentRating     Float?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime
+  Franchise         Franchise    @relation(fields: [franchiseId], references: [id])
+  Trip              Trip[]
+}
+
+model Franchise {
+  id        Int        @id @default(autoincrement())
+  code      String     @unique
+  name      String
+  city      String
+  address   String?
+  phone     String?
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime
+  Customer  Customer[]
+  Driver    Driver[]
+  Trip      Trip[]
+}
+
+model Role {
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+}
+
+model Trip {
+  id                 Int           @id @default(autoincrement())
+  franchiseId        Int
+  driverId           Int?
+  customerId         Int
+  customerName       String
+  customerPhone      String
+  tripType           TripType
+  status             TripStatus    @default(REQUESTED)
+  pickupLocation     String
+  dropLocation       String?
+  scheduledAt        DateTime?
+  startedAt          DateTime?
+  endedAt            DateTime?
+  startOtp           String?
+  endOtp             String?
+  baseAmount         Int
+  extraAmount        Int           @default(0)
+  totalAmount        Int
+  finalAmount        Int
+  isAmountOverridden Boolean       @default(false)
+  overrideReason     String?
+  paymentStatus      PaymentStatus @default(PENDING)
+  paymentMode        PaymentMode?
+  paymentReference   String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime
+  Customer           Customer      @relation(fields: [customerId], references: [id])
+  Driver             Driver?       @relation(fields: [driverId], references: [id])
+  Franchise          Franchise     @relation(fields: [franchiseId], references: [id])
+}
+
+model User {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email     String   @unique
+  password  String
+  fullName  String
+  phone     String?
+  role      UserRole
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 enum DriverStatus {
   ACTIVE
   INACTIVE
   BLOCKED
   TERMINATED
-}
-
-enum TripType {
-  CITY_ROUND
-  CITY_DROPOFF
-  LONG_ROUND
-  LONG_DROPOFF
-}
-
-enum TripStatus {
-  REQUESTED
-  ASSIGNED
-  DRIVER_ACCEPTED
-  DRIVER_ON_THE_WAY
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED_BY_CUSTOMER
-  CANCELLED_BY_OFFICE
-  REJECTED_BY_DRIVER
-}
-
-enum PaymentStatus {
-  PENDING
-  PAID
-  PARTIALLY_PAID
 }
 
 enum PaymentMode {
@@ -37,144 +121,35 @@ enum PaymentMode {
   OTHER
 }
 
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIALLY_PAID
+}
+
+enum TripStatus {
+  REQUESTED
+  ASSIGNED
+  DRIVER_ON_THE_WAY
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED_BY_CUSTOMER
+  CANCELLED_BY_OFFICE
+  REJECTED_BY_DRIVER
+  DRIVER_ACCEPTED
+}
+
+enum TripType {
+  CITY_ROUND
+  CITY_DROPOFF
+  LONG_ROUND
+  LONG_DROPOFF
+}
+
 enum UserRole {
   ADMIN
+  OFFICE_STAFF
   DRIVER
   STAFF
   CUSTOMER
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-generator client {
-  provider = "prisma-client-js"
-}
-
-model Franchise {
-  id        Int       @id @default(autoincrement())
-  code      String    @unique
-  name      String
-  city      String
-  address   String?
-  phone     String?
-
-  isActive  Boolean   @default(true)
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  drivers   Driver[]
-  customers Customer[]
-  trips     Trip[]
-}
-
-
-model Driver {
-  id               Int           @id @default(autoincrement())
-  franchiseId      Int
-  franchise        Franchise     @relation(fields: [franchiseId], references: [id])
-
-  firstName        String
-  lastName         String
-  phone            String        @unique
-  altPhone         String?
-
-  status           DriverStatus  @default(ACTIVE)
-  complaintCount   Int           @default(0)
-  bannedGlobally   Boolean       @default(false)
-
-  dailyTargetAmount Int?
-  currentRating     Float?
-
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-
-  trips            Trip[]
-}
-
-
-
-model Customer {
-  id        Int       @id @default(autoincrement())
-  fullName  String
-  phone     String    @unique
-  email     String?
-  city      String?
-  notes     String?
-
-  franchiseId Int
-  franchise   Franchise @relation(fields: [franchiseId], references: [id])
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  trips     Trip[]
-}
-
-model Trip {
-  id           Int          @id @default(autoincrement())
-
-  franchiseId  Int
-  franchise    Franchise    @relation(fields: [franchiseId], references: [id])
-
-  driverId     Int?
-  driver       Driver?      @relation(fields: [driverId], references: [id])
-
-  customerId    Int
-  customer      Customer     @relation(fields: [customerId], references: [id])
-
-  customerName  String
-  customerPhone String
-
-  tripType     TripType
-  status       TripStatus    @default(REQUESTED)
-
-  pickupLocation String
-  dropLocation   String?
-
-  scheduledAt   DateTime?
-  startedAt     DateTime?
-  endedAt       DateTime?
-
-  startOtp      String?
-  endOtp        String?
-
-  baseAmount       Int
-  extraAmount      Int         @default(0)
-  totalAmount      Int
-  finalAmount      Int
-  isAmountOverridden Boolean   @default(false)
-  overrideReason    String?
-
-  paymentStatus     PaymentStatus @default(PENDING)
-  paymentMode       PaymentMode?
-  paymentReference  String?
-
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-}
-
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String   // hashed
-  fullName  String
-  role      UserRole
-  isActive  Boolean  @default(true)
-
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Role {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }

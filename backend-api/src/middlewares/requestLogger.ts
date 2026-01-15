@@ -85,9 +85,22 @@ function sanitizeResponseBody(body: any): any {
   }
 
   try {
-    const parsed = typeof body === "string" ? JSON.parse(body) : body;
-    return sanitizeRequestBody(parsed);
+    // If body is a string, try to parse it as JSON
+    if (typeof body === "string") {
+      // Remove control characters that might break JSON parsing
+      const cleaned = body.replace(/[\x00-\x1F\x7F]/g, "");
+      try {
+        const parsed = JSON.parse(cleaned);
+        return sanitizeRequestBody(parsed);
+      } catch {
+        // If parsing fails, return the cleaned string
+        return cleaned;
+      }
+    }
+    // If body is already an object, just sanitize it
+    return sanitizeRequestBody(body);
   } catch {
-    return body;
+    // If anything fails, return the body as-is (or a safe string)
+    return typeof body === "string" ? body.substring(0, 200) : body;
   }
 }

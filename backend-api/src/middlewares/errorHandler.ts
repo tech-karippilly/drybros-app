@@ -31,8 +31,18 @@ export default function errorHandler(
       ? "Something went wrong"
       : err.message;
 
-  res.status(status).json({
-    error: message,
-    ...(config.nodeEnv === "development" && { stack: err.stack }),
-  });
+  // Ensure error message doesn't contain control characters that break JSON
+  const sanitizedMessage = message.replace(/[\x00-\x1F\x7F]/g, "");
+
+  const response: any = {
+    error: sanitizedMessage,
+  };
+
+  // Only include stack trace in development and ensure it's properly formatted
+  if (config.nodeEnv === "development" && err.stack) {
+    // Replace control characters in stack trace or send as array of lines
+    response.stack = err.stack.split("\n").map((line: string) => line.trim());
+  }
+
+  res.status(status).json(response);
 }

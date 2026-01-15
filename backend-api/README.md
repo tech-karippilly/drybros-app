@@ -44,6 +44,16 @@ This is the backend API service for the Drybros platform, built with Node.js, Ex
    PRODUCTION_BASE_URL=https://dybros.com
    DATABASE_URL="postgresql://user:password@localhost:5432/drybros?schema=public"
    JWT_SECRET=your-secret-key-change-in-production
+   
+   # Email Configuration (Gmail)
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_SECURE=false
+   SMTP_USER=your-email@gmail.com
+   SMTP_PASSWORD=your-gmail-app-password
+   EMAIL_FROM=your-email@gmail.com
+   LOGIN_LINK=http://localhost:3000/login
+   REST_PASSWORD=http://localhost:3000/reset-password
    ```
 
 4. Set up the database:

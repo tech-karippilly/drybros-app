@@ -19,51 +19,52 @@ interface DriverFormProps {
 
 const DOCUMENT_OPTIONS = ['Govt Identity', 'Address Proof', 'Educational Certificates', 'Previous Experience', 'Police Verification'];
 
+// Moved outside component to prevent recreation on every render
+const getInitialFormData = (driver: GetDriver | null): Partial<Omit<CreateDriverInput, 'franchiseId'>> & { franchiseId?: string | number, password?: string, email?: string, status?: DriverStatus } => {
+    if (driver) {
+         return { 
+             ...driver,
+             contactName: driver.contactName || '',
+             contactNumber: driver.contactNumber || '',
+             relationship: driver.relationship || '',
+             driverAltPhone: driver.driverAltPhone || '',
+             documentsCollected: driver.documentsCollected || [],
+             // Ensure we have defaults for controlled inputs
+             firstName: driver.firstName || '',
+             lastName: driver.lastName || '',
+             driverPhone: driver.driverPhone || '',
+             city: driver.city || '',
+             state: driver.state || '',
+             address: driver.address || '',
+             pincode: driver.pincode || '',
+             licenseNumber: driver.licenseNumber || '',
+             franchiseId: driver.franchiseId || '',
+             status: driver.status,
+             // Ensure email and password are always defined for controlled inputs
+             email: (driver as any).email || '',
+             password: ''
+         };
+    }
+    return {
+        firstName: '', lastName: '', driverPhone: '', driverAltPhone: '',
+        email: '', password: generateDriverPassword(), userId: 0,
+        gender: GenderType.MALE, employmentType: EmploymentType.FULL_TIME, status: DriverStatus.ACTIVE,
+        licenseType: 'LMV', state: '', city: '', assignedCity: '',
+        address: '', pincode: '', licenseNumber: '', licenseExpiryDate: '',
+        dateOfBirth: '', dateOfJoining: new Date().toISOString().split('T')[0],
+        bankAccountNumber: '', accountHolderName: '', ifscCode: '', upiId: '',
+        contactName: '', contactNumber: '', relationship: '', profilePhoto: null,
+        documentsCollected: [],
+        franchiseId: ''
+    };
+};
+
 export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
     const dispatch = useAppDispatch();
     const { toast } = useToast();
     const franchiseList = useAppSelector(state => state.franchise.list);
     
     const [isSubmitting, setIsSubmitting] = useState(false);
-    
-    const getInitialFormData = (driver: GetDriver | null): Partial<Omit<CreateDriverInput, 'franchiseId'>> & { franchiseId?: string | number, password?: string, email?: string, status?: DriverStatus } => {
-        if (driver) {
-             return { 
-                 ...driver,
-                 contactName: driver.contactName || '',
-                 contactNumber: driver.contactNumber || '',
-                 relationship: driver.relationship || '',
-                 driverAltPhone: driver.driverAltPhone || '',
-                 documentsCollected: driver.documentsCollected || [],
-                 // Ensure we have defaults for controlled inputs
-                 firstName: driver.firstName || '',
-                 lastName: driver.lastName || '',
-                 driverPhone: driver.driverPhone || '',
-                 city: driver.city || '',
-                 state: driver.state || '',
-                 address: driver.address || '',
-                 pincode: driver.pincode || '',
-                 licenseNumber: driver.licenseNumber || '',
-                 franchiseId: driver.franchiseId || '',
-                 status: driver.status,
-                 // Ensure email and password are always defined for controlled inputs
-                 email: (driver as any).email || '',
-                 password: ''
-             };
-        }
-        return {
-            firstName: '', lastName: '', driverPhone: '', driverAltPhone: '',
-            email: '', password: generateDriverPassword(), userId: 0,
-            gender: GenderType.MALE, employmentType: EmploymentType.FULL_TIME, status: DriverStatus.ACTIVE,
-            licenseType: 'LMV', state: '', city: '', assignedCity: '',
-            address: '', pincode: '', licenseNumber: '', licenseExpiryDate: '',
-            dateOfBirth: '', dateOfJoining: new Date().toISOString().split('T')[0],
-            bankAccountNumber: '', accountHolderName: '', ifscCode: '', upiId: '',
-            contactName: '', contactNumber: '', relationship: '', profilePhoto: null,
-            documentsCollected: [],
-            franchiseId: ''
-        };
-    };
 
     const [formData, setFormData] = useState(getInitialFormData(driver));
 

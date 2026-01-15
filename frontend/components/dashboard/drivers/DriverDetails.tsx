@@ -55,7 +55,7 @@ export function DriverDetails({ driver, onBack, onEdit }: DriverDetailsProps) {
     };
 
     const stats = [
-        { label: 'Total Trips', value: driver.trips.length, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' },
+        // { label: 'Total Trips', value: driver.trips.length, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' },
         { label: 'Current Rating', value: driver.currentRating.toFixed(1), icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' },
         { label: 'Daily Target', value: `₹${driver.dailyTargetAmount}`, icon: Clock, color: 'text-green-600', bg: 'bg-green-50' },
     ];

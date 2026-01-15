@@ -1,5 +1,3 @@
-import { Franchise } from "./franchise";
-
 // represents db User
 export interface User {
   _id        :number;

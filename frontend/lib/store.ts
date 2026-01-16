@@ -3,6 +3,7 @@ import authReducer from './features/auth/authSlice';
 import franchiseReducer from './features/franchise/franchiseSlice';
 import staffReducer from './features/staff/staffSlice';
 import penaltiesReducer from './features/penalties/penaltiesSlice';
+import driversReducer from './features/drivers/driverSlice';
 
 export const makeStore = () => {
     return configureStore({
@@ -11,6 +12,7 @@ export const makeStore = () => {
             franchise: franchiseReducer,
             staff: staffReducer,
             penalties: penaltiesReducer,
+            drivers: driversReducer,
         },
     });
 };

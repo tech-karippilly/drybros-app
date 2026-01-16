@@ -3,6 +3,7 @@
 import React from 'react';
 import { PlaceholderScreen } from './PlaceholderScreen';
 import { PenaltiesManager } from './penalties/PenaltiesManager';
+import { DriversManager } from './drivers/DriversManager';
 import { useAppSelector } from '@/lib/hooks';
 import { DashboardLayout } from './DashboardLayout';
 import {
@@ -69,7 +70,7 @@ export function StaffDashboard() {
             case 'staff':
                 return <PlaceholderScreen icon={Users} title="Staff Directory" description="Access team members, schedules, and internal communication logs." />;
             case 'drivers':
-                return <PlaceholderScreen icon={Truck} title="Driver Management" description="Monitor active drivers and coordinate with the logistics team." />;
+                return <DriversManager />;
             case 'reports':
                 return <PlaceholderScreen icon={BarChart3} title="Staff Reports" description="Generate performance reports and operational logs for your shifts." />;
             case 'payroll':

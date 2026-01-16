@@ -7,6 +7,7 @@ import { PlaceholderScreen } from './PlaceholderScreen';
 import { FranchiseManager } from './franchise/FranchiseManager';
 import { StaffManager } from './staff/StaffManager';
 import { PenaltiesManager } from './penalties/PenaltiesManager';
+import { DriversManager} from './drivers/DriversManager'
 import { useAppSelector } from '@/lib/hooks';
 import { DashboardLayout } from './DashboardLayout';
 import {
@@ -150,7 +151,7 @@ export function AdminDashboard() {
             case 'staff':
                 return <StaffManager />;
             case 'drivers':
-                return <PlaceholderScreen icon={Truck} title="Fleet & Drivers" description="Real-time monitoring of your delivery fleet, driver assignments, and vehicle maintenance schedules." />;
+                return <DriversManager />;
             case 'reports':
                 return <PlaceholderScreen icon={BarChart3} title="Business Analytics" description="Generate detailed reports on revenue, operational efficiency, and customer satisfaction metrics." />;
             case 'payroll':

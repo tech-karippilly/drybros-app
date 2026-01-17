@@ -2,22 +2,13 @@
  * Image asset paths
  * 
  * Place your images in mobile/assets/images/ directory
- * 
- * Expected images:
- * - logo.png: DRYBROS logo (DRY in red, BROS in white, DRIVER in white on black)
- * - background-pattern.png: Abstract white lines pattern on black background
- * - background-solid.png: Solid dark purplish-blue background
- * 
- * NOTE: Uncomment the require statements below once you've added the images
  */
 
 export const IMAGES = {
-  // Logo
-  // logo: require('../../assets/images/logo.png'),
-  
-  // Backgrounds
-  // backgroundPattern: require('../../assets/images/background-pattern.png'),
-  // backgroundSolid: require('../../assets/images/background-solid.png'),
+  // Splash Screen Images
+  bannerBg: require('../../assets/images/banner-bg.png'),
+  pattern: require('../../assets/images/pattern.png'),
+  driverLogo: require('../../assets/images/driver-logo.png'),
   
   // App Icons (already in assets root)
   icon: require('../../assets/icon.png'),

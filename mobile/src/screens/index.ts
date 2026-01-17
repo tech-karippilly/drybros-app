@@ -4,3 +4,4 @@
  */
 
 export * from './DeviceInfoScreen';
+export * from './SplashScreen';

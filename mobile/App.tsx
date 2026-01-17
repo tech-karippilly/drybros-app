@@ -5,7 +5,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { ToastProvider } from './src/contexts';
 import { COLORS } from './src/constants';
 import { loadFonts } from './src/utils/fonts';
-import { DeviceInfoScreen } from './src/screens';
+import { DeviceInfoScreen, SplashScreen } from './src/screens';
 
 const LoadingScreen = () => {
   const insets = useSafeAreaInsets();
@@ -18,6 +18,7 @@ const LoadingScreen = () => {
 
 export default function App() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [splashFinished, setSplashFinished] = useState(false);
 
   useEffect(() => {
     const prepare = async () => {
@@ -33,6 +34,7 @@ export default function App() {
     prepare();
   }, []);
 
+  // Show loading screen while fonts are loading
   if (!fontsLoaded) {
     return (
       <SafeAreaProvider>
@@ -41,6 +43,17 @@ export default function App() {
     );
   }
 
+  // Show splash screen first
+  if (!splashFinished) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <SplashScreen onFinish={() => setSplashFinished(true)} />
+      </SafeAreaProvider>
+    );
+  }
+
+  // Show main app after splash screen
   return (
     <SafeAreaProvider>
       <ToastProvider>

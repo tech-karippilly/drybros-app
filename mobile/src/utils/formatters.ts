@@ -40,11 +40,14 @@ export const formatDateTime = (date: Date): string => {
  */
 export const formatPhoneNumber = (phone: string): string => {
   const cleaned = phone.replace(/\D/g, '');
-  const match = cleaned.match(/^(\d{3})(\d{3})(\d{4})$/);
-  if (match) {
-    return `(${match[1]}) ${match[2]}-${match[3]}`;
-  }
-  return phone;
+  
+  // Limit to 10 digits for US phone numbers
+  const limited = cleaned.slice(0, 10);
+  
+  if (limited.length === 0) return '';
+  if (limited.length <= 3) return `(${limited}`;
+  if (limited.length <= 6) return `(${limited.slice(0, 3)}) ${limited.slice(3)}`;
+  return `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`;
 };
 
 /**

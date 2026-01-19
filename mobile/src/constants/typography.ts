@@ -10,6 +10,7 @@ export const FONT_FAMILY = {
   bold: 'Poppins-Bold',
   light: 'Poppins-Light',
   thin: 'Poppins-Thin',
+  satoshiBold: 'Satoshi-Bold',
 } as const;
 
 export const FONT_SIZES = {

@@ -34,7 +34,7 @@
       "package": "com.drybros.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#1A1B29"
       },
       "permissions": [
         "ACCESS_FINE_LOCATION",
@@ -48,7 +48,10 @@
         "READ_SMS"
       ],
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "navigationBar": {
+        "backgroundColor": "#1A1B29"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

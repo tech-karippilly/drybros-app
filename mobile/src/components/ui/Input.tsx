@@ -24,8 +24,10 @@ export interface InputProps extends TextInputProps {
   rightIcon?: React.ReactNode;
   containerStyle?: ViewStyle;
   inputStyle?: ViewStyle;
+  labelStyle?: ViewStyle;
   secureTextEntry?: boolean;
   showPasswordToggle?: boolean;
+  placeholderTextColor?: string;
 }
 
 export const Input: React.FC<InputProps> = ({
@@ -36,8 +38,10 @@ export const Input: React.FC<InputProps> = ({
   rightIcon,
   containerStyle,
   inputStyle,
+  labelStyle,
   secureTextEntry = false,
   showPasswordToggle = false,
+  placeholderTextColor,
   style,
   ...props
 }) => {
@@ -51,7 +55,7 @@ export const Input: React.FC<InputProps> = ({
   return (
     <View style={[styles.container, containerStyle]}>
       {label && (
-        <Text variant="label" style={styles.label}>
+        <Text variant="label" style={[styles.label, labelStyle]}>
           {label}
         </Text>
       )}
@@ -71,8 +75,9 @@ export const Input: React.FC<InputProps> = ({
             inputStyle,
             style,
           ]}
-          placeholderTextColor={COLORS.textTertiary}
+          placeholderTextColor={placeholderTextColor || COLORS.textTertiary}
           secureTextEntry={secureTextEntry && !isPasswordVisible}
+          keyboardAppearance="dark"
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           {...props}

@@ -43,6 +43,14 @@ enum UserRole {
   DRIVER
 }
 
+enum CarType {
+  MANUAL
+  AUTOMATIC
+  PREMIUM_CARS
+  LUXURY_CARS
+  SPORTY_CARS
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -76,18 +84,54 @@ model Driver {
   franchiseId      Int
   franchise        Franchise     @relation(fields: [franchiseId], references: [id])
 
+  // Basic Information
   firstName        String
   lastName         String
   phone            String        @unique
+  email            String        @unique
   altPhone         String?
+  driverCode       String        @unique
+  password         String        // hashed password for web login
 
+  // Emergency Contact
+  emergencyContactName      String
+  emergencyContactPhone     String
+  emergencyContactRelation  String
+
+  // Address
+  address          String
+  city             String
+  state            String
+  pincode          String
+
+  // License Details
+  licenseNumber    String
+  licenseExpDate   DateTime
+
+  // Bank Account Details
+  bankAccountName  String
+  bankAccountNumber String
+  bankIfscCode     String
+
+  // Documents Collected (Boolean flags)
+  aadharCard       Boolean       @default(false)
+  license          Boolean       @default(false)
+  educationCert    Boolean       @default(false)
+  previousExp      Boolean       @default(false)
+
+  // Car Types Driver Can Drive (Array stored as comma-separated or JSON)
+  carTypes         String        // JSON array of CarType enum values
+
+  // Status and Rating
   status           DriverStatus  @default(ACTIVE)
   complaintCount   Int           @default(0)
   bannedGlobally   Boolean       @default(false)
-
   dailyTargetAmount Int?
   currentRating     Float?
 
+  // Audit Fields
+  createdBy        Int?          // User ID who created this driver
+  creator         User?         @relation(fields: [createdBy], references: [id])
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -164,7 +208,8 @@ model User {
   role      UserRole
   isActive  Boolean  @default(true)
 
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  createdDrivers Driver[]
 }

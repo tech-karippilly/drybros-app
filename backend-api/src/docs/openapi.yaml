@@ -251,7 +251,89 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripResponse"
+
+  /drivers:
+    get:
+      summary: List all drivers
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of drivers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Driver"
+    post:
+      summary: Create a new driver
+      description: |
+        Create a new driver. Only ADMIN and OFFICE_STAFF roles can create drivers.
+        A driver code will be auto-generated and a welcome email will be sent with login credentials.
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDriverRequest"
+      responses:
+        "201":
+          description: Driver created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateDriverResponse"
+        "400":
+          description: Bad request - validation error
+        "409":
+          description: Conflict - phone or email already exists
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden - insufficient permissions
+
+  /drivers/{id}:
+    get:
+      summary: Get driver by ID
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Driver data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Driver"
+        "404":
+          description: Driver not found
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     CreateCustomerRequest:
       type: object
@@ -446,3 +528,203 @@ components:
         - finalAmount
         - paymentStatus
         - paymentMode
+
+    CreateDriverRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+          description: Driver's first name
+        lastName:
+          type: string
+          description: Driver's last name
+        phone:
+          type: string
+          description: Primary phone number (must be unique)
+        email:
+          type: string
+          format: email
+          description: Email address (must be unique)
+        altPhone:
+          type: string
+          description: Alternate phone number (optional)
+        password:
+          type: string
+          minLength: 6
+          description: Password for web login (auto-generated from frontend)
+        emergencyContactName:
+          type: string
+          description: Emergency contact person's name
+        emergencyContactPhone:
+          type: string
+          description: Emergency contact phone number
+        emergencyContactRelation:
+          type: string
+          description: Relationship with emergency contact
+        address:
+          type: string
+          description: Street address
+        city:
+          type: string
+          description: City
+        state:
+          type: string
+          description: State
+        pincode:
+          type: string
+          minLength: 6
+          description: Postal/ZIP code
+        licenseNumber:
+          type: string
+          description: Driving license number
+        licenseExpDate:
+          type: string
+          format: date-time
+          description: License expiration date (must be in future)
+        bankAccountName:
+          type: string
+          description: Bank account holder name
+        bankAccountNumber:
+          type: string
+          description: Bank account number
+        bankIfscCode:
+          type: string
+          description: Bank IFSC code
+        aadharCard:
+          type: boolean
+          default: false
+          description: Aadhar card collected
+        license:
+          type: boolean
+          default: false
+          description: License document collected
+        educationCert:
+          type: boolean
+          default: false
+          description: Education certificate collected
+        previousExp:
+          type: boolean
+          default: false
+          description: Previous experience certificate collected
+        carTypes:
+          type: array
+          items:
+            type: string
+            enum: [MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS]
+          minItems: 1
+          description: Types of cars the driver can drive
+        franchiseId:
+          type: integer
+          description: Franchise ID (for now use dummy UUID as integer)
+      required:
+        - firstName
+        - lastName
+        - phone
+        - email
+        - password
+        - emergencyContactName
+        - emergencyContactPhone
+        - emergencyContactRelation
+        - address
+        - city
+        - state
+        - pincode
+        - licenseNumber
+        - licenseExpDate
+        - bankAccountName
+        - bankAccountNumber
+        - bankIfscCode
+        - carTypes
+        - franchiseId
+
+    Driver:
+      type: object
+      properties:
+        id:
+          type: integer
+        franchiseId:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        altPhone:
+          type: string
+          nullable: true
+        driverCode:
+          type: string
+          description: Auto-generated unique driver code for app login
+        emergencyContactName:
+          type: string
+        emergencyContactPhone:
+          type: string
+        emergencyContactRelation:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        pincode:
+          type: string
+        licenseNumber:
+          type: string
+        licenseExpDate:
+          type: string
+          format: date-time
+        bankAccountName:
+          type: string
+        bankAccountNumber:
+          type: string
+        bankIfscCode:
+          type: string
+        aadharCard:
+          type: boolean
+        license:
+          type: boolean
+        educationCert:
+          type: boolean
+        previousExp:
+          type: boolean
+        carTypes:
+          type: array
+          items:
+            type: string
+            enum: [MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS]
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, BLOCKED, TERMINATED]
+        complaintCount:
+          type: integer
+        bannedGlobally:
+          type: boolean
+        dailyTargetAmount:
+          type: integer
+          nullable: true
+        currentRating:
+          type: number
+          nullable: true
+        createdBy:
+          type: integer
+          nullable: true
+          description: User ID who created this driver
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateDriverResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Driver created successfully"
+        data:
+          $ref: "#/components/schemas/Driver"

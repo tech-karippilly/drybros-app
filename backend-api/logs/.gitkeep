@@ -1,0 +1,8 @@
+# Logs Directory
+
+This directory contains application logs:
+- `combined.log` - All application logs
+- `error.log` - Error logs only
+- `access.log` - Request/response logs
+
+Logs are automatically rotated when they reach 5MB, keeping the last 5 files.

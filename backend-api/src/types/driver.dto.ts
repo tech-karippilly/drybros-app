@@ -43,15 +43,15 @@ export const createDriverSchema = z.object({
   educationCert: z.boolean().default(false),
   previousExp: z.boolean().default(false),
   carTypes: z.array(carTypeEnum).min(1, "At least one car type is required"),
-  franchiseId: z.number().int().positive("Franchise ID is required"),
+  franchiseId: z.string().uuid("Franchise ID must be a valid UUID"),
 });
 
 export type CreateDriverDTO = z.infer<typeof createDriverSchema>;
 
 // Driver Response DTO
 export interface DriverResponseDTO {
-  id: number;
-  franchiseId: number;
+  id: string; // UUID
+  franchiseId: string; // UUID
   firstName: string;
   lastName: string;
   phone: string;
@@ -80,7 +80,7 @@ export interface DriverResponseDTO {
   bannedGlobally: boolean;
   dailyTargetAmount: number | null;
   currentRating: number | null;
-  createdBy: number | null;
+  createdBy: string | null; // User UUID who created this driver
   createdAt: Date;
   updatedAt: Date;
 }

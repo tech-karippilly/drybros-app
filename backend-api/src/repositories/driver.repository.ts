@@ -8,7 +8,7 @@ export async function getAllDrivers() {
   });
 }
 
-export async function getDriverById(id: number) {
+export async function getDriverById(id: string) {
   return prisma.driver.findUnique({
     where: { id },
   });
@@ -33,7 +33,7 @@ export async function getDriverByDriverCode(driverCode: string) {
 }
 
 export async function createDriver(data: {
-  franchiseId: number;
+  franchiseId: string; // UUID
   firstName: string;
   lastName: string;
   phone: string;
@@ -58,7 +58,7 @@ export async function createDriver(data: {
   educationCert: boolean;
   previousExp: boolean;
   carTypes: string; // JSON string
-  createdBy?: number | null;
+  createdBy?: string | null; // User UUID who created this driver
 }): Promise<Driver> {
   return prisma.driver.create({
     data,

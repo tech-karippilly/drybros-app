@@ -21,7 +21,7 @@ export async function getDriverById(
   next: NextFunction
 ) {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id; // UUID string
     const driver = await getDriver(id);
     res.json({ data: driver });
   } catch (err) {

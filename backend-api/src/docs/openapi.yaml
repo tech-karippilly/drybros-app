@@ -447,6 +447,136 @@ paths:
         "404":
           description: Staff member not found
 
+  /drivers:
+    get:
+      summary: List all drivers
+      description: |
+        Retrieves a list of all drivers in the system.
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of drivers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Driver"
+        "401":
+          description: Not authenticated (missing or invalid token)
+    post:
+      summary: Create a new driver
+      description: |
+        Create a new driver. Only ADMIN and OFFICE_STAFF roles can create drivers.
+        
+        **Auto-Generated Fields:**
+        - `driverCode`: Automatically generated in format DRV-XXXXXX (6 random alphanumeric characters)
+        
+        **Email Notification:**
+        Upon successful creation, a welcome email is automatically sent to the driver's email address containing:
+        - Driver code and password for mobile app login
+        - Email and password for web portal login
+        - Web login link
+        
+        **Password:**
+        The password provided will be used for both app login (with driver code) and web login (with email).
+        The password is hashed before storage.
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDriverRequest"
+            example:
+              firstName: "John"
+              lastName: "Doe"
+              phone: "+1234567890"
+              email: "john.doe@example.com"
+              altPhone: "+1234567891"
+              password: "SecurePass123!"
+              emergencyContactName: "Jane Doe"
+              emergencyContactPhone: "+1234567892"
+              emergencyContactRelation: "Spouse"
+              address: "123 Main Street"
+              city: "New York"
+              state: "NY"
+              pincode: "10001"
+              licenseNumber: "DL1234567890"
+              licenseExpDate: "2025-12-31T00:00:00Z"
+              bankAccountName: "John Doe"
+              bankAccountNumber: "1234567890"
+              bankIfscCode: "BANK0001234"
+              aadharCard: true
+              license: true
+              educationCert: false
+              previousExp: true
+              carTypes: ["MANUAL", "AUTOMATIC"]
+              franchiseId: 1
+      responses:
+        "201":
+          description: Driver created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateDriverResponse"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict - phone or email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions (only ADMIN and OFFICE_STAFF can create drivers)
+
+  /drivers/{id}:
+    get:
+      summary: Get driver by ID
+      description: |
+        Retrieves detailed information about a specific driver by their ID.
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Driver ID
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Driver data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Driver"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Driver not found
+
   /auth/register-admin:
     post:
       summary: Register a new admin user
@@ -1711,6 +1841,297 @@ components:
           type: string
           description: Error message
           example: "Account is temporarily locked due to multiple failed login attempts. Please try again in 5 minute(s)."
+
+    CreateDriverRequest:
+      type: object
+      required:
+        - firstName
+        - lastName
+        - phone
+        - email
+        - password
+        - emergencyContactName
+        - emergencyContactPhone
+        - emergencyContactRelation
+        - address
+        - city
+        - state
+        - pincode
+        - licenseNumber
+        - licenseExpDate
+        - bankAccountName
+        - bankAccountNumber
+        - bankIfscCode
+        - carTypes
+        - franchiseId
+      properties:
+        firstName:
+          type: string
+          description: Driver's first name
+          example: "John"
+        lastName:
+          type: string
+          description: Driver's last name
+          example: "Doe"
+        phone:
+          type: string
+          description: Primary phone number (must be unique)
+          example: "+1234567890"
+        email:
+          type: string
+          format: email
+          description: Email address (must be unique)
+          example: "john.doe@example.com"
+        altPhone:
+          type: string
+          description: Alternate phone number (optional)
+          example: "+1234567891"
+        password:
+          type: string
+          minLength: 6
+          description: Password for web login (auto-generated from frontend, will be used for both app and web login)
+          example: "SecurePass123!"
+        emergencyContactName:
+          type: string
+          description: Emergency contact person's name
+          example: "Jane Doe"
+        emergencyContactPhone:
+          type: string
+          description: Emergency contact phone number
+          example: "+1234567892"
+        emergencyContactRelation:
+          type: string
+          description: Relationship with emergency contact
+          example: "Spouse"
+        address:
+          type: string
+          description: Street address
+          example: "123 Main Street"
+        city:
+          type: string
+          description: City
+          example: "New York"
+        state:
+          type: string
+          description: State
+          example: "NY"
+        pincode:
+          type: string
+          minLength: 6
+          description: Postal/ZIP code
+          example: "10001"
+        licenseNumber:
+          type: string
+          description: Driving license number
+          example: "DL1234567890"
+        licenseExpDate:
+          type: string
+          format: date-time
+          description: License expiration date (must be in future)
+          example: "2025-12-31T00:00:00Z"
+        bankAccountName:
+          type: string
+          description: Bank account holder name
+          example: "John Doe"
+        bankAccountNumber:
+          type: string
+          description: Bank account number
+          example: "1234567890"
+        bankIfscCode:
+          type: string
+          description: Bank IFSC code
+          example: "BANK0001234"
+        aadharCard:
+          type: boolean
+          default: false
+          description: Aadhar card collected
+          example: true
+        license:
+          type: boolean
+          default: false
+          description: License document collected
+          example: true
+        educationCert:
+          type: boolean
+          default: false
+          description: Education certificate collected
+          example: false
+        previousExp:
+          type: boolean
+          default: false
+          description: Previous experience certificate collected
+          example: true
+        carTypes:
+          type: array
+          items:
+            type: string
+            enum: [MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS]
+          minItems: 1
+          description: Types of cars the driver can drive
+          example: ["MANUAL", "AUTOMATIC"]
+        franchiseId:
+          type: integer
+          description: Franchise ID (for now use dummy UUID as integer)
+          example: 1
+
+    Driver:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Driver ID
+          example: 1
+        franchiseId:
+          type: integer
+          description: Franchise ID
+          example: 1
+        firstName:
+          type: string
+          description: Driver's first name
+          example: "John"
+        lastName:
+          type: string
+          description: Driver's last name
+          example: "Doe"
+        phone:
+          type: string
+          description: Primary phone number
+          example: "+1234567890"
+        email:
+          type: string
+          format: email
+          description: Email address
+          example: "john.doe@example.com"
+        altPhone:
+          type: string
+          nullable: true
+          description: Alternate phone number
+          example: "+1234567891"
+        driverCode:
+          type: string
+          description: Auto-generated unique driver code for app login (format: DRV-XXXXXX)
+          example: "DRV-A1B2C3"
+        emergencyContactName:
+          type: string
+          description: Emergency contact person's name
+          example: "Jane Doe"
+        emergencyContactPhone:
+          type: string
+          description: Emergency contact phone number
+          example: "+1234567892"
+        emergencyContactRelation:
+          type: string
+          description: Relationship with emergency contact
+          example: "Spouse"
+        address:
+          type: string
+          description: Street address
+          example: "123 Main Street"
+        city:
+          type: string
+          description: City
+          example: "New York"
+        state:
+          type: string
+          description: State
+          example: "NY"
+        pincode:
+          type: string
+          description: Postal/ZIP code
+          example: "10001"
+        licenseNumber:
+          type: string
+          description: Driving license number
+          example: "DL1234567890"
+        licenseExpDate:
+          type: string
+          format: date-time
+          description: License expiration date
+          example: "2025-12-31T00:00:00Z"
+        bankAccountName:
+          type: string
+          description: Bank account holder name
+          example: "John Doe"
+        bankAccountNumber:
+          type: string
+          description: Bank account number
+          example: "1234567890"
+        bankIfscCode:
+          type: string
+          description: Bank IFSC code
+          example: "BANK0001234"
+        aadharCard:
+          type: boolean
+          description: Aadhar card collected
+          example: true
+        license:
+          type: boolean
+          description: License document collected
+          example: true
+        educationCert:
+          type: boolean
+          description: Education certificate collected
+          example: false
+        previousExp:
+          type: boolean
+          description: Previous experience certificate collected
+          example: true
+        carTypes:
+          type: array
+          items:
+            type: string
+            enum: [MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS]
+          description: Types of cars the driver can drive
+          example: ["MANUAL", "AUTOMATIC"]
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, BLOCKED, TERMINATED]
+          description: Driver status
+          example: "ACTIVE"
+        complaintCount:
+          type: integer
+          description: Number of complaints against the driver
+          example: 0
+        bannedGlobally:
+          type: boolean
+          description: Whether the driver is banned globally
+          example: false
+        dailyTargetAmount:
+          type: integer
+          nullable: true
+          description: Daily target amount for the driver
+          example: 5000
+        currentRating:
+          type: number
+          format: float
+          nullable: true
+          description: Current rating of the driver
+          example: 4.5
+        createdBy:
+          type: integer
+          nullable: true
+          description: User ID who created this driver
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          description: When the driver was created
+          example: "2024-01-20T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the driver was last updated
+          example: "2024-01-20T10:30:00Z"
+
+    CreateDriverResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Driver created successfully"
+        data:
+          $ref: "#/components/schemas/Driver"
 
     LogoutResponse:
       type: object

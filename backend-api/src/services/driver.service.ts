@@ -8,8 +8,9 @@ import {
   getDriverByDriverCode,
   createDriver as repoCreateDriver,
 } from "../repositories/driver.repository";
+import { getFranchiseById } from "../repositories/franchise.repository";
 import { CreateDriverDTO, CreateDriverResponseDTO, DriverResponseDTO } from "../types/driver.dto";
-import { ConflictError, NotFoundError } from "../utils/errors";
+import { ConflictError, NotFoundError, BadRequestError } from "../utils/errors";
 import { sendDriverWelcomeEmail } from "./email.service";
 import { emailConfig } from "../config/emailConfig";
 import logger from "../config/logger";
@@ -93,7 +94,7 @@ export async function listDrivers() {
   return getAllDrivers();
 }
 
-export async function getDriver(id: number) {
+export async function getDriver(id: string) {
   const driver = await getDriverById(id);
 
   if (!driver) {
@@ -108,8 +109,15 @@ export async function getDriver(id: number) {
  */
 export async function createDriver(
   input: CreateDriverDTO,
-  createdBy?: number
+  createdBy?: string // User UUID who created this driver
 ): Promise<CreateDriverResponseDTO> {
+  // For now, skip franchise validation since we're using dummy UUIDs
+  // TODO: Add franchise validation when franchises are properly set up
+  // const franchise = await getFranchiseById(input.franchiseId);
+  // if (!franchise) {
+  //   throw new NotFoundError(`Franchise with ID ${input.franchiseId} not found`);
+  // }
+
   // Check if phone already exists
   const existingPhone = await getDriverByPhone(input.phone);
   if (existingPhone) {

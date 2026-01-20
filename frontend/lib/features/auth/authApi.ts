@@ -1,5 +1,5 @@
 import api from '../../axios';
-import { AUTH_API_ENDPOINTS } from '../../constants/auth';
+import { AUTH_API_ENDPOINTS, REFRESH_TOKEN_EXPIRED_ERROR } from '../../constants/auth';
 
 export interface RegisterAdminRequest {
     name: string;
@@ -92,10 +92,12 @@ export async function getCurrentUser(): Promise<CurrentUserResponse['data']> {
         );
         return response.data.data;
     } catch (error: any) {
-        // If error is refresh token expired, re-throw with specific message
-        if (error?.message === 'REFRESH_TOKEN_EXPIRED' || 
-            (error?.response?.status === 401 && error?.config?.url?.includes('/auth/me'))) {
-            throw new Error('REFRESH_TOKEN_EXPIRED');
+        // Re-throw refresh token expired errors with specific message
+        if (
+            error?.message === REFRESH_TOKEN_EXPIRED_ERROR ||
+            (error?.response?.status === 401 && error?.config?.url?.includes('/auth/me'))
+        ) {
+            throw new Error(REFRESH_TOKEN_EXPIRED_ERROR);
         }
         throw error;
     }

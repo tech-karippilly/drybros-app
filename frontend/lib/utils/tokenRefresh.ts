@@ -3,13 +3,15 @@
  * Manages refresh token state and modal display
  */
 
-let refreshTokenExpiredCallback: (() => void) | null = null;
+type RefreshTokenExpiredCallback = () => void;
+
+let refreshTokenExpiredCallback: RefreshTokenExpiredCallback | null = null;
 let isRefreshTokenExpired = false;
 
 /**
  * Set callback to be called when refresh token expires
  */
-export function setRefreshTokenExpiredCallback(callback: () => void): void {
+export function setRefreshTokenExpiredCallback(callback: RefreshTokenExpiredCallback): void {
     refreshTokenExpiredCallback = callback;
 }
 
@@ -18,9 +20,7 @@ export function setRefreshTokenExpiredCallback(callback: () => void): void {
  */
 export function triggerRefreshTokenExpired(): void {
     isRefreshTokenExpired = true;
-    if (refreshTokenExpiredCallback) {
-        refreshTokenExpiredCallback();
-    }
+    refreshTokenExpiredCallback?.();
 }
 
 /**

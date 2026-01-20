@@ -60,11 +60,15 @@ export function validateParams(schema: z.ZodSchema) {
 
 /**
  * Validation middleware for query parameters
+ * Note: req.query is read-only, so we validate without modifying it
  */
 export function validateQuery(schema: z.ZodSchema) {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      schema.parse(req.query);
+      // Validate query without modifying req.query (it's read-only)
+      const validatedQuery = schema.parse(req.query);
+      // Store validated query in a custom property if needed
+      (req as any).validatedQuery = validatedQuery;
       next();
     } catch (error) {
       if (error instanceof ZodError) {

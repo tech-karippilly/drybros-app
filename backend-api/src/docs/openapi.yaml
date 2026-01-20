@@ -291,7 +291,7 @@ paths:
   /auth/reset-password:
     post:
       summary: Reset password with token
-      description: Resets the user's password using the token received via email. Token expires in 1 hour.
+      description: Resets the user's password using the token received via email. Token expiration is configurable (default: 1 hour).
       tags:
         - Authentication
       requestBody:
@@ -313,7 +313,7 @@ paths:
   /auth/refresh-token:
     post:
       summary: Refresh access token
-      description: Generates a new access token and refresh token using a valid refresh token. Refresh token expires in 2 minutes.
+      description: Generates a new access token and refresh token using a valid refresh token. Refresh token expires in 8 hours.
       tags:
         - Authentication
       requestBody:
@@ -965,10 +965,10 @@ components:
           properties:
             accessToken:
               type: string
-              description: JWT access token (expires in 1 minute)
+              description: JWT access token (expires in 1 hour)
             refreshToken:
               type: string
-              description: JWT refresh token (expires in 2 minutes)
+              description: JWT refresh token (expires in 8 hours)
             user:
               $ref: "#/components/schemas/User"
 
@@ -1022,7 +1022,7 @@ components:
       properties:
         refreshToken:
           type: string
-          description: Refresh token received from login (expires in 2 minutes)
+          description: Refresh token received from login (expires in 8 hours)
           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
       required:
         - refreshToken

@@ -3,6 +3,8 @@ export const STORAGE_KEYS = {
     REFRESH_TOKEN: 'refreshToken',
 } as const;
 
+export const REFRESH_TOKEN_EXPIRED_ERROR = 'REFRESH_TOKEN_EXPIRED' as const;
+
 export const AUTH_ROUTES = {
     LOGIN: '/login',
     REGISTER: '/register',

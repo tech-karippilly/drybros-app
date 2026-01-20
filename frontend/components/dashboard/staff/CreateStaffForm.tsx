@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '@/lib/hooks';
-import { addStaff, updateStaff } from '@/lib/features/staff/staffSlice';
+import { createStaffMember, updateStaffMember } from '@/lib/features/staff/staffSlice';
+import { useToast } from '@/components/ui/toast';
 import {
     X,
     Upload,
@@ -20,6 +21,12 @@ import {
 } from 'lucide-react';
 import { Staff } from '@/lib/types/staff';
 import { generateStaffPassword } from '@/lib/utils/staff-utils';
+import { DEFAULT_FRANCHISE_ID } from '@/lib/constants/auth';
+
+// Constants
+const DOCUMENT_TYPES = ['Govt Identity', 'Address Proof', 'Educational Certificates', 'Previous Experience', 'Police Verification'] as const;
+
+const INPUT_CLASSES = "w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium";
 
 interface CreateStaffFormProps {
     onClose: () => void;
@@ -29,9 +36,34 @@ interface CreateStaffFormProps {
 export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps) {
     const dispatch = useAppDispatch();
     const { list: franchises } = useAppSelector((state) => state.franchise);
+    const { toast } = useToast();
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const [formData, setFormData] = useState<Partial<Staff>>(() => {
-        if (editingStaff) return editingStaff;
+    // Helper function to get initial form data
+    const getInitialFormData = useCallback((): Partial<Staff> => {
+        if (editingStaff) {
+            return {
+                ...editingStaff,
+                name: editingStaff.name || '',
+                email: editingStaff.email || '',
+                phone: editingStaff.phone || '',
+                password: editingStaff.password || generateStaffPassword(),
+                franchiseId: editingStaff.franchiseId || '',
+                salary: editingStaff.monthlySalary || editingStaff.salary || 0,
+                monthlySalary: editingStaff.monthlySalary || editingStaff.salary || 0,
+                address: editingStaff.address || '',
+                emergencyContact: editingStaff.emergencyContact || '',
+                relationship: editingStaff.emergencyContactRelation || editingStaff.relationship || '',
+                emergencyContactRelation: editingStaff.emergencyContactRelation || editingStaff.relationship || '',
+                documentsCollected: [
+                    editingStaff.govtId ? 'Govt Identity' : '',
+                    editingStaff.addressProof ? 'Address Proof' : '',
+                    editingStaff.certificates ? 'Educational Certificates' : '',
+                    editingStaff.previousExperienceCert ? 'Previous Experience' : '',
+                ].filter(Boolean),
+                status: editingStaff.status || 'active',
+            };
+        }
 
         return {
             name: '',
@@ -40,52 +72,104 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
             password: generateStaffPassword(),
             franchiseId: '',
             salary: 0,
+            monthlySalary: 0,
             address: '',
             emergencyContact: '',
             relationship: '',
+            emergencyContactRelation: '',
             documentsCollected: [],
             status: 'active'
         };
-    });
+    }, [editingStaff]);
 
-    const handleGeneratePassword = React.useCallback(() => {
+    const [formData, setFormData] = useState<Partial<Staff>>(() => getInitialFormData());
+
+    const handleGeneratePassword = useCallback(() => {
         setFormData(prev => ({ ...prev, password: generateStaffPassword() }));
     }, []);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
+        setIsSubmitting(true);
 
-        const selectedFranchise = franchises.find(f => f._id === formData.franchiseId);
+        try {
+            const docFlags = buildDocumentFlags(formData.documentsCollected);
+            const staffId = editingStaff?.id || editingStaff?._id || '';
 
-        const staffData: Staff = {
-            _id: editingStaff?._id || `st_${Math.random().toString(36).substr(2, 9)}`,
-            name: formData.name || '',
-            email: formData.email || '',
-            phone: formData.phone || '',
-            password: formData.password || '',
-            franchiseId: formData.franchiseId || '',
-            franchises_code: selectedFranchise?.code || 'N/A',
-            salary: Number(formData.salary) || 0,
-            address: formData.address || '',
-            emergencyContact: formData.emergencyContact || '',
-            relationship: formData.relationship || '',
-            documentsCollected: formData.documentsCollected || [],
-            status: formData.status || 'active',
-            customersAttended: editingStaff?.customersAttended || 0,
-            leaveTaken: editingStaff?.leaveTaken || 0,
-            attendanceStatus: editingStaff?.attendanceStatus || 'present',
-            profilePic: formData.profilePic || ''
-        };
+            if (editingStaff) {
+                // Update existing staff
+                const updateData = {
+                    name: formData.name || '',
+                    email: formData.email || '',
+                    phone: formData.phone || '',
+                    franchiseId: DEFAULT_FRANCHISE_ID,
+                    monthlySalary: Number(formData.salary) || formData.monthlySalary || 0,
+                    address: formData.address || '',
+                    emergencyContact: formData.emergencyContact || '',
+                    emergencyContactRelation: formData.relationship || formData.emergencyContactRelation || '',
+                    ...docFlags,
+                    profilePic: formData.profilePic || null,
+                };
 
-        if (editingStaff) {
-            dispatch(updateStaff(staffData));
-        } else {
-            dispatch(addStaff(staffData));
+                await dispatch(updateStaffMember({ id: staffId, data: updateData })).unwrap();
+                
+                toast({
+                    title: 'Success',
+                    description: 'Staff member updated successfully',
+                    variant: 'success',
+                });
+            } else {
+                // Create new staff
+                if (!formData.password) {
+                    toast({
+                        title: 'Error',
+                        description: 'Password is required',
+                        variant: 'error',
+                    });
+                    setIsSubmitting(false);
+                    return;
+                }
+
+                const createData = {
+                    name: formData.name || '',
+                    email: formData.email || '',
+                    phone: formData.phone || '',
+                    password: formData.password || '',
+                    franchiseId: DEFAULT_FRANCHISE_ID,
+                    monthlySalary: Number(formData.salary) || 0,
+                    address: formData.address || '',
+                    emergencyContact: formData.emergencyContact || '',
+                    emergencyContactRelation: formData.relationship || '',
+                    ...docFlags,
+                    profilePic: formData.profilePic || null,
+                };
+
+                await dispatch(createStaffMember(createData)).unwrap();
+                
+                toast({
+                    title: 'Success',
+                    description: 'Staff member created successfully',
+                    variant: 'success',
+                });
+            }
+            onClose();
+        } catch (error: any) {
+            const errorMessage = getErrorMessage(
+                error,
+                editingStaff ? 'Failed to update staff member' : 'Failed to create staff member'
+            );
+            
+            toast({
+                title: 'Error',
+                description: errorMessage,
+                variant: 'error',
+            });
+        } finally {
+            setIsSubmitting(false);
         }
-        onClose();
-    };
+    }, [formData, editingStaff, dispatch, toast, onClose, buildDocumentFlags, getErrorMessage]);
 
-    const handleDocToggle = (doc: string) => {
+    const handleDocToggle = useCallback((doc: string) => {
         setFormData(prev => {
             const docs = prev.documentsCollected || [];
             if (docs.includes(doc)) {
@@ -94,7 +178,39 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                 return { ...prev, documentsCollected: [...docs, doc] };
             }
         });
-    };
+    }, []);
+
+    // Helper function to extract error message
+    const getErrorMessage = useCallback((error: any, defaultMessage: string): string => {
+        if (error?.response?.data?.error) {
+            return error.response.data.error;
+        }
+        if (error?.response?.data?.message) {
+            return error.response.data.message;
+        }
+        if (error?.message) {
+            return error.message;
+        }
+        return defaultMessage;
+    }, []);
+
+    // Helper function to build document flags
+    const buildDocumentFlags = useCallback((documentsCollected: string[] = []) => {
+        return {
+            govtId: documentsCollected.includes('Govt Identity'),
+            addressProof: documentsCollected.includes('Address Proof'),
+            certificates: documentsCollected.includes('Educational Certificates'),
+            previousExperienceCert: documentsCollected.includes('Previous Experience'),
+        };
+    }, []);
+
+    // Memoize form field handlers
+    const handleFieldChange = useCallback((field: keyof Staff) => (
+        e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    ) => {
+        const value = field === 'salary' ? Number(e.target.value) : e.target.value;
+        setFormData(prev => ({ ...prev, [field]: value }));
+    }, []);
 
     return (
         <div className="fixed inset-0 bg-[#0d121c]/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
@@ -130,10 +246,10 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                                 </label>
                                 <input
                                     required
-                                    value={formData.name}
-                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                    value={formData.name || ''}
+                                    onChange={handleFieldChange('name')}
                                     placeholder="e.g. Rahul Sharma"
-                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
+                                    className={INPUT_CLASSES}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -143,10 +259,10 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                                 <input
                                     required
                                     type="email"
-                                    value={formData.email}
-                                    onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                    value={formData.email || ''}
+                                    onChange={handleFieldChange('email')}
                                     placeholder="rahul@example.com"
-                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
+                                    className={INPUT_CLASSES}
                                 />
                             </div>
                         </div>
@@ -158,10 +274,10 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                                 </label>
                                 <input
                                     required
-                                    value={formData.phone}
-                                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                                    value={formData.phone || ''}
+                                    onChange={handleFieldChange('phone')}
                                     placeholder="+91 00000 00000"
-                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
+                                    className={INPUT_CLASSES}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -172,8 +288,8 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                                     <input
                                         required
                                         readOnly={!editingStaff}
-                                        value={formData.password}
-                                        onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                        value={formData.password || ''}
+                                        onChange={handleFieldChange('password')}
                                         className="w-full pl-4 pr-12 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-mono text-sm"
                                     />
                                     <button
@@ -195,9 +311,9 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                                 </label>
                                 <select
                                     required
-                                    value={formData.franchiseId}
-                                    onChange={e => setFormData({ ...formData, franchiseId: e.target.value })}
-                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
+                                    value={formData.franchiseId || ''}
+                                    onChange={handleFieldChange('franchiseId')}
+                                    className={INPUT_CLASSES}
                                 >
                                     <option value="">Select Franchise</option>
                                     {franchises.map(f => (
@@ -215,10 +331,10 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                                 <input
                                     required
                                     type="number"
-                                    value={formData.salary}
-                                    onChange={e => setFormData({ ...formData, salary: Number(e.target.value) })}
+                                    value={formData.salary || 0}
+                                    onChange={handleFieldChange('salary')}
                                     placeholder="e.g. 25000"
-                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
+                                    className={INPUT_CLASSES}
                                 />
                             </div>
                         </div>
@@ -229,10 +345,10 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                             </label>
                             <input
                                 required
-                                value={formData.address}
-                                onChange={e => setFormData({ ...formData, address: e.target.value })}
+                                value={formData.address || ''}
+                                onChange={handleFieldChange('address')}
                                 placeholder="House no, Street, Locality, City, State"
-                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
+                                className={INPUT_CLASSES}
                             />
                         </div>
 
@@ -242,10 +358,10 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                                 <AlertCircle size={14} /> Emergency Contact
                             </label>
                             <input
-                                value={formData.emergencyContact}
-                                onChange={e => setFormData({ ...formData, emergencyContact: e.target.value })}
+                                value={formData.emergencyContact || ''}
+                                onChange={handleFieldChange('emergencyContact')}
                                 placeholder="+91 00000 00000"
-                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
+                                className={INPUT_CLASSES}
                             />
                         </div>
                         <div className="space-y-2">
@@ -253,10 +369,10 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                                 <Users size={14} /> Relationship
                             </label>
                             <input
-                                value={formData.relationship}
-                                onChange={e => setFormData({ ...formData, relationship: e.target.value })}
+                                value={formData.relationship || ''}
+                                onChange={handleFieldChange('relationship')}
                                 placeholder="e.g. Father, Spouse"
-                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
+                                className={INPUT_CLASSES}
                             />
                         </div>
 
@@ -266,7 +382,7 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                                 <FileText size={14} /> Documents Verified
                             </label>
                             <div className="flex flex-wrap gap-3">
-                                {['Govt Identity', 'Address Proof', 'Educational Certificates', 'Previous Experience', 'Police Verification'].map(doc => (
+                                {DOCUMENT_TYPES.map(doc => (
                                     <label key={doc} className="flex items-center gap-3 px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer hover:border-[#0d59f2]/40 transition-all group">
                                         <input
                                             type="checkbox"
@@ -291,10 +407,11 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                         </button>
                         <button
                             type="submit"
-                            className="flex-[2] bg-[#0d59f2] text-white py-4 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-[#0d59f2]/90 shadow-xl shadow-blue-500/20 transition-all active:scale-95"
+                            disabled={isSubmitting}
+                            className="flex-[2] bg-[#0d59f2] text-white py-4 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-[#0d59f2]/90 shadow-xl shadow-blue-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <Save size={20} />
-                            <span>{editingStaff ? 'Update Profile' : 'Confirm Enrollment'}</span>
+                            <span>{isSubmitting ? 'Saving...' : (editingStaff ? 'Update Profile' : 'Confirm Enrollment')}</span>
                         </button>
                     </div>
                 </form>

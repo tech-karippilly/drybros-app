@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { STORAGE_KEYS } from './constants/auth';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+// Get API URL from environment variable, fallback to default backend port
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 // Create Axios instance
 const api = axios.create({
@@ -30,11 +31,48 @@ const processQueue = (error: unknown, token: string | null = null) => {
 // Request Interceptor
 api.interceptors.request.use(
     (config) => {
-        // Add Authorization header if access token exists
+        // Validate and add Authorization header if access token exists
+        // This applies to ALL requests including staff API calls
         if (typeof window !== 'undefined') {
             const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-            if (token) {
-                config.headers.Authorization = `Bearer ${token}`;
+            
+            // Check if token exists and is valid (not empty)
+            if (token && token.trim() !== '') {
+                // Validate token format (basic check - JWT tokens have 3 parts separated by dots)
+                const tokenParts = token.split('.');
+                if (tokenParts.length === 3) {
+                    // Token appears valid, add to request
+                    config.headers.Authorization = `Bearer ${token}`;
+                } else {
+                    // Invalid token format, clear it
+                    console.warn('Invalid token format detected, clearing token');
+                    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+                    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+                    
+                    // Redirect to login if not already on auth page
+                    const currentPath = window.location.pathname;
+                    const isAuthPage = currentPath.includes('/login') || 
+                                     currentPath.includes('/register') ||
+                                     currentPath.includes('/forgot-password') ||
+                                     currentPath.includes('/reset-password');
+                    
+                    if (!isAuthPage) {
+                        window.location.href = '/login';
+                    }
+                }
+            } else {
+                // No token found - for protected routes, this will be handled by 401 response
+                // But we can optionally redirect here for certain endpoints
+                const isProtectedRoute = config.url?.startsWith('/auth/me') || 
+                                       config.url?.startsWith('/staff') ||
+                                       config.url?.startsWith('/drivers') ||
+                                       config.url?.startsWith('/customers');
+                
+                if (isProtectedRoute) {
+                    // Token is missing for protected route
+                    // Let the request proceed - 401 will be handled by response interceptor
+                    console.warn('Access token missing for protected route:', config.url);
+                }
             }
         }
         return config;
@@ -52,7 +90,12 @@ api.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
-        // Handle 401 Unauthorized errors
+        // Skip refresh token endpoint to avoid infinite loop
+        if (originalRequest.url?.includes('/auth/refresh-token')) {
+            return Promise.reject(error);
+        }
+
+        // Only handle 401 Unauthorized errors (not other errors like 400, 409, 500, etc.)
         if (error.response?.status === 401 && !originalRequest._retry) {
             if (isRefreshing) {
                 // If already refreshing, queue the request
@@ -83,7 +126,9 @@ api.interceptors.response.use(
                     refreshToken,
                 });
 
-                const { accessToken, refreshToken: newRefreshToken } = response.data;
+                // Backend returns { data: { accessToken, refreshToken, user } }
+                const tokenData = response.data.data || response.data;
+                const { accessToken, refreshToken: newRefreshToken } = tokenData;
 
                 // Save new tokens
                 localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
@@ -100,15 +145,32 @@ api.interceptors.response.use(
 
                 // Retry original request
                 return api(originalRequest);
-            } catch (refreshError) {
+            } catch (refreshError: any) {
                 processQueue(refreshError, null);
 
-                // Clear tokens and redirect to login on failure
-                localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-                localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+                // Check if refresh token is actually expired/invalid
+                const isRefreshTokenExpired = 
+                    refreshError?.response?.status === 401 ||
+                    refreshError?.response?.status === 400 ||
+                    !refreshError?.response; // Network error
 
-                if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-                    window.location.href = '/login';
+                if (isRefreshTokenExpired) {
+                    // Clear tokens and redirect to login only if refresh token is expired
+                    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+                    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+
+                    // Only redirect if not already on an auth page
+                    if (typeof window !== 'undefined') {
+                        const currentPath = window.location.pathname;
+                        const isAuthPage = currentPath.includes('/login') || 
+                                         currentPath.includes('/register') ||
+                                         currentPath.includes('/forgot-password') ||
+                                         currentPath.includes('/reset-password');
+                        
+                        if (!isAuthPage) {
+                            window.location.href = '/login';
+                        }
+                    }
                 }
 
                 return Promise.reject(refreshError);
@@ -117,6 +179,8 @@ api.interceptors.response.use(
             }
         }
 
+        // For all other errors (400, 409, 500, etc.), just reject without redirecting
+        // This allows components to handle validation errors, conflicts, etc.
         return Promise.reject(error);
     }
 );

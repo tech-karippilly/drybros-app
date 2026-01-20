@@ -5,7 +5,9 @@ import {
   forgotPassword,
   resetPassword,
   refreshToken,
+  getCurrentUser,
 } from "../services/auth.service";
+import { authMiddleware } from "../middlewares/auth";
 
 export async function registerAdminHandler(
   req: Request,
@@ -66,6 +68,22 @@ export async function refreshTokenHandler(
 ) {
   try {
     const result = await refreshToken(req.body);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getCurrentUserHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    const result = await getCurrentUser(req.user.userId);
     res.json({ data: result });
   } catch (err) {
     next(err);

@@ -110,24 +110,37 @@ model User {
 }
 
 model Staff {
-  id                        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id                        String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   name                      String
-  email                     String   @unique
-  phone                     String   @unique
+  email                     String         @unique
+  phone                     String         @unique
   password                  String
-  franchiseId               String   @db.Uuid
-  monthlySalary             Decimal  @db.Decimal(10, 2)
+  franchiseId               String         @db.Uuid
+  monthlySalary             Decimal        @db.Decimal(10, 2)
   address                   String
   emergencyContact          String
   emergencyContactRelation  String
-  govtId                    Boolean  @default(false)
-  addressProof              Boolean  @default(false)
-  certificates              Boolean  @default(false)
-  previousExperienceCert    Boolean  @default(false)
+  govtId                    Boolean        @default(false)
+  addressProof              Boolean        @default(false)
+  certificates              Boolean        @default(false)
+  previousExperienceCert    Boolean        @default(false)
   profilePic                String?
-  isActive                  Boolean  @default(true)
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  status                    StaffStatus     @default(ACTIVE)
+  suspendedUntil            DateTime?
+  joinDate                  DateTime       @default(now())
+  relieveDate               DateTime?
+  relieveReason             RelieveReason?
+  isActive                  Boolean        @default(true)
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+  StaffHistory              StaffHistory[]
+
+  @@index([franchiseId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([isActive])
+  @@index([franchiseId, status])
+  @@index([franchiseId, isActive])
 }
 
 enum DriverStatus {
@@ -175,4 +188,37 @@ enum UserRole {
   DRIVER
   STAFF
   CUSTOMER
+}
+
+enum StaffStatus {
+  ACTIVE
+  FIRED
+  SUSPENDED
+  BLOCKED
+}
+
+enum RelieveReason {
+  RESIGNATION
+  TERMINATION
+  RETIREMENT
+  CONTRACT_ENDED
+  PERFORMANCE_ISSUES
+  MISCONDUCT
+  OTHER
+}
+
+model StaffHistory {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  staffId     String   @db.Uuid
+  action      String
+  description String?
+  changedBy   String?
+  oldValue    String?
+  newValue    String?
+  createdAt   DateTime @default(now())
+
+  Staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@index([createdAt])
 }

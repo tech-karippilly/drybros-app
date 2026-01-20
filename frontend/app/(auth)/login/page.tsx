@@ -12,7 +12,8 @@ import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { useAppDispatch } from '@/lib/hooks';
 import { setCredentials } from '@/lib/features/auth/authSlice';
-import { AUTH_ROUTES, ADMIN_DUMMY_USER } from '@/lib/constants/auth';
+import { AUTH_ROUTES, STORAGE_KEYS } from '@/lib/constants/auth';
+import { login } from '@/lib/features/auth/authApi';
 
 export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
@@ -27,34 +28,63 @@ export default function LoginPage() {
         setIsLoading(true);
         setError(null);
 
-        // Simulate login
-        setTimeout(() => {
-            setIsLoading(false);
-            const formData = new FormData(e.target as HTMLFormElement);
-            if (!formData.get('email') || !formData.get('password')) {
-                setError('Please fill in all fields.');
-            } else {
-                // Use centralized dummy data for simulation
-                dispatch(setCredentials({
-                    user: {
-                        ...ADMIN_DUMMY_USER,
-                        email: formData.get('email') as string
-                    },
-                    accessToken: "dummy_access_token",
-                    refreshToken: "dummy_refresh_token"
-                }));
+        const formData = new FormData(e.target as HTMLFormElement);
+        const email = formData.get('email') as string;
+        const password = formData.get('password') as string;
 
-                toast({
-                    title: "Success",
-                    description: "Sign in successful. Welcome back!",
-                    variant: "success",
-                });
-                // Redirect after success
-                setTimeout(() => {
-                    router.push(AUTH_ROUTES.DASHBOARD);
-                }, 1000);
-            }
-        }, 1500);
+        if (!email || !password) {
+            setError('Please fill in all fields.');
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            // Call login API
+            const response = await login({
+                email: email.trim().toLowerCase(),
+                password,
+            });
+
+            // Map backend user response to frontend User type
+            const mapRole = (backendRole: string): string => {
+                const role = backendRole.toUpperCase();
+                if (role === 'ADMIN') return 'admin';
+                if (role === 'OFFICE_STAFF' || role === 'STAFF') return 'staff';
+                if (role === 'DRIVER') return 'driver';
+                return 'admin';
+            };
+
+            const user = {
+                _id: response.user.id,
+                email: response.user.email,
+                name: response.user.fullName,
+                role: mapRole(response.user.role),
+            };
+
+            // Save tokens in Redux (which also saves to localStorage)
+            dispatch(setCredentials({
+                user,
+                accessToken: response.accessToken,
+                refreshToken: response.refreshToken,
+            }));
+
+            toast({
+                title: "Success",
+                description: "Sign in successful. Welcome back!",
+                variant: "success",
+            });
+
+            // Redirect to dashboard
+            router.replace(AUTH_ROUTES.DASHBOARD);
+        } catch (err: any) {
+            const errorMessage =
+                err?.response?.data?.error ||
+                err?.message ||
+                'Invalid email or password. Please try again.';
+            setError(errorMessage);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (

@@ -26,6 +26,7 @@ import {
   AccessTokenPayload,
   RefreshTokenPayload,
   PasswordResetTokenPayload,
+  UserResponseDTO,
 } from "../types/auth.dto";
 import { getRoleByName } from "../repositories/role.repository";
 import {
@@ -494,5 +495,45 @@ export async function refreshToken(
     accessToken,
     refreshToken: newRefreshToken,
     user: mapUserToResponse(user),
+  };
+}
+
+/**
+ * Get current authenticated user
+ */
+export async function getCurrentUser(userId: string): Promise<UserResponseDTO> {
+  // Find user
+  // @ts-ignore - Prisma types may show number but database uses UUID string
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      role: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  } as any);
+
+  if (!user) {
+    throw new NotFoundError("User not found");
+  }
+
+  if (!user.isActive) {
+    throw new BadRequestError("User account is inactive");
+  }
+
+  return {
+    id: String(user.id),
+    fullName: user.fullName,
+    email: user.email,
+    phone: user.phone,
+    role: user.role,
+    isActive: user.isActive,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
   };
 }

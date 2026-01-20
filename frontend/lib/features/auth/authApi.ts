@@ -86,10 +86,19 @@ export interface CurrentUserResponse {
  * Requires authentication (Bearer token in header)
  */
 export async function getCurrentUser(): Promise<CurrentUserResponse['data']> {
-    const response = await api.get<CurrentUserResponse>(
-        AUTH_API_ENDPOINTS.GET_CURRENT_USER
-    );
-    return response.data.data;
+    try {
+        const response = await api.get<CurrentUserResponse>(
+            AUTH_API_ENDPOINTS.GET_CURRENT_USER
+        );
+        return response.data.data;
+    } catch (error: any) {
+        // If error is refresh token expired, re-throw with specific message
+        if (error?.message === 'REFRESH_TOKEN_EXPIRED' || 
+            (error?.response?.status === 401 && error?.config?.url?.includes('/auth/me'))) {
+            throw new Error('REFRESH_TOKEN_EXPIRED');
+        }
+        throw error;
+    }
 }
 
 /**

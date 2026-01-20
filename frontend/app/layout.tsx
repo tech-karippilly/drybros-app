@@ -19,6 +19,7 @@ export const metadata: Metadata = {
 
 import StoreProvider from "./StoreProvider";
 import { ToastProvider } from "@/components/ui/toast";
+import { TokenRefreshProvider } from "@/components/auth/TokenRefreshProvider";
 
 export default function RootLayout({
   children,
@@ -33,7 +34,9 @@ export default function RootLayout({
       >
         <StoreProvider>
           <ToastProvider>
-            {children}
+            <TokenRefreshProvider>
+              {children}
+            </TokenRefreshProvider>
           </ToastProvider>
         </StoreProvider>
       </body>

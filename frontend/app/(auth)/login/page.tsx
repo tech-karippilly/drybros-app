@@ -15,6 +15,7 @@ import { setCredentials } from '@/lib/features/auth/authSlice';
 import { AUTH_ROUTES, STORAGE_KEYS } from '@/lib/constants/auth';
 import { login } from '@/lib/features/auth/authApi';
 import { getAuthTokens } from '@/lib/utils/auth';
+import { resetRefreshTokenExpired } from '@/lib/utils/tokenRefresh';
 
 export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
@@ -101,6 +102,9 @@ export default function LoginPage() {
             // Store tokens in localStorage
             localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, response.accessToken);
             localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, response.refreshToken);
+
+            // Reset refresh token expired state on successful login
+            resetRefreshTokenExpired();
 
             // Update Redux store
             dispatch(setCredentials({

@@ -10,6 +10,7 @@ import { DriverDashboard } from '@/components/dashboard/DriverDashboard';
 import { AUTH_ROUTES } from '@/lib/constants/auth';
 import { getAuthTokens } from '@/lib/utils/auth';
 import { getCurrentUser } from '@/lib/features/auth/authApi';
+import { getIsRefreshTokenExpired } from '@/lib/utils/tokenRefresh';
 
 export default function DashboardPage() {
     const { user, isAuthenticated, isLogin } = useAppSelector((state) => state.auth);
@@ -20,6 +21,12 @@ export default function DashboardPage() {
 
     useEffect(() => {
         const checkAuthAndLoadUser = async () => {
+            // Check if refresh token is expired - if so, don't load dashboard
+            if (getIsRefreshTokenExpired()) {
+                setIsChecking(false);
+                return; // Modal will handle the UI
+            }
+
             // Check both Redux state and localStorage
             const tokens = getAuthTokens();
             const hasAuth = isAuthenticated || isLogin || !!tokens.accessToken;
@@ -58,9 +65,22 @@ export default function DashboardPage() {
                         accessToken: tokens.accessToken || '',
                         refreshToken: tokens.refreshToken || '',
                     }));
-                } catch (error) {
-                    // If fetching user fails, clear tokens and redirect to login
-                    console.error('Failed to fetch user data:', error);
+                } catch (error: any) {
+                    // Check if this is a refresh token expired error
+                    if (error?.message === 'REFRESH_TOKEN_EXPIRED') {
+                        // Don't redirect - modal will handle it
+                        // Just stop loading and don't show dashboard
+                        setIsLoadingUser(false);
+                        setIsChecking(false);
+                        return;
+                    }
+                    
+                    // If fetching user fails for other reasons, clear tokens and redirect to login
+                    // Suppress error logging for refresh token expired
+                    if (error?.message !== 'REFRESH_TOKEN_EXPIRED') {
+                        // Only log non-refresh-token errors silently
+                        // Don't show axios errors to user
+                    }
                     router.replace(AUTH_ROUTES.LOGIN);
                     return;
                 } finally {
@@ -87,8 +107,14 @@ export default function DashboardPage() {
         );
     }
 
-    // If no user data but has tokens, still show dashboard (user data might be loading)
+    // If no user data but has tokens, check if refresh token expired
     if (!isAuthenticated && !isLogin) {
+        // Check if we're waiting for refresh token modal
+        const tokens = getAuthTokens();
+        if (!tokens.accessToken && !tokens.refreshToken) {
+            // No tokens, but might be showing modal - don't render dashboard
+            return null;
+        }
         return null;
     }
 

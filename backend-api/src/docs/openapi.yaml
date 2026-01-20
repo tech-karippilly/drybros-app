@@ -313,7 +313,7 @@ paths:
   /auth/refresh-token:
     post:
       summary: Refresh access token
-      description: Generates a new access token and refresh token using a valid refresh token. Refresh token expires in 7 days.
+      description: Generates a new access token and refresh token using a valid refresh token. Refresh token expires in 2 minutes.
       tags:
         - Authentication
       requestBody:
@@ -965,10 +965,10 @@ components:
           properties:
             accessToken:
               type: string
-              description: JWT access token (expires in 8 hours)
+              description: JWT access token (expires in 1 minute)
             refreshToken:
               type: string
-              description: JWT refresh token (expires in 7 days)
+              description: JWT refresh token (expires in 2 minutes)
             user:
               $ref: "#/components/schemas/User"
 
@@ -1022,7 +1022,7 @@ components:
       properties:
         refreshToken:
           type: string
-          description: Refresh token received from login (expires in 7 days)
+          description: Refresh token received from login (expires in 2 minutes)
           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
       required:
         - refreshToken

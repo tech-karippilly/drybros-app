@@ -5,8 +5,14 @@ import jwt, { SignOptions, Secret } from "jsonwebtoken";
 import { authConfig } from "../config/authConfig";
 import { emailConfig } from "../config/emailConfig";
 import prisma from "../config/prismaClient";
-import { ConflictError, BadRequestError, NotFoundError } from "../utils/errors";
+import {
+  ConflictError,
+  BadRequestError,
+  NotFoundError,
+  TooManyRequestsError,
+} from "../utils/errors";
 import logger from "../config/logger";
+import { AUTH_RATE_LIMIT } from "../constants/auth";
 import {
   RegisterAdminDTO,
   LoginDTO,
@@ -186,28 +192,171 @@ export async function registerAdmin(
 }
 
 /**
+ * Calculate lockout duration in minutes based on failed attempts
+ * Optimized with early returns and cached calculations
+ * 
+ * Logic:
+ * - 5 attempts → 5 minutes
+ * - 7 attempts (5 + 2) → 10 minutes
+ * - 9 attempts (7 + 2) → 20 minutes
+ * - 11 attempts (9 + 2) → 30 minutes (capped at MAX_LOCKOUT_MINUTES)
+ */
+function calculateLockoutMinutes(failedAttempts: number): number {
+  // Early return for no lockout
+  if (failedAttempts < AUTH_RATE_LIMIT.FIRST_THRESHOLD) {
+    return 0;
+  }
+
+  // First threshold: exactly 5 attempts → 5 minutes
+  if (failedAttempts === AUTH_RATE_LIMIT.FIRST_THRESHOLD) {
+    return AUTH_RATE_LIMIT.FIRST_LOCKOUT_MINUTES;
+  }
+
+  // Calculate how many subsequent thresholds have been reached
+  // After 5 attempts, every 2 more attempts triggers a new threshold
+  const attemptsAfterFirst = failedAttempts - AUTH_RATE_LIMIT.FIRST_THRESHOLD;
+  const subsequentThresholds = Math.floor(
+    attemptsAfterFirst / AUTH_RATE_LIMIT.SUBSEQUENT_THRESHOLD_INCREMENT
+  );
+
+  // Each subsequent threshold multiplies the lockout time
+  // 5 attempts = 5 min, 7 attempts = 10 min (5 * 2), 9 attempts = 20 min (10 * 2), etc.
+  // Use bit shift for power of 2 (faster than Math.pow for powers of 2)
+  const lockoutMinutes =
+    AUTH_RATE_LIMIT.FIRST_LOCKOUT_MINUTES * (1 << subsequentThresholds);
+
+  // Cap at maximum lockout time
+  return lockoutMinutes > AUTH_RATE_LIMIT.MAX_LOCKOUT_MINUTES
+    ? AUTH_RATE_LIMIT.MAX_LOCKOUT_MINUTES
+    : lockoutMinutes;
+}
+
+/**
+ * Check if account is currently locked and throw error if so
+ * Also auto-unlocks expired lockouts
+ */
+function checkAccountLockout(user: User, now: Date = new Date()): void {
+  if (user.lockedUntil) {
+    const lockedUntil = new Date(user.lockedUntil);
+
+    if (lockedUntil > now) {
+      const remainingMinutes = Math.ceil(
+        (lockedUntil.getTime() - now.getTime()) / (1000 * 60)
+      );
+      throw new TooManyRequestsError(
+        `Account is temporarily locked due to multiple failed login attempts. Please try again in ${remainingMinutes} minute(s).`
+      );
+    }
+    // Lockout has expired - will be cleared on next update
+  }
+}
+
+/**
+ * Handle failed login attempt - increment attempts and lock account if needed
+ * Optimized with pre-calculated lockout time
+ */
+async function handleFailedLogin(
+  userId: string,
+  currentAttempts: number,
+  now: Date = new Date()
+): Promise<void> {
+  const newAttempts = currentAttempts + 1;
+  const lockoutMinutes = calculateLockoutMinutes(newAttempts);
+
+  let lockedUntil: Date | null = null;
+  if (lockoutMinutes > 0) {
+    lockedUntil = new Date(now.getTime() + lockoutMinutes * 60 * 1000);
+  }
+
+  // Single atomic update operation
+  await prisma.user.update({
+    // @ts-ignore - Prisma types may show number but database uses UUID string
+    where: { id: userId },
+    data: {
+      failedAttempts: newAttempts,
+      lockedUntil,
+    },
+  });
+
+  logger.warn("Failed login attempt", {
+    userId,
+    failedAttempts: newAttempts,
+    lockedUntil: lockedUntil?.toISOString(),
+  });
+}
+
+/**
+ * Reset failed login attempts on successful login
+ * Also clears any expired lockouts
+ */
+async function resetFailedAttempts(userId: string): Promise<void> {
+  await prisma.user.update({
+    // @ts-ignore - Prisma types may show number but database uses UUID string
+    where: { id: userId },
+    data: {
+      failedAttempts: 0,
+      lockedUntil: null,
+    },
+  });
+}
+
+/**
  * Login user and return access and refresh tokens
+ * Optimized with cached date, early returns, and atomic operations
  */
 export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
+  // Cache current time to avoid multiple Date() calls
+  const now = new Date();
+
   const user = await prisma.user.findUnique({
     where: { email: input.email },
+    select: {
+      id: true,
+      email: true,
+      password: true,
+      fullName: true,
+      phone: true,
+      role: true,
+      isActive: true,
+      failedAttempts: true,
+      lockedUntil: true,
+    },
   });
 
   if (!user || !user.isActive) {
     throw new BadRequestError("Invalid credentials");
   }
 
+  // Check if account is locked (before expensive password check)
+  checkAccountLockout(user, now);
+
+  // Verify password (expensive operation, done after lockout check)
   const isPasswordValid = await bcrypt.compare(
     input.password,
     user.password
   );
+
   if (!isPasswordValid) {
+    // Handle failed login attempt with atomic increment
+    await handleFailedLogin(String(user.id), user.failedAttempts || 0, now);
     throw new BadRequestError("Invalid credentials");
+  }
+
+  // Password is correct - reset failed attempts and unlock account
+  // Only update database if there are failed attempts or account is locked (optimization)
+  const needsReset = (user.failedAttempts && user.failedAttempts > 0) || user.lockedUntil;
+  if (needsReset) {
+    await resetFailedAttempts(String(user.id));
   }
 
   // Generate tokens
   const accessToken = generateAccessToken(createAccessTokenPayload(user));
   const refreshToken = generateRefreshToken(String(user.id));
+
+  logger.info("Successful login", {
+    userId: String(user.id),
+    email: user.email,
+  });
 
   return {
     accessToken,

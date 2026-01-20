@@ -176,6 +176,21 @@ paths:
   /auth/login:
     post:
       summary: Login user
+      description: |
+        Authenticates a user and returns access and refresh tokens.
+        
+        **Rate Limiting & Account Lockout:**
+        The system implements escalating account lockout to prevent brute-force attacks:
+        - After **5 incorrect password attempts**, the account is locked for **5 minutes**
+        - After the lockout expires, if **2 more incorrect attempts** occur, the account is locked for **10 minutes**
+        - Each subsequent threshold (every 2 more incorrect attempts) doubles the lockout duration
+        - Maximum lockout duration is capped at **30 minutes**
+        - Failed attempts counter resets to 0 on successful login
+        
+        **Lockout Behavior:**
+        - If an account is locked, login attempts will return a 429 error with the remaining lockout time
+        - The lockout check happens before password verification
+        - Successful login automatically resets the failed attempts counter and unlocks the account
       tags:
         - Authentication
       requestBody:
@@ -192,7 +207,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuthResponse"
         "400":
-          description: Invalid credentials
+          description: Invalid credentials (incorrect email or password)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Account temporarily locked due to multiple failed login attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Account is temporarily locked due to multiple failed login attempts. Please try again in 5 minute(s)."
 
   /auth/forgot-password:
     post:
@@ -882,3 +909,11 @@ components:
           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
       required:
         - refreshToken
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Account is temporarily locked due to multiple failed login attempts. Please try again in 5 minute(s)."

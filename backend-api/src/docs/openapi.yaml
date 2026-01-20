@@ -185,6 +185,268 @@ paths:
         "404":
           description: Role not found
 
+  /staff:
+    get:
+      summary: List staff members
+      description: |
+        Retrieves a list of staff members with optional pagination.
+        
+        **Pagination:**
+        - Use `page` query parameter to specify the page number (default: 1)
+        - Use `limit` query parameter to specify items per page (default: 10, max: 100)
+        - If pagination parameters are not provided, returns all staff members (for backward compatibility)
+        
+        **Example:**
+        - `/staff?page=1&limit=10` - Get first 10 staff members
+        - `/staff?page=2&limit=20` - Get next 20 staff members (page 2)
+        - `/staff` - Get all staff members (no pagination)
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number (starts from 1)
+          example: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Number of items per page (max 100)
+          example: 10
+      responses:
+        "200":
+          description: List of staff members (paginated or all)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PaginatedStaffResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Staff"
+        "400":
+          description: Bad request (invalid pagination parameters)
+        "401":
+          description: Not authenticated (missing or invalid token)
+    post:
+      summary: Create a new staff member
+      description: |
+        Creates a new staff member and sends a welcome email with login credentials (email and password).
+        The email will be sent to the provided email address.
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStaffRequest"
+      responses:
+        "201":
+          description: Staff member created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateStaffResponse"
+        "400":
+          description: Bad request (validation error)
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "409":
+          description: Email or phone number already in use
+
+  /staff/{id}:
+    get:
+      summary: Get staff member by ID
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Staff member data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Staff"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Staff member not found
+    patch:
+      summary: Update staff member
+      description: |
+        Updates a staff member's information. Allows updating any field including reassigning to a different franchise.
+        Only provided fields will be updated.
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStaffRequest"
+      responses:
+        "200":
+          description: Staff member updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffStatusResponse"
+        "400":
+          description: Bad request (validation error)
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Staff member not found
+        "409":
+          description: Email or phone number already in use
+    delete:
+      summary: Delete staff member
+      description: |
+        Permanently deletes a staff member from the system. This action is logged in the staff history.
+        The staff history records are preserved even after deletion.
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Staff member deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Staff member deleted successfully"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Staff member not found
+
+  /staff/{id}/status:
+    patch:
+      summary: Update staff status
+      description: |
+        Updates a staff member's status. Can be used to fire, suspend, block, or reactivate a staff member.
+        
+        **Status Options:**
+        - `FIRED` - Terminates the staff member
+        - `SUSPENDED` - Suspends the staff member (optionally with an end date)
+        - `BLOCKED` - Blocks the staff member from accessing the system
+        - `ACTIVE` - Reactivates a previously suspended/blocked/fired staff member
+        
+        **Note:** When status is `SUSPENDED`, you can optionally provide `suspendedUntil` to set an end date.
+        If not provided, the suspension is indefinite.
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStaffStatusRequest"
+      responses:
+        "200":
+          description: Staff status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffStatusResponse"
+        "400":
+          description: Bad request (validation error or invalid status combination)
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Staff member not found
+
+  /staff/{id}/history:
+    get:
+      summary: Get staff history
+      description: |
+        Retrieves the complete activity history for a staff member. This includes all actions like:
+        - CREATED - When the staff member was created
+        - UPDATED - When any field was updated
+        - DELETED - When the staff member was deleted
+        - STATUS_CHANGED - When the status was changed
+        
+        Each history entry includes the action, description, who made the change, and the old/new values.
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Staff history retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffHistoryResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Staff member not found
+
   /auth/register-admin:
     post:
       summary: Register a new admin user
@@ -1026,6 +1288,421 @@ components:
           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
       required:
         - refreshToken
+
+    CreateStaffRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Full name of the staff member
+          example: "John Doe"
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          description: Email address (must be unique, used for login)
+          example: "john.doe@drybros.com"
+          maxLength: 255
+        phone:
+          type: string
+          description: Phone number (must be unique)
+          example: "+1234567890"
+          minLength: 10
+          maxLength: 20
+        password:
+          type: string
+          format: password
+          description: Password (auto-generated from frontend, minimum 8 characters)
+          example: "SecurePassword123"
+          minLength: 8
+          maxLength: 100
+        franchiseId:
+          type: string
+          format: uuid
+          description: Franchise ID (UUID)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        monthlySalary:
+          type: number
+          description: Monthly salary
+          example: 50000
+          minimum: 0
+        address:
+          type: string
+          description: Full address
+          example: "123 Main St, City, State 12345"
+          minLength: 1
+          maxLength: 500
+        emergencyContact:
+          type: string
+          description: Emergency contact phone number
+          example: "+1234567890"
+          minLength: 10
+          maxLength: 20
+        emergencyContactRelation:
+          type: string
+          description: Relationship with emergency contact
+          example: "Spouse"
+          minLength: 1
+          maxLength: 50
+        govtId:
+          type: boolean
+          description: Whether government ID document is collected (checkbox)
+          example: true
+          default: false
+        addressProof:
+          type: boolean
+          description: Whether address proof document is collected (checkbox)
+          example: true
+          default: false
+        certificates:
+          type: boolean
+          description: Whether certificates are collected (checkbox)
+          example: true
+          default: false
+        previousExperienceCert:
+          type: boolean
+          description: Whether previous experience certificate is collected (checkbox)
+          example: true
+          default: false
+        profilePic:
+          type: string
+          nullable: true
+          description: Profile picture URL (optional, for future use)
+          example: "https://example.com/images/profile.jpg"
+          maxLength: 500
+          format: uri
+        joinDate:
+          type: string
+          format: date-time
+          description: Date when staff member joined (defaults to current date if not provided)
+          example: "2024-01-15T00:00:00Z"
+      required:
+        - name
+        - email
+        - phone
+        - password
+        - franchiseId
+        - monthlySalary
+        - address
+        - emergencyContact
+        - emergencyContactRelation
+
+    Staff:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Staff ID (UUID)
+        name:
+          type: string
+          description: Full name
+        email:
+          type: string
+          format: email
+          description: Email address (used for login)
+        phone:
+          type: string
+          description: Phone number
+        franchiseId:
+          type: string
+          format: uuid
+          description: Franchise ID
+        monthlySalary:
+          type: number
+          description: Monthly salary
+        address:
+          type: string
+          description: Full address
+        emergencyContact:
+          type: string
+          description: Emergency contact phone number
+        emergencyContactRelation:
+          type: string
+          description: Relationship with emergency contact
+        govtId:
+          type: boolean
+          description: Whether government ID document is collected
+        addressProof:
+          type: boolean
+          description: Whether address proof document is collected
+        certificates:
+          type: boolean
+          description: Whether certificates are collected
+        previousExperienceCert:
+          type: boolean
+          description: Whether previous experience certificate is collected
+        profilePic:
+          type: string
+          nullable: true
+          description: Profile picture URL
+          format: uri
+        status:
+          type: string
+          enum: [ACTIVE, FIRED, SUSPENDED, BLOCKED]
+          description: Staff status
+          example: ACTIVE
+        suspendedUntil:
+          type: string
+          format: date-time
+          nullable: true
+          description: Suspension end date (only set when status is SUSPENDED)
+        joinDate:
+          type: string
+          format: date-time
+          description: Date when staff member joined the organization
+          example: "2024-01-15T00:00:00Z"
+        relieveDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Date when staff member was relieved/terminated
+          example: "2024-12-31T00:00:00Z"
+        relieveReason:
+          type: string
+          enum: [RESIGNATION, TERMINATION, RETIREMENT, CONTRACT_ENDED, PERFORMANCE_ISSUES, MISCONDUCT, OTHER]
+          nullable: true
+          description: Reason for relieving the staff member
+          example: RESIGNATION
+        isActive:
+          type: boolean
+          description: Whether the staff member is active
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    CreateStaffResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Staff member created successfully"
+        data:
+          $ref: "#/components/schemas/Staff"
+
+    UpdateStaffRequest:
+      type: object
+      description: All fields are optional. Only provided fields will be updated.
+      properties:
+        name:
+          type: string
+          description: Full name of the staff member
+          example: "John Doe"
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          description: Email address (must be unique if changed)
+          example: "john.doe@drybros.com"
+          maxLength: 255
+        phone:
+          type: string
+          description: Phone number (must be unique if changed)
+          example: "+1234567890"
+          minLength: 10
+          maxLength: 20
+        franchiseId:
+          type: string
+          format: uuid
+          description: Franchise ID (UUID) - allows reassigning to different franchise
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        monthlySalary:
+          type: number
+          description: Monthly salary
+          example: 50000
+          minimum: 0
+        address:
+          type: string
+          description: Full address
+          example: "123 Main St, City, State 12345"
+          minLength: 1
+          maxLength: 500
+        emergencyContact:
+          type: string
+          description: Emergency contact phone number
+          example: "+1234567890"
+          minLength: 10
+          maxLength: 20
+        emergencyContactRelation:
+          type: string
+          description: Relationship with emergency contact
+          example: "Spouse"
+          minLength: 1
+          maxLength: 50
+        govtId:
+          type: boolean
+          description: Whether government ID document is collected
+          example: true
+        addressProof:
+          type: boolean
+          description: Whether address proof document is collected
+          example: true
+        certificates:
+          type: boolean
+          description: Whether certificates are collected
+          example: true
+        previousExperienceCert:
+          type: boolean
+          description: Whether previous experience certificate is collected
+          example: true
+        profilePic:
+          type: string
+          nullable: true
+          description: Profile picture URL
+          example: "https://example.com/images/profile.jpg"
+          maxLength: 500
+          format: uri
+        relieveDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Date when staff member was relieved/terminated
+          example: "2024-12-31T00:00:00Z"
+        relieveReason:
+          type: string
+          enum: [RESIGNATION, TERMINATION, RETIREMENT, CONTRACT_ENDED, PERFORMANCE_ISSUES, MISCONDUCT, OTHER]
+          nullable: true
+          description: Reason for relieving the staff member
+          example: RESIGNATION
+        isActive:
+          type: boolean
+          description: Whether the staff member is active
+          example: true
+
+    UpdateStaffStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [FIRED, SUSPENDED, BLOCKED, ACTIVE]
+          description: |
+            The new status for the staff member.
+            - FIRED: Terminates the staff member
+            - SUSPENDED: Suspends the staff member (can optionally set suspendedUntil)
+            - BLOCKED: Blocks the staff member from accessing the system
+            - ACTIVE: Reactivates a previously suspended/blocked/fired staff member
+          example: SUSPENDED
+        suspendedUntil:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Optional suspension end date. Only valid when status is SUSPENDED.
+            If not provided when status is SUSPENDED, the suspension is indefinite.
+          example: "2024-02-01T00:00:00Z"
+
+    StaffStatusResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Staff member has been fired"
+        data:
+          $ref: "#/components/schemas/Staff"
+
+    StaffHistory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: History entry ID
+        staffId:
+          type: string
+          format: uuid
+          description: Staff member ID
+        action:
+          type: string
+          description: Action performed (e.g., CREATED, UPDATED, DELETED, STATUS_CHANGED)
+          example: "UPDATED"
+        description:
+          type: string
+          nullable: true
+          description: Detailed description of the action
+          example: "Staff member John Doe updated"
+        changedBy:
+          type: string
+          nullable: true
+          description: User ID who made the change
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        oldValue:
+          type: string
+          nullable: true
+          description: JSON string of old values before the change
+          example: '{"name":"John Doe","email":"john@example.com"}'
+        newValue:
+          type: string
+          nullable: true
+          description: JSON string of new values after the change
+          example: '{"name":"John Smith","email":"john.smith@example.com"}'
+        createdAt:
+          type: string
+          format: date-time
+          description: When the action was performed
+          example: "2024-01-20T10:30:00Z"
+
+    StaffHistoryResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffHistory"
+          description: List of staff history entries, ordered by most recent first
+
+    PaginatedStaffResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Staff"
+          description: List of staff members for the current page
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+              description: Current page number
+              example: 1
+            limit:
+              type: integer
+              description: Number of items per page
+              example: 10
+            total:
+              type: integer
+              description: Total number of staff members
+              example: 50
+            totalPages:
+              type: integer
+              description: Total number of pages
+              example: 5
+            hasNext:
+              type: boolean
+              description: Whether there is a next page
+              example: true
+            hasPrev:
+              type: boolean
+              description: Whether there is a previous page
+              example: false
+          required:
+            - page
+            - limit
+            - total
+            - totalPages
+            - hasNext
+            - hasPrev
 
     ErrorResponse:
       type: object

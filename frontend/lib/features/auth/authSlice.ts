@@ -58,6 +58,12 @@ const authSlice = createSlice({
             state.refreshToken = action.payload.refreshToken;
             state.isAuthenticated = true;
             state.isLogin = true;
+
+            // Save tokens to localStorage
+            if (typeof window !== 'undefined') {
+                localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, action.payload.accessToken);
+                localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, action.payload.refreshToken);
+            }
         },
         logout: (state) => {
             state.user = null;
@@ -67,6 +73,13 @@ const authSlice = createSlice({
             state.isLogin = false;
             state.selectedFranchise = DUMMY_FRANCHISES[0];
             state.activeTab = 'home';
+
+            // Clear tokens and active tab from localStorage
+            if (typeof window !== 'undefined') {
+                localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+                localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+                localStorage.removeItem(STORAGE_KEYS.ACTIVE_TAB);
+            }
         },
         setLoading: (state, action: PayloadAction<boolean>) => {
             state.isLoading = action.payload;
@@ -76,6 +89,11 @@ const authSlice = createSlice({
         },
         setActiveTab: (state, action: PayloadAction<string>) => {
             state.activeTab = action.payload;
+            
+            // Save active tab to localStorage
+            if (typeof window !== 'undefined') {
+                localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, action.payload);
+            }
         },
     },
 });

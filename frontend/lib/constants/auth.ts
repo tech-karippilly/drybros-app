@@ -1,6 +1,19 @@
 export const STORAGE_KEYS = {
     ACCESS_TOKEN: 'accessToken',
     REFRESH_TOKEN: 'refreshToken',
+    ACTIVE_TAB: 'activeTab',
+} as const;
+
+// Temporary hardcoded UUID for franchiseId (until franchise selection is implemented)
+export const DEFAULT_FRANCHISE_ID = '550e8400-e29b-41d4-a716-446655440000';
+
+export const AUTH_API_ENDPOINTS = {
+    LOGIN: '/auth/login',
+    REGISTER_ADMIN: '/auth/register-admin',
+    FORGOT_PASSWORD: '/auth/forgot-password',
+    RESET_PASSWORD: '/auth/reset-password',
+    REFRESH_TOKEN: '/auth/refresh-token',
+    GET_CURRENT_USER: '/auth/me',
 } as const;
 
 export const REFRESH_TOKEN_EXPIRED_ERROR = 'REFRESH_TOKEN_EXPIRED' as const;

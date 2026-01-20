@@ -51,8 +51,44 @@ api.interceptors.request.use(
     (config) => {
         if (typeof window !== 'undefined') {
             const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-            if (token) {
-                config.headers.Authorization = `Bearer ${token}`;
+            
+            // Check if token exists and is valid (not empty)
+            if (token && token.trim() !== '') {
+                // Validate token format (basic check - JWT tokens have 3 parts separated by dots)
+                const tokenParts = token.split('.');
+                if (tokenParts.length === 3) {
+                    // Token appears valid, add to request
+                    config.headers.Authorization = `Bearer ${token}`;
+                } else {
+                    // Invalid token format, clear it
+                    console.warn('Invalid token format detected, clearing token');
+                    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+                    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+                    
+                    // Redirect to login if not already on auth page
+                    const currentPath = window.location.pathname;
+                    const isAuthPage = currentPath.includes('/login') || 
+                                     currentPath.includes('/register') ||
+                                     currentPath.includes('/forgot-password') ||
+                                     currentPath.includes('/reset-password');
+                    
+                    if (!isAuthPage) {
+                        window.location.href = '/login';
+                    }
+                }
+            } else {
+                // No token found - for protected routes, this will be handled by 401 response
+                // But we can optionally redirect here for certain endpoints
+                const isProtectedRoute = config.url?.startsWith('/auth/me') || 
+                                       config.url?.startsWith('/staff') ||
+                                       config.url?.startsWith('/drivers') ||
+                                       config.url?.startsWith('/customers');
+                
+                if (isProtectedRoute) {
+                    // Token is missing for protected route
+                    // Let the request proceed - 401 will be handled by response interceptor
+                    console.warn('Access token missing for protected route:', config.url);
+                }
             }
         }
         return config;
@@ -145,6 +181,8 @@ api.interceptors.response.use(
             }
         }
 
+        // For all other errors (400, 409, 500, etc.), just reject without redirecting
+        // This allows components to handle validation errors, conflicts, etc.
         return Promise.reject(error);
     }
 );

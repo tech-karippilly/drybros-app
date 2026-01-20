@@ -6,9 +6,9 @@ import {
     setSelectedStaff,
     setStaffFilters,
     setStaffPage,
-    setStaffStatus,
-    suspendStaff
+    updateStaffMemberStatus
 } from '@/lib/features/staff/staffSlice';
+import { useToast } from '@/components/ui/toast';
 import {
     Plus,
     Search,
@@ -37,6 +37,7 @@ interface StaffListProps {
 export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
     const { list, filters, pagination } = useAppSelector((state) => state.staff);
     const dispatch = useAppDispatch();
+    const { toast } = useToast();
     const [showFilters, setShowFilters] = useState(false);
 
     // Modal state
@@ -340,10 +341,27 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
                 isOpen={!!fireTarget}
                 staffName={fireTarget?.name || ""}
                 onClose={() => setFireTarget(null)}
-                onConfirm={() => {
+                onConfirm={async () => {
                     if (fireTarget) {
-                        dispatch(setStaffStatus({ id: fireTarget._id, status: 'fired' }));
-                        setFireTarget(null);
+                        try {
+                            const staffId = fireTarget.id || fireTarget._id || '';
+                            await dispatch(updateStaffMemberStatus({
+                                id: staffId,
+                                data: { status: 'FIRED' }
+                            })).unwrap();
+                            toast({
+                                title: 'Success',
+                                description: `${fireTarget.name} has been fired`,
+                                variant: 'success',
+                            });
+                            setFireTarget(null);
+                        } catch (error: any) {
+                            toast({
+                                title: 'Error',
+                                description: error?.message || 'Failed to fire staff member',
+                                variant: 'error',
+                            });
+                        }
                     }
                 }}
             />
@@ -352,10 +370,38 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
                 isOpen={!!suspendTarget}
                 staffName={suspendTarget?.name || ""}
                 onClose={() => setSuspendTarget(null)}
-                onConfirm={(duration) => {
+                onConfirm={async (duration) => {
                     if (suspendTarget) {
-                        dispatch(suspendStaff({ id: suspendTarget._id, duration }));
-                        setSuspendTarget(null);
+                        try {
+                            const staffId = suspendTarget.id || suspendTarget._id || '';
+                            // Parse duration to Date (assuming format like "7 days", "1 month", etc.)
+                            let suspendedUntil: Date | null = null;
+                            if (duration) {
+                                const days = parseInt(duration.split(' ')[0]) || 7;
+                                suspendedUntil = new Date();
+                                suspendedUntil.setDate(suspendedUntil.getDate() + days);
+                            }
+                            
+                            await dispatch(updateStaffMemberStatus({
+                                id: staffId,
+                                data: { 
+                                    status: 'SUSPENDED',
+                                    suspendedUntil: suspendedUntil?.toISOString() || null
+                                }
+                            })).unwrap();
+                            toast({
+                                title: 'Success',
+                                description: `${suspendTarget.name} has been suspended`,
+                                variant: 'success',
+                            });
+                            setSuspendTarget(null);
+                        } catch (error: any) {
+                            toast({
+                                title: 'Error',
+                                description: error?.message || 'Failed to suspend staff member',
+                                variant: 'error',
+                            });
+                        }
                     }
                 }}
             />

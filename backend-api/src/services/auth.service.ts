@@ -29,6 +29,7 @@ import {
   AccessTokenPayload,
   RefreshTokenPayload,
   PasswordResetTokenPayload,
+  UserResponseDTO,
 } from "../types/auth.dto";
 import { getRoleByName } from "../repositories/role.repository";
 import {

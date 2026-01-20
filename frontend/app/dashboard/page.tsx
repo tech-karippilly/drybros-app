@@ -100,7 +100,6 @@ export default function DashboardPage() {
         return null;
     }
 
-    // Role-based rendering
     const role = user?.role || 'admin';
     const DashboardComponent = {
         admin: AdminDashboard,

@@ -8,6 +8,7 @@ import {
   logout,
   getCurrentUser,
 } from "../services/auth.service";
+import { authMiddleware } from "../middlewares/auth";
 
 export async function registerAdminHandler(
   req: Request,

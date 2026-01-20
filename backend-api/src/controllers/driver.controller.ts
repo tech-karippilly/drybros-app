@@ -1,6 +1,7 @@
 // src/controllers/driver.controller.ts
 import { Request, Response, NextFunction } from "express";
-import { listDrivers, getDriver, createDriver } from "../services/driver.service";
+import { listDrivers, getDriver, createDriver, loginDriver } from "../services/driver.service";
+import { DriverLoginDTO } from "../types/driver.dto";
 
 export async function getDrivers(
   req: Request,
@@ -38,6 +39,19 @@ export async function createDriverHandler(
     const createdBy = req.user?.userId;
     const result = await createDriver(req.body, createdBy);
     res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function loginDriverHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const result = await loginDriver(req.body as DriverLoginDTO);
+    res.json({ data: result });
   } catch (err) {
     next(err);
   }

@@ -1,5 +1,6 @@
 // src/services/driver.service.ts
 import bcrypt from "bcryptjs";
+import jwt, { SignOptions, Secret } from "jsonwebtoken";
 import {
   getAllDrivers,
   getDriverById,
@@ -9,11 +10,13 @@ import {
   createDriver as repoCreateDriver,
 } from "../repositories/driver.repository";
 import { getFranchiseById } from "../repositories/franchise.repository";
-import { CreateDriverDTO, CreateDriverResponseDTO, DriverResponseDTO } from "../types/driver.dto";
+import { CreateDriverDTO, CreateDriverResponseDTO, DriverResponseDTO, DriverLoginDTO, DriverLoginResponseDTO } from "../types/driver.dto";
 import { ConflictError, NotFoundError, BadRequestError } from "../utils/errors";
 import { sendDriverWelcomeEmail } from "./email.service";
 import { emailConfig } from "../config/emailConfig";
+import { authConfig } from "../config/authConfig";
 import logger from "../config/logger";
+import { ERROR_MESSAGES } from "../constants/errors";
 
 /**
  * Generate unique driver code
@@ -170,7 +173,7 @@ export async function createDriver(
   });
 
   // Send welcome email with credentials (non-blocking)
-  const webLoginLink = `${emailConfig.frontendUrl}/login`;
+  const webLoginLink = emailConfig.loginLink;
   sendDriverWelcomeEmail({
     email: input.email,
     driverName: `${input.firstName} ${input.lastName}`,
@@ -192,5 +195,82 @@ export async function createDriver(
   return {
     message: "Driver created successfully",
     data: mapDriverToResponse(driver),
+  };
+}
+
+/**
+ * Helper function to generate access token for driver
+ */
+function generateDriverAccessToken(driver: any): string {
+  const payload = {
+    driverId: driver.id,
+    driverCode: driver.driverCode,
+    email: driver.email,
+    type: "access",
+  };
+  return jwt.sign(
+    payload,
+    authConfig.jwtSecret as Secret,
+    { expiresIn: authConfig.jwtExpiresIn } as SignOptions
+  );
+}
+
+/**
+ * Helper function to generate refresh token for driver
+ */
+function generateDriverRefreshToken(driverId: string): string {
+  const payload = { driverId, type: "refresh" };
+  return jwt.sign(
+    payload,
+    authConfig.jwtSecret as Secret,
+    { expiresIn: authConfig.refreshTokenExpiresIn } as SignOptions
+  );
+}
+
+/**
+ * Login driver with driverCode and password
+ */
+export async function loginDriver(input: DriverLoginDTO): Promise<DriverLoginResponseDTO> {
+  // Find driver by driverCode
+  const driver = await getDriverByDriverCode(input.driverCode.toUpperCase().trim());
+
+  if (!driver) {
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+  }
+
+  // Check if driver is active
+  if (driver.status !== "ACTIVE" || driver.bannedGlobally) {
+    throw new BadRequestError("Driver account is not active or has been banned");
+  }
+
+  // Verify password
+  const isPasswordValid = await bcrypt.compare(input.password, driver.password);
+
+  if (!isPasswordValid) {
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+  }
+
+  // Generate tokens
+  const accessToken = generateDriverAccessToken(driver);
+  const refreshToken = generateDriverRefreshToken(driver.id);
+
+  logger.info("Driver login successful", {
+    driverId: driver.id,
+    driverCode: driver.driverCode,
+    email: driver.email,
+  });
+
+  return {
+    accessToken,
+    refreshToken,
+    driver: {
+      id: driver.id,
+      driverCode: driver.driverCode,
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      email: driver.email,
+      phone: driver.phone,
+      status: driver.status,
+    },
   };
 }

@@ -1,14 +1,17 @@
 // src/routes/driver.routes.ts
 import express from "express";
-import { getDrivers, getDriverById, createDriverHandler } from "../controllers/driver.controller";
+import { getDrivers, getDriverById, createDriverHandler, loginDriverHandler } from "../controllers/driver.controller";
 import { authMiddleware, requireRole } from "../middlewares/auth";
 import { UserRole } from "@prisma/client";
 import { validate } from "../middlewares/validation";
-import { createDriverSchema } from "../types/driver.dto";
+import { createDriverSchema, driverLoginSchema } from "../types/driver.dto";
 
 const router = express.Router();
 
-// All driver routes require authentication
+// Public route - Driver login (no authentication required)
+router.post("/login", validate(driverLoginSchema), loginDriverHandler);
+
+// All other driver routes require authentication
 router.use(authMiddleware);
 
 router.get("/", getDrivers);

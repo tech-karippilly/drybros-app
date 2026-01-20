@@ -89,3 +89,25 @@ export interface CreateDriverResponseDTO {
   message: string;
   data: DriverResponseDTO;
 }
+
+// Driver Login DTOs
+export const driverLoginSchema = z.object({
+  driverCode: z.string().min(1, "Driver code is required").toUpperCase().trim(),
+  password: z.string().min(1, "Password is required"),
+});
+
+export type DriverLoginDTO = z.infer<typeof driverLoginSchema>;
+
+export interface DriverLoginResponseDTO {
+  accessToken: string;
+  refreshToken: string;
+  driver: {
+    id: string;
+    driverCode: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    status: string;
+  };
+}

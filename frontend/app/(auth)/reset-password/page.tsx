@@ -10,6 +10,7 @@ import { Eye, EyeOff, Lock, AlertCircle } from 'lucide-react';
 import { validatePassword } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 import { AUTH_ROUTES } from '@/lib/constants/auth';
+import { resetPassword } from '@/lib/features/auth/authApi';
 
 export default function ResetPasswordPage() {
     const [showPassword, setShowPassword] = useState(false);
@@ -20,22 +21,27 @@ export default function ResetPasswordPage() {
     const { toast } = useToast();
     const token = searchParams.get('token');
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!token) return;
+        if (!token) {
+            setError("Reset token is missing. Please use the link from your email.");
+            return;
+        }
 
         setError(null);
         const formData = new FormData(e.target as HTMLFormElement);
         const password = formData.get('password') as string;
         const confirmPassword = formData.get('confirm-password') as string;
 
+        // Validate password
         const validation = validatePassword(password);
         if (!validation.isValid) {
             setError(validation.message);
             return;
         }
 
+        // Check if passwords match
         if (password !== confirmPassword) {
             setError("Passwords do not match.");
             return;
@@ -43,19 +49,34 @@ export default function ResetPasswordPage() {
 
         setIsLoading(true);
 
-        // Simulate reset
-        setTimeout(() => {
-            setIsLoading(false);
+        try {
+            // Call the reset password API
+            await resetPassword({
+                token: token,
+                password: password,
+            });
+
             toast({
                 title: "Password Updated!",
-                description: "Your password has been successfully reset. Log in with your new password.",
+                description: "Your password has been successfully reset. Please log in with your new password.",
                 variant: "success",
             });
-            // Wait bit then go to login
+
+            // Redirect to login after success
             setTimeout(() => {
                 router.push(AUTH_ROUTES.LOGIN);
             }, 1500);
-        }, 1500);
+        } catch (err: any) {
+            // Handle API errors
+            const errorMessage =
+                err?.response?.data?.error ||
+                err?.message ||
+                'Failed to reset password. The token may be invalid or expired. Please request a new reset link.';
+            
+            setError(errorMessage);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     if (!token) {
@@ -101,6 +122,7 @@ export default function ResetPasswordPage() {
                         </div>
                         <Input
                             id="password"
+                            name="password"
                             type={showPassword ? "text" : "password"}
                             placeholder="••••••••"
                             className="pl-10 pr-10"
@@ -124,6 +146,7 @@ export default function ResetPasswordPage() {
                         </div>
                         <Input
                             id="confirm-password"
+                            name="confirm-password"
                             type={showPassword ? "text" : "password"}
                             placeholder="••••••••"
                             className="pl-10 pr-10"

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { PlaceholderScreen } from './PlaceholderScreen';
+import { SettingsScreen } from './SettingsScreen';
 import { useAppSelector } from '@/lib/hooks';
 import { DashboardLayout } from './DashboardLayout';
 import {
@@ -80,7 +81,7 @@ export function DriverDashboard() {
             case 'notifications':
                 return <PlaceholderScreen icon={Bell} title="Duty Alerts" description="Receive real-time notifications for new trip assignments and updates." />;
             case 'settings':
-                return <PlaceholderScreen icon={Settings} title="Driver Settings" description="Manage your profile, vehicle preferences, and app configuration." />;
+                return <SettingsScreen />;
             default:
                 return null;
         }

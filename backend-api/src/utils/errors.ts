@@ -30,3 +30,10 @@ export class ConflictError extends AppError {
     this.name = "ConflictError";
   }
 }
+
+export class TooManyRequestsError extends AppError {
+  constructor(message: string = "Too many requests") {
+    super(message, 429);
+    this.name = "TooManyRequestsError";
+  }
+}

@@ -1,84 +1,90 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppSelector, useAppDispatch } from '@/lib/hooks';
+import { setCredentials } from '@/lib/features/auth/authSlice';
 import { AdminDashboard } from '@/components/dashboard/AdminDashboard';
 import { StaffDashboard } from '@/components/dashboard/StaffDashboard';
 import { DriverDashboard } from '@/components/dashboard/DriverDashboard';
-import { AUTH_ROUTES, STORAGE_KEYS } from '@/lib/constants/auth';
-import { setCredentials } from '@/lib/features/auth/authSlice';
+import { AUTH_ROUTES, REFRESH_TOKEN_EXPIRED_ERROR } from '@/lib/constants/auth';
+import { getAuthTokens } from '@/lib/utils/auth';
 import { getCurrentUser } from '@/lib/features/auth/authApi';
+import { getIsRefreshTokenExpired } from '@/lib/utils/tokenRefresh';
+
+// Role mapping function - extracted outside component for optimization
+const mapBackendRoleToFrontend = (backendRole: string): string => {
+    const role = backendRole.toUpperCase();
+    if (role === 'ADMIN') return 'admin';
+    if (role === 'OFFICE_STAFF' || role === 'STAFF') return 'staff';
+    if (role === 'DRIVER') return 'driver';
+    return 'admin';
+};
 
 export default function DashboardPage() {
     const { user, isAuthenticated, isLogin } = useAppSelector((state) => state.auth);
     const dispatch = useAppDispatch();
     const router = useRouter();
     const [isChecking, setIsChecking] = useState(true);
+    const [isLoadingUser, setIsLoadingUser] = useState(false);
+
+    const fetchUserData = useCallback(async (tokens: ReturnType<typeof getAuthTokens>) => {
+        setIsLoadingUser(true);
+        try {
+            const userData = await getCurrentUser();
+            const mappedUser = {
+                _id: userData.id,
+                email: userData.email,
+                name: userData.fullName,
+                role: mapBackendRoleToFrontend(userData.role),
+            };
+
+            dispatch(setCredentials({
+                user: mappedUser,
+                accessToken: tokens.accessToken || '',
+                refreshToken: tokens.refreshToken || '',
+            }));
+        } catch (error: any) {
+            if (error?.message === REFRESH_TOKEN_EXPIRED_ERROR) {
+                setIsLoadingUser(false);
+                setIsChecking(false);
+                return;
+            }
+            router.replace(AUTH_ROUTES.LOGIN);
+        } finally {
+            setIsLoadingUser(false);
+        }
+    }, [dispatch, router]);
 
     useEffect(() => {
-        const checkAuthAndFetchUser = async () => {
-            // Always check localStorage first (source of truth for authentication)
-            if (typeof window === 'undefined') {
+        const checkAuthAndLoadUser = async () => {
+            // Early return if refresh token expired
+            if (getIsRefreshTokenExpired()) {
                 setIsChecking(false);
                 return;
             }
 
-            const accessToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-            const refreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+            const tokens = getAuthTokens();
+            const hasAuth = isAuthenticated || isLogin || !!tokens.accessToken;
 
-            // If tokens exist, user is authenticated
-            if (accessToken || refreshToken) {
-                // If user data is missing, fetch from /auth/me endpoint
-                if (!user || !isAuthenticated || !isLogin) {
-                    try {
-                        // Call /auth/me to get current user details
-                        const userData = await getCurrentUser();
-
-                        // Map backend user response to frontend User type
-                        const mapRole = (backendRole: string): string => {
-                            const role = backendRole.toUpperCase();
-                            if (role === 'ADMIN') return 'admin';
-                            if (role === 'OFFICE_STAFF' || role === 'STAFF') return 'staff';
-                            if (role === 'DRIVER') return 'driver';
-                            return 'admin';
-                        };
-
-                        const mappedUser = {
-                            _id: userData.id,
-                            email: userData.email,
-                            name: userData.fullName,
-                            role: mapRole(userData.role),
-                        };
-
-                        // Update Redux state with user data and tokens
-                        dispatch(setCredentials({
-                            user: mappedUser,
-                            accessToken: accessToken || '',
-                            refreshToken: refreshToken || '',
-                        }));
-                    } catch (error: any) {
-                        // If fetching user fails (401, etc.), clear tokens and redirect
-                        console.error('Failed to fetch user data:', error);
-                        localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-                        localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-                        router.replace(AUTH_ROUTES.LOGIN);
-                        return;
-                    }
-                }
-                setIsChecking(false);
+            if (!hasAuth) {
+                router.replace(AUTH_ROUTES.LOGIN);
                 return;
             }
 
-            // No tokens found - redirect to login
-            router.replace(AUTH_ROUTES.LOGIN);
+            // Fetch user data if missing
+            if ((isAuthenticated || isLogin) && !user && tokens.accessToken) {
+                await fetchUserData(tokens);
+            }
+
+            setIsChecking(false);
         };
 
-        checkAuthAndFetchUser();
-    }, []); // Run only once on mount
+        checkAuthAndLoadUser();
+    }, [isAuthenticated, isLogin, user, router, fetchUserData]);
 
-    // Show loading state while checking authentication
-    if (isChecking) {
+    // Show loading state while checking authentication or fetching user data
+    if (isChecking || isLoadingUser) {
         return (
             <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
@@ -89,38 +95,17 @@ export default function DashboardPage() {
         );
     }
 
-    // Check localStorage directly (source of truth) to prevent redirect loops
-    // If tokens exist, user is authenticated regardless of Redux state
-    let hasTokens = false;
-    if (typeof window !== 'undefined') {
-        const accessToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-        const refreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
-        hasTokens = !!(accessToken || refreshToken);
-    }
-
-    // If no tokens, don't render (redirect is in progress)
-    if (!hasTokens) {
+    // Don't render if not authenticated
+    if (!isAuthenticated && !isLogin) {
         return null;
     }
 
-    // If Redux state is not synced yet, use a default role
-    // The useEffect will sync the state, but we can render in the meantime
-    const displayUser = user || {
-        _id: 'temp',
-        email: '',
-        name: 'User',
-        role: 'admin',
-    };
+    const role = user?.role || 'admin';
+    const DashboardComponent = {
+        admin: AdminDashboard,
+        staff: StaffDashboard,
+        driver: DriverDashboard,
+    }[role] || AdminDashboard;
 
-    // Role-based rendering
-    switch (displayUser.role) {
-        case 'admin':
-            return <AdminDashboard />;
-        case 'staff':
-            return <StaffDashboard />;
-        case 'driver':
-            return <DriverDashboard />;
-        default:
-            return <AdminDashboard />; // Default to admin for now if role is missing but authenticated
-    }
+    return <DashboardComponent />;
 }

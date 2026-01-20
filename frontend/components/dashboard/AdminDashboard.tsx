@@ -4,6 +4,7 @@ import React from 'react';
 import { KpiStatsGrid } from './KpiStats';
 import { RecentActivities } from './RecentActivities';
 import { PlaceholderScreen } from './PlaceholderScreen';
+import { SettingsScreen } from './SettingsScreen';
 import { FranchiseManager } from './franchise/FranchiseManager';
 import { StaffManager } from './staff/StaffManager';
 import { PenaltiesManager } from './penalties/PenaltiesManager';
@@ -167,7 +168,7 @@ export function AdminDashboard() {
             case 'notifications':
                 return <PlaceholderScreen icon={Bell} title="System Notifications" description="Stay updated with real-time alerts regarding system status, order updates, and administrative tasks." />;
             case 'settings':
-                return <PlaceholderScreen icon={Settings} title="Account Settings" description="Customize your portal experience, update security preferences, and manage global system configurations." />;
+                return <SettingsScreen />;
             default:
                 return null;
         }

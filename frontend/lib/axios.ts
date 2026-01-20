@@ -1,8 +1,11 @@
 import axios from 'axios';
-import { STORAGE_KEYS } from './constants/auth';
+import { STORAGE_KEYS, AUTH_API_ENDPOINTS, REFRESH_TOKEN_EXPIRED_ERROR } from './constants/auth';
+import { API_BASE_URL } from './constants/api';
+import { triggerRefreshTokenExpired } from './utils/tokenRefresh';
 
-// Get API URL from environment variable, fallback to default backend port
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Constants
+const BASE_URL = API_BASE_URL;
+const REFRESH_TOKEN_ENDPOINT = '/auth/refresh-token';
 
 // Create Axios instance
 const api = axios.create({
@@ -12,27 +15,40 @@ const api = axios.create({
     },
 });
 
-// Variables to handle token refreshing
+// Token refresh state
 let isRefreshing = false;
-let failedQueue: Array<{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void }> = [];
+type QueueItem = { resolve: (value: unknown) => void; reject: (reason?: unknown) => void };
+let failedQueue: QueueItem[] = [];
 
-const processQueue = (error: unknown, token: string | null = null) => {
+// Helper functions
+const clearTokens = (): void => {
+    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+};
+
+const processQueue = (error: unknown, token: string | null = null): void => {
     failedQueue.forEach((prom) => {
-        if (error) {
-            prom.reject(error);
-        } else {
-            prom.resolve(token);
-        }
+        error ? prom.reject(error) : prom.resolve(token);
     });
-
     failedQueue = [];
+};
+
+const isRefreshTokenExpiredError = (error: any): boolean => {
+    const status = error?.response?.status;
+    const message = (error?.response?.data?.error || error?.message || '').toLowerCase();
+    
+    return (
+        status === 401 ||
+        status === 400 ||
+        message.includes('expired') ||
+        message.includes('invalid') ||
+        message.includes('token')
+    );
 };
 
 // Request Interceptor
 api.interceptors.request.use(
     (config) => {
-        // Validate and add Authorization header if access token exists
-        // This applies to ALL requests including staff API calls
         if (typeof window !== 'undefined') {
             const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
             
@@ -77,9 +93,7 @@ api.interceptors.request.use(
         }
         return config;
     },
-    (error) => {
-        return Promise.reject(error);
-    }
+    (error) => Promise.reject(error)
 );
 
 // Response Interceptor
@@ -91,14 +105,19 @@ api.interceptors.response.use(
         const originalRequest = error.config;
 
         // Skip refresh token endpoint to avoid infinite loop
-        if (originalRequest.url?.includes('/auth/refresh-token')) {
+        if (originalRequest.url?.includes(REFRESH_TOKEN_ENDPOINT)) {
             return Promise.reject(error);
         }
 
-        // Only handle 401 Unauthorized errors (not other errors like 400, 409, 500, etc.)
+        // Handle 401 Unauthorized errors
         if (error.response?.status === 401 && !originalRequest._retry) {
+            // Already handled refresh token expired error
+            if (error.message === REFRESH_TOKEN_EXPIRED_ERROR) {
+                return Promise.reject(new Error(REFRESH_TOKEN_EXPIRED_ERROR));
+            }
+            
+            // Queue request if already refreshing
             if (isRefreshing) {
-                // If already refreshing, queue the request
                 return new Promise((resolve, reject) => {
                     failedQueue.push({ resolve, reject });
                 })
@@ -106,27 +125,25 @@ api.interceptors.response.use(
                         originalRequest.headers.Authorization = `Bearer ${token}`;
                         return api(originalRequest);
                     })
-                    .catch((err) => {
-                        return Promise.reject(err);
-                    });
+                    .catch((err) => Promise.reject(err));
             }
 
+            // Start token refresh
             originalRequest._retry = true;
             isRefreshing = true;
 
             try {
-                const refreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
-
-                if (!refreshToken) {
+                const refreshTokenValue = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+                if (!refreshTokenValue) {
                     throw new Error('No refresh token available');
                 }
 
-                // Attempt to refresh token
-                const response = await axios.post(`${BASE_URL}/auth/refresh-token`, {
-                    refreshToken,
-                });
+                // Use axios directly to avoid interceptor loop
+                const response = await axios.post(
+                    `${BASE_URL}${AUTH_API_ENDPOINTS.REFRESH_TOKEN}`,
+                    { refreshToken: refreshTokenValue }
+                );
 
-                // Backend returns { data: { accessToken, refreshToken, user } }
                 const tokenData = response.data.data || response.data;
                 const { accessToken, refreshToken: newRefreshToken } = tokenData;
 
@@ -136,43 +153,28 @@ api.interceptors.response.use(
                     localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, newRefreshToken);
                 }
 
-                // Update default headers
-                api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-                originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+                // Update headers
+                const authHeader = `Bearer ${accessToken}`;
+                api.defaults.headers.common['Authorization'] = authHeader;
+                originalRequest.headers.Authorization = authHeader;
 
-                // Retry queued requests
+                // Process queued requests and retry original
                 processQueue(null, accessToken);
-
-                // Retry original request
                 return api(originalRequest);
             } catch (refreshError: any) {
                 processQueue(refreshError, null);
 
-                // Check if refresh token is actually expired/invalid
-                const isRefreshTokenExpired = 
-                    refreshError?.response?.status === 401 ||
-                    refreshError?.response?.status === 400 ||
-                    !refreshError?.response; // Network error
-
-                if (isRefreshTokenExpired) {
-                    // Clear tokens and redirect to login only if refresh token is expired
-                    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-                    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-
-                    // Only redirect if not already on an auth page
-                    if (typeof window !== 'undefined') {
-                        const currentPath = window.location.pathname;
-                        const isAuthPage = currentPath.includes('/login') || 
-                                         currentPath.includes('/register') ||
-                                         currentPath.includes('/forgot-password') ||
-                                         currentPath.includes('/reset-password');
-                        
-                        if (!isAuthPage) {
-                            window.location.href = '/login';
-                        }
-                    }
+                if (isRefreshTokenExpiredError(refreshError)) {
+                    clearTokens();
+                    triggerRefreshTokenExpired();
+                    return Promise.reject(new Error(REFRESH_TOKEN_EXPIRED_ERROR));
                 }
 
+                // Other errors - clear tokens and redirect
+                clearTokens();
+                if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+                    window.location.href = '/login';
+                }
                 return Promise.reject(refreshError);
             } finally {
                 isRefreshing = false;

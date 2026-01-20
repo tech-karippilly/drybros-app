@@ -4,8 +4,12 @@ import {
   getCustomerById,
   createCustomerHandler,
 } from "../controllers/customer.controller";
+import { authMiddleware } from "../middlewares/auth";
 
 const router = express.Router();
+
+// All customer routes require authentication
+router.use(authMiddleware);
 
 // GET /customers
 router.get("/", getCustomers);

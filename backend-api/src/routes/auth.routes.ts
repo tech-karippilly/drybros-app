@@ -5,6 +5,7 @@ import {
   forgotPasswordHandler,
   resetPasswordHandler,
   refreshTokenHandler,
+  logoutHandler,
   getCurrentUserHandler,
 } from "../controllers/auth.controller";
 import { validate } from "../middlewares/validation";
@@ -34,7 +35,10 @@ router.post("/reset-password", validate(resetPasswordSchema), resetPasswordHandl
 // Refresh access token
 router.post("/refresh-token", validate(refreshTokenSchema), refreshTokenHandler);
 
-// Get current authenticated user (requires authentication)
+// Logout (requires authentication)
+router.post("/logout", authMiddleware, logoutHandler);
+
+// Get current user (requires authentication)
 router.get("/me", authMiddleware, getCurrentUserHandler);
 
 export default router;

@@ -2,32 +2,43 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { AuthState, User, Franchise } from '../../types/auth';
 import { DUMMY_FRANCHISES, STORAGE_KEYS } from '../../constants/auth';
 
-// Function to get initial state from localStorage
+// Initialize state from localStorage if available (for page refresh)
 const getInitialState = (): AuthState => {
-    let activeTab = 'home';
-    
-    // Try to restore active tab from localStorage
-    if (typeof window !== 'undefined') {
-        const savedTab = localStorage.getItem(STORAGE_KEYS.ACTIVE_TAB);
-        if (savedTab) {
-            activeTab = savedTab;
-        }
+    if (typeof window === 'undefined') {
+        // Server-side: return default state
+        return {
+            user: null,
+            accessToken: null,
+            refreshToken: null,
+            isAuthenticated: false,
+            isLogin: false,
+            isLoading: false,
+            activeTab: 'home',
+            franchiseList: DUMMY_FRANCHISES,
+            selectedFranchise: DUMMY_FRANCHISES[0],
+        };
     }
 
+    // Client-side: check localStorage for tokens
+    const accessToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    const refreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+    
+    // If tokens exist, mark as authenticated (user data will be fetched separately if needed)
+    const hasTokens = !!accessToken && !!refreshToken;
+
     return {
-        user: null,
-        accessToken: null,
-        refreshToken: null,
-        isAuthenticated: false,
-        isLogin: false,
+        user: null, // User data should be fetched from API if needed
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        isAuthenticated: hasTokens,
+        isLogin: hasTokens,
         isLoading: false,
-        activeTab,
+        activeTab: 'home',
         franchiseList: DUMMY_FRANCHISES,
         selectedFranchise: DUMMY_FRANCHISES[0],
     };
 };
 
-// Default initial state (will be hydrated from localStorage on client)
 const initialState: AuthState = getInitialState();
 
 const authSlice = createSlice({

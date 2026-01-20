@@ -1,11 +1,13 @@
 "use client";
 
 import React from 'react';
-import { WashingMachine } from 'lucide-react';
+import { WashingMachine, LogOut } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAppSelector, useAppDispatch } from '@/lib/hooks';
-import { setActiveTab } from '@/lib/features/auth/authSlice';
+import { setActiveTab, logout } from '@/lib/features/auth/authSlice';
 import { ROLE_MENUS } from '@/lib/constants/dashboard';
+import { handleLogout } from '@/lib/utils/auth';
 
 interface SidebarProps {
     className?: string;
@@ -14,6 +16,7 @@ interface SidebarProps {
 export function Sidebar({ className }: SidebarProps) {
     const { user, activeTab } = useAppSelector((state) => state.auth);
     const dispatch = useAppDispatch();
+    const router = useRouter();
 
     const items = ROLE_MENUS[user?.role as keyof typeof ROLE_MENUS] || ROLE_MENUS.admin;
 
@@ -54,12 +57,12 @@ export function Sidebar({ className }: SidebarProps) {
                 ))}
             </nav>
 
-            <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+            <div className="p-4 border-t border-gray-200 dark:border-gray-800 space-y-2">
                 <div className="flex items-center gap-3 p-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
                     <div className="size-8 rounded-full bg-[#0d59f2]/10 flex items-center justify-center text-[#0d59f2] font-bold text-sm">
                         {user?.name?.charAt(0) || 'U'}
                     </div>
-                    <div className="flex flex-col min-w-0">
+                    <div className="flex flex-col min-w-0 flex-1">
                         <p className="text-[#0d121c] dark:text-white text-xs font-bold leading-tight truncate">
                             {user?.name || 'User'}
                         </p>
@@ -68,6 +71,15 @@ export function Sidebar({ className }: SidebarProps) {
                         </p>
                     </div>
                 </div>
+                <button
+                    onClick={async () => {
+                        await handleLogout(dispatch, logout, router);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800/50"
+                >
+                    <LogOut size={18} />
+                    <span>Logout</span>
+                </button>
             </div>
         </aside>
     );

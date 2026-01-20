@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 
 import StoreProvider from "./StoreProvider";
 import { ToastProvider } from "@/components/ui/toast";
-import { BackButtonGuard } from "@/components/auth/BackButtonGuard";
+import { TokenRefreshProvider } from "@/components/auth/TokenRefreshProvider";
 
 export default function RootLayout({
   children,
@@ -34,9 +34,9 @@ export default function RootLayout({
       >
         <StoreProvider>
           <ToastProvider>
-            <BackButtonGuard>
+            <TokenRefreshProvider>
               {children}
-            </BackButtonGuard>
+            </TokenRefreshProvider>
           </ToastProvider>
         </StoreProvider>
       </body>

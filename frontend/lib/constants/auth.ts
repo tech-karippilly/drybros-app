@@ -16,12 +16,24 @@ export const AUTH_API_ENDPOINTS = {
     GET_CURRENT_USER: '/auth/me',
 } as const;
 
+export const REFRESH_TOKEN_EXPIRED_ERROR = 'REFRESH_TOKEN_EXPIRED' as const;
+
 export const AUTH_ROUTES = {
     LOGIN: '/login',
     REGISTER: '/register',
     DASHBOARD: '/dashboard',
     FORGOT_PASSWORD: '/forgot-password',
     RESET_PASSWORD: '/reset-password',
+} as const;
+
+export const AUTH_API_ENDPOINTS = {
+    REGISTER_ADMIN: '/auth/register-admin',
+    LOGIN: '/auth/login',
+    LOGOUT: '/auth/logout',
+    FORGOT_PASSWORD: '/auth/forgot-password',
+    RESET_PASSWORD: '/auth/reset-password',
+    REFRESH_TOKEN: '/auth/refresh-token',
+    GET_CURRENT_USER: '/auth/me',
 } as const;
 
 export const ADMIN_DUMMY_USER = {

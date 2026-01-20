@@ -1,21 +1,5 @@
 import api from '../../axios';
-import { AUTH_API_ENDPOINTS } from '../../constants/auth';
-
-// API Endpoints
-const AUTH_ENDPOINTS = {
-    LOGIN: '/auth/login',
-    REGISTER_ADMIN: '/auth/register-admin',
-    FORGOT_PASSWORD: '/auth/forgot-password',
-    RESET_PASSWORD: '/auth/reset-password',
-    REFRESH_TOKEN: '/auth/refresh-token',
-    GET_CURRENT_USER: '/auth/me',
-} as const;
-
-// Request DTOs
-export interface LoginRequest {
-    email: string;
-    password: string;
-}
+import { AUTH_API_ENDPOINTS, REFRESH_TOKEN_EXPIRED_ERROR } from '../../constants/auth';
 
 export interface RegisterAdminRequest {
     name: string;
@@ -24,20 +8,15 @@ export interface RegisterAdminRequest {
     phone?: string | null;
 }
 
-export interface ForgotPasswordRequest {
-    email: string;
+export interface RegisterAdminResponse {
+    message: string;
 }
 
-export interface ResetPasswordRequest {
-    token: string;
+export interface LoginRequest {
+    email: string;
     password: string;
 }
 
-export interface RefreshTokenRequest {
-    refreshToken: string;
-}
-
-// Response DTOs
 export interface LoginResponse {
     data: {
         accessToken: string;
@@ -52,29 +31,25 @@ export interface LoginResponse {
     };
 }
 
-export interface CurrentUserResponse {
-    data: {
-        id: string;
-        fullName: string;
-        email: string;
-        phone: string | null;
-        role: string;
-        isActive: boolean;
-        createdAt: Date;
-        updatedAt: Date;
-    };
-}
-
-export interface RegisterAdminResponse {
-    message: string;
+export interface ForgotPasswordRequest {
+    email: string;
 }
 
 export interface ForgotPasswordResponse {
     message: string;
 }
 
+export interface ResetPasswordRequest {
+    token: string;
+    password: string;
+}
+
 export interface ResetPasswordResponse {
     message: string;
+}
+
+export interface RefreshTokenRequest {
+    refreshToken: string;
 }
 
 export interface RefreshTokenResponse {
@@ -91,12 +66,19 @@ export interface RefreshTokenResponse {
     };
 }
 
-/**
- * Login user
- */
-export async function login(data: LoginRequest): Promise<LoginResponse['data']> {
-    const response = await api.post<LoginResponse>(AUTH_ENDPOINTS.LOGIN, data);
-    return response.data.data;
+export interface LogoutResponse {
+    message: string;
+}
+
+export interface CurrentUserResponse {
+    data: {
+        id: string;
+        fullName: string;
+        email: string;
+        phone: string | null;
+        role: string;
+        isActive: boolean;
+    };
 }
 
 /**
@@ -104,38 +86,93 @@ export async function login(data: LoginRequest): Promise<LoginResponse['data']> 
  * Requires authentication (Bearer token in header)
  */
 export async function getCurrentUser(): Promise<CurrentUserResponse['data']> {
-    const response = await api.get<CurrentUserResponse>(AUTH_ENDPOINTS.GET_CURRENT_USER);
+    try {
+        const response = await api.get<CurrentUserResponse>(
+            AUTH_API_ENDPOINTS.GET_CURRENT_USER
+        );
+        return response.data.data;
+    } catch (error: any) {
+        // Re-throw refresh token expired errors with specific message
+        if (
+            error?.message === REFRESH_TOKEN_EXPIRED_ERROR ||
+            (error?.response?.status === 401 && error?.config?.url?.includes('/auth/me'))
+        ) {
+            throw new Error(REFRESH_TOKEN_EXPIRED_ERROR);
+        }
+        throw error;
+    }
+}
+
+/**
+ * Register a new admin user
+ */
+export async function registerAdmin(
+    data: RegisterAdminRequest
+): Promise<RegisterAdminResponse> {
+    const response = await api.post<RegisterAdminResponse>(
+        AUTH_API_ENDPOINTS.REGISTER_ADMIN,
+        data
+    );
+    return response.data;
+}
+
+/**
+ * Login user
+ */
+export async function login(data: LoginRequest): Promise<LoginResponse['data']> {
+    const response = await api.post<LoginResponse>(
+        AUTH_API_ENDPOINTS.LOGIN,
+        data
+    );
     return response.data.data;
 }
 
 /**
- * Register admin
+ * Request password reset
  */
-export async function registerAdmin(data: RegisterAdminRequest): Promise<RegisterAdminResponse> {
-    const response = await api.post<RegisterAdminResponse>(AUTH_ENDPOINTS.REGISTER_ADMIN, data);
+export async function forgotPassword(
+    data: ForgotPasswordRequest
+): Promise<ForgotPasswordResponse> {
+    const response = await api.post<ForgotPasswordResponse>(
+        AUTH_API_ENDPOINTS.FORGOT_PASSWORD,
+        data
+    );
     return response.data;
 }
 
 /**
- * Forgot password
+ * Reset password with token
  */
-export async function forgotPassword(data: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
-    const response = await api.post<ForgotPasswordResponse>(AUTH_ENDPOINTS.FORGOT_PASSWORD, data);
-    return response.data;
-}
-
-/**
- * Reset password
- */
-export async function resetPassword(data: ResetPasswordRequest): Promise<ResetPasswordResponse> {
-    const response = await api.post<ResetPasswordResponse>(AUTH_ENDPOINTS.RESET_PASSWORD, data);
+export async function resetPassword(
+    data: ResetPasswordRequest
+): Promise<ResetPasswordResponse> {
+    const response = await api.post<ResetPasswordResponse>(
+        AUTH_API_ENDPOINTS.RESET_PASSWORD,
+        data
+    );
     return response.data;
 }
 
 /**
  * Refresh access token
  */
-export async function refreshToken(data: RefreshTokenRequest): Promise<RefreshTokenResponse['data']> {
-    const response = await api.post<RefreshTokenResponse>(AUTH_ENDPOINTS.REFRESH_TOKEN, data);
+export async function refreshToken(
+    data: RefreshTokenRequest
+): Promise<RefreshTokenResponse['data']> {
+    const response = await api.post<RefreshTokenResponse>(
+        AUTH_API_ENDPOINTS.REFRESH_TOKEN,
+        data
+    );
     return response.data.data;
+}
+
+/**
+ * Logout user
+ * Requires authentication (Bearer token in header)
+ */
+export async function logout(): Promise<LogoutResponse> {
+    const response = await api.post<LogoutResponse>(
+        AUTH_API_ENDPOINTS.LOGOUT
+    );
+    return response.data;
 }

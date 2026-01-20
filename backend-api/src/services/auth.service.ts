@@ -13,6 +13,7 @@ import {
 } from "../utils/errors";
 import logger from "../config/logger";
 import { AUTH_RATE_LIMIT } from "../constants/auth";
+import { ERROR_MESSAGES } from "../constants/errors";
 import {
   RegisterAdminDTO,
   LoginDTO,
@@ -23,6 +24,8 @@ import {
   RefreshTokenDTO,
   ForgotPasswordResponseDTO,
   ResetPasswordResponseDTO,
+  LogoutResponseDTO,
+  CurrentUserResponseDTO,
   AccessTokenPayload,
   RefreshTokenPayload,
   PasswordResetTokenPayload,
@@ -70,7 +73,7 @@ function generatePasswordResetToken(userId: string, email: string): string {
   return jwt.sign(
     payload,
     authConfig.jwtSecret as Secret,
-    { expiresIn: "1h" } as SignOptions
+    { expiresIn: authConfig.passwordResetTokenExpiresIn } as SignOptions
   );
 }
 
@@ -84,7 +87,13 @@ function verifyToken<T>(
     const decoded = jwt.verify(token, authConfig.jwtSecret as Secret) as T;
     return decoded;
   } catch (error) {
-    throw new BadRequestError("Invalid or expired token");
+    if (error instanceof jwt.TokenExpiredError) {
+      throw new BadRequestError(ERROR_MESSAGES.TOKEN_EXPIRED);
+    }
+    if (error instanceof jwt.JsonWebTokenError) {
+      throw new BadRequestError(ERROR_MESSAGES.INVALID_TOKEN);
+    }
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_TOKEN);
   }
 }
 
@@ -146,7 +155,7 @@ export async function registerAdmin(
     where: { email: input.email },
   });
   if (existing) {
-    throw new ConflictError("Email already in use");
+    throw new ConflictError(ERROR_MESSAGES.EMAIL_ALREADY_EXISTS);
   }
 
   // Fetch ADMIN role from Role table
@@ -157,7 +166,7 @@ export async function registerAdmin(
     );
   }
   if (!adminRole.isActive) {
-    throw new BadRequestError("ADMIN role is not active");
+    throw new BadRequestError(ERROR_MESSAGES.ROLE_INACTIVE);
   }
 
   // Hash password
@@ -245,7 +254,7 @@ function checkAccountLockout(user: User, now: Date = new Date()): void {
         (lockedUntil.getTime() - now.getTime()) / (1000 * 60)
       );
       throw new TooManyRequestsError(
-        `Account is temporarily locked due to multiple failed login attempts. Please try again in ${remainingMinutes} minute(s).`
+        `${ERROR_MESSAGES.ACCOUNT_LOCKED} Please try again in ${remainingMinutes} minute(s).`
       );
     }
     // Lockout has expired - will be cleared on next update
@@ -325,7 +334,7 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
   });
 
   if (!user || !user.isActive) {
-    throw new BadRequestError("Invalid credentials");
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
   }
 
   // Check if account is locked (before expensive password check)
@@ -340,7 +349,7 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
   if (!isPasswordValid) {
     // Handle failed login attempt with atomic increment
     await handleFailedLogin(String(user.id), user.failedAttempts || 0, now);
-    throw new BadRequestError("Invalid credentials");
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
   }
 
   // Password is correct - reset failed attempts and unlock account
@@ -368,7 +377,7 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
 
 /**
  * Forgot password - verify email and send reset link
- * Always returns success message for security (doesn't reveal if email exists)
+ * Returns error if email does not exist in the system
  */
 export async function forgotPassword(
   input: ForgotPasswordDTO
@@ -377,27 +386,34 @@ export async function forgotPassword(
     where: { email: input.email },
   });
 
-  // Only send email if user exists and is active
-  if (user && user.isActive) {
-    const resetToken = generatePasswordResetToken(String(user.id), user.email);
-    const resetLink = `${emailConfig.resetPasswordLink}?token=${resetToken}`;
-
-    await sendEmailSafely(
-      () =>
-        sendPasswordResetEmail({
-          to: user.email,
-          name: user.fullName,
-          resetLink,
-        }),
-      "Password reset email sent successfully",
-      "Failed to send password reset email",
-      { email: user.email }
-    );
+  // Check if user exists
+  if (!user) {
+    throw new NotFoundError(ERROR_MESSAGES.EMAIL_NOT_FOUND);
   }
 
+  // Check if user is active
+  if (!user.isActive) {
+    throw new BadRequestError(ERROR_MESSAGES.ACCOUNT_INACTIVE);
+  }
+
+  // Generate reset token and send email
+  const resetToken = generatePasswordResetToken(String(user.id), user.email);
+  const resetLink = `${emailConfig.resetPasswordLink}?token=${resetToken}`;
+
+  await sendEmailSafely(
+    () =>
+      sendPasswordResetEmail({
+        to: user.email,
+        name: user.fullName,
+        resetLink,
+      }),
+    "Password reset email sent successfully",
+    "Failed to send password reset email",
+    { email: user.email }
+  );
+
   return {
-    message:
-      "If an account with that email exists, a password reset link has been sent.",
+    message: "Password reset link has been sent to your email address.",
   };
 }
 
@@ -412,7 +428,7 @@ export async function resetPassword(
 
   // Verify token type
   if (decoded.type !== "password-reset") {
-    throw new BadRequestError("Invalid token type");
+    throw new BadRequestError(ERROR_MESSAGES.TOKEN_INVALID_TYPE);
   }
 
   // Find user
@@ -424,12 +440,12 @@ export async function resetPassword(
   } as any);
 
   if (!user || !user.isActive) {
-    throw new BadRequestError("User not found or inactive");
+    throw new BadRequestError(ERROR_MESSAGES.USER_NOT_FOUND);
   }
 
   // Verify email matches
   if (user.email !== decoded.email) {
-    throw new BadRequestError("Token email mismatch");
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_TOKEN);
   }
 
   // Hash new password
@@ -472,7 +488,7 @@ export async function refreshToken(
 
   // Verify token type
   if (decoded.type !== "refresh") {
-    throw new BadRequestError("Invalid token type");
+    throw new BadRequestError(ERROR_MESSAGES.TOKEN_INVALID_TYPE);
   }
 
   // Find user
@@ -484,7 +500,7 @@ export async function refreshToken(
   } as any);
 
   if (!user || !user.isActive) {
-    throw new BadRequestError("User not found or inactive");
+    throw new BadRequestError(ERROR_MESSAGES.USER_NOT_FOUND);
   }
 
   // Generate new tokens
@@ -499,9 +515,24 @@ export async function refreshToken(
 }
 
 /**
- * Get current authenticated user
+ * Logout user
+ * Note: Since we're using stateless JWT tokens, logout is primarily client-side.
+ * The server just confirms the logout. In a production system with token blacklisting,
+ * you would invalidate the refresh token here.
  */
-export async function getCurrentUser(userId: string): Promise<UserResponseDTO> {
+export async function logout(userId: string): Promise<LogoutResponseDTO> {
+  logger.info("User logged out", { userId });
+  
+  return {
+    message: "Logged out successfully",
+  };
+}
+
+/**
+ * Get current user information
+ * Uses the authenticated user's ID from the JWT token
+ */
+export async function getCurrentUser(userId: string): Promise<CurrentUserResponseDTO> {
   // Find user
   // @ts-ignore - Prisma types may show number but database uses UUID string
   const user = await prisma.user.findUnique({
@@ -513,17 +544,15 @@ export async function getCurrentUser(userId: string): Promise<UserResponseDTO> {
       phone: true,
       role: true,
       isActive: true,
-      createdAt: true,
-      updatedAt: true,
     },
   } as any);
 
   if (!user) {
-    throw new NotFoundError("User not found");
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
   }
 
   if (!user.isActive) {
-    throw new BadRequestError("User account is inactive");
+    throw new BadRequestError(ERROR_MESSAGES.USER_INACTIVE);
   }
 
   return {
@@ -533,7 +562,5 @@ export async function getCurrentUser(userId: string): Promise<UserResponseDTO> {
     phone: user.phone,
     role: user.role,
     isActive: user.isActive,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
   };
 }

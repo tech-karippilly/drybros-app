@@ -1,7 +1,9 @@
 import axios from 'axios';
 import { STORAGE_KEYS } from './constants/auth';
+import { API_BASE_URL } from './constants/api';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+// Use centralized API URL configuration
+const BASE_URL = API_BASE_URL;
 
 // Create Axios instance
 const api = axios.create({
@@ -83,7 +85,8 @@ api.interceptors.response.use(
                     refreshToken,
                 });
 
-                const { accessToken, refreshToken: newRefreshToken } = response.data;
+                // Backend returns { data: { accessToken, refreshToken, user } }
+                const { accessToken, refreshToken: newRefreshToken } = response.data.data || response.data;
 
                 // Save new tokens
                 localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken);

@@ -33,32 +33,34 @@ interface DriverDetailsProps {
     onEdit: () => void;
 }
 
+// Memoized StatusBadge component moved outside
+const StatusBadge = React.memo(({ status }: { status: DriverStatus }) => {
+    const styles = {
+        [DriverStatus.ACTIVE]: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+        [DriverStatus.INACTIVE]: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
+        [DriverStatus.BLOCKED]: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+        [DriverStatus.TERMINATED]: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+    };
+    return (
+        <span className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider", styles[status] || styles[DriverStatus.INACTIVE])}>
+            {status === DriverStatus.ACTIVE ? 'Active' : status === DriverStatus.INACTIVE ? 'Inactive' : status === DriverStatus.BLOCKED ? 'Blocked' : 'Terminated'}
+        </span>
+    );
+});
+StatusBadge.displayName = 'StatusBadge';
+
 export function DriverDetails({ driver, onBack, onEdit }: DriverDetailsProps) {
     const dispatch = useAppDispatch();
     const [deleteTarget, setDeleteTarget] = React.useState(false);
     const [banTarget, setBanTarget] = React.useState(false);
 
+    // Memoized stats array with null checks
+    const stats = React.useMemo(() => [
+        { label: 'Current Rating', value: (driver?.currentRating ?? 0).toFixed(1), icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' },
+        { label: 'Daily Target', value: `₹${driver?.dailyTargetAmount ?? 0}`, icon: Clock, color: 'text-green-600', bg: 'bg-green-50' },
+    ], [driver?.currentRating, driver?.dailyTargetAmount]);
+
     if (!driver) return null;
-
-    const StatusBadge = ({ status }: { status: DriverStatus }) => {
-        const styles = {
-            [DriverStatus.ACTIVE]: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-            [DriverStatus.INACTIVE]: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-            [DriverStatus.BLOCKED]: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-            [DriverStatus.TERMINATED]: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
-        };
-        return (
-            <span className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider", styles[status] || styles[DriverStatus.INACTIVE])}>
-                {status === DriverStatus.ACTIVE ? 'Active' : status === DriverStatus.INACTIVE ? 'Inactive' : status === DriverStatus.BLOCKED ? 'Blocked' : 'Terminated'}
-            </span>
-        );
-    };
-
-    const stats = [
-        // { label: 'Total Trips', value: driver.trips.length, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { label: 'Current Rating', value: driver.currentRating.toFixed(1), icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' },
-        { label: 'Daily Target', value: `₹${driver.dailyTargetAmount}`, icon: Clock, color: 'text-green-600', bg: 'bg-green-50' },
-    ];
 
     return (
         <div className="flex flex-col gap-8 animate-in slide-in-from-right duration-500">

@@ -89,9 +89,9 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
         return drivers.filter(item => {
             const fullName = `${item.firstName} ${item.lastName}`.toLowerCase();
             const matchesSearch = fullName.includes(filters.search.toLowerCase()) || 
-                                  item.driverPhone.includes(filters.search);
+                                  (item.driverPhone?.includes(filters.search) ?? false);
             
-            const matchesPhone = filters.phone === '' || item.driverPhone.includes(filters.phone);
+            const matchesPhone = filters.phone === '' || (item.driverPhone?.includes(filters.phone) ?? false);
             
             let matchesStatus = true;
             if (filters.status !== 'all') {

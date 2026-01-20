@@ -109,6 +109,27 @@ model User {
   updatedAt      DateTime  @updatedAt
 }
 
+model Staff {
+  id                        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                      String
+  email                     String   @unique
+  phone                     String   @unique
+  password                  String
+  franchiseId               String   @db.Uuid
+  monthlySalary             Decimal  @db.Decimal(10, 2)
+  address                   String
+  emergencyContact          String
+  emergencyContactRelation  String
+  govtId                    Boolean  @default(false)
+  addressProof              Boolean  @default(false)
+  certificates              Boolean  @default(false)
+  previousExperienceCert    Boolean  @default(false)
+  profilePic                String?
+  isActive                  Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}
+
 enum DriverStatus {
   ACTIVE
   INACTIVE

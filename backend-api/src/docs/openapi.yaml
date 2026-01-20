@@ -32,6 +32,8 @@ paths:
   /franchises/{id}:
     get:
       summary: Get franchise by ID
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -49,6 +51,8 @@ paths:
       summary: List all roles
       tags:
         - Roles
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: List of roles
@@ -65,6 +69,8 @@ paths:
       summary: Create a new role
       tags:
         - Roles
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -86,6 +92,8 @@ paths:
       summary: Get role by ID
       tags:
         - Roles
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -107,6 +115,8 @@ paths:
       summary: Update a role
       tags:
         - Roles
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -136,6 +146,8 @@ paths:
       summary: Delete a role
       tags:
         - Roles
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -149,6 +161,83 @@ paths:
           description: Role deleted successfully
         "404":
           description: Role not found
+
+  /staff:
+    get:
+      summary: List all staff members
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of staff members
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Staff"
+    post:
+      summary: Create a new staff member
+      description: |
+        Creates a new staff member and sends a welcome email with login credentials (email and password).
+        The email will be sent to the provided email address.
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStaffRequest"
+      responses:
+        "201":
+          description: Staff member created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateStaffResponse"
+        "400":
+          description: Bad request (validation error)
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "409":
+          description: Email or phone number already in use
+
+  /staff/{id}:
+    get:
+      summary: Get staff member by ID
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Staff member data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Staff"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Staff member not found
 
   /auth/register-admin:
     post:
@@ -292,6 +381,8 @@ paths:
       summary: Create a customer
       tags:
         - Customers
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -311,6 +402,8 @@ paths:
       summary: Create a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -330,6 +423,8 @@ paths:
       summary: Driver accepts a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -360,6 +455,8 @@ paths:
       summary: Driver rejects a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -390,6 +487,8 @@ paths:
       summary: Generate start OTP for a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -420,6 +519,8 @@ paths:
       summary: Start trip with OTP
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -445,6 +546,8 @@ paths:
       summary: Generate end OTP for a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -475,6 +578,8 @@ paths:
       summary: End trip with OTP and payment
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -910,6 +1015,172 @@ components:
       required:
         - refreshToken
 
+    CreateStaffRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Full name of the staff member
+          example: "John Doe"
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          description: Email address (must be unique, used for login)
+          example: "john.doe@drybros.com"
+          maxLength: 255
+        phone:
+          type: string
+          description: Phone number (must be unique)
+          example: "+1234567890"
+          minLength: 10
+          maxLength: 20
+        password:
+          type: string
+          format: password
+          description: Password (auto-generated from frontend, minimum 8 characters)
+          example: "SecurePassword123"
+          minLength: 8
+          maxLength: 100
+        franchiseId:
+          type: string
+          format: uuid
+          description: Franchise ID (UUID)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        monthlySalary:
+          type: number
+          description: Monthly salary
+          example: 50000
+          minimum: 0
+        address:
+          type: string
+          description: Full address
+          example: "123 Main St, City, State 12345"
+          minLength: 1
+          maxLength: 500
+        emergencyContact:
+          type: string
+          description: Emergency contact phone number
+          example: "+1234567890"
+          minLength: 10
+          maxLength: 20
+        emergencyContactRelation:
+          type: string
+          description: Relationship with emergency contact
+          example: "Spouse"
+          minLength: 1
+          maxLength: 50
+        govtId:
+          type: boolean
+          description: Whether government ID document is collected (checkbox)
+          example: true
+          default: false
+        addressProof:
+          type: boolean
+          description: Whether address proof document is collected (checkbox)
+          example: true
+          default: false
+        certificates:
+          type: boolean
+          description: Whether certificates are collected (checkbox)
+          example: true
+          default: false
+        previousExperienceCert:
+          type: boolean
+          description: Whether previous experience certificate is collected (checkbox)
+          example: true
+          default: false
+        profilePic:
+          type: string
+          nullable: true
+          description: Profile picture URL (optional, for future use)
+          example: "https://example.com/images/profile.jpg"
+          maxLength: 500
+          format: uri
+      required:
+        - name
+        - email
+        - phone
+        - password
+        - franchiseId
+        - monthlySalary
+        - address
+        - emergencyContact
+        - emergencyContactRelation
+
+    Staff:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Staff ID (UUID)
+        name:
+          type: string
+          description: Full name
+        email:
+          type: string
+          format: email
+          description: Email address (used for login)
+        phone:
+          type: string
+          description: Phone number
+        franchiseId:
+          type: string
+          format: uuid
+          description: Franchise ID
+        monthlySalary:
+          type: number
+          description: Monthly salary
+        address:
+          type: string
+          description: Full address
+        emergencyContact:
+          type: string
+          description: Emergency contact phone number
+        emergencyContactRelation:
+          type: string
+          description: Relationship with emergency contact
+        govtId:
+          type: boolean
+          description: Whether government ID document is collected
+        addressProof:
+          type: boolean
+          description: Whether address proof document is collected
+        certificates:
+          type: boolean
+          description: Whether certificates are collected
+        previousExperienceCert:
+          type: boolean
+          description: Whether previous experience certificate is collected
+        profilePic:
+          type: string
+          nullable: true
+          description: Profile picture URL
+          format: uri
+        isActive:
+          type: boolean
+          description: Whether the staff member is active
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    CreateStaffResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Staff member created successfully"
+        data:
+          $ref: "#/components/schemas/Staff"
+
     ErrorResponse:
       type: object
       properties:
@@ -917,3 +1188,13 @@ components:
           type: string
           description: Error message
           example: "Account is temporarily locked due to multiple failed login attempts. Please try again in 5 minute(s)."
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token obtained from login endpoint.
+        Enter only the token value (without "Bearer " prefix).
+        Swagger will automatically add the "Bearer " prefix when making requests.

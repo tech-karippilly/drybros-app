@@ -5,7 +5,10 @@ info:
   description: API documentation for Drybros backend
 
 servers:
-  - url: http://localhost:3000
+  - url: http://localhost:4000
+
+security:
+  - bearerAuth: []
 
 paths:
   /health:
@@ -25,13 +28,23 @@ paths:
   /franchises:
     get:
       summary: List all franchises
+      tags:
+        - Franchises
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: List of franchises
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /franchises/{id}:
     get:
       summary: Get franchise by ID
+      tags:
+        - Franchises
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -41,14 +54,593 @@ paths:
       responses:
         "200":
           description: Franchise data
+        "401":
+          description: Not authenticated (missing or invalid token)
         "404":
           description: Franchise not found
+
+  /roles:
+    get:
+      summary: List all roles
+      tags:
+        - Roles
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of roles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Role"
+        "401":
+          description: Not authenticated (missing or invalid token)
+    post:
+      summary: Create a new role
+      tags:
+        - Roles
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleRequest"
+      responses:
+        "201":
+          description: Role created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleResponse"
+        "400":
+          description: Bad request (e.g., role name already exists)
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /roles/{id}:
+    get:
+      summary: Get role by ID
+      tags:
+        - Roles
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      responses:
+        "200":
+          description: Role data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Role not found
+    put:
+      summary: Update a role
+      tags:
+        - Roles
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleRequest"
+      responses:
+        "200":
+          description: Role updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleResponse"
+        "400":
+          description: Bad request (e.g., role name already exists)
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Role not found
+    delete:
+      summary: Delete a role
+      tags:
+        - Roles
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      responses:
+        "204":
+          description: Role deleted successfully
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Role not found
+
+  /staff:
+    get:
+      summary: List staff members
+      description: |
+        Retrieves a list of staff members with optional pagination.
+        
+        **Pagination:**
+        - Use `page` query parameter to specify the page number (default: 1)
+        - Use `limit` query parameter to specify items per page (default: 10, max: 100)
+        - If pagination parameters are not provided, returns all staff members (for backward compatibility)
+        
+        **Example:**
+        - `/staff?page=1&limit=10` - Get first 10 staff members
+        - `/staff?page=2&limit=20` - Get next 20 staff members (page 2)
+        - `/staff` - Get all staff members (no pagination)
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number (starts from 1)
+          example: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Number of items per page (max 100)
+          example: 10
+      responses:
+        "200":
+          description: List of staff members (paginated or all)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PaginatedStaffResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Staff"
+        "400":
+          description: Bad request (invalid pagination parameters)
+        "401":
+          description: Not authenticated (missing or invalid token)
+    post:
+      summary: Create a new staff member
+      description: |
+        Creates a new staff member and sends a welcome email with login credentials (email and password).
+        The email will be sent to the provided email address.
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStaffRequest"
+      responses:
+        "201":
+          description: Staff member created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateStaffResponse"
+        "400":
+          description: Bad request (validation error)
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "409":
+          description: Email or phone number already in use
+
+  /staff/{id}:
+    get:
+      summary: Get staff member by ID
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Staff member data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Staff"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Staff member not found
+    patch:
+      summary: Update staff member
+      description: |
+        Updates a staff member's information. Allows updating any field including reassigning to a different franchise.
+        Only provided fields will be updated.
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStaffRequest"
+      responses:
+        "200":
+          description: Staff member updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffStatusResponse"
+        "400":
+          description: Bad request (validation error)
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Staff member not found
+        "409":
+          description: Email or phone number already in use
+    delete:
+      summary: Delete staff member
+      description: |
+        Permanently deletes a staff member from the system. This action is logged in the staff history.
+        The staff history records are preserved even after deletion.
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Staff member deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Staff member deleted successfully"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Staff member not found
+
+  /staff/{id}/status:
+    patch:
+      summary: Update staff status
+      description: |
+        Updates a staff member's status. Can be used to fire, suspend, block, or reactivate a staff member.
+        
+        **Status Options:**
+        - `FIRED` - Terminates the staff member
+        - `SUSPENDED` - Suspends the staff member (optionally with an end date)
+        - `BLOCKED` - Blocks the staff member from accessing the system
+        - `ACTIVE` - Reactivates a previously suspended/blocked/fired staff member
+        
+        **Note:** When status is `SUSPENDED`, you can optionally provide `suspendedUntil` to set an end date.
+        If not provided, the suspension is indefinite.
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStaffStatusRequest"
+      responses:
+        "200":
+          description: Staff status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffStatusResponse"
+        "400":
+          description: Bad request (validation error or invalid status combination)
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Staff member not found
+
+  /staff/{id}/history:
+    get:
+      summary: Get staff history
+      description: |
+        Retrieves the complete activity history for a staff member. This includes all actions like:
+        - CREATED - When the staff member was created
+        - UPDATED - When any field was updated
+        - DELETED - When the staff member was deleted
+        - STATUS_CHANGED - When the status was changed
+        
+        Each history entry includes the action, description, who made the change, and the old/new values.
+      tags:
+        - Staff
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Staff history retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffHistoryResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Staff member not found
+
+  /auth/register-admin:
+    post:
+      summary: Register a new admin user
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterAdminRequest"
+      responses:
+        "201":
+          description: Admin registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterAdminResponse"
+        "400":
+          description: Bad request (validation error)
+        "409":
+          description: Email already in use
+
+  /auth/login:
+    post:
+      summary: Login user
+      description: |
+        Authenticates a user and returns access and refresh tokens.
+        
+        **Rate Limiting & Account Lockout:**
+        The system implements escalating account lockout to prevent brute-force attacks:
+        - After **5 incorrect password attempts**, the account is locked for **5 minutes**
+        - After the lockout expires, if **2 more incorrect attempts** occur, the account is locked for **10 minutes**
+        - Each subsequent threshold (every 2 more incorrect attempts) doubles the lockout duration
+        - Maximum lockout duration is capped at **30 minutes**
+        - Failed attempts counter resets to 0 on successful login
+        
+        **Lockout Behavior:**
+        - If an account is locked, login attempts will return a 429 error with the remaining lockout time
+        - The lockout check happens before password verification
+        - Successful login automatically resets the failed attempts counter and unlocks the account
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Invalid credentials (incorrect email or password)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Account temporarily locked due to multiple failed login attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Account is temporarily locked due to multiple failed login attempts. Please try again in 5 minute(s)."
+
+  /auth/forgot-password:
+    post:
+      summary: Request password reset
+      description: Sends a password reset link to the user's email address. Returns an error if the email does not exist in the system or if the account is inactive.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: Password reset email sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForgotPasswordResponse"
+        "400":
+          description: Bad request (validation error or account is inactive)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Email address not found in the system
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/reset-password:
+    post:
+      summary: Reset password with token
+      description: Resets the user's password using the token received via email. Token expiration is configurable (default: 1 hour).
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResetPasswordResponse"
+        "400":
+          description: Bad request (invalid or expired token, validation error)
+
+  /auth/refresh-token:
+    post:
+      summary: Refresh access token
+      description: Generates a new access token and refresh token using a valid refresh token. Refresh token expires in 8 hours.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Bad request (invalid or expired refresh token, validation error)
+
+  /auth/logout:
+    post:
+      summary: Logout user
+      description: Logs out the current authenticated user. Since we use stateless JWT tokens, logout is primarily client-side (token removal). The server confirms the logout action.
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /auth/me:
+    get:
+      summary: Get current user information
+      description: Returns the current authenticated user's information based on the JWT token.
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUserResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: User not found
+        "400":
+          description: User account is inactive
 
   /customers:
     post:
       summary: Create a customer
       tags:
         - Customers
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -62,12 +654,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CustomerResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /trips:
     post:
       summary: Create a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -81,12 +677,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /trips/{id}/driver-accept:
     patch:
       summary: Driver accepts a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -111,12 +711,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /trips/{id}/driver-reject:
     patch:
       summary: Driver rejects a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -141,12 +745,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /trips/{id}/generate-start-otp:
     post:
       summary: Generate start OTP for a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -171,12 +779,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StartOtpResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /trips/{id}/start:
     patch:
       summary: Start trip with OTP
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -196,12 +808,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /trips/{id}/generate-end-otp:
     post:
       summary: Generate end OTP for a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -226,12 +842,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EndOtpResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /trips/{id}/end:
     patch:
       summary: End trip with OTP and payment
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -251,89 +871,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripResponse"
-
-  /drivers:
-    get:
-      summary: List all drivers
-      tags:
-        - Drivers
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: List of drivers
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Driver"
-    post:
-      summary: Create a new driver
-      description: |
-        Create a new driver. Only ADMIN and OFFICE_STAFF roles can create drivers.
-        A driver code will be auto-generated and a welcome email will be sent with login credentials.
-      tags:
-        - Drivers
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateDriverRequest"
-      responses:
-        "201":
-          description: Driver created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CreateDriverResponse"
-        "400":
-          description: Bad request - validation error
-        "409":
-          description: Conflict - phone or email already exists
         "401":
-          description: Unauthorized
-        "403":
-          description: Forbidden - insufficient permissions
-
-  /drivers/{id}:
-    get:
-      summary: Get driver by ID
-      tags:
-        - Drivers
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Driver data
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    $ref: "#/components/schemas/Driver"
-        "404":
-          description: Driver not found
+          description: Not authenticated (missing or invalid token)
 
 components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
   schemas:
     CreateCustomerRequest:
       type: object
@@ -529,202 +1070,688 @@ components:
         - paymentStatus
         - paymentMode
 
-    CreateDriverRequest:
+    CreateRoleRequest:
       type: object
       properties:
-        firstName:
+        name:
           type: string
-          description: Driver's first name
-        lastName:
+          description: Role name (e.g., ADMIN, DRIVER, STAFF, CUSTOMER)
+          example: ADMIN
+        description:
           type: string
-          description: Driver's last name
-        phone:
+          description: Optional description of the role
+          example: Administrator with full system access
+        isActive:
+          type: boolean
+          description: Whether the role is active
+          default: true
+      required:
+        - name
+
+    UpdateRoleRequest:
+      type: object
+      properties:
+        name:
           type: string
-          description: Primary phone number (must be unique)
+          description: Role name
+          example: ADMIN
+        description:
+          type: string
+          description: Optional description of the role
+          example: Administrator with full system access
+        isActive:
+          type: boolean
+          description: Whether the role is active
+      required: []
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Role ID (UUID)
+        name:
+          type: string
+          description: Role name
+          example: ADMIN
+        description:
+          type: string
+          nullable: true
+          description: Role description
+        isActive:
+          type: boolean
+          description: Whether the role is active
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    RoleResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Role"
+
+    RegisterAdminRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Full name of the admin
+          example: John Doe
+          minLength: 1
+          maxLength: 100
         email:
           type: string
           format: email
           description: Email address (must be unique)
-        altPhone:
-          type: string
-          description: Alternate phone number (optional)
+          example: admin@drybros.com
         password:
           type: string
-          minLength: 6
-          description: Password for web login (auto-generated from frontend)
-        emergencyContactName:
+          format: password
+          description: Password (minimum 8 characters)
+          example: SecurePassword123
+          minLength: 8
+          maxLength: 100
+        phone:
           type: string
-          description: Emergency contact person's name
-        emergencyContactPhone:
+          description: Phone number (optional)
+          example: "+1234567890"
+          nullable: true
+      required:
+        - name
+        - email
+        - password
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email address
+          example: admin@drybros.com
+        password:
+          type: string
+          format: password
+          description: Password
+          example: SecurePassword123
+      required:
+        - email
+        - password
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: User ID (UUID)
+        fullName:
+          type: string
+          description: Full name
+        email:
+          type: string
+          format: email
+          description: Email address
+        phone:
+          type: string
+          nullable: true
+          description: Phone number
+        role:
+          type: string
+          enum: [ADMIN, DRIVER, STAFF, CUSTOMER]
+          description: User role
+        isActive:
+          type: boolean
+          description: Whether the user is active
+
+    RegisterAdminResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Admin registered successfully"
+
+    AuthResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              description: JWT access token (expires in 1 hour)
+            refreshToken:
+              type: string
+              description: JWT refresh token (expires in 8 hours)
+            user:
+              $ref: "#/components/schemas/User"
+
+    ForgotPasswordRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email address of the account
+          example: admin@drybros.com
+      required:
+        - email
+
+    ForgotPasswordResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Password reset link has been sent to your email address."
+
+    ResetPasswordRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Password reset token received via email (expires in 1 hour)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        password:
+          type: string
+          format: password
+          description: New password (minimum 8 characters)
+          example: "NewSecurePassword123"
+          minLength: 8
+          maxLength: 100
+      required:
+        - token
+        - password
+
+    ResetPasswordResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Password has been reset successfully. Please check your email for confirmation."
+
+    RefreshTokenRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          description: Refresh token received from login (expires in 8 hours)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      required:
+        - refreshToken
+
+    CreateStaffRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Full name of the staff member
+          example: "John Doe"
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          description: Email address (must be unique, used for login)
+          example: "john.doe@drybros.com"
+          maxLength: 255
+        phone:
+          type: string
+          description: Phone number (must be unique)
+          example: "+1234567890"
+          minLength: 10
+          maxLength: 20
+        password:
+          type: string
+          format: password
+          description: Password (auto-generated from frontend, minimum 8 characters)
+          example: "SecurePassword123"
+          minLength: 8
+          maxLength: 100
+        franchiseId:
+          type: string
+          format: uuid
+          description: Franchise ID (UUID)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        monthlySalary:
+          type: number
+          description: Monthly salary
+          example: 50000
+          minimum: 0
+        address:
+          type: string
+          description: Full address
+          example: "123 Main St, City, State 12345"
+          minLength: 1
+          maxLength: 500
+        emergencyContact:
+          type: string
+          description: Emergency contact phone number
+          example: "+1234567890"
+          minLength: 10
+          maxLength: 20
+        emergencyContactRelation:
+          type: string
+          description: Relationship with emergency contact
+          example: "Spouse"
+          minLength: 1
+          maxLength: 50
+        govtId:
+          type: boolean
+          description: Whether government ID document is collected (checkbox)
+          example: true
+          default: false
+        addressProof:
+          type: boolean
+          description: Whether address proof document is collected (checkbox)
+          example: true
+          default: false
+        certificates:
+          type: boolean
+          description: Whether certificates are collected (checkbox)
+          example: true
+          default: false
+        previousExperienceCert:
+          type: boolean
+          description: Whether previous experience certificate is collected (checkbox)
+          example: true
+          default: false
+        profilePic:
+          type: string
+          nullable: true
+          description: Profile picture URL (optional, for future use)
+          example: "https://example.com/images/profile.jpg"
+          maxLength: 500
+          format: uri
+        joinDate:
+          type: string
+          format: date-time
+          description: Date when staff member joined (defaults to current date if not provided)
+          example: "2024-01-15T00:00:00Z"
+      required:
+        - name
+        - email
+        - phone
+        - password
+        - franchiseId
+        - monthlySalary
+        - address
+        - emergencyContact
+        - emergencyContactRelation
+
+    Staff:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Staff ID (UUID)
+        name:
+          type: string
+          description: Full name
+        email:
+          type: string
+          format: email
+          description: Email address (used for login)
+        phone:
+          type: string
+          description: Phone number
+        franchiseId:
+          type: string
+          format: uuid
+          description: Franchise ID
+        monthlySalary:
+          type: number
+          description: Monthly salary
+        address:
+          type: string
+          description: Full address
+        emergencyContact:
           type: string
           description: Emergency contact phone number
         emergencyContactRelation:
           type: string
           description: Relationship with emergency contact
-        address:
-          type: string
-          description: Street address
-        city:
-          type: string
-          description: City
-        state:
-          type: string
-          description: State
-        pincode:
-          type: string
-          minLength: 6
-          description: Postal/ZIP code
-        licenseNumber:
-          type: string
-          description: Driving license number
-        licenseExpDate:
-          type: string
-          format: date-time
-          description: License expiration date (must be in future)
-        bankAccountName:
-          type: string
-          description: Bank account holder name
-        bankAccountNumber:
-          type: string
-          description: Bank account number
-        bankIfscCode:
-          type: string
-          description: Bank IFSC code
-        aadharCard:
+        govtId:
           type: boolean
-          default: false
-          description: Aadhar card collected
-        license:
+          description: Whether government ID document is collected
+        addressProof:
           type: boolean
-          default: false
-          description: License document collected
-        educationCert:
+          description: Whether address proof document is collected
+        certificates:
           type: boolean
-          default: false
-          description: Education certificate collected
-        previousExp:
+          description: Whether certificates are collected
+        previousExperienceCert:
           type: boolean
-          default: false
-          description: Previous experience certificate collected
-        carTypes:
-          type: array
-          items:
-            type: string
-            enum: [MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS]
-          minItems: 1
-          description: Types of cars the driver can drive
-        franchiseId:
-          type: integer
-          description: Franchise ID (for now use dummy UUID as integer)
-      required:
-        - firstName
-        - lastName
-        - phone
-        - email
-        - password
-        - emergencyContactName
-        - emergencyContactPhone
-        - emergencyContactRelation
-        - address
-        - city
-        - state
-        - pincode
-        - licenseNumber
-        - licenseExpDate
-        - bankAccountName
-        - bankAccountNumber
-        - bankIfscCode
-        - carTypes
-        - franchiseId
-
-    Driver:
-      type: object
-      properties:
-        id:
-          type: integer
-        franchiseId:
-          type: integer
-        firstName:
-          type: string
-        lastName:
-          type: string
-        phone:
-          type: string
-        email:
-          type: string
-        altPhone:
+          description: Whether previous experience certificate is collected
+        profilePic:
           type: string
           nullable: true
-        driverCode:
-          type: string
-          description: Auto-generated unique driver code for app login
-        emergencyContactName:
-          type: string
-        emergencyContactPhone:
-          type: string
-        emergencyContactRelation:
-          type: string
-        address:
-          type: string
-        city:
-          type: string
-        state:
-          type: string
-        pincode:
-          type: string
-        licenseNumber:
-          type: string
-        licenseExpDate:
-          type: string
-          format: date-time
-        bankAccountName:
-          type: string
-        bankAccountNumber:
-          type: string
-        bankIfscCode:
-          type: string
-        aadharCard:
-          type: boolean
-        license:
-          type: boolean
-        educationCert:
-          type: boolean
-        previousExp:
-          type: boolean
-        carTypes:
-          type: array
-          items:
-            type: string
-            enum: [MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS]
+          description: Profile picture URL
+          format: uri
         status:
           type: string
-          enum: [ACTIVE, INACTIVE, BLOCKED, TERMINATED]
-        complaintCount:
-          type: integer
-        bannedGlobally:
+          enum: [ACTIVE, FIRED, SUSPENDED, BLOCKED]
+          description: Staff status
+          example: ACTIVE
+        suspendedUntil:
+          type: string
+          format: date-time
+          nullable: true
+          description: Suspension end date (only set when status is SUSPENDED)
+        joinDate:
+          type: string
+          format: date-time
+          description: Date when staff member joined the organization
+          example: "2024-01-15T00:00:00Z"
+        relieveDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Date when staff member was relieved/terminated
+          example: "2024-12-31T00:00:00Z"
+        relieveReason:
+          type: string
+          enum: [RESIGNATION, TERMINATION, RETIREMENT, CONTRACT_ENDED, PERFORMANCE_ISSUES, MISCONDUCT, OTHER]
+          nullable: true
+          description: Reason for relieving the staff member
+          example: RESIGNATION
+        isActive:
           type: boolean
-        dailyTargetAmount:
-          type: integer
-          nullable: true
-        currentRating:
-          type: number
-          nullable: true
-        createdBy:
-          type: integer
-          nullable: true
-          description: User ID who created this driver
+          description: Whether the staff member is active
         createdAt:
           type: string
           format: date-time
+          description: Creation timestamp
         updatedAt:
           type: string
           format: date-time
+          description: Last update timestamp
 
-    CreateDriverResponse:
+    CreateStaffResponse:
       type: object
       properties:
         message:
           type: string
-          example: "Driver created successfully"
+          description: Success message
+          example: "Staff member created successfully"
         data:
-          $ref: "#/components/schemas/Driver"
+          $ref: "#/components/schemas/Staff"
+
+    UpdateStaffRequest:
+      type: object
+      description: All fields are optional. Only provided fields will be updated.
+      properties:
+        name:
+          type: string
+          description: Full name of the staff member
+          example: "John Doe"
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          description: Email address (must be unique if changed)
+          example: "john.doe@drybros.com"
+          maxLength: 255
+        phone:
+          type: string
+          description: Phone number (must be unique if changed)
+          example: "+1234567890"
+          minLength: 10
+          maxLength: 20
+        franchiseId:
+          type: string
+          format: uuid
+          description: Franchise ID (UUID) - allows reassigning to different franchise
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        monthlySalary:
+          type: number
+          description: Monthly salary
+          example: 50000
+          minimum: 0
+        address:
+          type: string
+          description: Full address
+          example: "123 Main St, City, State 12345"
+          minLength: 1
+          maxLength: 500
+        emergencyContact:
+          type: string
+          description: Emergency contact phone number
+          example: "+1234567890"
+          minLength: 10
+          maxLength: 20
+        emergencyContactRelation:
+          type: string
+          description: Relationship with emergency contact
+          example: "Spouse"
+          minLength: 1
+          maxLength: 50
+        govtId:
+          type: boolean
+          description: Whether government ID document is collected
+          example: true
+        addressProof:
+          type: boolean
+          description: Whether address proof document is collected
+          example: true
+        certificates:
+          type: boolean
+          description: Whether certificates are collected
+          example: true
+        previousExperienceCert:
+          type: boolean
+          description: Whether previous experience certificate is collected
+          example: true
+        profilePic:
+          type: string
+          nullable: true
+          description: Profile picture URL
+          example: "https://example.com/images/profile.jpg"
+          maxLength: 500
+          format: uri
+        relieveDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Date when staff member was relieved/terminated
+          example: "2024-12-31T00:00:00Z"
+        relieveReason:
+          type: string
+          enum: [RESIGNATION, TERMINATION, RETIREMENT, CONTRACT_ENDED, PERFORMANCE_ISSUES, MISCONDUCT, OTHER]
+          nullable: true
+          description: Reason for relieving the staff member
+          example: RESIGNATION
+        isActive:
+          type: boolean
+          description: Whether the staff member is active
+          example: true
+
+    UpdateStaffStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [FIRED, SUSPENDED, BLOCKED, ACTIVE]
+          description: |
+            The new status for the staff member.
+            - FIRED: Terminates the staff member
+            - SUSPENDED: Suspends the staff member (can optionally set suspendedUntil)
+            - BLOCKED: Blocks the staff member from accessing the system
+            - ACTIVE: Reactivates a previously suspended/blocked/fired staff member
+          example: SUSPENDED
+        suspendedUntil:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Optional suspension end date. Only valid when status is SUSPENDED.
+            If not provided when status is SUSPENDED, the suspension is indefinite.
+          example: "2024-02-01T00:00:00Z"
+
+    StaffStatusResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Staff member has been fired"
+        data:
+          $ref: "#/components/schemas/Staff"
+
+    StaffHistory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: History entry ID
+        staffId:
+          type: string
+          format: uuid
+          description: Staff member ID
+        action:
+          type: string
+          description: Action performed (e.g., CREATED, UPDATED, DELETED, STATUS_CHANGED)
+          example: "UPDATED"
+        description:
+          type: string
+          nullable: true
+          description: Detailed description of the action
+          example: "Staff member John Doe updated"
+        changedBy:
+          type: string
+          nullable: true
+          description: User ID who made the change
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        oldValue:
+          type: string
+          nullable: true
+          description: JSON string of old values before the change
+          example: '{"name":"John Doe","email":"john@example.com"}'
+        newValue:
+          type: string
+          nullable: true
+          description: JSON string of new values after the change
+          example: '{"name":"John Smith","email":"john.smith@example.com"}'
+        createdAt:
+          type: string
+          format: date-time
+          description: When the action was performed
+          example: "2024-01-20T10:30:00Z"
+
+    StaffHistoryResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffHistory"
+          description: List of staff history entries, ordered by most recent first
+
+    PaginatedStaffResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Staff"
+          description: List of staff members for the current page
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+              description: Current page number
+              example: 1
+            limit:
+              type: integer
+              description: Number of items per page
+              example: 10
+            total:
+              type: integer
+              description: Total number of staff members
+              example: 50
+            totalPages:
+              type: integer
+              description: Total number of pages
+              example: 5
+            hasNext:
+              type: boolean
+              description: Whether there is a next page
+              example: true
+            hasPrev:
+              type: boolean
+              description: Whether there is a previous page
+              example: false
+          required:
+            - page
+            - limit
+            - total
+            - totalPages
+            - hasNext
+            - hasPrev
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Account is temporarily locked due to multiple failed login attempts. Please try again in 5 minute(s)."
+
+    LogoutResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Logged out successfully"
+
+    CurrentUserResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: User ID
+            fullName:
+              type: string
+              description: User's full name
+            email:
+              type: string
+              format: email
+              description: User's email address
+            phone:
+              type: string
+              nullable: true
+              description: User's phone number
+            role:
+              type: string
+              enum: [ADMIN, DRIVER, STAFF, CUSTOMER, OFFICE_STAFF]
+              description: User role
+            isActive:
+              type: boolean
+              description: Whether the user account is active
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login endpoint

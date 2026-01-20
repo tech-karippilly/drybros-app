@@ -1,12 +1,11 @@
 // src/utils/errors.ts
-
 export class AppError extends Error {
   statusCode: number;
 
   constructor(message: string, statusCode: number = 500) {
     super(message);
-    this.name = this.constructor.name;
     this.statusCode = statusCode;
+    this.name = "AppError";
     Error.captureStackTrace(this, this.constructor);
   }
 }
@@ -18,13 +17,6 @@ export class NotFoundError extends AppError {
   }
 }
 
-export class ConflictError extends AppError {
-  constructor(message: string = "Resource already exists") {
-    super(message, 409);
-    this.name = "ConflictError";
-  }
-}
-
 export class BadRequestError extends AppError {
   constructor(message: string = "Bad request") {
     super(message, 400);
@@ -32,16 +24,16 @@ export class BadRequestError extends AppError {
   }
 }
 
-export class UnauthorizedError extends AppError {
-  constructor(message: string = "Unauthorized") {
-    super(message, 401);
-    this.name = "UnauthorizedError";
+export class ConflictError extends AppError {
+  constructor(message: string = "Resource already exists") {
+    super(message, 409);
+    this.name = "ConflictError";
   }
 }
 
-export class ForbiddenError extends AppError {
-  constructor(message: string = "Forbidden") {
-    super(message, 403);
-    this.name = "ForbiddenError";
+export class TooManyRequestsError extends AppError {
+  constructor(message: string = "Too many requests") {
+    super(message, 429);
+    this.name = "TooManyRequestsError";
   }
 }

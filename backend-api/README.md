@@ -44,6 +44,21 @@ This is the backend API service for the Drybros platform, built with Node.js, Ex
    PRODUCTION_BASE_URL=https://dybros.com
    DATABASE_URL="postgresql://user:password@localhost:5432/drybros?schema=public"
    JWT_SECRET=your-secret-key-change-in-production
+   
+   # CORS Configuration
+   FRONTEND_URL_BASE=http://localhost:3000
+   # For multiple frontend URLs, use comma-separated values:
+   # FRONTEND_URL_BASE=http://localhost:3000,https://app.drybros.com
+   
+   # Email Configuration (Gmail)
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_SECURE=false
+   SMTP_USER=your-email@gmail.com
+   SMTP_PASSWORD=your-gmail-app-password
+   EMAIL_FROM=your-email@gmail.com
+   LOGIN_LINK=http://localhost:3000/login
+   REST_PASSWORD=http://localhost:3000/reset-password
    ```
 
 4. Set up the database:
@@ -148,7 +163,22 @@ Authorization: Bearer <your-jwt-token>
 
 ## 🌐 CORS
 
-CORS is enabled for all origins in development. Update the CORS configuration in `src/index.ts` for production deployments.
+CORS is configured to allow requests from the frontend URL specified in `FRONTEND_URL_BASE` environment variable.
+
+- **Development**: Allows requests from `FRONTEND_URL_BASE` and any localhost origin
+- **Production**: Only allows requests from `FRONTEND_URL_BASE` (comma-separated if multiple URLs)
+
+To configure, set the `FRONTEND_URL_BASE` environment variable in your `.env` file:
+```env
+FRONTEND_URL_BASE=http://localhost:3000
+# Or for multiple URLs:
+FRONTEND_URL_BASE=http://localhost:3000,https://app.drybros.com
+```
+
+The CORS configuration supports:
+- Credentials (cookies, authentication headers)
+- Standard HTTP methods (GET, POST, PUT, PATCH, DELETE, OPTIONS)
+- Content-Type and Authorization headers
 
 ## 🐛 Error Handling
 

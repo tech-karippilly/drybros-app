@@ -1,8 +1,9 @@
 "use client";
 
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '@/lib/hooks';
-import { setSelectedStaff, setStaffStatus, suspendStaff } from '@/lib/features/staff/staffSlice';
+import { setSelectedStaff, updateStaffMemberStatus } from '@/lib/features/staff/staffSlice';
+import { useToast } from '@/components/ui/toast';
 import {
     ArrowLeft,
     Mail,
@@ -27,18 +28,26 @@ import { StatusBadge } from './StatusBadge';
 export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
     const dispatch = useAppDispatch();
     const { selectedStaff } = useAppSelector((state) => state.staff);
+    const { toast } = useToast();
 
     // Modal states
     const [isFireOpen, setIsFireOpen] = React.useState(false);
     const [isSuspendOpen, setIsSuspendOpen] = React.useState(false);
 
-    if (!selectedStaff) return null;
+    const stats = useMemo(() => {
+        if (!selectedStaff) return [];
+        return [
+            { label: 'Customers Attended', value: selectedStaff.customersAttended, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'Leaves Taken', value: selectedStaff.leaveTaken, icon: Calendar, color: 'text-amber-600', bg: 'bg-amber-50' },
+            { label: 'Current Status', value: selectedStaff.attendanceStatus, icon: Clock, color: 'text-green-600', bg: 'bg-green-50' },
+        ];
+    }, [selectedStaff]);
 
-    const stats = [
-        { label: 'Customers Attended', value: selectedStaff.customersAttended, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { label: 'Leaves Taken', value: selectedStaff.leaveTaken, icon: Calendar, color: 'text-amber-600', bg: 'bg-amber-50' },
-        { label: 'Current Status', value: selectedStaff.attendanceStatus, icon: Clock, color: 'text-green-600', bg: 'bg-green-50' },
-    ];
+    const handleBackClick = useCallback(() => {
+        dispatch(setSelectedStaff(null));
+    }, [dispatch]);
+
+    if (!selectedStaff) return null;
 
     return (
         <div className="flex flex-col gap-8 animate-in slide-in-from-right duration-500">
@@ -194,9 +203,29 @@ export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
                                         <span>Fire Employee</span>
                                     </button>
                                 )}
-                                {(selectedStaff.status === 'suspended' || selectedStaff.status === 'fired' || selectedStaff.status === 'block') && (
+                                {(selectedStaff.status === 'suspended' || selectedStaff.status === 'fired' || selectedStaff.status === 'block' || 
+                                  selectedStaff.status === 'SUSPENDED' || selectedStaff.status === 'FIRED' || selectedStaff.status === 'BLOCKED') && (
                                     <button
-                                        onClick={() => dispatch(setStaffStatus({ id: selectedStaff._id, status: 'active' }))}
+                                        onClick={async () => {
+                                            try {
+                                                const staffId = selectedStaff.id || selectedStaff._id || '';
+                                                await dispatch(updateStaffMemberStatus({
+                                                    id: staffId,
+                                                    data: { status: 'ACTIVE' }
+                                                })).unwrap();
+                                                toast({
+                                                    title: 'Success',
+                                                    description: `${selectedStaff.name} has been reactivated`,
+                                                    variant: 'success',
+                                                });
+                                            } catch (error: any) {
+                                                toast({
+                                                    title: 'Error',
+                                                    description: error?.message || 'Failed to reactivate staff member',
+                                                    variant: 'error',
+                                                });
+                                            }
+                                        }}
                                         className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#0d59f2]/10 text-[#0d59f2] rounded-2xl font-bold hover:bg-[#0d59f2]/20 transition-all border border-[#0d59f2]/20"
                                     >
                                         <FileCheck size={18} />
@@ -214,9 +243,26 @@ export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
                 isOpen={isFireOpen}
                 staffName={selectedStaff.name}
                 onClose={() => setIsFireOpen(false)}
-                onConfirm={() => {
-                    dispatch(setStaffStatus({ id: selectedStaff._id, status: 'fired' }));
-                    setIsFireOpen(false);
+                onConfirm={async () => {
+                    try {
+                        const staffId = selectedStaff.id || selectedStaff._id || '';
+                        await dispatch(updateStaffMemberStatus({
+                            id: staffId,
+                            data: { status: 'FIRED' }
+                        })).unwrap();
+                        toast({
+                            title: 'Success',
+                            description: `${selectedStaff.name} has been fired`,
+                            variant: 'success',
+                        });
+                        setIsFireOpen(false);
+                    } catch (error: any) {
+                        toast({
+                            title: 'Error',
+                            description: error?.message || 'Failed to fire staff member',
+                            variant: 'error',
+                        });
+                    }
                 }}
             />
 
@@ -224,9 +270,37 @@ export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
                 isOpen={isSuspendOpen}
                 staffName={selectedStaff.name}
                 onClose={() => setIsSuspendOpen(false)}
-                onConfirm={(duration) => {
-                    dispatch(suspendStaff({ id: selectedStaff._id, duration }));
-                    setIsSuspendOpen(false);
+                onConfirm={async (duration) => {
+                    try {
+                        const staffId = selectedStaff.id || selectedStaff._id || '';
+                        // Parse duration to Date (assuming format like "7 days", "1 month", etc.)
+                        let suspendedUntil: Date | null = null;
+                        if (duration) {
+                            const days = parseInt(duration.split(' ')[0]) || 7;
+                            suspendedUntil = new Date();
+                            suspendedUntil.setDate(suspendedUntil.getDate() + days);
+                        }
+                        
+                        await dispatch(updateStaffMemberStatus({
+                            id: staffId,
+                            data: { 
+                                status: 'SUSPENDED',
+                                suspendedUntil: suspendedUntil?.toISOString() || null
+                            }
+                        })).unwrap();
+                        toast({
+                            title: 'Success',
+                            description: `${selectedStaff.name} has been suspended`,
+                            variant: 'success',
+                        });
+                        setIsSuspendOpen(false);
+                    } catch (error: any) {
+                        toast({
+                            title: 'Error',
+                            description: error?.message || 'Failed to suspend staff member',
+                            variant: 'error',
+                        });
+                    }
                 }}
             />
         </div>

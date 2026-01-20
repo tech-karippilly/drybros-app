@@ -10,8 +10,12 @@ import {
   generateEndOtpHandler,
   endTripHandler,
 } from "../controllers/trip.controller";
+import { authMiddleware } from "../middlewares/auth";
 
 const router = express.Router();
+
+// All trip routes require authentication
+router.use(authMiddleware);
 
 router.get("/", getTrips);
 router.get("/:id", getTripByIdHandler);

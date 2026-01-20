@@ -1,33 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id          Int       @id @default(autoincrement())
+  fullName    String
+  phone       String    @unique
+  email       String?
+  city        String?
+  notes       String?
+  franchiseId Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+  Franchise   Franchise @relation(fields: [franchiseId], references: [id])
+  Trip        Trip[]
+}
+
+model Driver {
+  id                Int          @id @default(autoincrement())
+  franchiseId       Int
+  firstName         String
+  lastName          String
+  phone             String       @unique
+  altPhone          String?
+  status            DriverStatus @default(ACTIVE)
+  complaintCount    Int          @default(0)
+  bannedGlobally    Boolean      @default(false)
+  dailyTargetAmount Int?
+  currentRating     Float?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime
+  Franchise         Franchise    @relation(fields: [franchiseId], references: [id])
+  Trip              Trip[]
+}
+
+model Franchise {
+  id        Int        @id @default(autoincrement())
+  code      String     @unique
+  name      String
+  city      String
+  address   String?
+  phone     String?
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime
+  Customer  Customer[]
+  Driver    Driver[]
+  Trip      Trip[]
+}
+
+model Role {
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+}
+
+model Trip {
+  id                 Int           @id @default(autoincrement())
+  franchiseId        Int
+  driverId           Int?
+  customerId         Int
+  customerName       String
+  customerPhone      String
+  tripType           TripType
+  status             TripStatus    @default(REQUESTED)
+  pickupLocation     String
+  dropLocation       String?
+  scheduledAt        DateTime?
+  startedAt          DateTime?
+  endedAt            DateTime?
+  startOtp           String?
+  endOtp             String?
+  baseAmount         Int
+  extraAmount        Int           @default(0)
+  totalAmount        Int
+  finalAmount        Int
+  isAmountOverridden Boolean       @default(false)
+  overrideReason     String?
+  paymentStatus      PaymentStatus @default(PENDING)
+  paymentMode        PaymentMode?
+  paymentReference   String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime
+  Customer           Customer      @relation(fields: [customerId], references: [id])
+  Driver             Driver?       @relation(fields: [driverId], references: [id])
+  Franchise          Franchise     @relation(fields: [franchiseId], references: [id])
+}
+
+model User {
+  id             String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email          String    @unique
+  password       String
+  fullName       String
+  phone          String?
+  role           UserRole
+  isActive       Boolean   @default(true)
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Staff {
+  id                        String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                      String
+  email                     String         @unique
+  phone                     String         @unique
+  password                  String
+  franchiseId               String         @db.Uuid
+  monthlySalary             Decimal        @db.Decimal(10, 2)
+  address                   String
+  emergencyContact          String
+  emergencyContactRelation  String
+  govtId                    Boolean        @default(false)
+  addressProof              Boolean        @default(false)
+  certificates              Boolean        @default(false)
+  previousExperienceCert    Boolean        @default(false)
+  profilePic                String?
+  status                    StaffStatus     @default(ACTIVE)
+  suspendedUntil            DateTime?
+  joinDate                  DateTime       @default(now())
+  relieveDate               DateTime?
+  relieveReason             RelieveReason?
+  isActive                  Boolean        @default(true)
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+  StaffHistory              StaffHistory[]
+
+  @@index([franchiseId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([isActive])
+  @@index([franchiseId, status])
+  @@index([franchiseId, isActive])
+}
+
 enum DriverStatus {
   ACTIVE
   INACTIVE
   BLOCKED
   TERMINATED
-}
-
-enum TripType {
-  CITY_ROUND
-  CITY_DROPOFF
-  LONG_ROUND
-  LONG_DROPOFF
-}
-
-enum TripStatus {
-  REQUESTED
-  ASSIGNED
-  DRIVER_ACCEPTED
-  DRIVER_ON_THE_WAY
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED_BY_CUSTOMER
-  CANCELLED_BY_OFFICE
-  REJECTED_BY_DRIVER
-}
-
-enum PaymentStatus {
-  PENDING
-  PAID
-  PARTIALLY_PAID
 }
 
 enum PaymentMode {
@@ -37,179 +157,68 @@ enum PaymentMode {
   OTHER
 }
 
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIALLY_PAID
+}
+
+enum TripStatus {
+  REQUESTED
+  ASSIGNED
+  DRIVER_ON_THE_WAY
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED_BY_CUSTOMER
+  CANCELLED_BY_OFFICE
+  REJECTED_BY_DRIVER
+  DRIVER_ACCEPTED
+}
+
+enum TripType {
+  CITY_ROUND
+  CITY_DROPOFF
+  LONG_ROUND
+  LONG_DROPOFF
+}
+
 enum UserRole {
   ADMIN
   OFFICE_STAFF
   DRIVER
+  STAFF
+  CUSTOMER
 }
 
-enum CarType {
-  MANUAL
-  AUTOMATIC
-  PREMIUM_CARS
-  LUXURY_CARS
-  SPORTY_CARS
+enum StaffStatus {
+  ACTIVE
+  FIRED
+  SUSPENDED
+  BLOCKED
 }
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+enum RelieveReason {
+  RESIGNATION
+  TERMINATION
+  RETIREMENT
+  CONTRACT_ENDED
+  PERFORMANCE_ISSUES
+  MISCONDUCT
+  OTHER
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
+model StaffHistory {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  staffId     String   @db.Uuid
+  action      String
+  description String?
+  changedBy   String?
+  oldValue    String?
+  newValue    String?
+  createdAt   DateTime @default(now())
 
-model Franchise {
-  id        Int       @id @default(autoincrement())
-  code      String    @unique
-  name      String
-  city      String
-  address   String?
-  phone     String?
+  Staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
-  isActive  Boolean   @default(true)
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  drivers   Driver[]
-  customers Customer[]
-  trips     Trip[]
-}
-
-
-model Driver {
-  id               Int           @id @default(autoincrement())
-  franchiseId      Int
-  franchise        Franchise     @relation(fields: [franchiseId], references: [id])
-
-  // Basic Information
-  firstName        String
-  lastName         String
-  phone            String        @unique
-  email            String        @unique
-  altPhone         String?
-  driverCode       String        @unique
-  password         String        // hashed password for web login
-
-  // Emergency Contact
-  emergencyContactName      String
-  emergencyContactPhone     String
-  emergencyContactRelation  String
-
-  // Address
-  address          String
-  city             String
-  state            String
-  pincode          String
-
-  // License Details
-  licenseNumber    String
-  licenseExpDate   DateTime
-
-  // Bank Account Details
-  bankAccountName  String
-  bankAccountNumber String
-  bankIfscCode     String
-
-  // Documents Collected (Boolean flags)
-  aadharCard       Boolean       @default(false)
-  license          Boolean       @default(false)
-  educationCert    Boolean       @default(false)
-  previousExp      Boolean       @default(false)
-
-  // Car Types Driver Can Drive (Array stored as comma-separated or JSON)
-  carTypes         String        // JSON array of CarType enum values
-
-  // Status and Rating
-  status           DriverStatus  @default(ACTIVE)
-  complaintCount   Int           @default(0)
-  bannedGlobally   Boolean       @default(false)
-  dailyTargetAmount Int?
-  currentRating     Float?
-
-  // Audit Fields
-  createdBy        Int?          // User ID who created this driver
-  creator         User?         @relation(fields: [createdBy], references: [id])
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-
-  trips            Trip[]
-}
-
-
-
-model Customer {
-  id        Int       @id @default(autoincrement())
-  fullName  String
-  phone     String    @unique
-  email     String?
-  city      String?
-  notes     String?
-
-  franchiseId Int
-  franchise   Franchise @relation(fields: [franchiseId], references: [id])
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  trips     Trip[]
-}
-
-model Trip {
-  id           Int          @id @default(autoincrement())
-
-  franchiseId  Int
-  franchise    Franchise    @relation(fields: [franchiseId], references: [id])
-
-  driverId     Int?
-  driver       Driver?      @relation(fields: [driverId], references: [id])
-
-  customerId    Int
-  customer      Customer     @relation(fields: [customerId], references: [id])
-
-  customerName  String
-  customerPhone String
-
-  tripType     TripType
-  status       TripStatus    @default(REQUESTED)
-
-  pickupLocation String
-  dropLocation   String?
-
-  scheduledAt   DateTime?
-  startedAt     DateTime?
-  endedAt       DateTime?
-
-  startOtp      String?
-  endOtp        String?
-
-  baseAmount       Int
-  extraAmount      Int         @default(0)
-  totalAmount      Int
-  finalAmount      Int
-  isAmountOverridden Boolean   @default(false)
-  overrideReason    String?
-
-  paymentStatus     PaymentStatus @default(PENDING)
-  paymentMode       PaymentMode?
-  paymentReference  String?
-
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-}
-
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String   // hashed
-  fullName  String
-  role      UserRole
-  isActive  Boolean  @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  createdDrivers Driver[]
+  @@index([staffId])
+  @@index([createdAt])
 }

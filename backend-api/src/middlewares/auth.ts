@@ -4,7 +4,7 @@ import { authConfig } from "../config/authConfig";
 import { UserRole } from "@prisma/client";
 
 export interface AuthUser {
-  userId: number;
+  userId: string;
   role: UserRole;
   fullName: string;
   email: string;

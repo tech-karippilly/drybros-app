@@ -176,3 +176,22 @@ export interface PasswordResetTokenPayload {
   email: string;
   type: "password-reset";
 }
+
+/**
+ * DTO for logout response
+ */
+export interface LogoutResponseDTO {
+  message: string;
+}
+
+/**
+ * DTO for current user response
+ */
+export interface CurrentUserResponseDTO {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  isActive: boolean;
+}

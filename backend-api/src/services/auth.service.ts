@@ -23,6 +23,8 @@ import {
   RefreshTokenDTO,
   ForgotPasswordResponseDTO,
   ResetPasswordResponseDTO,
+  LogoutResponseDTO,
+  CurrentUserResponseDTO,
   AccessTokenPayload,
   RefreshTokenPayload,
   PasswordResetTokenPayload,
@@ -494,5 +496,56 @@ export async function refreshToken(
     accessToken,
     refreshToken: newRefreshToken,
     user: mapUserToResponse(user),
+  };
+}
+
+/**
+ * Logout user
+ * Note: Since we're using stateless JWT tokens, logout is primarily client-side.
+ * The server just confirms the logout. In a production system with token blacklisting,
+ * you would invalidate the refresh token here.
+ */
+export async function logout(userId: string): Promise<LogoutResponseDTO> {
+  logger.info("User logged out", { userId });
+  
+  return {
+    message: "Logged out successfully",
+  };
+}
+
+/**
+ * Get current user information
+ * Uses the authenticated user's ID from the JWT token
+ */
+export async function getCurrentUser(userId: string): Promise<CurrentUserResponseDTO> {
+  // Find user
+  // @ts-ignore - Prisma types may show number but database uses UUID string
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      role: true,
+      isActive: true,
+    },
+  } as any);
+
+  if (!user) {
+    throw new NotFoundError("User not found");
+  }
+
+  if (!user.isActive) {
+    throw new BadRequestError("User account is inactive");
+  }
+
+  return {
+    id: String(user.id),
+    fullName: user.fullName,
+    email: user.email,
+    phone: user.phone,
+    role: user.role,
+    isActive: user.isActive,
   };
 }

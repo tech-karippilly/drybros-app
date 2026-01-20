@@ -7,6 +7,9 @@ info:
 servers:
   - url: http://localhost:4000
 
+security:
+  - bearerAuth: []
+
 paths:
   /health:
     get:
@@ -25,13 +28,23 @@ paths:
   /franchises:
     get:
       summary: List all franchises
+      tags:
+        - Franchises
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: List of franchises
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /franchises/{id}:
     get:
       summary: Get franchise by ID
+      tags:
+        - Franchises
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -41,6 +54,8 @@ paths:
       responses:
         "200":
           description: Franchise data
+        "401":
+          description: Not authenticated (missing or invalid token)
         "404":
           description: Franchise not found
 
@@ -49,6 +64,8 @@ paths:
       summary: List all roles
       tags:
         - Roles
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: List of roles
@@ -61,10 +78,14 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/Role"
+        "401":
+          description: Not authenticated (missing or invalid token)
     post:
       summary: Create a new role
       tags:
         - Roles
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -80,12 +101,16 @@ paths:
                 $ref: "#/components/schemas/RoleResponse"
         "400":
           description: Bad request (e.g., role name already exists)
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /roles/{id}:
     get:
       summary: Get role by ID
       tags:
         - Roles
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -101,12 +126,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RoleResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
         "404":
           description: Role not found
     put:
       summary: Update a role
       tags:
         - Roles
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -130,12 +159,16 @@ paths:
                 $ref: "#/components/schemas/RoleResponse"
         "400":
           description: Bad request (e.g., role name already exists)
+        "401":
+          description: Not authenticated (missing or invalid token)
         "404":
           description: Role not found
     delete:
       summary: Delete a role
       tags:
         - Roles
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -147,6 +180,8 @@ paths:
       responses:
         "204":
           description: Role deleted successfully
+        "401":
+          description: Not authenticated (missing or invalid token)
         "404":
           description: Role not found
 
@@ -287,11 +322,53 @@ paths:
         "400":
           description: Bad request (invalid or expired refresh token, validation error)
 
+  /auth/logout:
+    post:
+      summary: Logout user
+      description: Logs out the current authenticated user. Since we use stateless JWT tokens, logout is primarily client-side (token removal). The server confirms the logout action.
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /auth/me:
+    get:
+      summary: Get current user information
+      description: Returns the current authenticated user's information based on the JWT token.
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUserResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: User not found
+        "400":
+          description: User account is inactive
+
   /customers:
     post:
       summary: Create a customer
       tags:
         - Customers
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -305,12 +382,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CustomerResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /trips:
     post:
       summary: Create a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -324,12 +405,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /trips/{id}/driver-accept:
     patch:
       summary: Driver accepts a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -354,12 +439,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /trips/{id}/driver-reject:
     patch:
       summary: Driver rejects a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -384,12 +473,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /trips/{id}/generate-start-otp:
     post:
       summary: Generate start OTP for a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -414,12 +507,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StartOtpResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /trips/{id}/start:
     patch:
       summary: Start trip with OTP
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -439,12 +536,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /trips/{id}/generate-end-otp:
     post:
       summary: Generate end OTP for a trip
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -469,12 +570,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EndOtpResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
   /trips/{id}/end:
     patch:
       summary: End trip with OTP and payment
       tags:
         - Trips
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -494,6 +599,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TripResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
 
 components:
   schemas:
@@ -917,3 +1024,47 @@ components:
           type: string
           description: Error message
           example: "Account is temporarily locked due to multiple failed login attempts. Please try again in 5 minute(s)."
+
+    LogoutResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Logged out successfully"
+
+    CurrentUserResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: User ID
+            fullName:
+              type: string
+              description: User's full name
+            email:
+              type: string
+              format: email
+              description: User's email address
+            phone:
+              type: string
+              nullable: true
+              description: User's phone number
+            role:
+              type: string
+              enum: [ADMIN, DRIVER, STAFF, CUSTOMER, OFFICE_STAFF]
+              description: User role
+            isActive:
+              type: boolean
+              description: Whether the user account is active
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login endpoint

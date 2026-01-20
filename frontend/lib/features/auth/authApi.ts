@@ -66,6 +66,32 @@ export interface RefreshTokenResponse {
     };
 }
 
+export interface LogoutResponse {
+    message: string;
+}
+
+export interface CurrentUserResponse {
+    data: {
+        id: string;
+        fullName: string;
+        email: string;
+        phone: string | null;
+        role: string;
+        isActive: boolean;
+    };
+}
+
+/**
+ * Get current authenticated user
+ * Requires authentication (Bearer token in header)
+ */
+export async function getCurrentUser(): Promise<CurrentUserResponse['data']> {
+    const response = await api.get<CurrentUserResponse>(
+        AUTH_API_ENDPOINTS.GET_CURRENT_USER
+    );
+    return response.data.data;
+}
+
 /**
  * Register a new admin user
  */
@@ -127,4 +153,15 @@ export async function refreshToken(
         data
     );
     return response.data.data;
+}
+
+/**
+ * Logout user
+ * Requires authentication (Bearer token in header)
+ */
+export async function logout(): Promise<LogoutResponse> {
+    const response = await api.post<LogoutResponse>(
+        AUTH_API_ENDPOINTS.LOGOUT
+    );
+    return response.data;
 }

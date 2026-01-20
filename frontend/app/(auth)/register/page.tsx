@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
@@ -10,15 +10,50 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Lock, Mail, User, Phone } from 'lucide-react';
 import { validatePassword } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
+import { useAppSelector } from '@/lib/hooks';
 import { AUTH_ROUTES } from '@/lib/constants/auth';
 import { registerAdmin } from '@/lib/features/auth/authApi';
+import { getAuthTokens } from '@/lib/utils/auth';
 
 export default function RegisterPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isCheckingAuth, setIsCheckingAuth] = useState(true);
     const router = useRouter();
     const { toast } = useToast();
+    const { isAuthenticated, isLogin } = useAppSelector((state) => state.auth);
+
+    // Redirect to dashboard if already authenticated
+    useEffect(() => {
+        // Small delay to ensure Redux state is initialized
+        const checkAuth = () => {
+            // Check Redux state first
+            if (isAuthenticated || isLogin) {
+                router.replace(AUTH_ROUTES.DASHBOARD);
+                return;
+            }
+
+            // Also check localStorage as fallback
+            const tokens = getAuthTokens();
+            if (tokens.accessToken) {
+                router.replace(AUTH_ROUTES.DASHBOARD);
+                return;
+            }
+
+            // If not authenticated, show the register form
+            setIsCheckingAuth(false);
+        };
+
+        // Small timeout to prevent race condition with Redux initialization
+        const timer = setTimeout(checkAuth, 100);
+        return () => clearTimeout(timer);
+    }, [isAuthenticated, isLogin, router]);
+
+    // Don't render register form while checking authentication
+    if (isCheckingAuth) {
+        return null; // Or a loading spinner
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

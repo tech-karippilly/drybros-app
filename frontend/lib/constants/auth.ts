@@ -14,9 +14,11 @@ export const AUTH_ROUTES = {
 export const AUTH_API_ENDPOINTS = {
     REGISTER_ADMIN: '/auth/register-admin',
     LOGIN: '/auth/login',
+    LOGOUT: '/auth/logout',
     FORGOT_PASSWORD: '/auth/forgot-password',
     RESET_PASSWORD: '/auth/reset-password',
     REFRESH_TOKEN: '/auth/refresh-token',
+    GET_CURRENT_USER: '/auth/me',
 } as const;
 
 export const ADMIN_DUMMY_USER = {

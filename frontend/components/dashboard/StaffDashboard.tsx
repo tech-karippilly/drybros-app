@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { PlaceholderScreen } from './PlaceholderScreen';
+import { SettingsScreen } from './SettingsScreen';
 import { PenaltiesManager } from './penalties/PenaltiesManager';
 import { DriversManager } from './drivers/DriversManager';
 import { useAppSelector } from '@/lib/hooks';
@@ -86,7 +87,7 @@ export function StaffDashboard() {
             case 'notifications':
                 return <PlaceholderScreen icon={Bell} title="Staff Notifications" description="View important updates and task assignments for your role." />;
             case 'settings':
-                return <PlaceholderScreen icon={Settings} title="Portal Settings" description="Update your security credentials and portal preferences." />;
+                return <SettingsScreen />;
             default:
                 return null;
         }

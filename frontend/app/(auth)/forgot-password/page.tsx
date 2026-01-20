@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
@@ -8,12 +8,47 @@ import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { Mail, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
+import { useAppSelector } from '@/lib/hooks';
 import { AUTH_ROUTES } from '@/lib/constants/auth';
+import { getAuthTokens } from '@/lib/utils/auth';
 
 export default function ForgotPasswordPage() {
     const [isLoading, setIsLoading] = useState(false);
+    const [isCheckingAuth, setIsCheckingAuth] = useState(true);
     const { toast } = useToast();
     const router = useRouter();
+    const { isAuthenticated, isLogin } = useAppSelector((state) => state.auth);
+
+    // Redirect to dashboard if already authenticated
+    useEffect(() => {
+        // Small delay to ensure Redux state is initialized
+        const checkAuth = () => {
+            // Check Redux state first
+            if (isAuthenticated || isLogin) {
+                router.replace(AUTH_ROUTES.DASHBOARD);
+                return;
+            }
+
+            // Also check localStorage as fallback
+            const tokens = getAuthTokens();
+            if (tokens.accessToken) {
+                router.replace(AUTH_ROUTES.DASHBOARD);
+                return;
+            }
+
+            // If not authenticated, show the forgot password form
+            setIsCheckingAuth(false);
+        };
+
+        // Small timeout to prevent race condition with Redux initialization
+        const timer = setTimeout(checkAuth, 100);
+        return () => clearTimeout(timer);
+    }, [isAuthenticated, isLogin, router]);
+
+    // Don't render form while checking authentication
+    if (isCheckingAuth) {
+        return null; // Or a loading spinner
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

@@ -259,7 +259,7 @@ paths:
   /auth/forgot-password:
     post:
       summary: Request password reset
-      description: Sends a password reset link to the user's email if the account exists. Always returns success message for security (doesn't reveal if email exists).
+      description: Sends a password reset link to the user's email address. Returns an error if the email does not exist in the system or if the account is inactive.
       tags:
         - Authentication
       requestBody:
@@ -270,13 +270,23 @@ paths:
               $ref: "#/components/schemas/ForgotPasswordRequest"
       responses:
         "200":
-          description: Password reset email sent (if account exists)
+          description: Password reset email sent successfully
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ForgotPasswordResponse"
         "400":
-          description: Bad request (validation error)
+          description: Bad request (validation error or account is inactive)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Email address not found in the system
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /auth/reset-password:
     post:
@@ -978,8 +988,8 @@ components:
       properties:
         message:
           type: string
-          description: Success message (always returned for security, regardless of whether email exists)
-          example: "If an account with that email exists, a password reset link has been sent."
+          description: Success message
+          example: "Password reset link has been sent to your email address."
 
     ResetPasswordRequest:
       type: object

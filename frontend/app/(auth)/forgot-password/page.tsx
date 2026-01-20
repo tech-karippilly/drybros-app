@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/toast';
 import { useAppSelector } from '@/lib/hooks';
 import { AUTH_ROUTES } from '@/lib/constants/auth';
 import { getAuthTokens } from '@/lib/utils/auth';
+import { forgotPassword } from '@/lib/features/auth/authApi';
 
 export default function ForgotPasswordPage() {
     const [isLoading, setIsLoading] = useState(false);
@@ -54,19 +55,51 @@ export default function ForgotPasswordPage() {
         e.preventDefault();
         setIsLoading(true);
 
-        // Simulate API call
-        setTimeout(() => {
+        const formData = new FormData(e.target as HTMLFormElement);
+        const email = formData.get('email') as string;
+
+        // Validate email
+        if (!email) {
+            toast({
+                title: "Error",
+                description: "Please enter your email address.",
+                variant: "error",
+            });
             setIsLoading(false);
+            return;
+        }
+
+        try {
+            // Call the forgot password API
+            await forgotPassword({
+                email: email.trim().toLowerCase(),
+            });
+
             toast({
                 title: "Email Sent",
-                description: "We've sent a password reset link to your email address.",
+                description: "If an account with that email exists, a password reset link has been sent.",
                 variant: "success",
             });
-            // Redirect after success
+
+            // Redirect to login after success
             setTimeout(() => {
                 router.push(AUTH_ROUTES.LOGIN);
             }, 2000);
-        }, 1500);
+        } catch (err: any) {
+            // Handle API errors
+            const errorMessage =
+                err?.response?.data?.error ||
+                err?.message ||
+                'Failed to send password reset email. Please try again.';
+            
+            toast({
+                title: "Error",
+                description: errorMessage,
+                variant: "error",
+            });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -85,6 +118,7 @@ export default function ForgotPasswordPage() {
                         </div>
                         <Input
                             id="email"
+                            name="email"
                             type="email"
                             placeholder="name@company.com"
                             className="pl-10"

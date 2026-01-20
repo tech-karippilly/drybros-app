@@ -369,7 +369,7 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
 
 /**
  * Forgot password - verify email and send reset link
- * Always returns success message for security (doesn't reveal if email exists)
+ * Returns error if email does not exist in the system
  */
 export async function forgotPassword(
   input: ForgotPasswordDTO
@@ -378,27 +378,34 @@ export async function forgotPassword(
     where: { email: input.email },
   });
 
-  // Only send email if user exists and is active
-  if (user && user.isActive) {
-    const resetToken = generatePasswordResetToken(String(user.id), user.email);
-    const resetLink = `${emailConfig.resetPasswordLink}?token=${resetToken}`;
-
-    await sendEmailSafely(
-      () =>
-        sendPasswordResetEmail({
-          to: user.email,
-          name: user.fullName,
-          resetLink,
-        }),
-      "Password reset email sent successfully",
-      "Failed to send password reset email",
-      { email: user.email }
-    );
+  // Check if user exists
+  if (!user) {
+    throw new NotFoundError("Email address not found in our system");
   }
 
+  // Check if user is active
+  if (!user.isActive) {
+    throw new BadRequestError("Account is inactive. Please contact support.");
+  }
+
+  // Generate reset token and send email
+  const resetToken = generatePasswordResetToken(String(user.id), user.email);
+  const resetLink = `${emailConfig.resetPasswordLink}?token=${resetToken}`;
+
+  await sendEmailSafely(
+    () =>
+      sendPasswordResetEmail({
+        to: user.email,
+        name: user.fullName,
+        resetLink,
+      }),
+    "Password reset email sent successfully",
+    "Failed to send password reset email",
+    { email: user.email }
+  );
+
   return {
-    message:
-      "If an account with that email exists, a password reset link has been sent.",
+    message: "Password reset link has been sent to your email address.",
   };
 }
 

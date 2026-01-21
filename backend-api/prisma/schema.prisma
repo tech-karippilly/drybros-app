@@ -63,6 +63,7 @@ model Driver {
   bannedGlobally   Boolean      @default(false)
   dailyTargetAmount Int?
   currentRating     Float?
+  isActive         Boolean      @default(true)
   createdBy        String?      @db.Uuid // User ID who created this driver
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt

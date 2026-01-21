@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAppSelector, useAppDispatch } from '@/lib/hooks';
 import { fetchDrivers, deleteDriver, banDriver } from '@/lib/features/drivers/driverSlice';
 import {
@@ -118,12 +118,12 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
         return filteredList.slice(start, start + itemsPerPage);
     }, [filteredList, currentPage]);
 
-    const handleFilterChange = (key: keyof typeof filters, value: string) => {
+    const handleFilterChange = React.useCallback((key: keyof typeof filters, value: string) => {
         setFilters(prev => ({ ...prev, [key]: value }));
         setCurrentPage(1); // Reset to first page on filter change
-    };
+    }, []);
 
-    const clearFilters = () => {
+    const clearFilters = React.useCallback(() => {
         setFilters({
             search: '',
             phone: '',
@@ -131,7 +131,25 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
             franchise: ''
         });
         setCurrentPage(1);
-    };
+    }, []);
+
+    const handleDeleteConfirm = React.useCallback(() => {
+        if (deleteTarget) {
+            // Convert _id to string (UUID) if needed
+            const driverId = typeof deleteTarget._id === 'string' ? deleteTarget._id : deleteTarget._id.toString();
+            dispatch(deleteDriver(driverId));
+            setDeleteTarget(null);
+        }
+    }, [deleteTarget, dispatch]);
+
+    const handleBanConfirm = React.useCallback(() => {
+        if (banTarget) {
+            // Convert _id to string (UUID) if needed
+            const driverId = typeof banTarget._id === 'string' ? banTarget._id : banTarget._id.toString();
+            dispatch(banDriver(driverId));
+            setBanTarget(null);
+        }
+    }, [banTarget, dispatch]);
 
 
 
@@ -380,24 +398,14 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
                 isOpen={!!deleteTarget}
                 driverName={deleteTarget ? `${deleteTarget.firstName} ${deleteTarget.lastName}` : ""}
                 onClose={() => setDeleteTarget(null)}
-                onConfirm={() => {
-                    if (deleteTarget) {
-                        dispatch(deleteDriver(deleteTarget._id));
-                        setDeleteTarget(null);
-                    }
-                }}
+                onConfirm={handleDeleteConfirm}
             />
 
             <BanDriverModal
                 isOpen={!!banTarget}
                 driverName={banTarget ? `${banTarget.firstName} ${banTarget.lastName}` : ""}
                 onClose={() => setBanTarget(null)}
-                onConfirm={() => {
-                    if (banTarget) {
-                        dispatch(banDriver(banTarget._id));
-                        setBanTarget(null);
-                    }
-                }}
+                onConfirm={handleBanConfirm}
             />
         </div>
     );

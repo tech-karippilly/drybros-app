@@ -1,11 +1,159 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import { GetDriver, CreateDriverInput, UpdateDriverInput, DriverStatus, GenderType, EmploymentType } from "@/lib/types/drivers";
 import { DRIVERS_STRINGS } from "@/lib/constants/drivers";
+import {
+    getDriverList,
+    getDriverById as getDriverByIdApi,
+    createDriver as createDriverApi,
+    updateDriver as updateDriverApi,
+    updateDriverStatus as updateDriverStatusApi,
+    deleteDriver as deleteDriverApi,
+    DriverResponse,
+    CreateDriverRequest,
+    UpdateDriverRequest,
+    UpdateDriverStatusRequest,
+    PaginationQuery,
+} from './driverApi';
 
-// Constants
-const DELAY_MS = 800;
+// Constants for status mapping
+const STATUS_MAP: Record<string, DriverStatus> = {
+    'ACTIVE': DriverStatus.ACTIVE,
+    'INACTIVE': DriverStatus.INACTIVE,
+    'BLOCKED': DriverStatus.BLOCKED,
+    'TERMINATED': DriverStatus.TERMINATED,
+} as const;
 
-// Dummy Data
+// Helper function to map backend status to frontend enum
+const mapStatus = (status: string): DriverStatus => {
+    return STATUS_MAP[status.toUpperCase()] || DriverStatus.ACTIVE;
+};
+
+// Constants for document mapping
+const DOCUMENT_MAP = {
+    aadharCard: 'Govt Identity',
+    license: 'License',
+    educationCert: 'Educational Certificates',
+    previousExp: 'Previous Experience',
+} as const;
+
+// Helper function to convert UUID to number (fallback for frontend _id)
+const uuidToNumber = (uuid: string): number => {
+    return parseInt(uuid.replace(/-/g, '').substring(0, 10), 16) || 0;
+};
+
+// Helper function to normalize date to ISO string
+const normalizeDate = (date: Date | string): string => {
+    return typeof date === 'string' ? date : date.toISOString();
+};
+
+// Helper function to map backend DriverResponse to frontend GetDriver
+const mapBackendDriverToFrontend = (backendDriver: DriverResponse): GetDriver => {
+    // Map documents from boolean flags to array
+    const documentsCollected: string[] = [];
+    if (backendDriver.aadharCard) documentsCollected.push(DOCUMENT_MAP.aadharCard);
+    if (backendDriver.license) documentsCollected.push(DOCUMENT_MAP.license);
+    if (backendDriver.educationCert) documentsCollected.push(DOCUMENT_MAP.educationCert);
+    if (backendDriver.previousExp) documentsCollected.push(DOCUMENT_MAP.previousExp);
+
+    const driverId = uuidToNumber(backendDriver.id);
+    
+    return {
+        _id: driverId,
+        userId: driverId,
+        firstName: backendDriver.firstName,
+        lastName: backendDriver.lastName,
+        driverPhone: backendDriver.phone,
+        driverAltPhone: backendDriver.altPhone,
+        email: backendDriver.email,
+        status: mapStatus(backendDriver.status),
+        complaintCount: backendDriver.complaintCount,
+        bannedGlobally: backendDriver.bannedGlobally,
+        dailyTargetAmount: backendDriver.dailyTargetAmount || 0,
+        currentRating: backendDriver.currentRating || 0,
+        createdAt: normalizeDate(backendDriver.createdAt),
+        updatedAt: normalizeDate(backendDriver.updatedAt),
+        // Personal details - using defaults for fields not in backend response
+        dateOfBirth: new Date().toISOString(), // Not in backend DTO
+        gender: GenderType.MALE, // Not in backend DTO
+        profilePhoto: '', // Not in backend DTO
+        licenseNumber: backendDriver.licenseNumber,
+        licenseType: 'LMV', // Not in backend DTO
+        licenseFront: '', // Not in backend DTO
+        licenseBack: '', // Not in backend DTO
+        licenseExpiryDate: normalizeDate(backendDriver.licenseExpDate),
+        documentsCollected,
+        // Address Details
+        address: backendDriver.address,
+        city: backendDriver.city,
+        state: backendDriver.state,
+        pincode: backendDriver.pincode,
+        // Employment Details
+        franchiseId: uuidToNumber(backendDriver.franchiseId),
+        franchiseName: '', // Will need to fetch from franchise API
+        dateOfJoining: new Date().toISOString(), // Not in backend DTO
+        assignedCity: backendDriver.city,
+        employmentType: EmploymentType.FULL_TIME, // Not in backend DTO
+        // Bank Details
+        bankAccountNumber: backendDriver.bankAccountNumber,
+        accountHolderName: backendDriver.bankAccountName,
+        ifscCode: backendDriver.bankIfscCode,
+        upiId: null, // Not in backend DTO
+        // Emergency Contact
+        contactName: backendDriver.emergencyContactName,
+        contactNumber: backendDriver.emergencyContactPhone,
+        relationship: backendDriver.emergencyContactRelation,
+    };
+};
+
+// Helper function to extract document flags from array
+const extractDocumentFlags = (documentsCollected: string[] = []) => {
+    return {
+        aadharCard: documentsCollected.includes(DOCUMENT_MAP.aadharCard),
+        license: documentsCollected.includes(DOCUMENT_MAP.license),
+        educationCert: documentsCollected.includes(DOCUMENT_MAP.educationCert),
+        previousExp: documentsCollected.includes(DOCUMENT_MAP.previousExp),
+    };
+};
+
+// Helper function to convert franchiseId to UUID string
+const normalizeFranchiseId = (franchiseId: number | string): string => {
+    return typeof franchiseId === 'string' ? franchiseId : franchiseId.toString();
+};
+
+// Helper function to map frontend CreateDriverInput to backend CreateDriverRequest
+const mapFrontendDriverToBackend = (frontendDriver: CreateDriverInput): CreateDriverRequest => {
+    // Extract documents from array
+    const docFlags = extractDocumentFlags(frontendDriver.documentsCollected);
+
+    // Convert franchiseId to string (UUID)
+    const franchiseId = normalizeFranchiseId(frontendDriver.franchiseId);
+
+    return {
+        firstName: frontendDriver.firstName,
+        lastName: frontendDriver.lastName,
+        phone: frontendDriver.driverPhone,
+        email: frontendDriver.email,
+        altPhone: frontendDriver.driverAltPhone || undefined,
+        password: frontendDriver.password || '', // Password is required
+        emergencyContactName: frontendDriver.contactName,
+        emergencyContactPhone: frontendDriver.contactNumber,
+        emergencyContactRelation: frontendDriver.relationship,
+        address: frontendDriver.address,
+        city: frontendDriver.city,
+        state: frontendDriver.state,
+        pincode: frontendDriver.pincode,
+        licenseNumber: frontendDriver.licenseNumber,
+        licenseExpDate: new Date(frontendDriver.licenseExpiryDate),
+        bankAccountName: frontendDriver.accountHolderName,
+        bankAccountNumber: frontendDriver.bankAccountNumber,
+        bankIfscCode: frontendDriver.ifscCode,
+        ...docFlags,
+        carTypes: frontendDriver.carTypes || ['MANUAL'], // Use provided or default
+        franchiseId, // UUID string
+    };
+};
+
+// Dummy Data (kept for fallback, will be removed once fully migrated)
 const DUMMY_DRIVERS: GetDriver[] = [
     {
         _id: 101,
@@ -108,16 +256,37 @@ const initialState: DriversState = {
 // Simulate API delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Async Thunks with Dummy Logic
+// Async Thunks with Real API Calls
 
 export const fetchDrivers = createAsyncThunk(
     'drivers/fetchDrivers',
-    async (_, { rejectWithValue }) => {
+    async (pagination?: PaginationQuery, { rejectWithValue }) => {
         try {
-            await delay(DELAY_MS);
-            return DUMMY_DRIVERS;
+            const result = await getDriverList(pagination);
+            
+            // Handle paginated response
+            if ('pagination' in result) {
+                return result.data.map(mapBackendDriverToFrontend);
+            }
+            
+            // Handle simple list response
+            return (result as DriverResponse[]).map(mapBackendDriverToFrontend);
         } catch (error: any) {
-             return rejectWithValue(DRIVERS_STRINGS.LIST_ERROR);
+            const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || DRIVERS_STRINGS.LIST_ERROR;
+            return rejectWithValue(errorMessage);
+        }
+    }
+);
+
+export const fetchDriverById = createAsyncThunk(
+    'drivers/fetchDriverById',
+    async (id: string, { rejectWithValue }) => {
+        try {
+            const driver = await getDriverByIdApi(id);
+            return mapBackendDriverToFrontend(driver);
+        } catch (error: any) {
+            const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Failed to fetch driver';
+            return rejectWithValue(errorMessage);
         }
     }
 );
@@ -126,99 +295,123 @@ export const createDriver = createAsyncThunk(
     'drivers/createDriver',
     async (driverData: CreateDriverInput, { rejectWithValue }) => {
         try {
-            await delay(DELAY_MS);
+            // Validate password
+            if (!driverData.password) {
+                return rejectWithValue('Password is required');
+            }
             
-            // Mock created driver
-            const newDriver: GetDriver = {
-                _id: Math.floor(Math.random() * 1000) + 200, // Random ID > 200
-                ...driverData,
-                // Fill default/mock values for fields not in CreateDriverInput
-                status: DriverStatus.ACTIVE,
-                complaintCount: 0,
-                bannedGlobally: false,
-                dailyTargetAmount: 0,
-                currentRating: 5.0,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                // trips: [],
-                franchiseName: "Assigned Franchise", // In real apps this would arguably come from backend relation
-                profilePhoto: "",
-                licenseFront: "",
-                licenseBack: ""
-            };
-            return newDriver;
+            // Convert frontend input to backend request
+            const backendRequest = mapFrontendDriverToBackend(driverData);
+            
+            const response = await createDriverApi(backendRequest);
+            return mapBackendDriverToFrontend(response.data);
         } catch (error: any) {
-            return rejectWithValue(DRIVERS_STRINGS.CREATE_ERROR);
+            const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || DRIVERS_STRINGS.CREATE_ERROR;
+            return rejectWithValue(errorMessage);
         }
     }
 );
 
 export const updateDriver = createAsyncThunk(
     'drivers/updateDriver',
-    async ({ id, data }: { id: number; data: UpdateDriverInput }, { rejectWithValue, getState }) => {
+    async ({ id, data }: { id: string | number; data: UpdateDriverInput }, { rejectWithValue }) => {
         try {
-            await delay(DELAY_MS);
-            // In a real mock, we'd grab the existing driver from state, merge, and return
-            // For now, simpler to just return the mocked updated object or let the reducer handle the merge visually
-            // But to return a full GetDriver object is ideal.
+            // Convert frontend UpdateDriverInput to backend UpdateDriverRequest
+            const updateRequest: UpdateDriverRequest = {};
             
-            // NOTE: Ideally we access state here to merge with existing data, 
-            // but for this simple mock we can just return the input data merged with ID
-            // However, the reducer expects a full GetDriver object.
+            if (data.firstName !== null && data.firstName !== undefined) updateRequest.firstName = data.firstName;
+            if (data.lastName !== null && data.lastName !== undefined) updateRequest.lastName = data.lastName;
+            if (data.driverPhone !== null && data.driverPhone !== undefined) updateRequest.phone = data.driverPhone;
+            if (data.driverAltPhone !== null && data.driverAltPhone !== undefined) updateRequest.altPhone = data.driverAltPhone;
+            if (data.email !== null && data.email !== undefined) updateRequest.email = data.email;
+            if (data.address !== null && data.address !== undefined) updateRequest.address = data.address;
+            if (data.city !== null && data.city !== undefined) updateRequest.city = data.city;
+            if (data.state !== null && data.state !== undefined) updateRequest.state = data.state;
+            if (data.pincode !== null && data.pincode !== undefined) updateRequest.pincode = data.pincode;
+            if (data.licenseNumber !== null && data.licenseNumber !== undefined) updateRequest.licenseNumber = data.licenseNumber;
+            if (data.licenseExpiryDate !== null && data.licenseExpiryDate !== undefined) {
+                updateRequest.licenseExpDate = new Date(data.licenseExpiryDate);
+            }
+            if (data.bankAccountNumber !== null && data.bankAccountNumber !== undefined) updateRequest.bankAccountNumber = data.bankAccountNumber;
+            if (data.accountHolderName !== null && data.accountHolderName !== undefined) updateRequest.bankAccountName = data.accountHolderName;
+            if (data.ifscCode !== null && data.ifscCode !== undefined) updateRequest.bankIfscCode = data.ifscCode;
+            if (data.contactName !== null && data.contactName !== undefined) updateRequest.emergencyContactName = data.contactName;
+            if (data.contactNumber !== null && data.contactNumber !== undefined) updateRequest.emergencyContactPhone = data.contactNumber;
+            if (data.relationship !== null && data.relationship !== undefined) updateRequest.emergencyContactRelation = data.relationship;
             
-            // Hacky reconstruction for mock purposes:
-            // We'll trust the reducer to likely find the existing one and update it, 
-            // OR we fetch current state here to do it right.
-            const state = getState() as { driver: DriversState }; // Assuming root state structure
-            // Just returning the data + id for the reducer to merge is usually cleaner if the payload type allowed partials
-            // But our reducer expects full GetDriver in payload?
-            // Let's actually find it in the list if we can, or just return a "best effort" object
+            // Map documents
+            if (data.documentsCollected !== null && data.documentsCollected !== undefined) {
+                updateRequest.aadharCard = data.documentsCollected.includes('Govt Identity');
+                updateRequest.license = data.documentsCollected.includes('License');
+                updateRequest.educationCert = data.documentsCollected.includes('Educational Certificates');
+                updateRequest.previousExp = data.documentsCollected.includes('Previous Experience');
+            }
             
-            // Simplest Mock Strategy: Return the data given, and 'Active' status etc.
-            // But data is UpdateDriverInput (partials).
-            // We need to return a FULL driver or change the reducer logic to accept partial updates.
-            // Let's change the reducer to handle partial updates coming back from this action, 
-            // OR simpler: just return the payload as is and cast it, letting the reducer merge.
+            if (data.franchiseId !== null && data.franchiseId !== undefined) {
+                updateRequest.franchiseId = data.franchiseId.toString();
+            }
             
-            return data; 
+            // Convert id to string (UUID)
+            const driverId = typeof id === 'string' ? id : id.toString();
+            const response = await updateDriverApi(driverId, updateRequest);
+            return mapBackendDriverToFrontend(response.data);
         } catch (error: any) {
-             return rejectWithValue(DRIVERS_STRINGS.UPDATE_ERROR);
+            const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || DRIVERS_STRINGS.UPDATE_ERROR;
+            return rejectWithValue(errorMessage);
+        }
+    }
+);
+
+export const updateDriverStatus = createAsyncThunk(
+    'drivers/updateDriverStatus',
+    async ({ id, status }: { id: string; status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED' | 'TERMINATED' }, { rejectWithValue }) => {
+        try {
+            const response = await updateDriverStatusApi(id, { status });
+            return mapBackendDriverToFrontend(response.data);
+        } catch (error: any) {
+            const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Failed to update driver status';
+            return rejectWithValue(errorMessage);
         }
     }
 );
 
 export const deleteDriver = createAsyncThunk(
     'drivers/deleteDriver',
-    async (id: number, { rejectWithValue }) => {
+    async (id: string, { rejectWithValue }) => {
         try {
-            await delay(DELAY_MS);
+            await deleteDriverApi(id);
             return id;
         } catch (error: any) {
-             return rejectWithValue(DRIVERS_STRINGS.DELETE_ERROR);
+            const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || DRIVERS_STRINGS.DELETE_ERROR;
+            return rejectWithValue(errorMessage);
         }
     }
 );
 
 export const banDriver = createAsyncThunk(
     'drivers/banDriver',
-    async (id: number, { rejectWithValue }) => {
+    async (id: string, { rejectWithValue }) => {
         try {
-            await delay(DELAY_MS);
-            return { _id: id, status: DriverStatus.BLOCKED };
+            const response = await updateDriverStatusApi(id, { status: 'BLOCKED' });
+            const driver = mapBackendDriverToFrontend(response.data);
+            return { _id: parseInt(id.replace(/-/g, '').substring(0, 10), 16) || 0, status: DriverStatus.BLOCKED, driver };
         } catch (error: any) {
-            return rejectWithValue("Failed to ban driver");
+            const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Failed to ban driver';
+            return rejectWithValue(errorMessage);
         }
     }
 );
 
 export const reactivateDriver = createAsyncThunk(
     'drivers/reactivateDriver',
-    async (id: number, { rejectWithValue }) => {
+    async (id: string, { rejectWithValue }) => {
         try {
-            await delay(DELAY_MS);
-            return { _id: id, status: DriverStatus.ACTIVE };
+            const response = await updateDriverStatusApi(id, { status: 'ACTIVE' });
+            const driver = mapBackendDriverToFrontend(response.data);
+            return { _id: parseInt(id.replace(/-/g, '').substring(0, 10), 16) || 0, status: DriverStatus.ACTIVE, driver };
         } catch (error: any) {
-            return rejectWithValue("Failed to reactivate driver");
+            const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Failed to reactivate driver';
+            return rejectWithValue(errorMessage);
         }
     }
 );
@@ -249,14 +442,75 @@ const driversSlice = createSlice({
                 state.drivers.push(action.payload as GetDriver); // Cast safely since we constructed it
             });
 
-        // Update
+        // Fetch by ID
         builder
-            .addCase(updateDriver.fulfilled, (state, action) => {
+            .addCase(fetchDriverById.pending, (state) => {
+                state.isLoading = true;
+                state.error = null;
+            })
+            .addCase(fetchDriverById.fulfilled, (state, action) => {
+                state.isLoading = false;
                 const index = state.drivers.findIndex(d => d._id === action.payload._id);
                 if (index !== -1) {
-                    // Deep merge the partial update
-                    state.drivers[index] = { ...state.drivers[index], ...action.payload } as GetDriver;
+                    state.drivers[index] = action.payload;
+                } else {
+                    state.drivers.push(action.payload);
                 }
+            })
+            .addCase(fetchDriverById.rejected, (state, action) => {
+                state.isLoading = false;
+                state.error = action.payload as string;
+            });
+
+        // Create
+        builder
+            .addCase(createDriver.pending, (state) => {
+                state.isLoading = true;
+                state.error = null;
+            })
+            .addCase(createDriver.fulfilled, (state, action) => {
+                state.isLoading = false;
+                state.drivers.push(action.payload);
+            })
+            .addCase(createDriver.rejected, (state, action) => {
+                state.isLoading = false;
+                state.error = action.payload as string;
+            });
+
+        // Update
+        builder
+            .addCase(updateDriver.pending, (state) => {
+                state.isLoading = true;
+                state.error = null;
+            })
+            .addCase(updateDriver.fulfilled, (state, action) => {
+                state.isLoading = false;
+                const index = state.drivers.findIndex(d => d._id === action.payload._id);
+                if (index !== -1) {
+                    state.drivers[index] = action.payload;
+                }
+            })
+            .addCase(updateDriver.rejected, (state, action) => {
+                state.isLoading = false;
+                state.error = action.payload as string;
+            });
+        
+        // Update Status
+        builder
+            .addCase(updateDriverStatus.pending, (state) => {
+                state.isLoading = true;
+                state.error = null;
+            })
+            .addCase(updateDriverStatus.fulfilled, (state, action) => {
+                state.isLoading = false;
+                const index = state.drivers.findIndex(d => d._id === action.payload._id);
+                if (index !== -1) {
+                    state.drivers[index] = action.payload;
+                }
+            })
+            .addCase(updateDriverStatus.rejected, (state, action) => {
+                state.isLoading = false;
+                state.error = action.payload as string;
             });
         
         // Ban
@@ -264,7 +518,7 @@ const driversSlice = createSlice({
             .addCase(banDriver.fulfilled, (state, action) => {
                  const index = state.drivers.findIndex(d => d._id === action.payload._id);
                 if (index !== -1) {
-                    state.drivers[index].status = action.payload.status;
+                    state.drivers[index] = action.payload.driver;
                 }
             });
 
@@ -273,14 +527,29 @@ const driversSlice = createSlice({
             .addCase(reactivateDriver.fulfilled, (state, action) => {
                  const index = state.drivers.findIndex(d => d._id === action.payload._id);
                 if (index !== -1) {
-                    state.drivers[index].status = action.payload.status;
+                    state.drivers[index] = action.payload.driver;
                 }
             });
 
         // Delete
         builder
+            .addCase(deleteDriver.pending, (state) => {
+                state.isLoading = true;
+                state.error = null;
+            })
             .addCase(deleteDriver.fulfilled, (state, action) => {
-                state.drivers = state.drivers.filter(d => d._id !== action.payload);
+                state.isLoading = false;
+                // Convert UUID string to number for comparison
+                const idNum = parseInt(action.payload.replace(/-/g, '').substring(0, 10), 16) || 0;
+                state.drivers = state.drivers.filter(d => {
+                    // Try to match by UUID string if _id is stored as string
+                    const driverId = typeof d._id === 'string' ? d._id : d._id.toString();
+                    return driverId !== action.payload && d._id !== idNum;
+                });
+            })
+            .addCase(deleteDriver.rejected, (state, action) => {
+                state.isLoading = false;
+                state.error = action.payload as string;
             });
     },
 });

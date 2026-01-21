@@ -31,21 +31,22 @@ export interface Driver {
 }
 
 export interface CreateDriverInput{
-    userId :number; // foreign key to users table
+    userId? :number; // foreign key to users table (optional for API)
     firstName: string;
     lastName: string;
     email: string;
     driverPhone: string;
-    driverAltPhone :string | null;
+    driverAltPhone? :string | null;
+    password: string; // Required for creating driver
 
     // personal details
-    dateOfBirth: string; // ISO Date string
-    gender: GenderType;
-    profilePhoto: string | null;
+    dateOfBirth?: string; // ISO Date string (optional, not in backend DTO)
+    gender?: GenderType; // Optional, not in backend DTO
+    profilePhoto?: string | null; // Optional, not in backend DTO
     licenseNumber: string;
-    licenseType: string;
+    licenseType?: string; // Optional, not in backend DTO
     licenseExpiryDate: string; // ISO Date string
-    documentsCollected :string[];
+    documentsCollected? :string[]; // Optional, mapped to boolean flags
 
     // Address Details
     address: string;
@@ -54,28 +55,31 @@ export interface CreateDriverInput{
     pincode: string;
 
     // Employment Details
-    franchiseId: number;
-    dateOfJoining: string; // ISO Date string
-    assignedCity: string;
-    employmentType:EmploymentType;
+    franchiseId: number | string; // Can be number or UUID string
+    dateOfJoining?: string; // ISO Date string (optional, not in backend DTO)
+    assignedCity?: string; // Optional, not in backend DTO
+    employmentType?: EmploymentType; // Optional, not in backend DTO
 
     // Bank Details
     bankAccountNumber: string;
     accountHolderName: string;
     ifscCode: string;
-    upiId: string | null;
+    upiId?: string | null; // Optional, not in backend DTO
 
     // Emergency Contact
     contactName: string;
     contactNumber: string;
     relationship: string;
+    
+    // Car types (required for backend)
+    carTypes?: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[];
 }
 
 // keeping the return values to null for the elements
 // that is not updated
 export interface UpdateDriverInput{
-    _id: number;
-    userId :number; // foreign key to users table
+    _id?: number | string; // Can be number or UUID string
+    userId? :number; // foreign key to users table (optional)
     firstName: string | null;
     lastName: string | null;
     email: string | null;

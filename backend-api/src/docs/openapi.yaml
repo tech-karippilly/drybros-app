@@ -491,23 +491,69 @@ paths:
     get:
       summary: List all drivers
       description: |
-        Retrieves a list of all drivers in the system.
+        Retrieves a list of all drivers in the system. Supports pagination.
+        
+        **Pagination:**
+        - Use `page` and `limit` query parameters for paginated results
+        - Default: `page=1`, `limit=10`
+        - Maximum `limit` is 100
+        - Only active drivers are returned (soft-deleted drivers are excluded)
+        
+        **Without Pagination:**
+        - If no pagination parameters are provided, returns all active drivers
       tags:
         - Drivers
       security:
         - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number (default: 1)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            example: 1
+        - name: limit
+          in: query
+          required: false
+          description: Number of items per page (default: 10, max: 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+            example: 10
       responses:
         "200":
           description: List of drivers retrieved successfully
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Driver"
+                oneOf:
+                  - type: object
+                    description: Paginated response (when page/limit provided)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Driver"
+                      pagination:
+                        $ref: "#/components/schemas/PaginationInfo"
+                  - type: object
+                    description: Non-paginated response (when no pagination params)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Driver"
+        "400":
+          description: Bad request - invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated (missing or invalid token)
     post:
@@ -599,9 +645,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: Driver ID
+          description: Driver ID (UUID)
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         "200":
           description: Driver data retrieved successfully
@@ -616,6 +663,205 @@ paths:
           description: Not authenticated (missing or invalid token)
         "404":
           description: Driver not found
+    patch:
+      summary: Update driver
+      description: |
+        Update driver details. Main purpose is for reassigning franchises, but can also update other driver information.
+        
+        **Partial Updates:**
+        - All fields are optional
+        - Only provided fields will be updated
+        - At least one field must be provided
+        
+        **Franchise Reassignment:**
+        - Update `franchiseId` to reassign driver to a different franchise
+        
+        **Password Update:**
+        - If password is provided, it will be hashed before storage
+        
+        **Validation:**
+        - Phone and email must be unique (checked against other drivers)
+        - License expiration date must be in the future
+        - At least one car type must be provided if `carTypes` is updated
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Driver ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDriverRequest"
+            example:
+              franchiseId: "550e8400-e29b-41d4-a716-446655440001"
+              firstName: "John"
+              lastName: "Smith"
+              phone: "+1234567890"
+              city: "Los Angeles"
+              status: "ACTIVE"
+      responses:
+        "200":
+          description: Driver updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateDriverResponse"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions (only ADMIN and OFFICE_STAFF can update drivers)
+        "404":
+          description: Driver not found
+        "409":
+          description: Conflict - phone or email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /drivers/{id}:
+    delete:
+      summary: Soft delete driver
+      description: |
+        Soft delete a driver by setting `isActive` to `false`. 
+        
+        **Soft Delete:**
+        - Driver is not permanently removed from the database
+        - `isActive` field is set to `false`
+        - Driver data is preserved for audit/history purposes
+        - Can be restored by updating `isActive` back to `true`
+        
+        **Note:** This is a soft delete operation. The driver record remains in the database but is marked as inactive.
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Driver ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Driver soft deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Driver deleted successfully"
+        "400":
+          description: Bad request - driver already deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions (only ADMIN and OFFICE_STAFF can delete drivers)
+        "404":
+          description: Driver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /drivers/{id}/status:
+    patch:
+      summary: Update driver status
+      description: |
+        Update driver status for suspend, fire, block, or reactivate operations.
+        
+        **Status Options:**
+        - `ACTIVE`: Reactivate driver (default status)
+        - `INACTIVE`: Suspend driver (temporarily disable)
+        - `BLOCKED`: Block driver (prevent access)
+        - `TERMINATED`: Fire/terminate driver (permanent removal)
+        
+        **Usage Examples:**
+        - To suspend: Set status to `INACTIVE`
+        - To fire: Set status to `TERMINATED`
+        - To block: Set status to `BLOCKED`
+        - To reactivate: Set status to `ACTIVE`
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Driver ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDriverStatusRequest"
+            examples:
+              suspend:
+                summary: Suspend driver
+                value:
+                  status: "INACTIVE"
+              fire:
+                summary: Fire driver
+                value:
+                  status: "TERMINATED"
+              block:
+                summary: Block driver
+                value:
+                  status: "BLOCKED"
+              reactivate:
+                summary: Reactivate driver
+                value:
+                  status: "ACTIVE"
+      responses:
+        "200":
+          description: Driver status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateDriverStatusResponse"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions (only ADMIN and OFFICE_STAFF can update driver status)
+        "404":
+          description: Driver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /auth/register-admin:
     post:
@@ -2172,6 +2418,184 @@ components:
           example: "Driver created successfully"
         data:
           $ref: "#/components/schemas/Driver"
+
+    UpdateDriverRequest:
+      type: object
+      description: All fields are optional for partial updates. At least one field must be provided.
+      properties:
+        firstName:
+          type: string
+          description: Driver's first name
+          example: "John"
+        lastName:
+          type: string
+          description: Driver's last name
+          example: "Smith"
+        phone:
+          type: string
+          description: Primary phone number
+          example: "+1234567890"
+        email:
+          type: string
+          format: email
+          description: Email address
+          example: "john.smith@example.com"
+        altPhone:
+          type: string
+          nullable: true
+          description: Alternate phone number
+          example: "+1234567891"
+        password:
+          type: string
+          format: password
+          description: Password (will be hashed before storage)
+          example: "NewSecurePass123!"
+        emergencyContactName:
+          type: string
+          description: Emergency contact person's name
+          example: "Jane Smith"
+        emergencyContactPhone:
+          type: string
+          description: Emergency contact phone number
+          example: "+1234567892"
+        emergencyContactRelation:
+          type: string
+          description: Relationship with emergency contact
+          example: "Spouse"
+        address:
+          type: string
+          description: Street address
+          example: "456 Oak Avenue"
+        city:
+          type: string
+          description: City
+          example: "Los Angeles"
+        state:
+          type: string
+          description: State
+          example: "CA"
+        pincode:
+          type: string
+          description: Postal/ZIP code
+          example: "90001"
+        licenseNumber:
+          type: string
+          description: Driving license number
+          example: "DL9876543210"
+        licenseExpDate:
+          type: string
+          format: date-time
+          description: License expiration date (must be in the future)
+          example: "2026-12-31T00:00:00Z"
+        bankAccountName:
+          type: string
+          description: Bank account holder name
+          example: "John Smith"
+        bankAccountNumber:
+          type: string
+          description: Bank account number
+          example: "9876543210"
+        bankIfscCode:
+          type: string
+          description: Bank IFSC code
+          example: "BANK0005678"
+        aadharCard:
+          type: boolean
+          description: Aadhar card collected
+          example: true
+        license:
+          type: boolean
+          description: License document collected
+          example: true
+        educationCert:
+          type: boolean
+          description: Education certificate collected
+          example: false
+        previousExp:
+          type: boolean
+          description: Previous experience certificate collected
+          example: true
+        carTypes:
+          type: array
+          items:
+            type: string
+            enum: [MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS]
+          description: Types of cars the driver can drive
+          example: ["MANUAL", "AUTOMATIC"]
+        franchiseId:
+          type: string
+          format: uuid
+          description: Franchise ID (for reassigning driver to different franchise)
+          example: "550e8400-e29b-41d4-a716-446655440001"
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, BLOCKED, TERMINATED]
+          description: Driver status
+          example: "ACTIVE"
+
+    UpdateDriverResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Driver updated successfully"
+        data:
+          $ref: "#/components/schemas/Driver"
+
+    UpdateDriverStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, BLOCKED, TERMINATED]
+          description: |
+            Driver status:
+            - ACTIVE: Reactivate driver
+            - INACTIVE: Suspend driver (temporarily disable)
+            - BLOCKED: Block driver (prevent access)
+            - TERMINATED: Fire/terminate driver (permanent removal)
+          example: "INACTIVE"
+
+    UpdateDriverStatusResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message with status change description
+          example: "Driver has been suspended (inactive)"
+        data:
+          $ref: "#/components/schemas/Driver"
+
+    PaginationInfo:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          description: Number of items per page
+          example: 10
+        total:
+          type: integer
+          description: Total number of items
+          example: 50
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 5
+        hasNext:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        hasPrev:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
 
     DriverLoginRequest:
       type: object

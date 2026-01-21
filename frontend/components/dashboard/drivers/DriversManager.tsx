@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { DriversList } from './DriversList';
 import { DriverForm } from './DriverForm';
 import { DriverDetails } from './DriverDetails';
@@ -9,26 +9,30 @@ export function DriversManager() {
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [selectedDriver, setSelectedDriver] = useState<GetDriver | null>(null);
 
-    const handleCreateClick = () => {
+    const handleCreateClick = useCallback(() => {
         setSelectedDriver(null);
         setIsFormOpen(true);
-    };
+    }, []);
         
-    const handleEditClick = (driver: GetDriver) => {
+    const handleEditClick = useCallback((driver: GetDriver) => {
         setSelectedDriver(driver);
         setIsDetailsOpen(false);
         setIsFormOpen(true);
-    };
+    }, []);
 
-    const handleViewClick = (driver: GetDriver) => {
+    const handleViewClick = useCallback((driver: GetDriver) => {
         setSelectedDriver(driver);
         setIsDetailsOpen(true);
-    };
+    }, []);
 
-    const handleBackToList = () => {
+    const handleBackToList = useCallback(() => {
         setIsDetailsOpen(false);
         setSelectedDriver(null);
-    };
+    }, []);
+
+    const handleCloseForm = useCallback(() => {
+        setIsFormOpen(false);
+    }, []);
 
     // If viewing driver details, show full-page details view
     if (isDetailsOpen && selectedDriver) {
@@ -43,7 +47,7 @@ export function DriversManager() {
                 <DriverForm
                     isOpen={isFormOpen}
                     driver={selectedDriver}
-                    onClose={() => setIsFormOpen(false)}
+                    onClose={handleCloseForm}
                 />
             </>
         );
@@ -60,7 +64,7 @@ export function DriversManager() {
             <DriverForm
                 isOpen={isFormOpen}
                 driver={selectedDriver}
-                onClose={() => setIsFormOpen(false)}
+                onClose={handleCloseForm}
             />
         </>
     );

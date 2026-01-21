@@ -40,6 +40,19 @@ export function ApplyPenaltyModal({ isOpen, onClose, penalty }: ApplyPenaltyModa
     const [isLoading, setIsLoading] = useState(false);
     const [isFetchingDrivers, setIsFetchingDrivers] = useState(false);
 
+    const fetchDrivers = useCallback(async () => {
+        setIsFetchingDrivers(true);
+        try {
+            const response = await api.get('/drivers');
+            const driversData = response.data.data || response.data;
+            setDrivers(Array.isArray(driversData) ? driversData : []);
+        } catch {
+            setDrivers([]);
+        } finally {
+            setIsFetchingDrivers(false);
+        }
+    }, []);
+
     useEffect(() => {
         if (isOpen && penalty) {
             setAmount(penalty.amount);
@@ -59,19 +72,6 @@ export function ApplyPenaltyModal({ isOpen, onClose, penalty }: ApplyPenaltyModa
             setErrors({});
         }
     }, [isOpen, penalty]);
-
-    const fetchDrivers = useCallback(async () => {
-        setIsFetchingDrivers(true);
-        try {
-            const response = await api.get('/drivers');
-            const driversData = response.data.data || response.data;
-            setDrivers(Array.isArray(driversData) ? driversData : []);
-        } catch {
-            setDrivers([]);
-        } finally {
-            setIsFetchingDrivers(false);
-        }
-    }, []);
 
     const validate = useCallback((): boolean => {
         const newErrors: typeof errors = {};

@@ -35,8 +35,78 @@ paths:
       responses:
         "200":
           description: List of franchises
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Franchise"
         "401":
           description: Not authenticated (missing or invalid token)
+    post:
+      summary: Create a new franchise
+      description: |
+        Create a new franchise. Only ADMIN role can create franchises.
+        
+        **Auto-Generated Fields:**
+        - `code`: Automatically generated in format FRN-XXXXXX (6 random alphanumeric characters)
+        - `id`: Auto-generated UUID
+        - `isActive`: Defaults to `true`
+        
+        **Fields:**
+        - `name`: Franchise name (required)
+        - `region`: Region where franchise is located (required)
+        - `address`: Physical address of the franchise (required)
+        - `phone`: Contact number (required, validated format)
+        - `inchargeName`: Name of the person in charge (required)
+        - `managerEmail`: Email address of the manager (required, will be used to create manager user account)
+        - `managerPhone`: Phone number of the manager (required, validated format)
+        - `storeImage`: Store image URL (optional)
+        
+        **Manager Account Creation:**
+        - A manager user account will be automatically created with MANAGER role
+        - Password will be auto-generated and sent to the manager's email
+        - Welcome email will be sent with login credentials
+      tags:
+        - Franchises
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFranchiseRequest"
+            example:
+              name: "Downtown Branch"
+              region: "New York"
+              address: "123 Main Street, New York, NY 10001"
+              phone: "+1234567890"
+              inchargeName: "John Smith"
+              managerEmail: "john.smith@drybros.com"
+              managerPhone: "+1234567891"
+              storeImage: "https://example.com/images/store.jpg"
+              legalDocumentsCollected: false
+      responses:
+        "201":
+          description: Franchise created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateFranchiseResponse"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions (only ADMIN can create franchises)
 
   /franchises/{id}:
     get:
@@ -49,15 +119,28 @@ paths:
         - name: id
           in: path
           required: true
+          description: Franchise ID (UUID)
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         "200":
-          description: Franchise data
+          description: Franchise data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Franchise"
         "401":
           description: Not authenticated (missing or invalid token)
         "404":
           description: Franchise not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /roles:
     get:
@@ -2119,6 +2202,147 @@ components:
             - totalPages
             - hasNext
             - hasPrev
+
+    Franchise:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Franchise ID (UUID)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        code:
+          type: string
+          description: Auto-generated unique franchise code (format: FRN-XXXXXX)
+          example: "FRN-A1B2C3"
+        name:
+          type: string
+          description: Franchise name
+          example: "Downtown Branch"
+        city:
+          type: string
+          description: City (kept for backward compatibility)
+          example: "New York"
+        region:
+          type: string
+          nullable: true
+          description: Region where franchise is located
+          example: "New York"
+        address:
+          type: string
+          nullable: true
+          description: Physical address of the franchise
+          example: "123 Main Street, New York, NY 10001"
+        phone:
+          type: string
+          nullable: true
+          description: Contact number
+          example: "+1234567890"
+        inchargeName:
+          type: string
+          nullable: true
+          description: Name of the person in charge
+          example: "John Smith"
+        storeImage:
+          type: string
+          nullable: true
+          description: Store image URL
+          example: "https://example.com/images/store.jpg"
+        legalDocumentsCollected:
+          type: boolean
+          description: Flag indicating if legal documents have been collected
+          example: false
+        isActive:
+          type: boolean
+          description: Whether the franchise is active
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2024-01-20T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2024-01-20T10:30:00Z"
+
+    CreateFranchiseRequest:
+      type: object
+      required:
+        - name
+        - region
+        - address
+        - phone
+        - inchargeName
+        - managerEmail
+        - managerPhone
+      properties:
+        name:
+          type: string
+          description: Franchise name
+          example: "Downtown Branch"
+          minLength: 1
+          maxLength: 100
+        region:
+          type: string
+          description: Region where franchise is located
+          example: "New York"
+          minLength: 1
+          maxLength: 100
+        address:
+          type: string
+          description: Physical address of the franchise
+          example: "123 Main Street, New York, NY 10001"
+          minLength: 1
+          maxLength: 500
+        phone:
+          type: string
+          description: Contact number
+          example: "+1234567890"
+          minLength: 10
+          maxLength: 20
+        inchargeName:
+          type: string
+          description: Name of the person in charge
+          example: "John Smith"
+          minLength: 1
+          maxLength: 100
+        managerEmail:
+          type: string
+          format: email
+          description: Email address of the manager (will be used to create manager user account)
+          example: "john.smith@drybros.com"
+          maxLength: 255
+        managerPhone:
+          type: string
+          description: Phone number of the manager
+          example: "+1234567891"
+          pattern: "^[+]?[(]?[0-9]{1,4}[)]?[-\\s.]?[(]?[0-9]{1,4}[)]?[-\\s.]?[0-9]{1,9}$"
+          minLength: 10
+          maxLength: 20
+        storeImage:
+          type: string
+          format: uri
+          nullable: true
+          description: Store image URL (optional)
+          example: "https://example.com/images/store.jpg"
+          maxLength: 500
+        legalDocumentsCollected:
+          type: boolean
+          description: Flag indicating if legal documents have been collected
+          example: false
+          default: false
+
+    CreateFranchiseResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Franchise created successfully"
+        data:
+          $ref: "#/components/schemas/Franchise"
 
     ErrorResponse:
       type: object

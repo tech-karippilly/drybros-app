@@ -436,12 +436,6 @@ const driversSlice = createSlice({
                 state.error = action.payload as string;
             });
 
-        // Create
-        builder
-            .addCase(createDriver.fulfilled, (state, action) => {
-                state.drivers.push(action.payload as GetDriver); // Cast safely since we constructed it
-            });
-
         // Fetch by ID
         builder
             .addCase(fetchDriverById.pending, (state) => {

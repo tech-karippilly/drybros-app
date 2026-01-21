@@ -71,19 +71,23 @@ model Driver {
 }
 
 model Franchise {
-  id        String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  code      String     @unique
-  name      String
-  city      String
-  address   String?
-  phone     String?
-  isActive  Boolean    @default(true)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime
-  Customer  Customer[]
+  id            String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code          String     @unique
+  name          String
+  city          String      // Keep for backward compatibility
+  region        String?     // New field
+  address       String?     // Physical address
+  phone         String?     // Contact number
+  inchargeName  String?     // Incharge name
+  storeImage    String?     // Store image URL (optional)
+  legalDocumentsCollected Boolean @default(false) // Legal documents collected flag
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  Customer      Customer[]
   // Driver relation commented out temporarily to allow dummy UUIDs
   // Driver    Driver[]
-  Trip      Trip[]
+  Trip          Trip[]
 }
 
 model Role {
@@ -91,7 +95,7 @@ model Role {
   description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime
+  updatedAt   DateTime @updatedAt
   id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
 }
 
@@ -217,7 +221,7 @@ model User {
   role           UserRole
   isActive       Boolean   @default(true)
   createdAt      DateTime  @default(now())
-  updatedAt      DateTime
+  updatedAt      DateTime  @updatedAt
   phone          String?
   id             String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   failedAttempts Int       @default(0)
@@ -303,6 +307,7 @@ enum TripType {
 
 enum UserRole {
   ADMIN
+  MANAGER
   OFFICE_STAFF
   DRIVER
   STAFF

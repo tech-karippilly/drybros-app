@@ -2,24 +2,40 @@
 import prisma from "../config/prismaClient";
 import { Driver } from "@prisma/client";
 
-export async function getAllDrivers(includeInactive: boolean = false) {
+export async function getAllDrivers(includeInactive: boolean = false, franchiseId?: string) {
+  const whereClause: any = {};
+  
+  if (!includeInactive) {
+    whereClause.isActive = true;
+  }
+  
+  if (franchiseId) {
+    whereClause.franchiseId = franchiseId;
+  }
+
   return prisma.driver.findMany({
-    where: includeInactive ? undefined : { isActive: true },
+    where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
     orderBy: { id: "asc" },
   });
 }
 
-export async function getDriversPaginated(skip: number, take: number) {
+export async function getDriversPaginated(skip: number, take: number, franchiseId?: string) {
+  const whereClause: any = { isActive: true };
+  
+  if (franchiseId) {
+    whereClause.franchiseId = franchiseId;
+  }
+
   // Use Promise.all for parallel execution
   const [data, total] = await Promise.all([
     prisma.driver.findMany({
       skip,
       take,
-      where: { isActive: true }, // Only get active drivers
+      where: whereClause,
       orderBy: { createdAt: "desc" },
     }),
     prisma.driver.count({
-      where: { isActive: true }, // Count only active drivers
+      where: whereClause,
     }),
   ]);
 

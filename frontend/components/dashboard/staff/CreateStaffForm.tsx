@@ -21,7 +21,6 @@ import {
 } from 'lucide-react';
 import { Staff } from '@/lib/types/staff';
 import { generateStaffPassword } from '@/lib/utils/staff-utils';
-import { DEFAULT_FRANCHISE_ID } from '@/lib/constants/auth';
 
 // Constants
 const DOCUMENT_TYPES = ['Govt Identity', 'Address Proof', 'Educational Certificates', 'Previous Experience', 'Police Verification'] as const;
@@ -102,7 +101,7 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                     name: formData.name || '',
                     email: formData.email || '',
                     phone: formData.phone || '',
-                    franchiseId: DEFAULT_FRANCHISE_ID,
+                    franchiseId: formData.franchiseId || '',
                     monthlySalary: Number(formData.salary) || formData.monthlySalary || 0,
                     address: formData.address || '',
                     emergencyContact: formData.emergencyContact || '',
@@ -135,7 +134,7 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                     email: formData.email || '',
                     phone: formData.phone || '',
                     password: formData.password || '',
-                    franchiseId: DEFAULT_FRANCHISE_ID,
+                    franchiseId: formData.franchiseId || '',
                     monthlySalary: Number(formData.salary) || 0,
                     address: formData.address || '',
                     emergencyContact: formData.emergencyContact || '',

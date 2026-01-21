@@ -118,7 +118,7 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                     licenseType: formData.licenseType || null, licenseExpiryDate: formData.licenseExpiryDate || null,
                     address: formData.address || null, city: formData.city || null,
                     state: formData.state || null, pincode: formData.pincode || null,
-                    franchiseId: formData.franchiseId ? Number(formData.franchiseId) : null, dateOfJoining: formData.dateOfJoining || null,
+                    franchiseId: formData.franchiseId ? (typeof formData.franchiseId === 'string' ? formData.franchiseId : formData.franchiseId.toString()) : null, dateOfJoining: formData.dateOfJoining || null,
                     assignedCity: formData.assignedCity || null, employmentType: formData.employmentType || null,
                     bankAccountNumber: formData.bankAccountNumber || null, accountHolderName: formData.accountHolderName || null,
                     ifscCode: formData.ifscCode || null, upiId: formData.upiId || null,
@@ -129,7 +129,8 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                 await dispatch(updateDriver({ id: driver._id, data: updatePayload })).unwrap();
                 toast({ title: 'Success', description: 'Driver updated successfully', variant: 'success' });
             } else {
-                const payload = { ...formData, franchiseId: Number(formData.franchiseId) } as CreateDriverInput;
+                const franchiseId = typeof formData.franchiseId === 'string' ? formData.franchiseId : formData.franchiseId?.toString() || '';
+                const payload = { ...formData, franchiseId } as CreateDriverInput;
                 await dispatch(createDriver(payload)).unwrap();
                 toast({ title: 'Success', description: 'Driver onboarded successfully', variant: 'success' });
             }

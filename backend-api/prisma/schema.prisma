@@ -81,6 +81,7 @@ model Franchise {
   inchargeName  String?     // Incharge name
   storeImage    String?     // Store image URL (optional)
   legalDocumentsCollected Boolean @default(false) // Legal documents collected flag
+  status        FranchiseStatus @default(ACTIVE) // Franchise status
   isActive      Boolean    @default(true)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
@@ -312,4 +313,10 @@ enum UserRole {
   DRIVER
   STAFF
   CUSTOMER
+}
+
+enum FranchiseStatus {
+  ACTIVE
+  BLOCKED
+  TEMPORARILY_CLOSED
 }

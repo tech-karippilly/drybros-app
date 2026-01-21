@@ -187,6 +187,10 @@ export const paginationQuerySchema = z.object({
     .default("10")
     .transform((val) => parseInt(val, 10))
     .pipe(z.number().int().positive().max(100)), // Max 100 items per page
+  franchiseId: z
+    .string()
+    .uuid("Franchise ID must be a valid UUID")
+    .optional(),
 });
 
 export type PaginationQueryDTO = z.infer<typeof paginationQuerySchema>;

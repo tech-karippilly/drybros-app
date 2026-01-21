@@ -2,8 +2,9 @@
 import prisma from "../config/prismaClient";
 import { Staff } from "@prisma/client";
 
-export async function getAllStaff() {
+export async function getAllStaff(franchiseId?: string) {
   return prisma.staff.findMany({
+    where: franchiseId ? { franchiseId, isActive: true } : { isActive: true },
     orderBy: { createdAt: "desc" },
     // Only select fields needed for response
     select: {
@@ -33,12 +34,17 @@ export async function getAllStaff() {
   });
 }
 
-export async function getStaffPaginated(skip: number, take: number) {
+export async function getStaffPaginated(skip: number, take: number, franchiseId?: string) {
+  const whereClause = franchiseId 
+    ? { franchiseId, isActive: true }
+    : { isActive: true };
+
   // Use Promise.all for parallel execution
   const [data, total] = await Promise.all([
     prisma.staff.findMany({
       skip,
       take,
+      where: whereClause,
       orderBy: { createdAt: "desc" },
       // Only select fields needed for response
       select: {
@@ -66,7 +72,7 @@ export async function getStaffPaginated(skip: number, take: number) {
         updatedAt: true,
       },
     }),
-    prisma.staff.count(),
+    prisma.staff.count({ where: whereClause }),
   ]);
 
   return { data, total };

@@ -2,12 +2,18 @@
 import bcrypt from "bcryptjs";
 import {
   getAllFranchises,
+  getFranchisesPaginated,
   getFranchiseById,
   createFranchise as repoCreateFranchise,
   getFranchiseByCode,
+  updateFranchise as repoUpdateFranchise,
+  softDeleteFranchise as repoSoftDeleteFranchise,
+  updateFranchiseStatus as repoUpdateFranchiseStatus,
+  getStaffByFranchiseId as repoGetStaffByFranchiseId,
+  getDriversByFranchiseId as repoGetDriversByFranchiseId,
 } from "../repositories/franchise.repository";
 import { getRoleByName } from "../repositories/role.repository";
-import { CreateFranchiseDTO, CreateFranchiseResponseDTO, FranchiseResponseDTO } from "../types/franchise.dto";
+import { CreateFranchiseDTO, CreateFranchiseResponseDTO, FranchiseResponseDTO, UpdateFranchiseDTO, UpdateFranchiseStatusDTO, PaginationQueryDTO, PaginatedFranchiseResponseDTO } from "../types/franchise.dto";
 import { NotFoundError, ConflictError, BadRequestError } from "../utils/errors";
 import { ERROR_MESSAGES } from "../constants/errors";
 import logger from "../config/logger";
@@ -32,6 +38,7 @@ function mapFranchiseToResponse(franchise: any): FranchiseResponseDTO {
     inchargeName: franchise.inchargeName,
     storeImage: franchise.storeImage,
     legalDocumentsCollected: franchise.legalDocumentsCollected,
+    status: franchise.status,
     isActive: franchise.isActive,
     createdAt: franchise.createdAt,
     updatedAt: franchise.updatedAt,
@@ -41,6 +48,35 @@ function mapFranchiseToResponse(franchise: any): FranchiseResponseDTO {
 export async function listFranchises(): Promise<FranchiseResponseDTO[]> {
   const franchises = await getAllFranchises();
   return franchises.map(mapFranchiseToResponse);
+}
+
+/**
+ * List franchises with pagination
+ */
+export async function listFranchisesPaginated(
+  pagination: PaginationQueryDTO
+): Promise<PaginatedFranchiseResponseDTO> {
+  const { page, limit } = pagination;
+  const skip = (page - 1) * limit;
+
+  const { data, total } = await getFranchisesPaginated(skip, limit);
+  
+  // Calculate pagination metadata efficiently
+  const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+  const hasNext = page < totalPages;
+  const hasPrev = page > 1;
+
+  return {
+    data: data.map(mapFranchiseToResponse),
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNext,
+      hasPrev,
+    },
+  };
 }
 
 export async function getFranchise(id: string): Promise<FranchiseResponseDTO> {
@@ -170,4 +206,100 @@ async function getUniqueFranchiseCode(): Promise<string> {
   }
 
   throw new Error("Failed to generate unique franchise code after multiple attempts");
+}
+
+/**
+ * Update franchise details
+ */
+export async function updateFranchise(
+  id: string,
+  input: UpdateFranchiseDTO
+): Promise<CreateFranchiseResponseDTO> {
+  const existingFranchise = await getFranchiseById(id);
+  if (!existingFranchise) {
+    throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
+  }
+
+  const updatedFranchise = await repoUpdateFranchise(id, input);
+
+  logger.info("Franchise updated successfully", {
+    franchiseId: id,
+    updatedFields: Object.keys(input),
+  });
+
+  return {
+    message: "Franchise updated successfully",
+    data: mapFranchiseToResponse(updatedFranchise),
+  };
+}
+
+/**
+ * Soft delete franchise (set isActive to false)
+ */
+export async function softDeleteFranchise(id: string): Promise<{ message: string }> {
+  const existingFranchise = await getFranchiseById(id);
+  if (!existingFranchise) {
+    throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
+  }
+
+  await repoSoftDeleteFranchise(id);
+
+  logger.info("Franchise soft deleted successfully", {
+    franchiseId: id,
+  });
+
+  return {
+    message: "Franchise deleted successfully",
+  };
+}
+
+/**
+ * Update franchise status
+ */
+export async function updateFranchiseStatus(
+  id: string,
+  input: UpdateFranchiseStatusDTO
+): Promise<CreateFranchiseResponseDTO> {
+  const existingFranchise = await getFranchiseById(id);
+  if (!existingFranchise) {
+    throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
+  }
+
+  const updatedFranchise = await repoUpdateFranchiseStatus(id, input.status);
+
+  logger.info("Franchise status updated successfully", {
+    franchiseId: id,
+    newStatus: input.status,
+  });
+
+  return {
+    message: "Franchise status updated successfully",
+    data: mapFranchiseToResponse(updatedFranchise),
+  };
+}
+
+/**
+ * Get staff details by franchise ID
+ */
+export async function getStaffByFranchiseId(franchiseId: string) {
+  const franchise = await getFranchiseById(franchiseId);
+  if (!franchise) {
+    throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
+  }
+
+  const staff = await repoGetStaffByFranchiseId(franchiseId);
+  return { data: staff };
+}
+
+/**
+ * Get driver details by franchise ID
+ */
+export async function getDriversByFranchiseId(franchiseId: string) {
+  const franchise = await getFranchiseById(franchiseId);
+  if (!franchise) {
+    throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
+  }
+
+  const drivers = await repoGetDriversByFranchiseId(franchiseId);
+  return { data: drivers };
 }

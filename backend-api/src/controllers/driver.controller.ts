@@ -17,7 +17,8 @@ export async function getDrivers(
       res.json(result);
     } else {
       // Backward compatibility: return all drivers if no pagination params
-      const data = await listDrivers();
+      const franchiseId = validatedQuery?.franchiseId;
+      const data = await listDrivers(franchiseId);
       res.json({ data });
     }
   } catch (err) {

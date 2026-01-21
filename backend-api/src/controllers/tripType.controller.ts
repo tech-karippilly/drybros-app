@@ -1,0 +1,103 @@
+import { Request, Response, NextFunction } from "express";
+import {
+  listTripTypes,
+  listTripTypesPaginated,
+  getTripTypeById,
+  createTripType,
+  updateTripType,
+  deleteTripType,
+} from "../services/tripType.service";
+
+export async function listTripTypesHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    // Check if pagination query parameters are provided
+    if (req.query.page || req.query.limit) {
+      // Parse and validate pagination parameters
+      const page = parseInt(req.query.page as string, 10) || 1;
+      const limit = Math.min(
+        parseInt(req.query.limit as string, 10) || 10,
+        100
+      ); // Max 100 items per page
+
+      if (page < 1) {
+        return res.status(400).json({
+          error: "Page must be a positive integer",
+        });
+      }
+
+      if (limit < 1) {
+        return res.status(400).json({
+          error: "Limit must be a positive integer",
+        });
+      }
+
+      const result = await listTripTypesPaginated({ page, limit });
+      res.json(result);
+    } else {
+      // Backward compatibility: return all trip types if no pagination params
+      const data = await listTripTypes();
+      res.json({ data });
+    }
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getTripTypeByIdHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { id } = req.params;
+    const tripType = await getTripTypeById(id);
+    res.json({ data: tripType });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createTripTypeHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const tripType = await createTripType(req.body);
+    res.status(201).json({ data: tripType });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateTripTypeHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { id } = req.params;
+    const tripType = await updateTripType(id, req.body);
+    res.json({ data: tripType });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteTripTypeHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { id } = req.params;
+    await deleteTripType(id);
+    res.json({ message: "Trip type deleted successfully" });
+  } catch (err) {
+    next(err);
+  }
+}

@@ -3,6 +3,7 @@ import {
   getTrips,
   getTripByIdHandler,
   createTripHandler,
+  createTripPhase1Handler,
   driverAcceptTripHandler,
   driverRejectTripHandler,
   generateStartOtpHandler,
@@ -20,6 +21,7 @@ router.use(authMiddleware);
 router.get("/", getTrips);
 router.get("/:id", getTripByIdHandler);
 router.post("/", createTripHandler);
+router.post("/phase1", createTripPhase1Handler);
 
 router.patch("/:id/driver-accept", driverAcceptTripHandler);
 router.patch("/:id/driver-reject", driverRejectTripHandler);

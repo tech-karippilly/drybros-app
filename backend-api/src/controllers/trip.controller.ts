@@ -3,6 +3,7 @@ import {
   listTrips,
   getTrip,
   createTrip,
+  createTripPhase1,
   driverAcceptTrip,
   driverRejectTrip,
   generateStartOtpForTrip,
@@ -47,6 +48,25 @@ export async function createTripHandler(
   try {
     const trip = await createTrip(req.body);
     res.status(201).json({ data: trip });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createTripPhase1Handler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    // Get user from auth middleware (if available)
+    const userId = req.user?.userId;
+    
+    const result = await createTripPhase1({
+      ...req.body,
+      createdBy: userId,
+    });
+    res.status(201).json({ data: result });
   } catch (err) {
     next(err);
   }

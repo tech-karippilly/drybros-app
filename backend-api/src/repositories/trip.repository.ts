@@ -57,6 +57,63 @@ export async function createTrip(data: {
   });
 }
 
+export async function createTripPhase1(data: {
+  franchiseId: string;
+  customerId: number | null;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string | null;
+  tripType: string;
+  pickupLocation: string;
+  pickupAddress: string;
+  pickupLocationNote?: string | null;
+  dropLocation: string;
+  dropAddress: string;
+  dropLocationNote?: string | null;
+  carType: string;
+  scheduledAt: Date | null;
+  isDetailsReconfirmed: boolean;
+  isFareDiscussed: boolean;
+  isPriceAccepted: boolean;
+  createdBy?: string | null;
+  baseAmount?: number;
+  extraAmount?: number;
+  totalAmount?: number;
+  finalAmount?: number;
+}) {
+  return prisma.trip.create({
+    data: {
+      franchiseId: data.franchiseId,
+      customerId: data.customerId,
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+      customerEmail: data.customerEmail ?? null,
+      tripType: data.tripType as any,
+      pickupLocation: data.pickupLocation,
+      pickupAddress: data.pickupAddress,
+      pickupLocationNote: data.pickupLocationNote ?? null,
+      dropLocation: data.dropLocation,
+      dropAddress: data.dropAddress,
+      dropLocationNote: data.dropLocationNote ?? null,
+      carType: data.carType,
+      scheduledAt: data.scheduledAt,
+      isDetailsReconfirmed: data.isDetailsReconfirmed,
+      isFareDiscussed: data.isFareDiscussed,
+      isPriceAccepted: data.isPriceAccepted,
+      createdBy: data.createdBy ?? null,
+      status: "REQUESTED",
+      baseAmount: data.baseAmount ?? 0,
+      extraAmount: data.extraAmount ?? 0,
+      totalAmount: data.totalAmount ?? 0,
+      finalAmount: data.finalAmount ?? 0,
+    },
+    include: {
+      customer: true,
+      franchise: true,
+    },
+  });
+}
+
 export async function updateTrip(id: number, data: any) {
   return prisma.trip.update({
     where: { id },

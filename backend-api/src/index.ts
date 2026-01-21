@@ -12,6 +12,7 @@ import tripRoutes from "./routes/trip.routes";
 import authRoutes from "./routes/auth.routes";
 import roleRoutes from "./routes/role.routes";
 import staffRoutes from "./routes/staff.routes";
+import tripTypeRoutes from "./routes/tripType.routes";
 
 import cors from "cors";
 import path from "path";
@@ -98,6 +99,7 @@ app.use("/trips", tripRoutes);
 app.use("/auth", authRoutes);
 app.use("/roles", roleRoutes);
 app.use("/staff", staffRoutes);
+app.use("/trip-types", tripTypeRoutes);
 
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Drybros backend root 🚗" });

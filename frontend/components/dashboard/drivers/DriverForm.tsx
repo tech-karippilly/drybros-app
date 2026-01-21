@@ -78,7 +78,7 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
         setFormData(prev => ({ ...prev, password: generateDriverPassword() }));
     }, []);
 
-    const handleDocToggle = (doc: string) => {
+    const handleDocToggle = React.useCallback((doc: string) => {
         setFormData(prev => {
             const docs = prev.documentsCollected || [];
             if (docs.includes(doc)) {
@@ -87,7 +87,7 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                 return { ...prev, documentsCollected: [...docs, doc] };
             }
         });
-    };
+    }, []);
 
     const validateForm = () => {
         if (!formData.firstName?.trim()) return false;

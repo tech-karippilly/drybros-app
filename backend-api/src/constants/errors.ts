@@ -15,6 +15,10 @@ export const ERROR_MESSAGES = {
   USER_NOT_FOUND: "User not found",
   USER_INACTIVE: "User account is inactive",
   EMAIL_ALREADY_EXISTS: "Email already in use",
+  PHONE_ALREADY_EXISTS: "Phone number already in use",
+  
+  // Driver errors
+  DRIVER_NOT_FOUND: "Driver not found",
   
   // Role errors
   ROLE_NOT_FOUND: "Role not found",

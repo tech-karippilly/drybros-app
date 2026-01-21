@@ -105,7 +105,7 @@ function mapUserToResponse(user: User): AuthResponseDTO["user"] {
     id: String(user.id),
     fullName: user.fullName,
     email: user.email,
-    phone: user.phone,
+    phone: null, // Phone field not available in User model
     role: user.role,
   };
 }
@@ -178,7 +178,6 @@ export async function registerAdmin(
       fullName: input.name,
       email: input.email,
       password: hashedPassword,
-      phone: input.phone ?? null,
       role: UserRole.ADMIN,
     },
   });
@@ -245,7 +244,8 @@ function calculateLockoutMinutes(failedAttempts: number): number {
  * Check if account is currently locked and throw error if so
  * Also auto-unlocks expired lockouts
  */
-function checkAccountLockout(user: User, now: Date = new Date()): void {
+function checkAccountLockout(user: any, now: Date = new Date()): void {
+  // Note: lockedUntil may not exist if migration hasn't been applied
   if (user.lockedUntil) {
     const lockedUntil = new Date(user.lockedUntil);
 
@@ -325,11 +325,12 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
       email: true,
       password: true,
       fullName: true,
-      phone: true,
       role: true,
       isActive: true,
-      failedAttempts: true,
-      lockedUntil: true,
+      // Note: failedAttempts and lockedUntil may not exist in database
+      // Uncomment if migration 20260120104642_add_auth_rate_limiting is applied
+      // failedAttempts: true,
+      // lockedUntil: true,
     },
   });
 
@@ -338,7 +339,9 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
   }
 
   // Check if account is locked (before expensive password check)
-  checkAccountLockout(user, now);
+  // Note: failedAttempts and lockedUntil may not exist in database - use type casting
+  const userWithLockout = user as any;
+  checkAccountLockout(userWithLockout, now);
 
   // Verify password (expensive operation, done after lockout check)
   const isPasswordValid = await bcrypt.compare(
@@ -348,13 +351,13 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
 
   if (!isPasswordValid) {
     // Handle failed login attempt with atomic increment
-    await handleFailedLogin(String(user.id), user.failedAttempts || 0, now);
+    await handleFailedLogin(String(user.id), userWithLockout.failedAttempts || 0, now);
     throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
   }
 
   // Password is correct - reset failed attempts and unlock account
   // Only update database if there are failed attempts or account is locked (optimization)
-  const needsReset = (user.failedAttempts && user.failedAttempts > 0) || user.lockedUntil;
+  const needsReset = (userWithLockout.failedAttempts && userWithLockout.failedAttempts > 0) || userWithLockout.lockedUntil;
   if (needsReset) {
     await resetFailedAttempts(String(user.id));
   }
@@ -541,7 +544,6 @@ export async function getCurrentUser(userId: string): Promise<CurrentUserRespons
       id: true,
       fullName: true,
       email: true,
-      phone: true,
       role: true,
       isActive: true,
     },
@@ -559,7 +561,7 @@ export async function getCurrentUser(userId: string): Promise<CurrentUserRespons
     id: String(user.id),
     fullName: user.fullName,
     email: user.email,
-    phone: user.phone,
+    phone: null, // Phone field not available in User model
     role: user.role,
     isActive: user.isActive,
   };

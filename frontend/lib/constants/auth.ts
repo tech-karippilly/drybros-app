@@ -8,8 +8,9 @@ export const STORAGE_KEYS = {
 export const DEFAULT_FRANCHISE_ID = '550e8400-e29b-41d4-a716-446655440000';
 
 export const AUTH_API_ENDPOINTS = {
-    LOGIN: '/auth/login',
     REGISTER_ADMIN: '/auth/register-admin',
+    LOGIN: '/auth/login',
+    LOGOUT: '/auth/logout',
     FORGOT_PASSWORD: '/auth/forgot-password',
     RESET_PASSWORD: '/auth/reset-password',
     REFRESH_TOKEN: '/auth/refresh-token',
@@ -24,16 +25,6 @@ export const AUTH_ROUTES = {
     DASHBOARD: '/dashboard',
     FORGOT_PASSWORD: '/forgot-password',
     RESET_PASSWORD: '/reset-password',
-} as const;
-
-export const AUTH_API_ENDPOINTS = {
-    REGISTER_ADMIN: '/auth/register-admin',
-    LOGIN: '/auth/login',
-    LOGOUT: '/auth/logout',
-    FORGOT_PASSWORD: '/auth/forgot-password',
-    RESET_PASSWORD: '/auth/reset-password',
-    REFRESH_TOKEN: '/auth/refresh-token',
-    GET_CURRENT_USER: '/auth/me',
 } as const;
 
 export const ADMIN_DUMMY_USER = {

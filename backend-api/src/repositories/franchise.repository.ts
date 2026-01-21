@@ -7,8 +7,8 @@ export async function getAllFranchises() {
   });
 }
 
-export async function getFranchiseById(id: number) {
+export async function getFranchiseById(id: string | number) {
   return prisma.franchise.findUnique({
-    where: { id },
+    where: { id: id as any }, // Accept both string (UUID) and number for backward compatibility
   });
 }

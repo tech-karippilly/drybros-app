@@ -20,6 +20,10 @@ export const ERROR_MESSAGES = {
   // Driver errors
   DRIVER_NOT_FOUND: "Driver not found",
   
+  // Franchise errors
+  FRANCHISE_NOT_FOUND: "Franchise not found",
+  FRANCHISE_CODE_ALREADY_EXISTS: "Franchise code already exists",
+  
   // Role errors
   ROLE_NOT_FOUND: "Role not found",
   ROLE_NAME_EXISTS: "Role name already exists",

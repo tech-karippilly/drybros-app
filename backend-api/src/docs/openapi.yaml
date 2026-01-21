@@ -27,16 +27,154 @@ paths:
 
   /franchises:
     get:
-      summary: List all franchises
+      summary: List all franchises (with optional pagination)
+      description: |
+        Get a list of all franchises. Supports optional pagination via query parameters.
+        
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 10, max: 100)
+        
+        **Without pagination parameters:** Returns all franchises (backward compatible)
+        
+        **With pagination parameters:** Returns paginated results with metadata
       tags:
         - Franchises
       security:
         - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number (default: 1)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Number of items per page (default: 10, max: 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
       responses:
         "200":
-          description: List of franchises
+          description: List of franchises (paginated or all)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    description: Paginated response (when page/limit provided)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Franchise"
+                      pagination:
+                        $ref: "#/components/schemas/PaginationMeta"
+                  - type: object
+                    description: All franchises (when no pagination params)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Franchise"
+              examples:
+                paginated:
+                  summary: Paginated response
+                  value:
+                    data:
+                      - id: "550e8400-e29b-41d4-a716-446655440000"
+                        code: "FRN-A1B2C3"
+                        name: "Downtown Branch"
+                        status: "ACTIVE"
+                    pagination:
+                      page: 1
+                      limit: 10
+                      total: 25
+                      totalPages: 3
+                      hasNext: true
+                      hasPrev: false
+                all:
+                  summary: All franchises (no pagination)
+                  value:
+                    data:
+                      - id: "550e8400-e29b-41d4-a716-446655440000"
+                        code: "FRN-A1B2C3"
+                        name: "Downtown Branch"
+        "400":
+          description: Bad request - invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated (missing or invalid token)
+    post:
+      summary: Create a new franchise
+      description: |
+        Create a new franchise. Only ADMIN role can create franchises.
+        
+        **Auto-Generated Fields:**
+        - `code`: Automatically generated in format FRN-XXXXXX (6 random alphanumeric characters)
+        - `id`: Auto-generated UUID
+        - `isActive`: Defaults to `true`
+        
+        **Fields:**
+        - `name`: Franchise name (required)
+        - `region`: Region where franchise is located (required)
+        - `address`: Physical address of the franchise (required)
+        - `phone`: Contact number (required, validated format)
+        - `inchargeName`: Name of the person in charge (required)
+        - `managerEmail`: Email address of the manager (required, will be used to create manager user account)
+        - `managerPhone`: Phone number of the manager (required, validated format)
+        - `storeImage`: Store image URL (optional)
+        
+        **Manager Account Creation:**
+        - A manager user account will be automatically created with MANAGER role
+        - Password will be auto-generated and sent to the manager's email
+        - Welcome email will be sent with login credentials
+      tags:
+        - Franchises
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFranchiseRequest"
+            example:
+              name: "Downtown Branch"
+              region: "New York"
+              address: "123 Main Street, New York, NY 10001"
+              phone: "+1234567890"
+              inchargeName: "John Smith"
+              managerEmail: "john.smith@drybros.com"
+              managerPhone: "+1234567891"
+              storeImage: "https://example.com/images/store.jpg"
+              legalDocumentsCollected: false
+      responses:
+        "201":
+          description: Franchise created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateFranchiseResponse"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions (only ADMIN can create franchises)
 
   /franchises/{id}:
     get:
@@ -49,15 +187,256 @@ paths:
         - name: id
           in: path
           required: true
+          description: Franchise ID (UUID)
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         "200":
-          description: Franchise data
+          description: Franchise data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Franchise"
         "401":
           description: Not authenticated (missing or invalid token)
         "404":
           description: Franchise not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Update franchise details
+      description: |
+        Update franchise details. Only ADMIN and MANAGER roles can update franchises.
+        
+        All fields are optional - only provide the fields you want to update.
+      tags:
+        - Franchises
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Franchise ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFranchiseRequest"
+            example:
+              name: "Updated Downtown Branch"
+              region: "New York City"
+              address: "456 Updated Street, New York, NY 10002"
+              phone: "+1234567891"
+              inchargeName: "Jane Doe"
+              storeImage: "https://example.com/images/store-updated.jpg"
+              legalDocumentsCollected: true
+      responses:
+        "200":
+          description: Franchise updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateFranchiseResponse"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions
+        "404":
+          description: Franchise not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Soft delete franchise
+      description: |
+        Soft delete a franchise by setting isActive to false. Only ADMIN role can delete franchises.
+        
+        This operation does not permanently delete the franchise from the database.
+      tags:
+        - Franchises
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Franchise ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Franchise deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Franchise deleted successfully"
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions (only ADMIN can delete)
+        "404":
+          description: Franchise not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /franchises/{id}/status:
+    patch:
+      summary: Update franchise status
+      description: |
+        Update franchise status. Only ADMIN role can update franchise status.
+        
+        **Available Statuses:**
+        - `ACTIVE`: Franchise is active and operational
+        - `BLOCKED`: Franchise is blocked (suspended)
+        - `TEMPORARILY_CLOSED`: Franchise is temporarily closed
+      tags:
+        - Franchises
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Franchise ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFranchiseStatusRequest"
+            example:
+              status: "BLOCKED"
+      responses:
+        "200":
+          description: Franchise status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateFranchiseResponse"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions (only ADMIN can update status)
+        "404":
+          description: Franchise not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /franchises/{id}/staff:
+    get:
+      summary: Get staff by franchise ID
+      description: |
+        Get all staff members associated with a specific franchise.
+        
+        Returns only active staff members.
+      tags:
+        - Franchises
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Franchise ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Staff list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Staff"
+        "401":
+          description: Unauthorized - missing or invalid token
+        "404":
+          description: Franchise not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /franchises/{id}/drivers:
+    get:
+      summary: Get drivers by franchise ID
+      description: |
+        Get all drivers associated with a specific franchise.
+        
+        Returns only active drivers.
+      tags:
+        - Franchises
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Franchise ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Drivers list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Driver"
+        "401":
+          description: Unauthorized - missing or invalid token
+        "404":
+          description: Franchise not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /roles:
     get:
@@ -222,8 +601,24 @@ paths:
             minimum: 1
             maximum: 100
             default: 10
+        - name: franchiseId
+          in: query
+          required: false
+          description: Filter staff by franchise ID (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
           description: Number of items per page (max 100)
           example: 10
+        - name: franchiseId
+          in: query
+          required: false
+          description: Filter staff by franchise ID (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
       responses:
         "200":
           description: List of staff members (paginated or all)
@@ -491,13 +886,22 @@ paths:
     get:
       summary: List all drivers
       description: |
-        Retrieves a list of all drivers in the system. Supports pagination.
+        Retrieves a list of all drivers in the system. Supports pagination and franchise filtering.
         
         **Pagination:**
         - Use `page` and `limit` query parameters for paginated results
         - Default: `page=1`, `limit=10`
         - Maximum `limit` is 100
         - Only active drivers are returned (soft-deleted drivers are excluded)
+        
+        **Franchise Filtering:**
+        - Use `franchiseId` query parameter to filter drivers by franchise (optional)
+        - If provided, only returns drivers belonging to that franchise
+        
+        **Examples:**
+        - `/drivers?page=1&limit=10` - Get first 10 drivers
+        - `/drivers?franchiseId=550e8400-e29b-41d4-a716-446655440000` - Get all drivers for a specific franchise
+        - `/drivers?page=1&limit=20&franchiseId=550e8400-e29b-41d4-a716-446655440000` - Get paginated drivers for a specific franchise
         
         **Without Pagination:**
         - If no pagination parameters are provided, returns all active drivers
@@ -525,6 +929,14 @@ paths:
             maximum: 100
             default: 10
             example: 10
+        - name: franchiseId
+          in: query
+          required: false
+          description: Filter drivers by franchise ID (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
       responses:
         "200":
           description: List of drivers retrieved successfully
@@ -2119,6 +2531,239 @@ components:
             - totalPages
             - hasNext
             - hasPrev
+
+    Franchise:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Franchise ID (UUID)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        code:
+          type: string
+          description: Auto-generated unique franchise code (format: FRN-XXXXXX)
+          example: "FRN-A1B2C3"
+        name:
+          type: string
+          description: Franchise name
+          example: "Downtown Branch"
+        city:
+          type: string
+          description: City (kept for backward compatibility)
+          example: "New York"
+        region:
+          type: string
+          nullable: true
+          description: Region where franchise is located
+          example: "New York"
+        address:
+          type: string
+          nullable: true
+          description: Physical address of the franchise
+          example: "123 Main Street, New York, NY 10001"
+        phone:
+          type: string
+          nullable: true
+          description: Contact number
+          example: "+1234567890"
+        inchargeName:
+          type: string
+          nullable: true
+          description: Name of the person in charge
+          example: "John Smith"
+        storeImage:
+          type: string
+          nullable: true
+          description: Store image URL
+          example: "https://example.com/images/store.jpg"
+        legalDocumentsCollected:
+          type: boolean
+          description: Flag indicating if legal documents have been collected
+          example: false
+        status:
+          type: string
+          enum: [ACTIVE, BLOCKED, TEMPORARILY_CLOSED]
+          description: Franchise status
+          example: "ACTIVE"
+        isActive:
+          type: boolean
+          description: Whether the franchise is active
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2024-01-20T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2024-01-20T10:30:00Z"
+
+    CreateFranchiseRequest:
+      type: object
+      required:
+        - name
+        - region
+        - address
+        - phone
+        - inchargeName
+        - managerEmail
+        - managerPhone
+      properties:
+        name:
+          type: string
+          description: Franchise name
+          example: "Downtown Branch"
+          minLength: 1
+          maxLength: 100
+        region:
+          type: string
+          description: Region where franchise is located
+          example: "New York"
+          minLength: 1
+          maxLength: 100
+        address:
+          type: string
+          description: Physical address of the franchise
+          example: "123 Main Street, New York, NY 10001"
+          minLength: 1
+          maxLength: 500
+        phone:
+          type: string
+          description: Contact number
+          example: "+1234567890"
+          minLength: 10
+          maxLength: 20
+        inchargeName:
+          type: string
+          description: Name of the person in charge
+          example: "John Smith"
+          minLength: 1
+          maxLength: 100
+        managerEmail:
+          type: string
+          format: email
+          description: Email address of the manager (will be used to create manager user account)
+          example: "john.smith@drybros.com"
+          maxLength: 255
+        managerPhone:
+          type: string
+          description: Phone number of the manager
+          example: "+1234567891"
+          pattern: "^[+]?[(]?[0-9]{1,4}[)]?[-\\s.]?[(]?[0-9]{1,4}[)]?[-\\s.]?[0-9]{1,9}$"
+          minLength: 10
+          maxLength: 20
+        storeImage:
+          type: string
+          format: uri
+          nullable: true
+          description: Store image URL (optional)
+          example: "https://example.com/images/store.jpg"
+          maxLength: 500
+        legalDocumentsCollected:
+          type: boolean
+          description: Flag indicating if legal documents have been collected
+          example: false
+          default: false
+
+    CreateFranchiseResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Franchise created successfully"
+        data:
+          $ref: "#/components/schemas/Franchise"
+
+    UpdateFranchiseRequest:
+      type: object
+      description: All fields are optional - only provide fields you want to update
+      properties:
+        name:
+          type: string
+          description: Franchise name
+          example: "Updated Downtown Branch"
+          minLength: 1
+          maxLength: 100
+        region:
+          type: string
+          description: Region where franchise is located
+          example: "New York City"
+          minLength: 1
+          maxLength: 100
+        address:
+          type: string
+          description: Physical address of the franchise
+          example: "456 Updated Street, New York, NY 10002"
+          minLength: 1
+          maxLength: 500
+        phone:
+          type: string
+          description: Contact number
+          example: "+1234567891"
+          pattern: "^[+]?[(]?[0-9]{1,4}[)]?[-\\s.]?[(]?[0-9]{1,4}[)]?[-\\s.]?[0-9]{1,9}$"
+          minLength: 10
+          maxLength: 20
+        inchargeName:
+          type: string
+          description: Name of the person in charge
+          example: "Jane Doe"
+          minLength: 1
+          maxLength: 100
+        storeImage:
+          type: string
+          format: uri
+          nullable: true
+          description: Store image URL (optional)
+          example: "https://example.com/images/store-updated.jpg"
+          maxLength: 500
+        legalDocumentsCollected:
+          type: boolean
+          description: Flag indicating if legal documents have been collected
+          example: true
+
+    UpdateFranchiseStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [ACTIVE, BLOCKED, TEMPORARILY_CLOSED]
+          description: New franchise status
+          example: "BLOCKED"
+
+    PaginationMeta:
+      type: object
+      description: Pagination metadata
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          description: Number of items per page
+          example: 10
+        total:
+          type: integer
+          description: Total number of items
+          example: 25
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 3
+        hasNext:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        hasPrev:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
 
     ErrorResponse:
       type: object

@@ -1,5 +1,6 @@
 // src/repositories/franchise.repository.ts
 import prisma from "../config/prismaClient";
+import { Franchise } from "@prisma/client";
 
 export async function getAllFranchises() {
   return prisma.franchise.findMany({
@@ -7,8 +8,161 @@ export async function getAllFranchises() {
   });
 }
 
-export async function getFranchiseById(id: string | number) {
+export async function getFranchisesPaginated(skip: number, take: number) {
+  // Use Promise.all for parallel execution
+  const [data, total] = await Promise.all([
+    prisma.franchise.findMany({
+      skip,
+      take,
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.franchise.count(),
+  ]);
+
+  return { data, total };
+}
+
+export async function getFranchiseById(id: string) {
   return prisma.franchise.findUnique({
-    where: { id: id as any }, // Accept both string (UUID) and number for backward compatibility
+    where: { id },
+  });
+}
+
+export async function getFranchiseByCode(code: string) {
+  return prisma.franchise.findUnique({
+    where: { code },
+  });
+}
+
+/**
+ * Generate unique franchise code
+ * Format: FRN-XXXXXX (6 random alphanumeric characters)
+ */
+function generateFranchiseCode(): string {
+  const prefix = "FRN";
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `${prefix}-${code}`;
+}
+
+/**
+ * Check if franchise code already exists and generate a new one if needed
+ */
+async function getUniqueFranchiseCode(): Promise<string> {
+  const maxAttempts = 20;
+  let franchiseCode = generateFranchiseCode();
+  let attempts = 0;
+  const checkedCodes = new Set<string>();
+
+  while (attempts < maxAttempts) {
+    if (checkedCodes.has(franchiseCode)) {
+      franchiseCode = generateFranchiseCode();
+      attempts++;
+      continue;
+    }
+
+    checkedCodes.add(franchiseCode);
+    const existing = await getFranchiseByCode(franchiseCode);
+    
+    if (!existing) {
+      return franchiseCode;
+    }
+    
+    franchiseCode = generateFranchiseCode();
+    attempts++;
+  }
+
+  throw new Error("Failed to generate unique franchise code after multiple attempts");
+}
+
+export async function createFranchise(data: {
+  name: string;
+  region: string;
+  address: string;
+  phone: string;
+  inchargeName: string;
+  storeImage?: string | null;
+  legalDocumentsCollected?: boolean;
+}): Promise<Franchise> {
+  // Generate unique franchise code
+  const code = await getUniqueFranchiseCode();
+
+  return prisma.franchise.create({
+    data: {
+      code,
+      name: data.name,
+      city: data.region, // Store region in city field for backward compatibility
+      region: data.region,
+      address: data.address,
+      phone: data.phone,
+      inchargeName: data.inchargeName,
+      storeImage: data.storeImage || null,
+      legalDocumentsCollected: data.legalDocumentsCollected ?? false,
+    },
+  });
+}
+
+export async function updateFranchise(
+  id: string,
+  data: {
+    name?: string;
+    region?: string;
+    address?: string;
+    phone?: string;
+    inchargeName?: string;
+    storeImage?: string | null;
+    legalDocumentsCollected?: boolean;
+  }
+): Promise<Franchise> {
+  const updateData: any = {};
+  
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.region !== undefined) {
+    updateData.region = data.region;
+    updateData.city = data.region; // Update city for backward compatibility
+  }
+  if (data.address !== undefined) updateData.address = data.address;
+  if (data.phone !== undefined) updateData.phone = data.phone;
+  if (data.inchargeName !== undefined) updateData.inchargeName = data.inchargeName;
+  if (data.storeImage !== undefined) updateData.storeImage = data.storeImage;
+  if (data.legalDocumentsCollected !== undefined) updateData.legalDocumentsCollected = data.legalDocumentsCollected;
+
+  return prisma.franchise.update({
+    where: { id },
+    data: updateData,
+  });
+}
+
+export async function softDeleteFranchise(id: string): Promise<Franchise> {
+  return prisma.franchise.update({
+    where: { id },
+    data: { isActive: false },
+  });
+}
+
+export async function updateFranchiseStatus(
+  id: string,
+  status: "ACTIVE" | "BLOCKED" | "TEMPORARILY_CLOSED"
+): Promise<Franchise> {
+  return prisma.franchise.update({
+    where: { id },
+    data: { status },
+  });
+}
+
+export async function getStaffByFranchiseId(franchiseId: string) {
+  return prisma.staff.findMany({
+    where: { franchiseId, isActive: true },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function getDriversByFranchiseId(franchiseId: string) {
+  return prisma.driver.findMany({
+    where: { franchiseId, isActive: true },
+    orderBy: { createdAt: "desc" },
   });
 }

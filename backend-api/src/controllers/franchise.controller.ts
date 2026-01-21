@@ -1,6 +1,17 @@
 // src/controllers/franchise.controller.ts
 import { Request, Response, NextFunction } from "express";
-import { listFranchises, getFranchise } from "../services/franchise.service";
+import {
+  listFranchises,
+  listFranchisesPaginated,
+  getFranchise,
+  createFranchise,
+  updateFranchise,
+  softDeleteFranchise,
+  updateFranchiseStatus,
+  getStaffByFranchiseId,
+  getDriversByFranchiseId,
+} from "../services/franchise.service";
+import { CreateFranchiseDTO, UpdateFranchiseDTO, UpdateFranchiseStatusDTO } from "../types/franchise.dto";
 
 export async function getFranchises(
   req: Request,
@@ -8,8 +19,17 @@ export async function getFranchises(
   next: NextFunction
 ) {
   try {
-    const data = await listFranchises();
-    res.json({ data });
+    // Check if pagination query parameters are provided
+    if (req.query.page || req.query.limit) {
+      // Use validated query (parsed and transformed by middleware)
+      const pagination = (req as any).validatedQuery;
+      const result = await listFranchisesPaginated(pagination);
+      res.json(result);
+    } else {
+      // Backward compatibility: return all franchises if no pagination params
+      const data = await listFranchises();
+      res.json({ data });
+    }
   } catch (err) {
     next(err);
   }
@@ -21,9 +41,92 @@ export async function getFranchiseById(
   next: NextFunction
 ) {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id; // UUID string
     const franchise = await getFranchise(id);
     res.json({ data: franchise });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createFranchiseHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const result = await createFranchise(req.body as CreateFranchiseDTO);
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateFranchiseHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const id = req.params.id;
+    const result = await updateFranchise(id, req.body as UpdateFranchiseDTO);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function softDeleteFranchiseHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const id = req.params.id;
+    const result = await softDeleteFranchise(id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateFranchiseStatusHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const id = req.params.id;
+    const result = await updateFranchiseStatus(id, req.body as UpdateFranchiseStatusDTO);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getStaffByFranchiseIdHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const franchiseId = req.params.id;
+    const result = await getStaffByFranchiseId(franchiseId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getDriversByFranchiseIdHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const franchiseId = req.params.id;
+    const result = await getDriversByFranchiseId(franchiseId);
+    res.json(result);
   } catch (err) {
     next(err);
   }

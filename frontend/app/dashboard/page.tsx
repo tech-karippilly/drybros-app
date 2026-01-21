@@ -11,6 +11,8 @@ import { AUTH_ROUTES, REFRESH_TOKEN_EXPIRED_ERROR } from '@/lib/constants/auth';
 import { getAuthTokens } from '@/lib/utils/auth';
 import { getCurrentUser } from '@/lib/features/auth/authApi';
 import { getIsRefreshTokenExpired } from '@/lib/utils/tokenRefresh';
+import { fetchFranchises, fetchFranchiseById } from '@/lib/features/franchise/franchiseSlice';
+import { getFranchiseByCode } from '@/lib/features/franchise/franchiseApi';
 
 // Role mapping function - extracted outside component for optimization
 const mapBackendRoleToFrontend = (backendRole: string): string => {
@@ -44,6 +46,24 @@ export default function DashboardPage() {
                 accessToken: tokens.accessToken || '',
                 refreshToken: tokens.refreshToken || '',
             }));
+
+            // Fetch franchises based on role
+            const userRole = mapBackendRoleToFrontend(userData.role);
+            if (userRole === 'admin') {
+                // Admin: fetch all franchises
+                await dispatch(fetchFranchises()).unwrap();
+            } else {
+                // For other roles: fetch franchise by code if available
+                // Note: If user data includes franchiseCode, use getFranchiseByCode
+                // For now, we'll fetch all and let the user select if needed
+                // You can add franchiseCode to user data in backend if needed
+                try {
+                    await dispatch(fetchFranchises()).unwrap();
+                } catch (franchiseError) {
+                    // If franchise fetch fails, continue anyway
+                    console.warn('Failed to fetch franchises:', franchiseError);
+                }
+            }
         } catch (error: any) {
             if (error?.message === REFRESH_TOKEN_EXPIRED_ERROR) {
                 setIsLoadingUser(false);

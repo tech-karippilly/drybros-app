@@ -123,6 +123,126 @@ This is an automated message. Please do not reply to this email.
   }
 }
 
+/**
+ * Send welcome email to franchise manager
+ */
+export interface SendManagerWelcomeEmailParams {
+  to: string;
+  managerName: string;
+  franchiseName: string;
+  email: string;
+  password: string;
+  loginLink: string;
+}
+
+export async function sendManagerWelcomeEmail(
+  params: SendManagerWelcomeEmailParams
+): Promise<void> {
+  const { to, managerName, franchiseName, email, password, loginLink } = params;
+
+  if (!transporter) {
+    logger.warn("Email transporter not configured. Skipping email send.");
+    return;
+  }
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f9f9f9; }
+        .credentials { background-color: #fff; padding: 15px; border-left: 4px solid #4CAF50; margin: 15px 0; }
+        .button { display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
+        .warning { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Welcome to Drybros!</h1>
+        </div>
+        <div class="content">
+          <p>Dear ${managerName},</p>
+          <p>Welcome to the Drybros platform! Your manager account has been successfully created for <strong>${franchiseName}</strong>.</p>
+          
+          <h3>🔐 Login Credentials</h3>
+          <div class="credentials">
+            <p><strong>Email:</strong> ${email}</p>
+            <p><strong>Password:</strong> <code style="background-color: #f0f0f0; padding: 5px 10px; border-radius: 3px; font-family: monospace;">${password}</code></p>
+          </div>
+          
+          <p style="text-align: center;">
+            <a href="${loginLink}" class="button">Login to Dashboard</a>
+          </p>
+          
+          <div class="warning">
+            <strong>⚠️ Security Notice:</strong>
+            <p>Please change your password immediately after your first login for security purposes.</p>
+            <p>Do not share your login credentials with anyone.</p>
+          </div>
+          
+          <p>If you have any questions or need assistance, please contact our support team.</p>
+        </div>
+        <div class="footer">
+          <p>This is an automated message. Please do not reply to this email.</p>
+          <p>&copy; ${new Date().getFullYear()} Drybros. All rights reserved.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const textContent = `
+Welcome to Drybros!
+
+Dear ${managerName},
+
+Welcome to the Drybros platform! Your manager account has been successfully created for ${franchiseName}.
+
+Login Credentials:
+Email: ${email}
+Password: ${password}
+
+Login Link: ${loginLink}
+
+⚠️ Security Notice:
+Please change your password immediately after your first login for security purposes.
+Do not share your login credentials with anyone.
+
+If you have any questions or need assistance, please contact our support team.
+
+Best regards,
+The Drybros Team
+
+---
+This is an automated message. Please do not reply to this email.
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: emailConfig.from,
+      to: to,
+      subject: `Welcome to Drybros - Manager Account for ${franchiseName}`,
+      text: textContent,
+      html: htmlContent,
+    });
+
+    logger.info("Manager welcome email sent successfully", { email: to, franchiseName });
+  } catch (error) {
+    logger.error("Failed to send manager welcome email", { 
+      error: error instanceof Error ? error.message : String(error),
+      email: to,
+      franchiseName 
+    });
+    // Don't throw error - email failure shouldn't break franchise creation
+  }
+}
+
 interface SendWelcomeEmailParams {
   to: string;
   name: string;

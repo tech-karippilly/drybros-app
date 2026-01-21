@@ -25,7 +25,9 @@ export async function getStaffList(
       res.json(result);
     } else {
       // Backward compatibility: return all staff if no pagination params
-      const data = await listStaff();
+      const pagination = (req as any).validatedQuery;
+      const franchiseId = pagination?.franchiseId;
+      const data = await listStaff(franchiseId);
       res.json({ data });
     }
   } catch (err) {

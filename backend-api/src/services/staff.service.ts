@@ -99,8 +99,8 @@ function mapStaffToResponse(staff: {
 /**
  * List all staff members (without pagination - for backward compatibility)
  */
-export async function listStaff(): Promise<StaffResponseDTO[]> {
-  const staff = await getAllStaff();
+export async function listStaff(franchiseId?: string): Promise<StaffResponseDTO[]> {
+  const staff = await getAllStaff(franchiseId);
   return staff.map(mapStaffToResponse);
 }
 
@@ -110,10 +110,10 @@ export async function listStaff(): Promise<StaffResponseDTO[]> {
 export async function listStaffPaginated(
   pagination: PaginationQueryDTO
 ): Promise<PaginatedStaffResponseDTO> {
-  const { page, limit } = pagination;
+  const { page, limit, franchiseId } = pagination;
   const skip = (page - 1) * limit;
 
-  const { data, total } = await getStaffPaginated(skip, limit);
+  const { data, total } = await getStaffPaginated(skip, limit, franchiseId);
   
   // Calculate pagination metadata efficiently
   const totalPages = total > 0 ? Math.ceil(total / limit) : 0;

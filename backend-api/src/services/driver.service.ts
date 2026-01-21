@@ -133,8 +133,8 @@ function mapDriverToResponse(driver: any): DriverResponseDTO {
 /**
  * List all drivers (without pagination - for backward compatibility)
  */
-export async function listDrivers(): Promise<DriverResponseDTO[]> {
-  const drivers = await getAllDrivers();
+export async function listDrivers(franchiseId?: string): Promise<DriverResponseDTO[]> {
+  const drivers = await getAllDrivers(false, franchiseId);
   return drivers.map(mapDriverToResponse);
 }
 
@@ -144,10 +144,10 @@ export async function listDrivers(): Promise<DriverResponseDTO[]> {
 export async function listDriversPaginated(
   pagination: PaginationQueryDTO
 ): Promise<PaginatedDriverResponseDTO> {
-  const { page, limit } = pagination;
+  const { page, limit, franchiseId } = pagination;
   const skip = (page - 1) * limit;
 
-  const { data, total } = await getDriversPaginated(skip, limit);
+  const { data, total } = await getDriversPaginated(skip, limit, franchiseId);
   
   // Calculate pagination metadata efficiently
   const totalPages = total > 0 ? Math.ceil(total / limit) : 0;

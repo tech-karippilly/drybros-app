@@ -5,6 +5,7 @@ import { PlaceholderScreen } from './PlaceholderScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { PenaltiesManager } from './penalties/PenaltiesManager';
 import { DriversManager } from './drivers/DriversManager';
+import { TripManager } from './trips/TripManager';
 import { useAppSelector } from '@/lib/hooks';
 import { DashboardLayout } from './DashboardLayout';
 import {
@@ -77,7 +78,10 @@ export function StaffDashboard() {
             case 'payroll':
                 return <PenaltiesManager />;
             case 'trips':
-                return <PlaceholderScreen icon={Map} title="Trip Monitoring" description="Assist with trip tracking and logistics coordination." />;
+            case 'trip-types':
+            case 'trip-booking':
+            case 'unassigned-trips':
+                return <TripManager />;
             case 'complaints':
                 return <PlaceholderScreen icon={MessageSquare} title="Complaint Resolution" description="Address and document customer feedback and complaints." />;
             case 'attendance':

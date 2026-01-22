@@ -12,6 +12,7 @@ import tripRoutes from "./routes/trip.routes";
 import authRoutes from "./routes/auth.routes";
 import roleRoutes from "./routes/role.routes";
 import staffRoutes from "./routes/staff.routes";
+import tripTypeRoutes from "./routes/tripType.routes";
 
 import cors from "cors";
 import path from "path";
@@ -73,8 +74,69 @@ const corsOptions = {
 
 // Middlewares
 app.use(cors(corsOptions));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Custom JSON parser that handles control characters gracefully
+app.use((req, res, next) => {
+  if (req.headers['content-type']?.includes('application/json')) {
+    let body = '';
+    req.setEncoding('utf8');
+    
+    req.on('data', (chunk) => {
+      body += chunk;
+    });
+    
+    req.on('end', () => {
+      try {
+        // First, try to parse as-is
+        req.body = JSON.parse(body);
+        next();
+      } catch (err: any) {
+        // If parsing fails, try sanitizing control characters and parse again
+        try {
+          // Remove unescaped control characters (but keep escaped ones like \n, \t)
+          // This regex removes control chars that aren't part of escape sequences
+          const sanitized = body
+            .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '') // Remove control chars
+            .replace(/\r\n/g, ' ') // Replace CRLF with space
+            .replace(/\n/g, ' ') // Replace LF with space
+            .replace(/\r/g, ' ') // Replace CR with space
+            .replace(/\t/g, ' '); // Replace tabs with space
+          
+          req.body = JSON.parse(sanitized);
+          logger.warn('JSON sanitized due to control characters', {
+            url: req.url,
+            method: req.method,
+          });
+          next();
+        } catch (parseErr: any) {
+          logger.error('JSON parse error after sanitization', {
+            error: parseErr.message,
+            originalError: err.message,
+            url: req.url,
+            method: req.method,
+            bodyPreview: body.substring(0, 200), // Log first 200 chars for debugging
+          });
+          return res.status(400).json({
+            error: 'Invalid JSON format. Please check your request body for special characters or malformed JSON.',
+            details: 'The request body contains invalid characters that cannot be parsed as JSON.',
+          });
+        }
+      }
+    });
+    
+    req.on('error', (err) => {
+      next(err);
+    });
+  } else {
+    // For non-JSON content, use default express parsers
+    express.json({ 
+      strict: false,
+      limit: '10mb',
+    })(req, res, next);
+  }
+});
+
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Request logging middleware (should be early in the chain)
 app.use(requestLogger);
@@ -98,6 +160,7 @@ app.use("/trips", tripRoutes);
 app.use("/auth", authRoutes);
 app.use("/roles", roleRoutes);
 app.use("/staff", staffRoutes);
+app.use("/trip-types", tripTypeRoutes);
 
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Drybros backend root 🚗" });

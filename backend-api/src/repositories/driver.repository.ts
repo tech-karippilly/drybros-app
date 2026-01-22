@@ -93,6 +93,7 @@ export async function createDriver(data: {
   previousExp: boolean;
   carTypes: string; // JSON string
   createdBy?: string | null; // User UUID who created this driver
+  currentRating?: number; // Optional rating (defaults to 5 in service)
 }): Promise<Driver> {
   return prisma.driver.create({
     data,
@@ -154,9 +155,57 @@ export async function updateDriverStatus(
   });
 }
 
+export async function updateDriverTripStatus(
+  id: string,
+  driverTripStatus: "AVAILABLE" | "ON_TRIP"
+): Promise<Driver> {
+  return prisma.driver.update({
+    where: { id },
+    data: { driverTripStatus },
+  });
+}
+
 export async function softDeleteDriver(id: string): Promise<Driver> {
   return prisma.driver.update({
     where: { id },
     data: { isActive: false },
+  });
+}
+
+/**
+ * Get drivers with trip data for performance calculation
+ * Includes trips from the last 90 days
+ */
+export async function getDriversWithTripData(
+  includeInactive: boolean = false,
+  franchiseId?: string
+) {
+  const whereClause: any = {};
+
+  if (!includeInactive) {
+    whereClause.isActive = true;
+  }
+
+  if (franchiseId) {
+    whereClause.franchiseId = franchiseId;
+  }
+
+  // Calculate performance window (90 days)
+  const performanceWindowDate = new Date(
+    Date.now() - 90 * 24 * 60 * 60 * 1000
+  );
+
+  return prisma.driver.findMany({
+    where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
+    include: {
+      Trip: {
+        where: {
+          createdAt: {
+            gte: performanceWindowDate,
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
   });
 }

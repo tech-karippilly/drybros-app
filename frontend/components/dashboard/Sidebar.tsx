@@ -1,7 +1,7 @@
 "use client";
 
-import React from 'react';
-import { WashingMachine, LogOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { WashingMachine, LogOut, ChevronDown, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAppSelector, useAppDispatch } from '@/lib/hooks';
@@ -17,8 +17,65 @@ export function Sidebar({ className }: SidebarProps) {
     const { user, activeTab } = useAppSelector((state) => state.auth);
     const dispatch = useAppDispatch();
     const router = useRouter();
+    const [expandedMenus, setExpandedMenus] = useState<Set<string>>(
+        new Set(
+            ['trip-types', 'trip-booking', 'unassigned-trips'].includes(activeTab)
+                ? ['trips']
+                : []
+        )
+    );
 
     const items = ROLE_MENUS[user?.role as keyof typeof ROLE_MENUS] || ROLE_MENUS.admin;
+
+    // Auto-expand parent menu when submenu item is active
+    useEffect(() => {
+        items.forEach((item) => {
+            if (item.submenu) {
+                const hasActiveSubmenu = item.submenu.some((subItem) => subItem.id === activeTab);
+                if (hasActiveSubmenu && !expandedMenus.has(item.id)) {
+                    setExpandedMenus((prev) => new Set(prev).add(item.id));
+                }
+            }
+        });
+    }, [activeTab, items, expandedMenus]);
+
+    const toggleSubmenu = (menuId: string) => {
+        setExpandedMenus((prev) => {
+            const newSet = new Set(prev);
+            if (newSet.has(menuId)) {
+                newSet.delete(menuId);
+            } else {
+                newSet.add(menuId);
+            }
+            return newSet;
+        });
+    };
+
+    const isMenuExpanded = (menuId: string) => expandedMenus.has(menuId);
+    const isParentActive = (item: typeof items[0]) => {
+        if (item.id === activeTab) return true;
+        if (item.submenu) {
+            return item.submenu.some((subItem) => subItem.id === activeTab);
+        }
+        return false;
+    };
+
+    const handleMenuClick = (item: typeof items[0]) => {
+        if (item.submenu && item.submenu.length > 0) {
+            const wasExpanded = isMenuExpanded(item.id);
+            toggleSubmenu(item.id);
+            // If expanding (was not expanded), select first submenu item
+            if (!wasExpanded && item.submenu.length > 0) {
+                dispatch(setActiveTab(item.submenu[0].id));
+            }
+        } else {
+            dispatch(setActiveTab(item.id));
+        }
+    };
+
+    const handleSubmenuClick = (subItemId: string, parentId: string) => {
+        dispatch(setActiveTab(subItemId));
+    };
 
     return (
         <aside className={cn(
@@ -38,23 +95,60 @@ export function Sidebar({ className }: SidebarProps) {
             </div>
 
             <nav className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">
-                {items.map((item) => (
-                    <button
-                        key={item.id}
-                        onClick={() => dispatch(setActiveTab(item.id))}
-                        className={cn(
-                            "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium w-full text-left",
-                            activeTab === item.id
-                                ? "bg-[#0d59f2] text-white shadow-lg shadow-blue-500/20"
-                                : "text-[#0d121c] dark:text-gray-300 hover:bg-[#e7ebf4] dark:hover:bg-gray-800"
-                        )}
-                    >
-                        <item.icon size={20} className={cn(
-                            activeTab === item.id ? "text-white" : "text-[#49659c] dark:text-gray-400"
-                        )} />
-                        <span>{item.label}</span>
-                    </button>
-                ))}
+                {items.map((item) => {
+                    const hasSubmenu = item.submenu && item.submenu.length > 0;
+                    const isExpanded = isMenuExpanded(item.id);
+                    const isActive = isParentActive(item);
+
+                    return (
+                        <div key={item.id} className="flex flex-col">
+                            <button
+                                onClick={() => handleMenuClick(item)}
+                                className={cn(
+                                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium w-full text-left",
+                                    isActive
+                                        ? "bg-[#0d59f2] text-white shadow-lg shadow-blue-500/20"
+                                        : "text-[#0d121c] dark:text-gray-300 hover:bg-[#e7ebf4] dark:hover:bg-gray-800"
+                                )}
+                            >
+                                <item.icon size={20} className={cn(
+                                    isActive ? "text-white" : "text-[#49659c] dark:text-gray-400"
+                                )} />
+                                <span className="flex-1">{item.label}</span>
+                                {hasSubmenu && (
+                                    isExpanded ? (
+                                        <ChevronDown size={16} className={cn(
+                                            isActive ? "text-white" : "text-[#49659c] dark:text-gray-400"
+                                        )} />
+                                    ) : (
+                                        <ChevronRight size={16} className={cn(
+                                            isActive ? "text-white" : "text-[#49659c] dark:text-gray-400"
+                                        )} />
+                                    )
+                                )}
+                            </button>
+                            {hasSubmenu && isExpanded && (
+                                <div className="ml-4 mt-1 flex flex-col gap-1 border-l-2 border-gray-200 dark:border-gray-800 pl-2">
+                                    {item.submenu!.map((subItem) => (
+                                        <button
+                                            key={subItem.id}
+                                            onClick={() => handleSubmenuClick(subItem.id, item.id)}
+                                            className={cn(
+                                                "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium w-full text-left",
+                                                activeTab === subItem.id
+                                                    ? "bg-[#0d59f2]/10 text-[#0d59f2] dark:bg-[#0d59f2]/20 dark:text-[#0d59f2]"
+                                                    : "text-[#49659c] dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                                            )}
+                                        >
+                                            <subItem.icon size={16} />
+                                            <span>{subItem.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </nav>
 
             <div className="p-4 border-t border-gray-200 dark:border-gray-800 space-y-2">

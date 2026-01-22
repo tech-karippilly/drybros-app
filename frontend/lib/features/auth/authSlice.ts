@@ -87,6 +87,13 @@ const authSlice = createSlice({
         setSelectedFranchise: (state, action: PayloadAction<Franchise>) => {
             state.selectedFranchise = action.payload;
         },
+        setFranchiseList: (state, action: PayloadAction<Franchise[]>) => {
+            state.franchiseList = action.payload;
+            // If no franchise is selected, select the first one
+            if (!state.selectedFranchise && action.payload.length > 0) {
+                state.selectedFranchise = action.payload[0];
+            }
+        },
         setActiveTab: (state, action: PayloadAction<string>) => {
             state.activeTab = action.payload;
             
@@ -98,5 +105,5 @@ const authSlice = createSlice({
     },
 });
 
-export const { setCredentials, logout, setLoading, setSelectedFranchise, setActiveTab } = authSlice.actions;
+export const { setCredentials, logout, setLoading, setSelectedFranchise, setFranchiseList, setActiveTab } = authSlice.actions;
 export default authSlice.reducer;

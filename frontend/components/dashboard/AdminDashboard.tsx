@@ -8,7 +8,8 @@ import { SettingsScreen } from './SettingsScreen';
 import { FranchiseManager } from './franchise/FranchiseManager';
 import { StaffManager } from './staff/StaffManager';
 import { PenaltiesManager } from './penalties/PenaltiesManager';
-import { DriversManager} from './drivers/DriversManager'
+import { DriversManager} from './drivers/DriversManager';
+import { TripManager } from './trips/TripManager';
 import { useAppSelector } from '@/lib/hooks';
 import { DashboardLayout } from './DashboardLayout';
 import {
@@ -158,7 +159,10 @@ export function AdminDashboard() {
             case 'payroll':
                 return <PenaltiesManager />;
             case 'trips':
-                return <PlaceholderScreen icon={Map} title="Trip Logistics" description="Optimize delivery routes, monitor live trips, and manage dispatch operations in real-time." />;
+            case 'trip-types':
+            case 'trip-booking':
+            case 'unassigned-trips':
+                return <TripManager />;
             case 'complaints':
                 return <PlaceholderScreen icon={MessageSquare} title="Customer Support" description="Review resolve customer complaints, feedback, and service quality reports." />;
             case 'attendance':

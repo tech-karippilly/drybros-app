@@ -14,7 +14,7 @@ model Customer {
   email       String?
   city        String?
   notes       String?
-  franchiseId String   @db.Uuid
+  franchiseId String    @db.Uuid
   createdAt   DateTime  @default(now())
   updatedAt   DateTime
   Franchise   Franchise @relation(fields: [franchiseId], references: [id])
@@ -32,63 +32,64 @@ model DistanceScope {
 }
 
 model Driver {
-  id                String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  franchiseId       String       @db.Uuid
-  firstName         String
-  lastName          String
-  phone             String       @unique
-  email             String       @unique
-  altPhone          String?
-  driverCode        String       @unique
-  password          String       // hashed password for web login
-  emergencyContactName      String
-  emergencyContactPhone     String
-  emergencyContactRelation  String
-  address          String
-  city             String
-  state            String
-  pincode          String
-  licenseNumber    String
-  licenseExpDate   DateTime
-  bankAccountName  String
-  bankAccountNumber String
-  bankIfscCode     String
-  aadharCard       Boolean      @default(false)
-  license          Boolean      @default(false)
-  educationCert    Boolean      @default(false)
-  previousExp      Boolean      @default(false)
-  carTypes         String       // JSON array of CarType enum values
-  status           DriverStatus @default(ACTIVE)
-  complaintCount   Int          @default(0)
-  bannedGlobally   Boolean      @default(false)
-  dailyTargetAmount Int?
-  currentRating     Float?
-  isActive         Boolean      @default(true)
-  createdBy        String?      @db.Uuid // User ID who created this driver
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  Trip             Trip[]
+  id                       String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  franchiseId              String           @db.Uuid
+  firstName                String
+  lastName                 String
+  phone                    String           @unique
+  email                    String           @unique
+  altPhone                 String?
+  driverCode               String           @unique
+  password                 String // hashed password for web login
+  emergencyContactName     String
+  emergencyContactPhone    String
+  emergencyContactRelation String
+  address                  String
+  city                     String
+  state                    String
+  pincode                  String
+  licenseNumber            String
+  licenseExpDate           DateTime
+  bankAccountName          String
+  bankAccountNumber        String
+  bankIfscCode             String
+  aadharCard               Boolean          @default(false)
+  license                  Boolean          @default(false)
+  educationCert            Boolean          @default(false)
+  previousExp              Boolean          @default(false)
+  carTypes                 String // JSON array of CarType enum values
+  status                   DriverStatus     @default(ACTIVE)
+  driverTripStatus         DriverTripStatus @default(AVAILABLE)
+  complaintCount           Int              @default(0)
+  bannedGlobally           Boolean          @default(false)
+  dailyTargetAmount        Int?
+  currentRating            Float?
+  isActive                 Boolean          @default(true)
+  createdBy                String?          @db.Uuid // User ID who created this driver
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+  Trip                     Trip[]
 }
 
 model Franchise {
-  id            String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  code          String     @unique
-  name          String
-  city          String      // Keep for backward compatibility
-  region        String?     // New field
-  address       String?     // Physical address
-  phone         String?     // Contact number
-  inchargeName  String?     // Incharge name
-  storeImage    String?     // Store image URL (optional)
-  legalDocumentsCollected Boolean @default(false) // Legal documents collected flag
-  status        FranchiseStatus @default(ACTIVE) // Franchise status
-  isActive      Boolean    @default(true)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  Customer      Customer[]
+  id                      String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  code                    String          @unique
+  name                    String
+  city                    String // Keep for backward compatibility
+  region                  String? // New field
+  address                 String? // Physical address
+  phone                   String? // Contact number
+  inchargeName            String? // Incharge name
+  storeImage              String? // Store image URL (optional)
+  legalDocumentsCollected Boolean         @default(false) // Legal documents collected flag
+  status                  FranchiseStatus @default(ACTIVE) // Franchise status
+  isActive                Boolean         @default(true)
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  Customer                Customer[]
   // Driver relation commented out temporarily to allow dummy UUIDs
   // Driver    Driver[]
-  Trip          Trip[]
+  Trip                    Trip[]
 }
 
 model Role {
@@ -152,7 +153,7 @@ model Trip {
   customerName         String
   customerPhone        String
   tripType             TripType
-  status               TripStatus    @default(REQUESTED)
+  status               TripStatus    @default(PENDING)
   pickupLocation       String
   dropLocation         String?
   scheduledAt          DateTime?
@@ -201,18 +202,36 @@ model TripPattern {
 }
 
 model TripTypeConfig {
-  id               String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  name             String
-  description      String?
-  distanceScopeId  String        @db.Uuid
-  tripPatternId    String        @db.Uuid
-  basePricePerHour Float
-  extraPerHour     Float         @default(0)
-  forPremiumCars   Json?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime
-  DistanceScope    DistanceScope @relation(fields: [distanceScopeId], references: [id])
-  TripPattern      TripPattern   @relation(fields: [tripPatternId], references: [id])
+  id              String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name            String // e.g., "CITY_ROUND", "CITY_DROPOFF"
+  description     String?
+  distanceScopeId String  @db.Uuid
+  tripPatternId   String  @db.Uuid
+
+  // Base pricing
+  basePrice        Float // Base price (₹400, ₹500, etc.)
+  basePricePerHour Float? // Base price per hour (kept for backward compatibility)
+  baseDuration     Float? // Base duration in hours (3h, 2h)
+  baseDistance     Float? // Base distance in km (20 km)
+
+  // Extra charges
+  extraPerHour     Float  @default(0) // ₹100 per hour
+  extraPerHalfHour Float? // ₹50 per 30 min (for CITY_DROPOFF)
+  extraPerKm       Float? // For distance-based pricing
+
+  // Premium car pricing (overrides base)
+  premiumCarMultiplier Float? // e.g., 1.5x or separate pricing
+  forPremiumCars       Json? // Separate pricing structure
+
+  // Slab-based pricing for LONG_DROPOFF (stored as JSON)
+  distanceSlabs Json? // [{from: 0, to: 50, price: 1000}, ...]
+
+  status    TripTypeConfigStatus @default(ACTIVE)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  DistanceScope DistanceScope @relation(fields: [distanceScopeId], references: [id])
+  TripPattern   TripPattern   @relation(fields: [tripPatternId], references: [id])
 }
 
 model User {
@@ -252,15 +271,24 @@ enum DriverStatus {
   TERMINATED
 }
 
+enum DriverTripStatus {
+  AVAILABLE
+  ON_TRIP
+}
+
 enum PaymentMode {
-  CASH
   UPI
+  IN_HAND
+  // Legacy payment modes for backward compatibility
+  CASH
   CARD
   OTHER
 }
 
 enum PaymentStatus {
   PENDING
+  COMPLETED
+  // Legacy statuses for backward compatibility
   PAID
   PARTIALLY_PAID
 }
@@ -287,12 +315,24 @@ enum TripPatternStatus {
   INACTIVE
 }
 
+enum TripTypeConfigStatus {
+  ACTIVE
+  INACTIVE
+}
+
 enum TripStatus {
-  REQUESTED
+  PENDING
+  NOT_ASSIGNED
   ASSIGNED
+  TRIP_STARTED
+  TRIP_PROGRESS
+  TRIP_ENDED
+  COMPLETED
+  PAYMENT_DONE
+  // Legacy statuses for backward compatibility
+  REQUESTED
   DRIVER_ON_THE_WAY
   IN_PROGRESS
-  COMPLETED
   CANCELLED_BY_CUSTOMER
   CANCELLED_BY_OFFICE
   REJECTED_BY_DRIVER

@@ -12,13 +12,36 @@ export async function getCustomerById(id: number) {
   });
 }
 
+export async function getCustomerByPhone(phone: string) {
+  return prisma.customer.findUnique({
+    where: { phone },
+  });
+}
+
 export async function createCustomer(data: {
   fullName: string;
   phone: string;
   email?: string;
   city?: string;
   notes?: string;
-  franchiseId: number;
+  franchiseId: string;
 }) {
-  return prisma.customer.create({ data });
+  return prisma.customer.create({
+    data: {
+      ...data,
+      updatedAt: new Date(),
+    },
+  });
+}
+
+export async function updateCustomer(id: number, data: Partial<{
+  fullName: string;
+  email: string;
+  city: string;
+  notes: string;
+}>) {
+  return prisma.customer.update({
+    where: { id },
+    data,
+  });
 }

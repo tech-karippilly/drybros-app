@@ -8,7 +8,12 @@ import {
     Map,
     MessageSquare,
     CalendarCheck,
-    UserCircle
+    UserCircle,
+    FileText,
+    PlusCircle,
+    Clock,
+    ChevronDown,
+    ChevronRight
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 
@@ -16,6 +21,7 @@ export interface NavItem {
     icon: LucideIcon;
     label: string;
     id: string;
+    submenu?: NavItem[];
 }
 
 export const ROLE_MENUS: Record<string, NavItem[]> = {
@@ -26,7 +32,16 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
         { icon: Truck, label: 'Drivers', id: 'drivers' },
         { icon: BarChart3, label: 'Reports', id: 'reports' },
         { icon: ShieldAlert, label: 'Penalties', id: 'payroll' },
-        { icon: Map, label: 'Trip Management', id: 'trips' },
+        {
+            icon: Map,
+            label: 'Trip Management',
+            id: 'trips',
+            submenu: [
+                { icon: FileText, label: 'Trip Type', id: 'trip-types' },
+                { icon: PlusCircle, label: 'Booking', id: 'trip-booking' },
+                { icon: Clock, label: 'Unassigned Trips', id: 'unassigned-trips' },
+            ],
+        },
         { icon: MessageSquare, label: 'Complaints', id: 'complaints' },
         { icon: CalendarCheck, label: 'Attendance', id: 'attendance' },
     ],
@@ -35,7 +50,16 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
         { icon: Truck, label: 'Drivers', id: 'drivers' },
         { icon: BarChart3, label: 'Reports', id: 'reports' },
         { icon: ShieldAlert, label: 'Penalties', id: 'payroll' },
-        { icon: Map, label: 'Trip Management', id: 'trips' },
+        {
+            icon: Map,
+            label: 'Trip Management',
+            id: 'trips',
+            submenu: [
+                { icon: FileText, label: 'Trip Type', id: 'trip-types' },
+                { icon: PlusCircle, label: 'Booking', id: 'trip-booking' },
+                { icon: Clock, label: 'Unassigned Trips', id: 'unassigned-trips' },
+            ],
+        },
         { icon: MessageSquare, label: 'Complaints', id: 'complaints' },
         { icon: CalendarCheck, label: 'Attendance', id: 'attendance' },
         { icon: UserCircle, label: 'Customer', id: 'customer' },

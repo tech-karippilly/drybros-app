@@ -9,6 +9,7 @@
  * - Redirect to login if refresh token expires
  */
 import api from '../../axios';
+import { Driver, DriverPerformanceMetrics, AvailableDriver } from '@/lib/types/driver';
 
 // API Endpoints
 const DRIVER_ENDPOINTS = {
@@ -16,6 +17,9 @@ const DRIVER_ENDPOINTS = {
     BY_ID: (id: string) => `/drivers/${id}`,
     STATUS: (id: string) => `/drivers/${id}/status`,
     LOGIN: '/drivers/login',
+    WITH_PERFORMANCE: (id: string) => `/drivers/${id}/with-performance`,
+    PERFORMANCE: (id: string) => `/drivers/${id}/performance`,
+    PAGINATED: '/drivers/paginated',
 } as const;
 
 // Request DTOs (matching backend)
@@ -255,5 +259,111 @@ export async function deleteDriver(id: string): Promise<DeleteDriverResponse> {
  */
 export async function loginDriver(data: DriverLoginRequest): Promise<DriverLoginResponse> {
     const response = await api.post<DriverLoginResponse>(DRIVER_ENDPOINTS.LOGIN, data);
+    return response.data;
+}
+
+/**
+ * Get all drivers with optional performance metrics
+ */
+export async function getDrivers(params?: {
+    includeInactive?: boolean;
+    franchiseId?: string;
+    includePerformance?: boolean;
+}): Promise<Driver[]> {
+    const queryParams = new URLSearchParams();
+    
+    if (params?.includeInactive) {
+        queryParams.append('includeInactive', 'true');
+    }
+    if (params?.franchiseId) {
+        queryParams.append('franchiseId', params.franchiseId);
+    }
+    if (params?.includePerformance) {
+        queryParams.append('includePerformance', 'true');
+    }
+    
+    const response = await api.get<{ data: Driver[] }>(`${DRIVER_ENDPOINTS.BASE}?${queryParams.toString()}`);
+    return response.data.data;
+}
+
+/**
+ * Get driver by ID with performance metrics
+ */
+export async function getDriverWithPerformance(id: string): Promise<Driver> {
+    const response = await api.get<{ data: Driver }>(DRIVER_ENDPOINTS.WITH_PERFORMANCE(id));
+    return response.data.data;
+}
+
+/**
+ * Get driver performance metrics only
+ */
+export async function getDriverPerformance(id: string): Promise<DriverPerformanceMetrics> {
+    const response = await api.get<{ data: DriverPerformanceMetrics }>(DRIVER_ENDPOINTS.PERFORMANCE(id));
+    return response.data.data;
+}
+
+/**
+ * Get available drivers for a trip (sorted by performance)
+ */
+export async function getAvailableDriversForTrip(tripId: string): Promise<AvailableDriver[]> {
+    const response = await api.get<{ data: AvailableDriver[] }>(`/trips/${tripId}/available-drivers`);
+    return response.data.data;
+}
+
+/**
+ * Get drivers by franchise(s)
+ * Returns simplified driver data with performance status
+ */
+export interface DriverByFranchiseResponse {
+    id: string;
+    name: string;
+    phone: string;
+    availableStatus: "AVAILABLE" | "ON_TRIP";
+    performanceStatus: "GREEN" | "YELLOW" | "RED";
+    complaintsNumber: number;
+    franchiseId: string;
+}
+
+export async function getDriversByFranchises(franchiseId: string): Promise<DriverByFranchiseResponse[]> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('franchiseId', franchiseId);
+    
+    const response = await api.get<{ data: DriverByFranchiseResponse[] }>(`${DRIVER_ENDPOINTS.BASE}/by-franchises?${queryParams.toString()}`);
+    return response.data.data;
+}
+
+/**
+ * Get paginated drivers with optional performance
+ */
+export async function getDriversPaginated(params: {
+    page?: number;
+    limit?: number;
+    franchiseId?: string;
+    includePerformance?: boolean;
+}): Promise<{
+    data: Driver[];
+    pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+    };
+}> {
+    const queryParams = new URLSearchParams();
+    
+    if (params.page) queryParams.append('page', params.page.toString());
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.franchiseId) queryParams.append('franchiseId', params.franchiseId);
+    if (params.includePerformance) queryParams.append('includePerformance', 'true');
+    
+    const response = await api.get<{
+        data: Driver[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+        };
+    }>(`${DRIVER_ENDPOINTS.PAGINATED}?${queryParams.toString()}`);
     return response.data;
 }

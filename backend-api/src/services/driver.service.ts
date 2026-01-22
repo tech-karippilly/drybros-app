@@ -22,6 +22,14 @@ import { emailConfig } from "../config/emailConfig";
 import { authConfig } from "../config/authConfig";
 import logger from "../config/logger";
 import { ERROR_MESSAGES } from "../constants/errors";
+import {
+  getDriversWithPerformance,
+  sortDriversByPerformance,
+  calculateDriverPerformance,
+  getAvailableGreenDrivers,
+  DriverWithPerformance,
+  DriverPerformanceMetrics,
+} from "./driver-performance.service";
 
 /**
  * Generate unique driver code
@@ -119,6 +127,7 @@ function mapDriverToResponse(driver: any): DriverResponseDTO {
     previousExp: driver.previousExp,
     carTypes,
     status: driver.status,
+    driverTripStatus: driver.driverTripStatus || "AVAILABLE", // Default to AVAILABLE if not set
     complaintCount: driver.complaintCount,
     bannedGlobally: driver.bannedGlobally,
     dailyTargetAmount: driver.dailyTargetAmount,
@@ -133,7 +142,18 @@ function mapDriverToResponse(driver: any): DriverResponseDTO {
 /**
  * List all drivers (without pagination - for backward compatibility)
  */
-export async function listDrivers(franchiseId?: string): Promise<DriverResponseDTO[]> {
+export async function listDrivers(
+  franchiseId?: string,
+  includePerformance: boolean = false
+): Promise<DriverResponseDTO[] | (DriverResponseDTO & { performance: DriverPerformanceMetrics })[]> {
+  if (includePerformance) {
+    const drivers = await getDriversWithPerformance(franchiseId, false);
+    const sorted = sortDriversByPerformance(drivers);
+    return sorted.map((driver) => ({
+      ...mapDriverToResponse(driver),
+      performance: driver.performance,
+    }));
+  }
   const drivers = await getAllDrivers(false, franchiseId);
   return drivers.map(mapDriverToResponse);
 }
@@ -142,11 +162,36 @@ export async function listDrivers(franchiseId?: string): Promise<DriverResponseD
  * List drivers with pagination
  */
 export async function listDriversPaginated(
-  pagination: PaginationQueryDTO
-): Promise<PaginatedDriverResponseDTO> {
-  const { page, limit, franchiseId } = pagination;
+  pagination: PaginationQueryDTO,
+  includePerformance: boolean = false
+): Promise<PaginatedDriverResponseDTO | (PaginatedDriverResponseDTO & { data: (DriverResponseDTO & { performance: DriverPerformanceMetrics })[] })> {
+  const { page = 1, limit = 10, franchiseId } = pagination;
   const skip = (page - 1) * limit;
 
+  if (includePerformance) {
+    const allDrivers = await getDriversWithPerformance(franchiseId, false);
+    const sorted = sortDriversByPerformance(allDrivers);
+    
+    // Apply pagination
+    const paginatedDrivers = sorted.slice(skip, skip + limit);
+    
+    return {
+      data: paginatedDrivers.map((driver) => ({
+        ...mapDriverToResponse(driver),
+        performance: driver.performance,
+      })),
+      pagination: {
+        page,
+        limit,
+        total: sorted.length,
+        totalPages: Math.ceil(sorted.length / limit),
+        hasNext: skip + limit < sorted.length,
+        hasPrev: page > 1,
+      },
+    };
+  }
+
+  // Original pagination logic
   const { data, total } = await getDriversPaginated(skip, limit, franchiseId);
   
   // Calculate pagination metadata efficiently
@@ -175,6 +220,23 @@ export async function getDriver(id: string) {
   }
 
   return mapDriverToResponse(driver);
+}
+
+/**
+ * Get driver by ID with performance metrics
+ */
+export async function getDriverWithPerformance(
+  id: string
+): Promise<DriverResponseDTO & { performance: DriverPerformanceMetrics }> {
+  const driver = await getDriverById(id);
+  if (!driver) {
+    throw new NotFoundError(ERROR_MESSAGES.DRIVER_NOT_FOUND);
+  }
+  const performance = await calculateDriverPerformance(id);
+  return {
+    ...mapDriverToResponse(driver),
+    performance,
+  };
 }
 
 /**
@@ -240,6 +302,7 @@ export async function createDriver(
     previousExp: input.previousExp,
     carTypes: JSON.stringify(input.carTypes),
     createdBy: createdBy || null,
+    currentRating: 5.0, // Set default rating to 5 for new drivers
   });
 
   // Send welcome email with credentials (non-blocking)
@@ -509,4 +572,56 @@ export async function softDeleteDriver(id: string): Promise<{ message: string }>
   return {
     message: "Driver deleted successfully",
   };
+}
+
+/**
+ * Get available drivers with GREEN performance category
+ */
+export async function getAvailableGreenDriversList(
+  franchiseId?: string
+): Promise<(DriverResponseDTO & { performance: DriverPerformanceMetrics })[]> {
+  const drivers = await getAvailableGreenDrivers(franchiseId);
+  return drivers.map((driver) => ({
+    ...mapDriverToResponse(driver),
+    performance: driver.performance,
+  }));
+}
+
+/**
+ * Get drivers by selected franchises with essential details
+ * Returns: name, phone, available status, performance status, complaints number
+ */
+export async function getDriversByFranchises(
+  franchiseIds: string[]
+): Promise<Array<{
+  id: string;
+  name: string;
+  phone: string;
+  availableStatus: "AVAILABLE" | "ON_TRIP";
+  performanceStatus: DriverPerformanceCategory;
+  complaintsNumber: number;
+  franchiseId: string;
+}>> {
+  if (!franchiseIds || franchiseIds.length === 0) {
+    return [];
+  }
+
+  // Get all drivers from selected franchises
+  const drivers = await getDriversWithPerformance(undefined, false);
+  
+  // Filter by franchise IDs
+  const filteredDrivers = drivers.filter((driver) =>
+    franchiseIds.includes(driver.franchiseId)
+  );
+
+  // Map to simplified response
+  return filteredDrivers.map((driver) => ({
+    id: driver.id,
+    name: `${driver.firstName} ${driver.lastName}`,
+    phone: driver.phone,
+    availableStatus: driver.driverTripStatus as "AVAILABLE" | "ON_TRIP",
+    performanceStatus: driver.performance.category,
+    complaintsNumber: driver.complaintCount,
+    franchiseId: driver.franchiseId,
+  }));
 }

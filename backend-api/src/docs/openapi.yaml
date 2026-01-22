@@ -968,6 +968,214 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated (missing or invalid token)
+  
+  /drivers/available/green:
+    get:
+      summary: Get available drivers with GREEN performance
+      description: |
+        Retrieves a list of drivers who are:
+        - **AVAILABLE** (driverTripStatus = AVAILABLE) - not currently on a trip
+        - **GREEN** performance category - excellent performance
+        - **ACTIVE** status - active drivers only
+        - **Not globally banned** - not banned from the system
+        
+        Drivers are sorted by performance score (highest first).
+        
+        **Franchise Filtering:**
+        - Use `franchiseId` query parameter to filter drivers by franchise (optional)
+        - If provided, only returns available GREEN drivers belonging to that franchise
+        
+        **Use Cases:**
+        - Assigning trips to the best available drivers
+        - Finding top-performing drivers for priority assignments
+        - Driver selection for high-value trips
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: franchiseId
+          in: query
+          required: false
+          description: Filter drivers by franchise ID (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: List of available GREEN drivers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    description: Array of available drivers with GREEN performance
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/Driver"
+                        - type: object
+                          properties:
+                            performance:
+                              $ref: "#/components/schemas/DriverPerformanceMetrics"
+              example:
+                data:
+                  - id: "550e8400-e29b-41d4-a716-446655440000"
+                    firstName: "John"
+                    lastName: "Doe"
+                    phone: "+1234567890"
+                    email: "john.doe@example.com"
+                    driverCode: "DRV-ABC123"
+                    status: "ACTIVE"
+                    driverTripStatus: "AVAILABLE"
+                    currentRating: 4.8
+                    performance:
+                      category: "GREEN"
+                      score: 85
+                      rating: 4.8
+                      complaintCount: 0
+                      totalTrips: 50
+                      completedTrips: 48
+                      rejectedTrips: 1
+                      completionRate: 96.0
+                      rejectionRate: 2.0
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  
+  /drivers/by-franchises:
+    get:
+      summary: Get drivers by selected franchises
+      description: |
+        Retrieves a simplified list of drivers from selected franchises with essential details.
+        
+        **Required Fields Returned:**
+        - `id`: Driver UUID
+        - `name`: Full name (firstName + lastName)
+        - `phone`: Phone number
+        - `availableStatus`: Current trip status (AVAILABLE or ON_TRIP)
+        - `performanceStatus`: Performance category (GREEN, YELLOW, or RED)
+        - `complaintsNumber`: Number of complaints
+        - `franchiseId`: Franchise ID the driver belongs to
+        
+        **Query Parameters:**
+        - `franchiseIds` (optional): Comma-separated list of franchise UUIDs or array
+        - `franchiseId` (optional): Single franchise UUID (for backward compatibility)
+        
+        **Examples:**
+        - `/drivers/by-franchises?franchiseIds=uuid1,uuid2,uuid3` - Get drivers from multiple franchises
+        - `/drivers/by-franchises?franchiseId=uuid1` - Get drivers from single franchise
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: franchiseIds
+          in: query
+          required: false
+          description: Comma-separated list of franchise UUIDs or array
+          schema:
+            oneOf:
+              - type: array
+                items:
+                  type: string
+                  format: uuid
+              - type: string
+                pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(,[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})*$"
+          example: "550e8400-e29b-41d4-a716-446655440000,660e8400-e29b-41d4-a716-446655440001"
+        - name: franchiseId
+          in: query
+          required: false
+          description: Single franchise UUID (alternative to franchiseIds)
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: List of drivers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          description: Driver UUID
+                          example: "550e8400-e29b-41d4-a716-446655440000"
+                        name:
+                          type: string
+                          description: Full name (firstName + lastName)
+                          example: "John Doe"
+                        phone:
+                          type: string
+                          description: Phone number
+                          example: "+1234567890"
+                        availableStatus:
+                          type: string
+                          enum: ["AVAILABLE", "ON_TRIP"]
+                          description: Current trip availability status
+                          example: "AVAILABLE"
+                        performanceStatus:
+                          type: string
+                          enum: ["GREEN", "YELLOW", "RED"]
+                          description: Performance category
+                          example: "GREEN"
+                        complaintsNumber:
+                          type: integer
+                          description: Number of complaints
+                          example: 0
+                        franchiseId:
+                          type: string
+                          format: uuid
+                          description: Franchise ID
+                          example: "550e8400-e29b-41d4-a716-446655440000"
+              example:
+                data:
+                  - id: "550e8400-e29b-41d4-a716-446655440000"
+                    name: "John Doe"
+                    phone: "+1234567890"
+                    availableStatus: "AVAILABLE"
+                    performanceStatus: "GREEN"
+                    complaintsNumber: 0
+                    franchiseId: "550e8400-e29b-41d4-a716-446655440000"
+                  - id: "660e8400-e29b-41d4-a716-446655440001"
+                    name: "Jane Smith"
+                    phone: "+1234567891"
+                    availableStatus: "ON_TRIP"
+                    performanceStatus: "YELLOW"
+                    complaintsNumber: 2
+                    franchiseId: "550e8400-e29b-41d4-a716-446655440000"
+        "400":
+          description: Bad request - missing or invalid franchise IDs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "franchiseIds or franchiseId query parameter is required"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  
     post:
       summary: Create a new driver
       description: |
@@ -1486,6 +1694,65 @@ paths:
           description: Not authenticated (missing or invalid token)
 
   /trips:
+    get:
+      summary: Get all trips
+      description: |
+        Get a list of all trips. Supports optional pagination via query parameters.
+
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 10, max: 100)
+
+        **Without pagination parameters:** Returns all trips (backward compatible)
+
+        **With pagination parameters:** Returns paginated results with metadata
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number (default: 1)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Number of items per page (default: 10, max: 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: List of trips (paginated or all)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    description: Paginated response (when page/limit provided)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Trip"
+                      pagination:
+                        $ref: "#/components/schemas/PaginationMeta"
+                  - type: object
+                    description: All trips (when no pagination params)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Trip"
+        "401":
+          description: Not authenticated (missing or invalid token)
     post:
       summary: Create a trip
       tags:
@@ -1508,9 +1775,132 @@ paths:
         "401":
           description: Not authenticated (missing or invalid token)
 
-  /trips/{id}/driver-accept:
-    patch:
-      summary: Driver accepts a trip
+  /trips/driver/assigned:
+    get:
+      summary: Get trips assigned to driver
+      description: |
+        Get a list of trips that are assigned to a specific driver.
+        
+        Returns trips with status: ASSIGNED, DRIVER_ACCEPTED, TRIP_STARTED, or TRIP_PROGRESS.
+        
+        **Query Parameters:**
+        - `driverId` (required): Driver UUID to get assigned trips for
+        
+        **Use Cases:**
+        - Driver mobile app to see their assigned trips
+        - Driver dashboard to view active trips
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: driverId
+          in: query
+          required: true
+          description: Driver UUID
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: List of assigned trips retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TripResponse"
+        "400":
+          description: Bad request - missing or invalid driver ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trips/unassigned:
+    get:
+      summary: Get unassigned trips
+      description: |
+        Get a list of trips with PENDING or NOT_ASSIGNED status (trips without a driver assigned).
+        Supports optional pagination via query parameters.
+
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 10, max: 100)
+
+        **Without pagination parameters:** Returns all unassigned trips
+
+        **With pagination parameters:** Returns paginated results with metadata
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number (default: 1)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Number of items per page (default: 10, max: 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: List of unassigned trips (paginated or all)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    description: Paginated response (when page/limit provided)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Trip"
+                      pagination:
+                        $ref: "#/components/schemas/PaginationMeta"
+                  - type: object
+                    description: All unassigned trips (when no pagination params)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Trip"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /trips/{id}:
+    get:
+      summary: Get trip by ID
+      description: |
+        Get detailed information about a specific trip by its ID (UUID).
+        
+        Returns the trip with all related data including:
+        - Customer information
+        - Franchise information
+        - Driver information (if assigned)
+        - Trip status and details
+        - Payment information
       tags:
         - Trips
       security:
@@ -1519,28 +1909,231 @@ paths:
         - name: id
           in: path
           required: true
+          description: Trip ID (UUID)
           schema:
-            type: integer
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Trip retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Trip"
+        "400":
+          description: Bad request - invalid UUID format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Trip not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trips/phase1:
+    post:
+      summary: Create trip - Phase 1 (Customer Data Collection)
+      description: |
+        Create a trip in Phase 1 with customer data collection. This endpoint:
+        - Automatically checks if customer exists by phone number
+        - Creates new customer if not found, or updates existing customer with new information
+        - Creates trip with REQUESTED status (ready for driver assignment in Phase 2)
+        - Stores pickup and destination locations from Google Places API
+        - Handles car preferences (gear type and category)
+        - Sets confirmation flags (details reconfirmed, fare discussed, price accepted)
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTripPhase1Request"
+            example:
+              customerName: "John Doe"
+              customerPhone: "+1234567890"
+              customerEmail: "john.doe@example.com"
+              pickupLocation: "ChIJN1t_tDeuEmsRUsoyG83frY4"
+              pickupAddress: "123 Main Street, New York, NY 10001"
+              pickupLocationNote: "Near the blue building, entrance on the right"
+              destinationLocation: "ChIJN1t_tDeuEmsRUsoyG83frY5"
+              destinationAddress: "456 Oak Avenue, New York, NY 10002"
+              destinationNote: "Building entrance, ring doorbell"
+              franchiseId: "550e8400-e29b-41d4-a716-446655440000"
+              tripType: "CITY_ROUND"
+              carGearType: "MANUAL"
+              carType: "PREMIUM"
+              tripDate: "2024-01-20"
+              tripTime: "14:30"
+              isDetailsReconfirmed: true
+              isFareDiscussed: true
+              isPriceAccepted: true
+      responses:
+        "201":
+          description: Trip created successfully in Phase 1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateTripPhase1Response"
+              example:
+                data:
+                  trip:
+                    id: "660e8400-e29b-41d4-a716-446655440000"
+                    franchiseId: "550e8400-e29b-41d4-a716-446655440000"
+                    customerId: 1
+                    customerName: "John Doe"
+                    customerPhone: "+1234567890"
+                    customerEmail: "john.doe@example.com"
+                    tripType: "CITY_ROUND"
+                    status: "REQUESTED"
+                    pickupLocation: "ChIJN1t_tDeuEmsRUsoyG83frY4"
+                    pickupAddress: "123 Main Street, New York, NY 10001"
+                    pickupLocationNote: "Near the blue building, entrance on the right"
+                    dropLocation: "ChIJN1t_tDeuEmsRUsoyG83frY5"
+                    dropAddress: "456 Oak Avenue, New York, NY 10002"
+                    dropLocationNote: "Building entrance, ring doorbell"
+                    carType: '{"gearType":"MANUAL","category":"PREMIUM"}'
+                    scheduledAt: "2024-01-20T14:30:00Z"
+                    isDetailsReconfirmed: true
+                    isFareDiscussed: true
+                    isPriceAccepted: true
+                    baseAmount: 0
+                    extraAmount: 0
+                    totalAmount: 0
+                    finalAmount: 0
+                    paymentStatus: "PENDING"
+                    createdAt: "2024-01-20T10:00:00Z"
+                    updatedAt: "2024-01-20T10:00:00Z"
+                  customer:
+                    id: 1
+                    name: "John Doe"
+                    phone: "+1234567890"
+                    email: "john.doe@example.com"
+                    isExisting: false
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingCustomerName:
+                  summary: Missing customer name
+                  value:
+                    error: "Customer name is required"
+                missingCustomerPhone:
+                  summary: Missing customer phone
+                  value:
+                    error: "Customer phone number is required"
+                missingPickupLocation:
+                  summary: Missing pickup location
+                  value:
+                    error: "Pickup location is required"
+                missingDestinationLocation:
+                  summary: Missing destination location
+                  value:
+                    error: "Destination location is required"
+                invalidCarGearType:
+                  summary: Invalid car gear type
+                  value:
+                    error: "Invalid car gear type"
+                invalidCarType:
+                  summary: Invalid car type category
+                  value:
+                    error: "Invalid car type category"
+                invalidTripType:
+                  summary: Invalid trip type
+                  value:
+                    error: "Invalid trip type"
+        "401":
+          description: Not authenticated (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trips/{id}/driver-accept:
+    patch:
+      summary: Driver accepts a trip
+      description: |
+        Driver accepts a trip that has been assigned to them.
+        
+        **Prerequisites:**
+        - Trip must be in ASSIGNED status
+        - Trip must be assigned to the driver making the request
+        
+        **Status Change:**
+        - ASSIGNED → DRIVER_ACCEPTED
+        
+        **Request Body:**
+        - `driverId` (required): Driver UUID (can also be passed as query parameter)
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip UUID
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+        - name: driverId
+          in: query
+          required: false
+          description: Driver UUID (alternative to body parameter)
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
         content:
           application/json:
             schema:
               type: object
               properties:
                 driverId:
-                  type: integer
-              required:
-                - driverId
+                  type: string
+                  format: uuid
+                  description: Driver UUID
+                  example: "550e8400-e29b-41d4-a716-446655440000"
       responses:
         "200":
           description: Trip accepted by driver
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TripResponse"
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TripResponse"
+        "400":
+          description: Bad request - missing driverId or invalid trip status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - trip not assigned to this driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /trips/{id}/driver-reject:
     patch:
@@ -1579,6 +2172,19 @@ paths:
   /trips/{id}/generate-start-otp:
     post:
       summary: Generate start OTP for a trip
+      description: |
+        Generate a 4-digit OTP required to start a trip.
+        
+        **Prerequisites:**
+        - Trip must be in DRIVER_ACCEPTED status
+        - Trip must be assigned to the driver making the request
+        
+        **OTP Usage:**
+        - The generated OTP must be used in the start trip endpoint
+        - OTP is typically sent via SMS/WhatsApp to the customer
+        
+        **Request Body:**
+        - `driverId` (required): Driver UUID (can also be passed as query parameter)
       tags:
         - Trips
       security:
@@ -1587,32 +2193,82 @@ paths:
         - name: id
           in: path
           required: true
+          description: Trip UUID
           schema:
-            type: integer
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+        - name: driverId
+          in: query
+          required: false
+          description: Driver UUID (alternative to body parameter)
+          schema:
+            type: string
+            format: uuid
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
               type: object
               properties:
                 driverId:
-                  type: integer
-              required:
-                - driverId
+                  type: string
+                  format: uuid
+                  description: Driver UUID
+                  example: "550e8400-e29b-41d4-a716-446655440000"
       responses:
         "200":
-          description: Start OTP generated
+          description: Start OTP generated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/StartOtpResponse"
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      tripId:
+                        type: string
+                        format: uuid
+                        example: "550e8400-e29b-41d4-a716-446655440000"
+                      otp:
+                        type: string
+                        description: 4-digit OTP
+                        example: "1234"
+        "400":
+          description: Bad request - missing driverId or invalid trip status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - trip not assigned to this driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /trips/{id}/start:
     patch:
       summary: Start trip with OTP
+      description: |
+        Start a trip by providing the OTP generated from the generate-start-otp endpoint.
+        
+        **Prerequisites:**
+        - Trip must be in ASSIGNED or DRIVER_ACCEPTED status
+        - Trip must be assigned to the driver making the request
+        - Valid OTP must be provided
+        
+        **Status Change:**
+        - ASSIGNED/DRIVER_ACCEPTED → TRIP_STARTED
+        - Driver trip status → ON_TRIP
+        
+        **Request Body:**
+        - `driverId` (required): Driver UUID (can also be passed as query parameter)
+        - `otp` (required): 4-digit OTP from generate-start-otp endpoint
       tags:
         - Trips
       security:
@@ -1621,37 +2277,18 @@ paths:
         - name: id
           in: path
           required: true
+          description: Trip UUID
           schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/StartTripRequest"
-      responses:
-        "200":
-          description: Trip started
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TripResponse"
-        "401":
-          description: Not authenticated (missing or invalid token)
-
-  /trips/{id}/generate-end-otp:
-    post:
-      summary: Generate end OTP for a trip
-      tags:
-        - Trips
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+        - name: driverId
+          in: query
+          required: false
+          description: Driver UUID (alternative to body parameter)
           schema:
-            type: integer
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -1660,18 +2297,122 @@ paths:
               type: object
               properties:
                 driverId:
-                  type: integer
+                  type: string
+                  format: uuid
+                  description: Driver UUID
+                  example: "550e8400-e29b-41d4-a716-446655440000"
+                otp:
+                  type: string
+                  description: 4-digit OTP from generate-start-otp
+                  example: "1234"
               required:
-                - driverId
+                - otp
       responses:
         "200":
-          description: End OTP generated
+          description: Trip started successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EndOtpResponse"
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TripResponse"
+        "400":
+          description: Bad request - missing parameters or invalid OTP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - trip not assigned to this driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trips/{id}/generate-end-otp:
+    post:
+      summary: Generate end OTP for a trip
+      description: |
+        Generate a 4-digit OTP required to end a trip.
+        
+        **Prerequisites:**
+        - Trip must be in TRIP_STARTED, TRIP_PROGRESS, or IN_PROGRESS status
+        - Trip must be assigned to the driver making the request
+        
+        **OTP Usage:**
+        - The generated OTP must be used in the end trip endpoint
+        - OTP is typically sent via SMS/WhatsApp to the customer
+        
+        **Request Body:**
+        - `driverId` (required): Driver UUID (can also be passed as query parameter)
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip UUID
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+        - name: driverId
+          in: query
+          required: false
+          description: Driver UUID (alternative to body parameter)
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                driverId:
+                  type: string
+                  format: uuid
+                  description: Driver UUID
+                  example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: End OTP generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      tripId:
+                        type: string
+                        format: uuid
+                        example: "550e8400-e29b-41d4-a716-446655440000"
+                      otp:
+                        type: string
+                        description: 4-digit OTP
+                        example: "5678"
+        "400":
+          description: Bad request - missing driverId or invalid trip status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - trip not assigned to this driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /trips/{id}/end:
     patch:
@@ -1701,6 +2442,297 @@ paths:
                 $ref: "#/components/schemas/TripResponse"
         "401":
           description: Not authenticated (missing or invalid token)
+
+  /trip-types:
+    get:
+      summary: List all trip types (with optional pagination)
+      description: |
+        Get all active trip type configurations. Supports optional pagination via query parameters.
+        
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 10, max: 100)
+        
+        **Without pagination parameters:** Returns all trip types (backward compatible)
+        
+        **With pagination parameters:** Returns paginated results with metadata
+      tags:
+        - Trip Types
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number (default: 1)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Number of items per page (default: 10, max: 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: List of trip types (paginated or all)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    description: Paginated response (when page/limit provided)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/TripTypeConfig"
+                      pagination:
+                        $ref: "#/components/schemas/PaginationMeta"
+                  - type: object
+                    description: All trip types (when no pagination params)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/TripTypeConfig"
+              examples:
+                paginated:
+                  summary: Paginated response
+                  value:
+                    data:
+                      - id: "550e8400-e29b-41d4-a716-446655440000"
+                        name: "City Round Trip"
+                        basePrice: 400
+                        baseHour: 3
+                        extraPerHour: 100
+                        extraPerHalfHour: 50
+                        status: "ACTIVE"
+                    pagination:
+                      page: 1
+                      limit: 10
+                      total: 4
+                      totalPages: 1
+                      hasNext: false
+                      hasPrev: false
+                all:
+                  summary: All trip types (no pagination)
+                  value:
+                    data:
+                      - id: "550e8400-e29b-41d4-a716-446655440000"
+                        name: "CITY_ROUND"
+                        basePrice: 400
+                        extraPerHour: 100
+        "400":
+          description: Bad request - invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+    post:
+      summary: Create a new trip type
+      description: |
+        Create a new trip type configuration with pricing details.
+        Only ADMIN and MANAGER roles can create trip types.
+        
+        **Required Fields:**
+        - `name`: Trip type name (any string - user-defined)
+        - `basePrice`: Base price for the trip
+        - `baseHour`: Base hours included in the base price
+        - `extraPerHour`: Extra charge per hour
+        
+        **Optional Fields:**
+        - `extraPerHalfHour`: Extra charge for 30 minutes
+        - `description`: Description of the trip type
+      tags:
+        - Trip Types
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTripTypeRequest"
+            example:
+              name: "City Round Trip"
+              basePrice: 400
+              baseHour: 3
+              distance: 20
+              extraPerHour: 100
+              extraPerHalfHour: 50
+              description: "City round trip pricing"
+      responses:
+        "201":
+          description: Trip type created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TripTypeConfig"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                emptyName:
+                  summary: Empty trip type name
+                  value:
+                    error: "Trip type name is required and cannot be empty"
+                duplicateTripType:
+                  summary: Trip type already exists
+                  value:
+                    error: "Trip type configuration already exists for: City Round Trip"
+                invalidPrice:
+                  summary: Invalid price
+                  value:
+                    error: "Base price must be a positive number"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - insufficient permissions (only ADMIN and MANAGER can create)
+
+  /trip-types/{id}:
+    get:
+      summary: Get trip type by ID
+      description: |
+        Get a specific trip type configuration by its ID.
+        Any authenticated user can view trip types.
+      tags:
+        - Trip Types
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip type ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Trip type retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TripTypeConfig"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Trip type not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Update trip type
+      description: |
+        Update an existing trip type configuration.
+        Only ADMIN and MANAGER roles can update trip types.
+        All fields are optional - only provide the fields you want to update.
+      tags:
+        - Trip Types
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip type ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTripTypeRequest"
+            example:
+              basePrice: 450
+              baseHour: 3
+              distance: 25
+              extraPerHour: 120
+              extraPerHalfHour: 60
+      responses:
+        "200":
+          description: Trip type updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TripTypeConfig"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - insufficient permissions
+        "404":
+          description: Trip type not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete trip type
+      description: |
+        Soft delete a trip type by setting its status to INACTIVE.
+        Only ADMIN and MANAGER roles can delete trip types.
+      tags:
+        - Trip Types
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip type ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Trip type deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Trip type deleted successfully"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - insufficient permissions
+        "404":
+          description: Trip type not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 components:
   schemas:
@@ -1778,6 +2810,292 @@ components:
         - tripType
         - pickupLocation
         - baseAmount
+
+    CreateTripPhase1Request:
+      type: object
+      description: |
+        Request body for Phase 1 trip creation with customer data collection.
+        This endpoint automatically handles customer creation/update based on phone number.
+      properties:
+        customerName:
+          type: string
+          description: Full name of the customer
+          example: "John Doe"
+          minLength: 1
+          maxLength: 100
+        customerPhone:
+          type: string
+          description: Customer phone number (used to check if customer exists)
+          example: "+1234567890"
+          pattern: "^[+]?[(]?[0-9]{1,4}[)]?[-\\s.]?[(]?[0-9]{1,4}[)]?[-\\s.]?[0-9]{1,9}$"
+        customerEmail:
+          type: string
+          format: email
+          description: Customer email address (optional)
+          example: "john.doe@example.com"
+          nullable: true
+        pickupLocation:
+          type: string
+          description: Google Place ID or coordinates for pickup location
+          example: "ChIJN1t_tDeuEmsRUsoyG83frY4"
+          minLength: 1
+        pickupAddress:
+          type: string
+          description: Full address for pickup location
+          example: "123 Main Street, New York, NY 10001"
+          minLength: 1
+          maxLength: 500
+        pickupLocationNote:
+          type: string
+          description: Additional notes for pickup location (landmarks, details)
+          example: "Near the blue building, entrance on the right"
+          nullable: true
+          maxLength: 500
+        destinationLocation:
+          type: string
+          description: Google Place ID or coordinates for destination location
+          example: "ChIJN1t_tDeuEmsRUsoyG83frY5"
+          minLength: 1
+        destinationAddress:
+          type: string
+          description: Full address for destination location
+          example: "456 Oak Avenue, New York, NY 10002"
+          minLength: 1
+          maxLength: 500
+        destinationNote:
+          type: string
+          description: Additional notes for destination location (landmarks, details)
+          example: "Building entrance, ring doorbell"
+          nullable: true
+          maxLength: 500
+        franchiseId:
+          type: string
+          format: uuid
+          description: Franchise ID (UUID)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        tripType:
+          type: string
+          enum: [CITY_ROUND, CITY_DROPOFF, LONG_ROUND, LONG_DROPOFF]
+          description: Type of trip
+          example: "CITY_ROUND"
+        distance:
+          type: number
+          description: Distance in kilometers (optional, can be calculated later)
+          example: 15.5
+          nullable: true
+          minimum: 0
+        distanceScope:
+          type: string
+          description: Distance scope identifier (optional)
+          example: "LOCAL"
+          nullable: true
+        carGearType:
+          type: string
+          enum: [MANUAL, AUTOMATIC]
+          description: Car gear type preference
+          example: "MANUAL"
+        carType:
+          type: string
+          enum: [PREMIUM, LUXURY, NORMAL]
+          description: Car type category preference
+          example: "PREMIUM"
+        tripDate:
+          type: string
+          format: date
+          description: Trip date in YYYY-MM-DD format
+          example: "2024-01-20"
+        tripTime:
+          type: string
+          pattern: "^([0-1][0-9]|2[0-3]):[0-5][0-9]$"
+          description: Trip time in HH:mm format (24-hour)
+          example: "14:30"
+        isDetailsReconfirmed:
+          type: boolean
+          description: Flag indicating if trip details have been reconfirmed with customer
+          example: true
+          default: false
+        isFareDiscussed:
+          type: boolean
+          description: Flag indicating if base fare has been discussed with customer
+          example: true
+          default: false
+        isPriceAccepted:
+          type: boolean
+          description: Flag indicating if customer has accepted the price
+          example: true
+          default: false
+      required:
+        - customerName
+        - customerPhone
+        - pickupLocation
+        - pickupAddress
+        - destinationLocation
+        - destinationAddress
+        - franchiseId
+        - tripType
+        - carGearType
+        - carType
+        - tripDate
+        - tripTime
+        - isDetailsReconfirmed
+        - isFareDiscussed
+        - isPriceAccepted
+
+    CreateTripPhase1Response:
+      type: object
+      description: Response for Phase 1 trip creation
+      properties:
+        data:
+          type: object
+          properties:
+            trip:
+              type: object
+              description: Created trip object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                  description: Trip ID (UUID)
+                  example: "660e8400-e29b-41d4-a716-446655440000"
+                franchiseId:
+                  type: string
+                  format: uuid
+                  description: Franchise ID
+                  example: "550e8400-e29b-41d4-a716-446655440000"
+                customerId:
+                  type: integer
+                  nullable: true
+                  description: Customer ID (if customer was found/created)
+                  example: 1
+                customerName:
+                  type: string
+                  description: Customer name
+                  example: "John Doe"
+                customerPhone:
+                  type: string
+                  description: Customer phone number
+                  example: "+1234567890"
+                customerEmail:
+                  type: string
+                  nullable: true
+                  description: Customer email
+                  example: "john.doe@example.com"
+                tripType:
+                  type: string
+                  enum: [CITY_ROUND, CITY_DROPOFF, LONG_ROUND, LONG_DROPOFF]
+                  description: Trip type
+                  example: "CITY_ROUND"
+                status:
+                  type: string
+                  enum: [REQUESTED, ASSIGNED, DRIVER_ON_THE_WAY, IN_PROGRESS, COMPLETED, CANCELLED_BY_CUSTOMER, CANCELLED_BY_OFFICE, REJECTED_BY_DRIVER, DRIVER_ACCEPTED]
+                  description: Trip status (always REQUESTED for Phase 1)
+                  example: "REQUESTED"
+                pickupLocation:
+                  type: string
+                  description: Google Place ID or coordinates for pickup
+                  example: "ChIJN1t_tDeuEmsRUsoyG83frY4"
+                pickupAddress:
+                  type: string
+                  description: Full pickup address
+                  example: "123 Main Street, New York, NY 10001"
+                pickupLocationNote:
+                  type: string
+                  nullable: true
+                  description: Pickup location notes
+                  example: "Near the blue building, entrance on the right"
+                dropLocation:
+                  type: string
+                  nullable: true
+                  description: Google Place ID or coordinates for destination
+                  example: "ChIJN1t_tDeuEmsRUsoyG83frY5"
+                dropAddress:
+                  type: string
+                  nullable: true
+                  description: Full destination address
+                  example: "456 Oak Avenue, New York, NY 10002"
+                dropLocationNote:
+                  type: string
+                  nullable: true
+                  description: Destination location notes
+                  example: "Building entrance, ring doorbell"
+                carType:
+                  type: string
+                  description: Car type stored as JSON string with gearType and category
+                  example: '{"gearType":"MANUAL","category":"PREMIUM"}'
+                scheduledAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  description: Scheduled trip date and time
+                  example: "2024-01-20T14:30:00Z"
+                isDetailsReconfirmed:
+                  type: boolean
+                  description: Details reconfirmed flag
+                  example: true
+                isFareDiscussed:
+                  type: boolean
+                  description: Fare discussed flag
+                  example: true
+                isPriceAccepted:
+                  type: boolean
+                  description: Price accepted flag
+                  example: true
+                baseAmount:
+                  type: integer
+                  description: Base amount (0 for Phase 1)
+                  example: 0
+                extraAmount:
+                  type: integer
+                  description: Extra amount (0 for Phase 1)
+                  example: 0
+                totalAmount:
+                  type: integer
+                  description: Total amount (0 for Phase 1)
+                  example: 0
+                finalAmount:
+                  type: integer
+                  description: Final amount (0 for Phase 1)
+                  example: 0
+                paymentStatus:
+                  type: string
+                  enum: [PENDING, COMPLETED, PAID, PARTIALLY_PAID]
+                  description: Payment status (always PENDING for Phase 1)
+                  example: "PENDING"
+                createdAt:
+                  type: string
+                  format: date-time
+                  description: Creation timestamp
+                  example: "2024-01-20T10:00:00Z"
+                updatedAt:
+                  type: string
+                  format: date-time
+                  description: Last update timestamp
+                  example: "2024-01-20T10:00:00Z"
+            customer:
+              type: object
+              description: Customer information with existence flag
+              properties:
+                id:
+                  type: integer
+                  description: Customer ID
+                  example: 1
+                name:
+                  type: string
+                  description: Customer name
+                  example: "John Doe"
+                phone:
+                  type: string
+                  description: Customer phone number
+                  example: "+1234567890"
+                email:
+                  type: string
+                  nullable: true
+                  description: Customer email
+                  example: "john.doe@example.com"
+                isExisting:
+                  type: boolean
+                  description: Whether the customer already existed (true) or was newly created (false)
+                  example: false
 
     Trip:
       type: object
@@ -1883,10 +3201,10 @@ components:
           type: number
         paymentStatus:
           type: string
-          enum: [PENDING, PAID, PARTIALLY_PAID]
+          enum: [PENDING, COMPLETED, PAID, PARTIALLY_PAID]
         paymentMode:
           type: string
-          enum: [CASH, UPI, CARD, OTHER]
+          enum: [UPI, IN_HAND, CASH, CARD, OTHER]
         paymentReference:
           type: string
         overrideReason:
@@ -1897,6 +3215,153 @@ components:
         - finalAmount
         - paymentStatus
         - paymentMode
+
+    TripTypeConfig:
+      type: object
+      description: Trip type configuration model
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Configuration ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        name:
+          type: string
+          description: Trip type name (user-defined, any string)
+          example: "City Round Trip"
+        description:
+          type: string
+          nullable: true
+          description: Configuration description
+          example: "City round trip pricing"
+        basePrice:
+          type: number
+          description: Base price
+          example: 400
+        baseHour:
+          type: number
+          nullable: true
+          description: Base hours included in the base price
+          example: 3
+        distance:
+          type: number
+          nullable: true
+          description: Base distance in km
+          example: 20
+        extraPerHour:
+          type: number
+          description: Extra charge per hour
+          example: 100
+        extraPerHalfHour:
+          type: number
+          nullable: true
+          description: Extra charge per half hour (30 minutes)
+          example: 50
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+          description: Configuration status
+          example: "ACTIVE"
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    CreateTripTypeRequest:
+      type: object
+      description: Request body for creating a new trip type
+      required:
+        - name
+        - basePrice
+        - baseHour
+        - extraPerHour
+      properties:
+        name:
+          type: string
+          description: Trip type name (user-defined, any string)
+          example: "City Round Trip"
+          minLength: 1
+          maxLength: 100
+        basePrice:
+          type: number
+          description: Base price (must be positive)
+          example: 400
+          minimum: 0
+        baseHour:
+          type: number
+          description: Base hours included in the base price (must be positive)
+          example: 3
+          minimum: 0
+        extraPerHour:
+          type: number
+          description: Extra charge per hour (must be positive)
+          example: 100
+          minimum: 0
+        extraPerHalfHour:
+          type: number
+          nullable: true
+          description: Extra charge for 30 minutes (optional)
+          example: 50
+          minimum: 0
+        distance:
+          type: number
+          nullable: true
+          description: Base distance in km (optional)
+          example: 20
+          minimum: 0
+        description:
+          type: string
+          nullable: true
+          description: Description of the trip type
+          example: "City round trip pricing"
+          maxLength: 500
+
+    UpdateTripTypeRequest:
+      type: object
+      description: Request body for updating a trip type. All fields are optional.
+      properties:
+        name:
+          type: string
+          description: Trip type name (user-defined, any string)
+          example: "City Round Trip"
+          minLength: 1
+          maxLength: 100
+        basePrice:
+          type: number
+          description: Base price (must be positive)
+          example: 450
+          minimum: 0
+        baseHour:
+          type: number
+          description: Base hours included in the base price (must be positive)
+          example: 3
+          minimum: 0
+        extraPerHour:
+          type: number
+          description: Extra charge per hour (must be positive)
+          example: 120
+          minimum: 0
+        extraPerHalfHour:
+          type: number
+          nullable: true
+          description: Extra charge for 30 minutes
+          example: 60
+          minimum: 0
+        distance:
+          type: number
+          nullable: true
+          description: Base distance in km (optional)
+          example: 20
+          minimum: 0
+        description:
+          type: string
+          nullable: true
+          description: Description of the trip type
+          maxLength: 500
 
     CreateRoleRequest:
       type: object

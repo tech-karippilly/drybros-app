@@ -1,6 +1,6 @@
 // src/routes/driver.routes.ts
 import express from "express";
-import { getDrivers, getDriverById, getDriverWithPerformanceHandler, getDriverPerformanceHandler, getAvailableGreenDriversHandler, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler } from "../controllers/driver.controller";
+import { getDrivers, getDriverById, getDriverWithPerformanceHandler, getDriverPerformanceHandler, getAvailableGreenDriversHandler, getDriversByFranchisesHandler, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler } from "../controllers/driver.controller";
 import { authMiddleware, requireRole } from "../middlewares/auth";
 import { UserRole } from "@prisma/client";
 import { validate, validateParams, validateQuery } from "../middlewares/validation";
@@ -22,6 +22,18 @@ router.get(
   validateQuery(z.object({ franchiseId: z.string().uuid("Invalid franchise ID format").optional() })),
   getAvailableGreenDriversHandler
 );
+router.get(
+  "/by-franchises",
+  validateQuery(z.object({
+    franchiseIds: z.union([
+      z.string().uuid().array(),
+      z.string().transform((val) => val.split(",").map((id) => id.trim())),
+    ]).optional(),
+    franchiseId: z.string().uuid("Invalid franchise ID format").optional(),
+  })),
+  getDriversByFranchisesHandler
+);
+// Specific routes must come before parameterized routes
 router.get(
   "/:id",
   validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),

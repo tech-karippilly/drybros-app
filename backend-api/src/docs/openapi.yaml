@@ -1050,6 +1050,132 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
   
+  /drivers/by-franchises:
+    get:
+      summary: Get drivers by selected franchises
+      description: |
+        Retrieves a simplified list of drivers from selected franchises with essential details.
+        
+        **Required Fields Returned:**
+        - `id`: Driver UUID
+        - `name`: Full name (firstName + lastName)
+        - `phone`: Phone number
+        - `availableStatus`: Current trip status (AVAILABLE or ON_TRIP)
+        - `performanceStatus`: Performance category (GREEN, YELLOW, or RED)
+        - `complaintsNumber`: Number of complaints
+        - `franchiseId`: Franchise ID the driver belongs to
+        
+        **Query Parameters:**
+        - `franchiseIds` (optional): Comma-separated list of franchise UUIDs or array
+        - `franchiseId` (optional): Single franchise UUID (for backward compatibility)
+        
+        **Examples:**
+        - `/drivers/by-franchises?franchiseIds=uuid1,uuid2,uuid3` - Get drivers from multiple franchises
+        - `/drivers/by-franchises?franchiseId=uuid1` - Get drivers from single franchise
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: franchiseIds
+          in: query
+          required: false
+          description: Comma-separated list of franchise UUIDs or array
+          schema:
+            oneOf:
+              - type: array
+                items:
+                  type: string
+                  format: uuid
+              - type: string
+                pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(,[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})*$"
+          example: "550e8400-e29b-41d4-a716-446655440000,660e8400-e29b-41d4-a716-446655440001"
+        - name: franchiseId
+          in: query
+          required: false
+          description: Single franchise UUID (alternative to franchiseIds)
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: List of drivers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          description: Driver UUID
+                          example: "550e8400-e29b-41d4-a716-446655440000"
+                        name:
+                          type: string
+                          description: Full name (firstName + lastName)
+                          example: "John Doe"
+                        phone:
+                          type: string
+                          description: Phone number
+                          example: "+1234567890"
+                        availableStatus:
+                          type: string
+                          enum: ["AVAILABLE", "ON_TRIP"]
+                          description: Current trip availability status
+                          example: "AVAILABLE"
+                        performanceStatus:
+                          type: string
+                          enum: ["GREEN", "YELLOW", "RED"]
+                          description: Performance category
+                          example: "GREEN"
+                        complaintsNumber:
+                          type: integer
+                          description: Number of complaints
+                          example: 0
+                        franchiseId:
+                          type: string
+                          format: uuid
+                          description: Franchise ID
+                          example: "550e8400-e29b-41d4-a716-446655440000"
+              example:
+                data:
+                  - id: "550e8400-e29b-41d4-a716-446655440000"
+                    name: "John Doe"
+                    phone: "+1234567890"
+                    availableStatus: "AVAILABLE"
+                    performanceStatus: "GREEN"
+                    complaintsNumber: 0
+                    franchiseId: "550e8400-e29b-41d4-a716-446655440000"
+                  - id: "660e8400-e29b-41d4-a716-446655440001"
+                    name: "Jane Smith"
+                    phone: "+1234567891"
+                    availableStatus: "ON_TRIP"
+                    performanceStatus: "YELLOW"
+                    complaintsNumber: 2
+                    franchiseId: "550e8400-e29b-41d4-a716-446655440000"
+        "400":
+          description: Bad request - missing or invalid franchise IDs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "franchiseIds or franchiseId query parameter is required"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  
     post:
       summary: Create a new driver
       description: |
@@ -1649,6 +1775,58 @@ paths:
         "401":
           description: Not authenticated (missing or invalid token)
 
+  /trips/driver/assigned:
+    get:
+      summary: Get trips assigned to driver
+      description: |
+        Get a list of trips that are assigned to a specific driver.
+        
+        Returns trips with status: ASSIGNED, DRIVER_ACCEPTED, TRIP_STARTED, or TRIP_PROGRESS.
+        
+        **Query Parameters:**
+        - `driverId` (required): Driver UUID to get assigned trips for
+        
+        **Use Cases:**
+        - Driver mobile app to see their assigned trips
+        - Driver dashboard to view active trips
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: driverId
+          in: query
+          required: true
+          description: Driver UUID
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: List of assigned trips retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TripResponse"
+        "400":
+          description: Bad request - missing or invalid driver ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /trips/unassigned:
     get:
       summary: Get unassigned trips
@@ -1888,6 +2066,18 @@ paths:
   /trips/{id}/driver-accept:
     patch:
       summary: Driver accepts a trip
+      description: |
+        Driver accepts a trip that has been assigned to them.
+        
+        **Prerequisites:**
+        - Trip must be in ASSIGNED status
+        - Trip must be assigned to the driver making the request
+        
+        **Status Change:**
+        - ASSIGNED → DRIVER_ACCEPTED
+        
+        **Request Body:**
+        - `driverId` (required): Driver UUID (can also be passed as query parameter)
       tags:
         - Trips
       security:
@@ -1896,28 +2086,54 @@ paths:
         - name: id
           in: path
           required: true
+          description: Trip UUID
           schema:
-            type: integer
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+        - name: driverId
+          in: query
+          required: false
+          description: Driver UUID (alternative to body parameter)
+          schema:
+            type: string
+            format: uuid
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
               type: object
               properties:
                 driverId:
-                  type: integer
-              required:
-                - driverId
+                  type: string
+                  format: uuid
+                  description: Driver UUID
+                  example: "550e8400-e29b-41d4-a716-446655440000"
       responses:
         "200":
           description: Trip accepted by driver
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TripResponse"
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TripResponse"
+        "400":
+          description: Bad request - missing driverId or invalid trip status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - trip not assigned to this driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /trips/{id}/driver-reject:
     patch:
@@ -1956,6 +2172,19 @@ paths:
   /trips/{id}/generate-start-otp:
     post:
       summary: Generate start OTP for a trip
+      description: |
+        Generate a 4-digit OTP required to start a trip.
+        
+        **Prerequisites:**
+        - Trip must be in DRIVER_ACCEPTED status
+        - Trip must be assigned to the driver making the request
+        
+        **OTP Usage:**
+        - The generated OTP must be used in the start trip endpoint
+        - OTP is typically sent via SMS/WhatsApp to the customer
+        
+        **Request Body:**
+        - `driverId` (required): Driver UUID (can also be passed as query parameter)
       tags:
         - Trips
       security:
@@ -1964,32 +2193,82 @@ paths:
         - name: id
           in: path
           required: true
+          description: Trip UUID
           schema:
-            type: integer
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+        - name: driverId
+          in: query
+          required: false
+          description: Driver UUID (alternative to body parameter)
+          schema:
+            type: string
+            format: uuid
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
               type: object
               properties:
                 driverId:
-                  type: integer
-              required:
-                - driverId
+                  type: string
+                  format: uuid
+                  description: Driver UUID
+                  example: "550e8400-e29b-41d4-a716-446655440000"
       responses:
         "200":
-          description: Start OTP generated
+          description: Start OTP generated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/StartOtpResponse"
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      tripId:
+                        type: string
+                        format: uuid
+                        example: "550e8400-e29b-41d4-a716-446655440000"
+                      otp:
+                        type: string
+                        description: 4-digit OTP
+                        example: "1234"
+        "400":
+          description: Bad request - missing driverId or invalid trip status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - trip not assigned to this driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /trips/{id}/start:
     patch:
       summary: Start trip with OTP
+      description: |
+        Start a trip by providing the OTP generated from the generate-start-otp endpoint.
+        
+        **Prerequisites:**
+        - Trip must be in ASSIGNED or DRIVER_ACCEPTED status
+        - Trip must be assigned to the driver making the request
+        - Valid OTP must be provided
+        
+        **Status Change:**
+        - ASSIGNED/DRIVER_ACCEPTED → TRIP_STARTED
+        - Driver trip status → ON_TRIP
+        
+        **Request Body:**
+        - `driverId` (required): Driver UUID (can also be passed as query parameter)
+        - `otp` (required): 4-digit OTP from generate-start-otp endpoint
       tags:
         - Trips
       security:
@@ -1998,37 +2277,18 @@ paths:
         - name: id
           in: path
           required: true
+          description: Trip UUID
           schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/StartTripRequest"
-      responses:
-        "200":
-          description: Trip started
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TripResponse"
-        "401":
-          description: Not authenticated (missing or invalid token)
-
-  /trips/{id}/generate-end-otp:
-    post:
-      summary: Generate end OTP for a trip
-      tags:
-        - Trips
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+        - name: driverId
+          in: query
+          required: false
+          description: Driver UUID (alternative to body parameter)
           schema:
-            type: integer
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -2037,18 +2297,122 @@ paths:
               type: object
               properties:
                 driverId:
-                  type: integer
+                  type: string
+                  format: uuid
+                  description: Driver UUID
+                  example: "550e8400-e29b-41d4-a716-446655440000"
+                otp:
+                  type: string
+                  description: 4-digit OTP from generate-start-otp
+                  example: "1234"
               required:
-                - driverId
+                - otp
       responses:
         "200":
-          description: End OTP generated
+          description: Trip started successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EndOtpResponse"
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TripResponse"
+        "400":
+          description: Bad request - missing parameters or invalid OTP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - trip not assigned to this driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trips/{id}/generate-end-otp:
+    post:
+      summary: Generate end OTP for a trip
+      description: |
+        Generate a 4-digit OTP required to end a trip.
+        
+        **Prerequisites:**
+        - Trip must be in TRIP_STARTED, TRIP_PROGRESS, or IN_PROGRESS status
+        - Trip must be assigned to the driver making the request
+        
+        **OTP Usage:**
+        - The generated OTP must be used in the end trip endpoint
+        - OTP is typically sent via SMS/WhatsApp to the customer
+        
+        **Request Body:**
+        - `driverId` (required): Driver UUID (can also be passed as query parameter)
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip UUID
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+        - name: driverId
+          in: query
+          required: false
+          description: Driver UUID (alternative to body parameter)
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                driverId:
+                  type: string
+                  format: uuid
+                  description: Driver UUID
+                  example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: End OTP generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      tripId:
+                        type: string
+                        format: uuid
+                        example: "550e8400-e29b-41d4-a716-446655440000"
+                      otp:
+                        type: string
+                        description: 4-digit OTP
+                        example: "5678"
+        "400":
+          description: Bad request - missing driverId or invalid trip status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - trip not assigned to this driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /trips/{id}/end:
     patch:

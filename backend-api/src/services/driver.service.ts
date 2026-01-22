@@ -586,3 +586,42 @@ export async function getAvailableGreenDriversList(
     performance: driver.performance,
   }));
 }
+
+/**
+ * Get drivers by selected franchises with essential details
+ * Returns: name, phone, available status, performance status, complaints number
+ */
+export async function getDriversByFranchises(
+  franchiseIds: string[]
+): Promise<Array<{
+  id: string;
+  name: string;
+  phone: string;
+  availableStatus: "AVAILABLE" | "ON_TRIP";
+  performanceStatus: DriverPerformanceCategory;
+  complaintsNumber: number;
+  franchiseId: string;
+}>> {
+  if (!franchiseIds || franchiseIds.length === 0) {
+    return [];
+  }
+
+  // Get all drivers from selected franchises
+  const drivers = await getDriversWithPerformance(undefined, false);
+  
+  // Filter by franchise IDs
+  const filteredDrivers = drivers.filter((driver) =>
+    franchiseIds.includes(driver.franchiseId)
+  );
+
+  // Map to simplified response
+  return filteredDrivers.map((driver) => ({
+    id: driver.id,
+    name: `${driver.firstName} ${driver.lastName}`,
+    phone: driver.phone,
+    availableStatus: driver.driverTripStatus as "AVAILABLE" | "ON_TRIP",
+    performanceStatus: driver.performance.category,
+    complaintsNumber: driver.complaintCount,
+    franchiseId: driver.franchiseId,
+  }));
+}

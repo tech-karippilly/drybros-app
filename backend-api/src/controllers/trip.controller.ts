@@ -15,6 +15,7 @@ import {
   listUnassignedTripsPaginated,
   getAvailableDriversForTrip,
   assignDriverToTrip,
+  getDriverAssignedTrips,
 } from "../services/trip.service";
 import { PaymentStatus, PaymentMode } from "@prisma/client";
 
@@ -138,7 +139,15 @@ export async function driverAcceptTripHandler(
 ) {
   try {
     const tripId = req.params.id;
-    const { driverId } = req.body; // later: from auth token
+    // Get driverId from body or query (for now, later from auth token)
+    const driverId = (req.body.driverId || req.query.driverId) as string;
+    
+    if (!driverId) {
+      return res.status(400).json({
+        error: "driverId is required",
+      });
+    }
+
     const updated = await driverAcceptTrip(tripId, driverId);
     res.json({ data: updated });
   } catch (err) {
@@ -168,7 +177,15 @@ export async function generateStartOtpHandler(
 ) {
   try {
     const tripId = req.params.id;
-    const { driverId } = req.body;
+    // Get driverId from body or query (for now, later from auth token)
+    const driverId = (req.body.driverId || req.query.driverId) as string;
+    
+    if (!driverId) {
+      return res.status(400).json({
+        error: "driverId is required",
+      });
+    }
+
     const result = await generateStartOtpForTrip(tripId, driverId);
     res.json({ data: result });
   } catch (err) {
@@ -183,7 +200,22 @@ export async function startTripHandler(
 ) {
   try {
     const tripId = req.params.id;
-    const { driverId, otp } = req.body;
+    // Get driverId from body or query (for now, later from auth token)
+    const driverId = (req.body.driverId || req.query.driverId) as string;
+    const { otp } = req.body;
+    
+    if (!driverId) {
+      return res.status(400).json({
+        error: "driverId is required",
+      });
+    }
+
+    if (!otp) {
+      return res.status(400).json({
+        error: "otp is required",
+      });
+    }
+
     const updated = await startTripWithOtp(tripId, driverId, otp);
     res.json({ data: updated });
   } catch (err) {
@@ -198,7 +230,15 @@ export async function generateEndOtpHandler(
 ) {
   try {
     const tripId = req.params.id;
-    const { driverId } = req.body;
+    // Get driverId from body or query (for now, later from auth token)
+    const driverId = (req.body.driverId || req.query.driverId) as string;
+    
+    if (!driverId) {
+      return res.status(400).json({
+        error: "driverId is required",
+      });
+    }
+
     const result = await generateEndOtpForTrip(tripId, driverId);
     res.json({ data: result });
   } catch (err) {
@@ -213,8 +253,9 @@ export async function endTripHandler(
 ) {
   try {
     const tripId = req.params.id;
+    // Get driverId from body or query (for now, later from auth token)
+    const driverId = (req.body.driverId || req.query.driverId) as string;
     const {
-      driverId,
       otp,
       finalAmount,
       paymentStatus,
@@ -222,6 +263,18 @@ export async function endTripHandler(
       paymentReference,
       overrideReason,
     } = req.body;
+
+    if (!driverId) {
+      return res.status(400).json({
+        error: "driverId is required",
+      });
+    }
+
+    if (!otp) {
+      return res.status(400).json({
+        error: "otp is required",
+      });
+    }
 
     const updated = await endTripWithOtp(tripId, {
       driverId,
@@ -247,6 +300,39 @@ export async function getAvailableDriversForTripHandler(
     const { id } = req.params;
     const availableDrivers = await getAvailableDriversForTrip(id);
     res.json({ data: availableDrivers });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Get trips assigned to the authenticated driver
+ */
+export async function getDriverAssignedTripsHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    // Get driverId from request body or query (for now, later from auth token)
+    const driverId = (req.body.driverId || req.query.driverId) as string;
+    
+    if (!driverId) {
+      return res.status(400).json({
+        error: "driverId is required",
+      });
+    }
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(driverId)) {
+      return res.status(400).json({
+        error: "Invalid driver ID format. Expected UUID.",
+      });
+    }
+
+    const trips = await getDriverAssignedTrips(driverId);
+    res.json({ data: trips });
   } catch (err) {
     next(err);
   }

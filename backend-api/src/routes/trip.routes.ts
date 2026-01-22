@@ -13,6 +13,7 @@ import {
   getUnassignedTripsHandler,
   getAvailableDriversForTripHandler,
   assignDriverToTripHandler,
+  getDriverAssignedTripsHandler,
 } from "../controllers/trip.controller";
 import { authMiddleware } from "../middlewares/auth";
 
@@ -23,6 +24,7 @@ router.use(authMiddleware);
 
 router.get("/", getTrips);
 router.get("/unassigned", getUnassignedTripsHandler);
+router.get("/driver/assigned", getDriverAssignedTripsHandler);
 router.get("/:id/available-drivers", getAvailableDriversForTripHandler);
 router.get("/:id", getTripByIdHandler);
 router.post("/", createTripHandler);

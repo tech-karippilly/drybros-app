@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '@/lib/hooks';
-import { createTripPhase1 } from '@/lib/features/trip/tripApi';
+import { createTripPhase1, assignDriverToTrip } from '@/lib/features/trip/tripApi';
+import { getDriversByFranchises, DriverByFranchiseResponse } from '@/lib/features/drivers/driverApi';
+import { PerformanceBadge } from '@/components/ui/PerformanceBadge';
 import { fetchTripTypesPaginated } from '@/lib/features/tripType/tripTypeSlice';
 import { fetchFranchises } from '@/lib/features/franchise/franchiseSlice';
 import { PlacesAutocomplete, PlaceDetails } from '@/components/ui/PlacesAutocomplete';
-import { X, Save, Loader2, User, Phone, Mail, MapPin, Calendar, Clock, Car, CheckCircle2, Store } from 'lucide-react';
+import { X, Save, Loader2, User, Phone, Mail, MapPin, Calendar, Clock, Car, CheckCircle2, Store, UserPlus, CheckCircle, AlertCircle } from 'lucide-react';
 
 const CAR_GEAR_TYPES = {
     MANUAL: "MANUAL",
@@ -74,6 +76,11 @@ export function TripBookingForm() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [createdTripId, setCreatedTripId] = useState<string | null>(null);
+    const [availableDrivers, setAvailableDrivers] = useState<DriverByFranchiseResponse[]>([]);
+    const [loadingDrivers, setLoadingDrivers] = useState(false);
+    const [assigningDriver, setAssigningDriver] = useState<string | null>(null);
+    const [driverAssigned, setDriverAssigned] = useState(false);
 
     useEffect(() => {
         // Fetch trip types if not already loaded
@@ -217,10 +224,56 @@ export function TripBookingForm() {
             };
 
             const response = await createTripPhase1(payload);
+            const tripId = response.data.trip.id;
             
-            setSuccess(`Trip created successfully! Trip ID: ${response.data.trip.id}`);
+            setSuccess(`Trip created successfully! Trip ID: ${tripId}`);
+            setCreatedTripId(tripId);
             
-            // Reset form after 2 seconds
+            // Fetch available drivers for the franchise
+            await fetchAvailableDrivers(formData.franchiseId);
+        } catch (err: any) {
+            setError(
+                err?.response?.data?.error ||
+                err?.message ||
+                'Failed to create trip booking'
+            );
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const fetchAvailableDrivers = async (franchiseId: string) => {
+        try {
+            setLoadingDrivers(true);
+            setError(null);
+            const drivers = await getDriversByFranchises(franchiseId);
+            // Filter for available drivers with GREEN performance only
+            const availableGreenDrivers = drivers.filter(
+                (driver) => driver.availableStatus === 'AVAILABLE' && driver.performanceStatus === 'GREEN'
+            );
+            setAvailableDrivers(availableGreenDrivers);
+        } catch (err: any) {
+            console.error('Failed to fetch drivers:', err);
+            setError(
+                err?.response?.data?.error ||
+                err?.message ||
+                'Failed to fetch available drivers'
+            );
+        } finally {
+            setLoadingDrivers(false);
+        }
+    };
+
+    const handleAssignDriver = async (driverId: string) => {
+        if (!createdTripId) return;
+        
+        try {
+            setAssigningDriver(driverId);
+            await assignDriverToTrip(createdTripId, driverId);
+            setDriverAssigned(true);
+            setSuccess('Driver assigned successfully!');
+            
+            // Reset everything after 3 seconds
             setTimeout(() => {
                 setFormData({
                     customerName: '',
@@ -244,17 +297,47 @@ export function TripBookingForm() {
                     isFareDiscussed: false,
                     isPriceAccepted: false,
                 });
+                setCreatedTripId(null);
+                setAvailableDrivers([]);
+                setDriverAssigned(false);
                 setSuccess(null);
             }, 3000);
         } catch (err: any) {
-            setError(
-                err?.response?.data?.error ||
-                err?.message ||
-                'Failed to create trip booking'
-            );
+            const errorMsg = err?.response?.data?.error || err?.message || 'Failed to assign driver';
+            setError(errorMsg);
         } finally {
-            setIsSubmitting(false);
+            setAssigningDriver(null);
         }
+    };
+
+    const handleSkipAssignment = () => {
+        // Reset form but keep franchise selection
+        setFormData({
+            customerName: '',
+            customerPhone: '',
+            customerEmail: '',
+            pickupLocation: '',
+            pickupLocationSearch: '',
+            pickupAddress: '',
+            pickupLocationNote: '',
+            destinationLocation: '',
+            destinationLocationSearch: '',
+            destinationAddress: '',
+            destinationNote: '',
+            franchiseId: formData.franchiseId,
+            tripType: '',
+            carGearType: CAR_GEAR_TYPES.MANUAL,
+            carType: CAR_TYPE_CATEGORIES.NORMAL,
+            tripDate: '',
+            tripTime: '',
+            isDetailsReconfirmed: false,
+            isFareDiscussed: false,
+            isPriceAccepted: false,
+        });
+        setCreatedTripId(null);
+        setAvailableDrivers([]);
+        setDriverAssigned(false);
+        setSuccess(null);
     };
 
     const activeTripTypes = useMemo(
@@ -662,6 +745,108 @@ export function TripBookingForm() {
                     </div>
                 </div>
             </form>
+
+            {/* Driver Assignment Section - Show after trip creation */}
+            {createdTripId && !driverAssigned && (
+                <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-6 animate-in fade-in duration-500">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 className="text-xl font-bold text-[#0d121c] dark:text-white flex items-center gap-2">
+                                <UserPlus size={24} />
+                                Assign Driver to Trip
+                            </h3>
+                            <p className="text-sm text-[#49659c] dark:text-gray-400 mt-1">
+                                Select a driver from the selected franchise to assign to this trip
+                            </p>
+                        </div>
+                        <button
+                            onClick={handleSkipAssignment}
+                            className="px-4 py-2 text-sm text-[#49659c] hover:text-[#0d121c] dark:hover:text-white border border-gray-200 dark:border-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
+                        >
+                            Skip for Now
+                        </button>
+                    </div>
+
+                    {loadingDrivers ? (
+                        <div className="text-center py-12">
+                            <Loader2 className="size-8 animate-spin text-[#0d59f2] mx-auto mb-4" />
+                            <p className="text-[#49659c]">Loading available drivers...</p>
+                        </div>
+                    ) : availableDrivers.length === 0 ? (
+                        <div className="text-center py-12">
+                            <AlertCircle className="size-8 text-[#49659c] opacity-50 mx-auto mb-4" />
+                            <p className="text-[#49659c] font-medium">No active drivers available in this franchise</p>
+                            <p className="text-sm text-[#49659c] mt-2">You can assign a driver later from the unassigned trips list</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {availableDrivers.map((driver) => (
+                                <div
+                                    key={driver.id}
+                                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                >
+                                    <div className="flex items-center gap-4 flex-1">
+                                        <PerformanceBadge
+                                            category={driver.performanceStatus}
+                                            size="sm"
+                                        />
+                                        <div className="flex-1">
+                                            <p className="font-medium text-sm text-[#0d121c] dark:text-white">
+                                                {driver.name}
+                                            </p>
+                                            <div className="flex items-center gap-3 mt-1">
+                                                <div className="flex items-center gap-1 text-xs text-[#49659c] dark:text-gray-400">
+                                                    <Phone size={12} />
+                                                    {driver.phone}
+                                                </div>
+                                                {driver.complaintsNumber > 0 && (
+                                                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                                                        {driver.complaintsNumber} complaint{driver.complaintsNumber > 1 ? 's' : ''}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => handleAssignDriver(driver.id)}
+                                        disabled={assigningDriver === driver.id}
+                                        className="px-4 py-2 bg-[#0d59f2] text-white rounded-lg text-sm font-medium hover:bg-[#0d59f2]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                    >
+                                        {assigningDriver === driver.id ? (
+                                            <>
+                                                <Loader2 className="size-4 animate-spin" />
+                                                Assigning...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle size={16} />
+                                                Assign
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Success Message for Driver Assignment */}
+            {driverAssigned && (
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-6">
+                    <div className="flex items-center gap-3">
+                        <CheckCircle2 className="text-green-600 dark:text-green-400" size={24} />
+                        <div>
+                            <p className="text-green-800 dark:text-green-300 font-bold">
+                                Driver assigned successfully!
+                            </p>
+                            <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                                The trip has been created and assigned to the selected driver.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

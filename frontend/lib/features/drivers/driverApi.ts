@@ -311,6 +311,28 @@ export async function getAvailableDriversForTrip(tripId: string): Promise<Availa
 }
 
 /**
+ * Get drivers by franchise(s)
+ * Returns simplified driver data with performance status
+ */
+export interface DriverByFranchiseResponse {
+    id: string;
+    name: string;
+    phone: string;
+    availableStatus: "AVAILABLE" | "ON_TRIP";
+    performanceStatus: "GREEN" | "YELLOW" | "RED";
+    complaintsNumber: number;
+    franchiseId: string;
+}
+
+export async function getDriversByFranchises(franchiseId: string): Promise<DriverByFranchiseResponse[]> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('franchiseId', franchiseId);
+    
+    const response = await api.get<{ data: DriverByFranchiseResponse[] }>(`${DRIVER_ENDPOINTS.BASE}/by-franchises?${queryParams.toString()}`);
+    return response.data.data;
+}
+
+/**
  * Get paginated drivers with optional performance
  */
 export async function getDriversPaginated(params: {

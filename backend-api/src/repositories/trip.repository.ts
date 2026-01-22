@@ -194,3 +194,23 @@ export async function updateTrip(id: string, data: any) {
     data,
   });
 }
+
+/**
+ * Get trips assigned to a driver
+ */
+export async function getTripsByDriver(driverId: string) {
+  return prisma.trip.findMany({
+    where: {
+      driverId,
+      status: {
+        in: ["ASSIGNED", "DRIVER_ACCEPTED", "TRIP_STARTED", "TRIP_PROGRESS"],
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    include: {
+      Franchise: true,
+      Driver: true,
+      Customer: true,
+    },
+  });
+}

@@ -7,6 +7,7 @@ import {
   getUnassignedTrips,
   getTripsPaginated,
   getUnassignedTripsPaginated,
+  getTripsByDriver,
 } from "../repositories/trip.repository";
 import { TripStatus, PaymentStatus, PaymentMode, TripType } from "@prisma/client";
 
@@ -136,6 +137,13 @@ export async function getTrip(id: string) {
 /**
  * Get available drivers for trip assignment, prioritized by performance
  */
+/**
+ * Get trips assigned to a driver
+ */
+export async function getDriverAssignedTrips(driverId: string) {
+  return getTripsByDriver(driverId);
+}
+
 export async function getAvailableDriversForTrip(tripId: string) {
   const trip = await repoGetTripById(tripId);
   if (!trip) {

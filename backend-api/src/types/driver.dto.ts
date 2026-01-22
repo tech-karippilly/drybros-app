@@ -1,6 +1,7 @@
 // src/types/driver.dto.ts
 import { z } from "zod";
-import { CarType, DriverStatus } from "@prisma/client";
+import { CarType, DriverStatus, DriverTripStatus } from "@prisma/client";
+import { DriverPerformanceCategory } from "../constants/driver";
 
 // CarType enum schema
 export const carTypeEnum = z.enum([
@@ -48,6 +49,19 @@ export const createDriverSchema = z.object({
 
 export type CreateDriverDTO = z.infer<typeof createDriverSchema>;
 
+// Driver Performance Metrics DTO
+export interface DriverPerformanceMetricsDTO {
+  category: DriverPerformanceCategory;
+  score: number; // 0-100
+  rating: number | null;
+  complaintCount: number;
+  totalTrips: number;
+  completedTrips: number;
+  rejectedTrips: number;
+  completionRate: number; // percentage
+  rejectionRate: number; // percentage
+}
+
 // Driver Response DTO
 export interface DriverResponseDTO {
   id: string; // UUID
@@ -76,6 +90,7 @@ export interface DriverResponseDTO {
   previousExp: boolean;
   carTypes: CarType[];
   status: DriverStatus;
+  driverTripStatus: DriverTripStatus;
   complaintCount: number;
   bannedGlobally: boolean;
   dailyTargetAmount: number | null;
@@ -84,6 +99,7 @@ export interface DriverResponseDTO {
   createdBy: string | null; // User UUID who created this driver
   createdAt: Date;
   updatedAt: Date;
+  performance?: DriverPerformanceMetricsDTO; // Optional performance metrics
 }
 
 export interface CreateDriverResponseDTO {
@@ -205,4 +221,9 @@ export interface PaginatedDriverResponseDTO {
     hasNext: boolean;
     hasPrev: boolean;
   };
+}
+
+// Driver with Performance Response DTO (performance is required)
+export interface DriverWithPerformanceResponseDTO extends DriverResponseDTO {
+  performance: DriverPerformanceMetricsDTO; // Required (not optional)
 }

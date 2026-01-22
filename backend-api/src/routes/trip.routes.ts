@@ -11,6 +11,8 @@ import {
   generateEndOtpHandler,
   endTripHandler,
   getUnassignedTripsHandler,
+  getAvailableDriversForTripHandler,
+  assignDriverToTripHandler,
 } from "../controllers/trip.controller";
 import { authMiddleware } from "../middlewares/auth";
 
@@ -21,9 +23,11 @@ router.use(authMiddleware);
 
 router.get("/", getTrips);
 router.get("/unassigned", getUnassignedTripsHandler);
+router.get("/:id/available-drivers", getAvailableDriversForTripHandler);
 router.get("/:id", getTripByIdHandler);
 router.post("/", createTripHandler);
 router.post("/phase1", createTripPhase1Handler);
+router.post("/:id/assign-driver", assignDriverToTripHandler);
 
 router.patch("/:id/driver-accept", driverAcceptTripHandler);
 router.patch("/:id/driver-reject", driverRejectTripHandler);

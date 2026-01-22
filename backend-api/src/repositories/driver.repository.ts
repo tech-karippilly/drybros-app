@@ -154,6 +154,16 @@ export async function updateDriverStatus(
   });
 }
 
+export async function updateDriverTripStatus(
+  id: string,
+  driverTripStatus: "AVAILABLE" | "ON_TRIP"
+): Promise<Driver> {
+  return prisma.driver.update({
+    where: { id },
+    data: { driverTripStatus },
+  });
+}
+
 export async function softDeleteDriver(id: string): Promise<Driver> {
   return prisma.driver.update({
     where: { id },

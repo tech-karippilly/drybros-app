@@ -13,6 +13,8 @@ import {
   listUnassignedTrips,
   listTripsPaginated,
   listUnassignedTripsPaginated,
+  getAvailableDriversForTrip,
+  assignDriverToTrip,
 } from "../services/trip.service";
 import { PaymentStatus, PaymentMode } from "@prisma/client";
 
@@ -231,6 +233,41 @@ export async function endTripHandler(
       overrideReason,
     });
     res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getAvailableDriversForTripHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { id } = req.params;
+    const availableDrivers = await getAvailableDriversForTrip(id);
+    res.json({ data: availableDrivers });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function assignDriverToTripHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { id } = req.params;
+    const { driverId } = req.body;
+    const userId = req.user?.userId; // Get from auth middleware if available
+    if (!driverId) {
+      const err: any = new Error("Driver ID is required");
+      err.statusCode = 400;
+      throw err;
+    }
+    const trip = await assignDriverToTrip(id, driverId, userId);
+    res.json({ data: trip });
   } catch (err) {
     next(err);
   }

@@ -11,7 +11,7 @@ import {
 import { TripStatus, PaymentStatus, PaymentMode, TripType } from "@prisma/client";
 
 import { getCustomerById } from "../repositories/customer.repository";
-import { getDriverById } from "../repositories/driver.repository";
+import { getDriverById, updateDriverTripStatus } from "../repositories/driver.repository";
 import { generateOtp } from "../utils/otp";
 import { findOrCreateCustomer } from "./customer.service";
 import {
@@ -20,6 +20,12 @@ import {
   TRIP_ERROR_MESSAGES,
 } from "../constants/trip";
 import { calculateTripPrice } from "./pricing.service";
+import {
+  getDriversWithPerformance,
+  sortDriversByPerformance,
+  DriverWithPerformance,
+} from "./driver-performance.service";
+import prisma from "../config/prismaClient";
 
 interface CreateTripInput {
   franchiseId: number;
@@ -127,6 +133,237 @@ export async function getTrip(id: string) {
   return trip;
 }
 
+/**
+ * Get available drivers for trip assignment, prioritized by performance
+ */
+export async function getAvailableDriversForTrip(tripId: string) {
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error("Trip not found");
+    err.statusCode = 404;
+    throw err;
+  }
+  if (trip.driverId) {
+    const err: any = new Error("Trip already has a driver assigned");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Get all drivers with performance metrics from same franchise
+  const allDrivers = await getDriversWithPerformance(trip.franchiseId, false);
+
+  // Filter eligible drivers and calculate match score
+  const availableDrivers = await Promise.all(
+    allDrivers.map(async (driver) => {
+      // Mandatory eligibility checks
+      if (driver.franchiseId !== trip.franchiseId) return null;
+      if (driver.status !== "ACTIVE" || !driver.isActive) return null;
+      if (driver.bannedGlobally) return null;
+      if (driver.licenseExpDate < new Date()) return null;
+
+      // Check if driver has active trip
+      const activeTrips = await prisma.trip.count({
+        where: {
+          driverId: driver.id,
+          status: {
+            in: [
+              "ASSIGNED",
+              "DRIVER_ACCEPTED",
+              "IN_PROGRESS",
+              "TRIP_STARTED",
+              "TRIP_PROGRESS",
+            ],
+          },
+        },
+      });
+      if (activeTrips > 0) return null;
+
+      // Calculate additional match score (car type, etc.)
+      let matchScore = 0;
+
+      // Car type matching (if trip has car type requirement)
+      if (trip.carType) {
+        try {
+          const tripCarType = JSON.parse(trip.carType);
+          const driverCarTypes = JSON.parse(driver.carTypes || "[]");
+
+          // Check gear type match
+          if (driverCarTypes.includes(tripCarType.gearType)) {
+            matchScore += 25;
+          }
+
+          // Check category match
+          const categoryMap: Record<string, string[]> = {
+            PREMIUM: ["PREMIUM_CARS", "LUXURY_CARS"],
+            LUXURY: ["LUXURY_CARS", "PREMIUM_CARS"],
+            NORMAL: ["MANUAL", "AUTOMATIC"],
+          };
+
+          if (
+            categoryMap[tripCarType.category]?.some((cat) =>
+              driverCarTypes.includes(cat)
+            )
+          ) {
+            matchScore += 25;
+          }
+        } catch {
+          // If parsing fails, skip car type scoring
+        }
+      }
+
+      return {
+        driver,
+        matchScore,
+      };
+    })
+  );
+
+  // Filter out nulls (ineligible drivers)
+  const eligible = availableDrivers.filter(
+    (d) => d !== null
+  ) as Array<{
+    driver: DriverWithPerformance;
+    matchScore: number;
+  }>;
+
+  // Sort by: Performance category first, then status, then match score
+  const categoryOrder = {
+    GREEN: 1,
+    YELLOW: 2,
+    RED: 3,
+  };
+
+  const statusOrder = {
+    ACTIVE: 1,
+    INACTIVE: 2,
+    BLOCKED: 3,
+    TERMINATED: 4,
+  };
+
+  eligible.sort((a, b) => {
+    // First: Performance category (GREEN > YELLOW > RED)
+    const catDiff =
+      categoryOrder[a.driver.performance.category] -
+      categoryOrder[b.driver.performance.category];
+    if (catDiff !== 0) return catDiff;
+
+    // Second: Status (ACTIVE > others)
+    const statusDiff =
+      (statusOrder[a.driver.status as keyof typeof statusOrder] || 99) -
+      (statusOrder[b.driver.status as keyof typeof statusOrder] || 99);
+    if (statusDiff !== 0) return statusDiff;
+
+    // Third: Performance score (higher is better)
+    const scoreDiff = b.driver.performance.score - a.driver.performance.score;
+    if (scoreDiff !== 0) return scoreDiff;
+
+    // Fourth: Match score (car type, etc.)
+    return b.matchScore - a.matchScore;
+  });
+
+  // Return drivers with match information
+  return eligible.map(({ driver, matchScore }) => ({
+    id: driver.id,
+    firstName: driver.firstName,
+    lastName: driver.lastName,
+    phone: driver.phone,
+    driverCode: driver.driverCode,
+    status: driver.status,
+    currentRating: driver.currentRating,
+    performance: driver.performance,
+    matchScore,
+  }));
+}
+
+/**
+ * Assign a driver to a trip
+ */
+export async function assignDriverToTrip(
+  tripId: string,
+  driverId: string,
+  assignedBy?: string
+) {
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error("Trip not found");
+    err.statusCode = 404;
+    throw err;
+  }
+  if (trip.driverId) {
+    const err: any = new Error("Trip already has a driver assigned");
+    err.statusCode = 400;
+    throw err;
+  }
+  if (
+    trip.status !== "NOT_ASSIGNED" &&
+    trip.status !== "REQUESTED" &&
+    trip.status !== "PENDING"
+  ) {
+    const err: any = new Error(
+      `Cannot assign driver to trip with status: ${trip.status}`
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+  const driver = await getDriverById(driverId);
+  if (!driver) {
+    const err: any = new Error("Driver not found");
+    err.statusCode = 404;
+    throw err;
+  }
+  // Validate all criteria
+  if (driver.franchiseId !== trip.franchiseId) {
+    const err: any = new Error("Driver belongs to different franchise");
+    err.statusCode = 400;
+    throw err;
+  }
+  if (driver.status !== "ACTIVE" || !driver.isActive) {
+    const err: any = new Error("Driver is not active");
+    err.statusCode = 400;
+    throw err;
+  }
+  if (driver.bannedGlobally) {
+    const err: any = new Error("Driver is globally banned");
+    err.statusCode = 400;
+    throw err;
+  }
+  if (driver.licenseExpDate < new Date()) {
+    const err: any = new Error("Driver license has expired");
+    err.statusCode = 400;
+    throw err;
+  }
+  // Check if driver has active trip
+  const activeTrips = await prisma.trip.count({
+    where: {
+      driverId: driver.id,
+      status: {
+        in: [
+          "ASSIGNED",
+          "DRIVER_ACCEPTED",
+          "IN_PROGRESS",
+          "TRIP_STARTED",
+          "TRIP_PROGRESS",
+        ],
+      },
+    },
+  });
+  if (activeTrips > 0) {
+    const err: any = new Error("Driver already has an active trip");
+    err.statusCode = 400;
+    throw err;
+  }
+  // Assign driver
+  const updatedTrip = await updateTrip(tripId, {
+    driverId,
+    status: "ASSIGNED",
+  });
+  
+  // Update driver trip status to ON_TRIP
+  await updateDriverTripStatus(driverId, "ON_TRIP");
+  
+  return updatedTrip;
+}
+
 export async function createTrip(input: CreateTripInput) {
   const customer = await getCustomerById(input.customerId);
   if (!customer) {
@@ -221,10 +458,15 @@ export async function driverRejectTrip(tripId: string, driverId: string) {
     throw err;
   }
 
-  return updateTrip(tripId, {
+  const updatedTrip = await updateTrip(tripId, {
     status: "REJECTED_BY_DRIVER",
     driverId: null,
   });
+  
+  // Update driver trip status back to AVAILABLE when they reject
+  await updateDriverTripStatus(driverId, "AVAILABLE");
+  
+  return updatedTrip;
 }
 
 export async function generateStartOtpForTrip(
@@ -293,10 +535,15 @@ export async function startTripWithOtp(
 
   const now = new Date();
 
-  return updateTrip(tripId, {
+  const updatedTrip = await updateTrip(tripId, {
     startedAt: now,
     status: TripStatus.TRIP_STARTED,
   });
+  
+  // Ensure driver trip status is ON_TRIP
+  await updateDriverTripStatus(driverId, "ON_TRIP");
+  
+  return updatedTrip;
 }
 
 export async function generateEndOtpForTrip(tripId: string, driverId: string) {
@@ -369,7 +616,7 @@ export async function endTripWithOtp(tripId: string, input: EndTripInput) {
 
   const isOverridden = input.finalAmount !== trip.totalAmount;
 
-  return updateTrip(tripId, {
+  const updatedTrip = await updateTrip(tripId, {
     endedAt: now,
     status: TripStatus.TRIP_ENDED,
     finalAmount: input.finalAmount,
@@ -381,6 +628,13 @@ export async function endTripWithOtp(tripId: string, input: EndTripInput) {
     paymentMode: input.paymentMode,
     paymentReference: input.paymentReference ?? null,
   });
+  
+  // Update driver trip status to AVAILABLE when trip ends
+  if (trip.driverId) {
+    await updateDriverTripStatus(trip.driverId, "AVAILABLE");
+  }
+  
+  return updatedTrip;
 }
 
 interface CreateTripPhase1Input {

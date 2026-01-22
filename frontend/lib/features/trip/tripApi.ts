@@ -144,6 +144,30 @@ export async function getTripById(id: string): Promise<TripResponse> {
 }
 
 /**
+ * Get unassigned trips
+ */
+export async function getUnassignedTrips(): Promise<TripResponse[]> {
+    const response = await api.get<{ data: TripResponse[] }>('/trips/unassigned');
+    return response.data.data;
+}
+
+/**
+ * Get available drivers for a trip (sorted by performance)
+ */
+export async function getAvailableDriversForTrip(tripId: string): Promise<any[]> {
+    const response = await api.get<{ data: any[] }>(`/trips/${tripId}/available-drivers`);
+    return response.data.data;
+}
+
+/**
+ * Assign driver to trip
+ */
+export async function assignDriverToTrip(tripId: string, driverId: string): Promise<TripResponse> {
+    const response = await api.post<{ data: TripResponse }>(`/trips/${tripId}/assign-driver`, { driverId });
+    return response.data.data;
+}
+
+/**
  * Create a trip phase 1 (initial booking)
  */
 export async function createTripPhase1(data: CreateTripPhase1Request): Promise<CreateTripPhase1Response> {

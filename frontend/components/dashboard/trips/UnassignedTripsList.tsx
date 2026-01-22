@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { getTripList, TripResponse } from '@/lib/features/trip/tripApi';
-import { TripDetailsModal } from './TripDetailsModal';
+import { getUnassignedTrips, getAvailableDriversForTrip, assignDriverToTrip, TripResponse } from '@/lib/features/trip/tripApi';
+import { PerformanceBadge } from '@/components/ui/PerformanceBadge';
+import { AvailableDriver } from '@/lib/types/driver';
 import {
     Search,
     ChevronLeft,
@@ -14,16 +15,26 @@ import {
     Clock,
     Loader2,
     AlertCircle,
+    Car,
+    Phone,
+    CheckCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function UnassignedTripsList() {
+interface UnassignedTripsListProps {
+    onViewTrip?: (tripId: string) => void;
+}
+
+export function UnassignedTripsList({ onViewTrip }: UnassignedTripsListProps) {
     const [trips, setTrips] = useState<TripResponse[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+    const [selectedTripIdForDrivers, setSelectedTripIdForDrivers] = useState<string | null>(null);
+    const [availableDrivers, setAvailableDrivers] = useState<AvailableDriver[]>([]);
+    const [loadingDrivers, setLoadingDrivers] = useState(false);
+    const [assigningDriver, setAssigningDriver] = useState<string | null>(null);
     const itemsPerPage = 10;
 
     useEffect(() => {
@@ -34,15 +45,7 @@ export function UnassignedTripsList() {
         try {
             setIsLoading(true);
             setError(null);
-            const allTrips = await getTripList();
-            // Filter for unassigned trips (no driverId or status is PENDING/REQUESTED/NOT_ASSIGNED)
-            const unassigned = allTrips.filter(
-                (trip) =>
-                    !trip.driverId ||
-                    trip.status === 'PENDING' ||
-                    trip.status === 'REQUESTED' ||
-                    trip.status === 'NOT_ASSIGNED'
-            );
+            const unassigned = await getUnassignedTrips();
             setTrips(unassigned);
         } catch (err: any) {
             setError(
@@ -52,6 +55,55 @@ export function UnassignedTripsList() {
             );
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleViewDrivers = async (tripId: string) => {
+        try {
+            setLoadingDrivers(true);
+            setSelectedTripIdForDrivers(tripId);
+            const drivers = await getAvailableDriversForTrip(tripId);
+            // Map the response to AvailableDriver format
+            const mappedDrivers: AvailableDriver[] = drivers.map((driver: any) => ({
+                id: driver.id,
+                firstName: driver.firstName,
+                lastName: driver.lastName,
+                phone: driver.phone,
+                driverCode: driver.driverCode,
+                status: driver.status,
+                currentRating: driver.currentRating,
+                performance: driver.performance,
+                matchScore: driver.matchScore || 0,
+            }));
+            setAvailableDrivers(mappedDrivers);
+        } catch (err: any) {
+            console.error("Failed to fetch available drivers:", err);
+            setError(
+                err?.response?.data?.error ||
+                    err?.message ||
+                    'Failed to fetch available drivers'
+            );
+            setAvailableDrivers([]);
+        } finally {
+            setLoadingDrivers(false);
+        }
+    };
+
+    const handleAssignDriver = async (tripId: string, driverId: string) => {
+        try {
+            setAssigningDriver(driverId);
+            await assignDriverToTrip(tripId, driverId);
+            // Refresh the trips list
+            await fetchTrips();
+            // Close the drivers list
+            setSelectedTripIdForDrivers(null);
+            setAvailableDrivers([]);
+        } catch (err: any) {
+            console.error("Failed to assign driver:", err);
+            const errorMsg = err?.response?.data?.error || err?.message || 'Failed to assign driver';
+            alert(errorMsg);
+        } finally {
+            setAssigningDriver(null);
         }
     };
 
@@ -215,8 +267,8 @@ export function UnassignedTripsList() {
                                         </tr>
                                     ) : (
                                         paginatedTrips.map((trip) => (
+                                            <React.Fragment key={trip.id}>
                                             <tr
-                                                key={trip.id}
                                                 className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors group"
                                             >
                                                 <td className="px-6 py-4">
@@ -304,15 +356,88 @@ export function UnassignedTripsList() {
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-2">
                                                         <button
-                                                            onClick={() => setSelectedTripId(trip.id)}
+                                                            onClick={() => onViewTrip?.(trip.id)}
                                                             className="p-2 text-[#49659c] hover:text-[#0d59f2] hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
                                                             title="View Details"
                                                         >
                                                             <Eye size={18} />
                                                         </button>
+                                                        <button
+                                                            onClick={() => handleViewDrivers(trip.id)}
+                                                            className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-medium transition-all"
+                                                            title="Assign Driver"
+                                                        >
+                                                            Assign
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
+                                            {/* Available Drivers Row */}
+                                            {selectedTripIdForDrivers === trip.id && (
+                                                <tr>
+                                                    <td colSpan={9} className="px-6 py-4 bg-gray-50 dark:bg-gray-800/30">
+                                                        <div className="space-y-4">
+                                                            <h4 className="font-semibold text-sm text-[#0d121c] dark:text-white mb-3">
+                                                                Available Drivers (Sorted by Performance)
+                                                            </h4>
+                                                            {loadingDrivers ? (
+                                                                <div className="text-center py-4 text-[#49659c] text-sm">
+                                                                    <Loader2 className="size-5 animate-spin mx-auto mb-2" />
+                                                                    Loading drivers...
+                                                                </div>
+                                                            ) : availableDrivers.length === 0 ? (
+                                                                <div className="text-center py-4 text-[#49659c] text-sm">
+                                                                    No available drivers
+                                                                </div>
+                                                            ) : (
+                                                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                                                    {availableDrivers.map((driver) => (
+                                                                        <div
+                                                                            key={driver.id}
+                                                                            className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                                                        >
+                                                                            <div className="flex items-center gap-3 flex-1">
+                                                                                <PerformanceBadge
+                                                                                    category={driver.performance.category}
+                                                                                    score={driver.performance.score}
+                                                                                    showScore={true}
+                                                                                    size="sm"
+                                                                                />
+                                                                                <div>
+                                                                                    <p className="font-medium text-sm text-[#0d121c] dark:text-white">
+                                                                                        {driver.firstName} {driver.lastName}
+                                                                                    </p>
+                                                                                    <p className="text-xs text-[#49659c] dark:text-gray-400">
+                                                                                        {driver.driverCode} • Rating: {driver.currentRating?.toFixed(1) || "N/A"}
+                                                                                    </p>
+                                                                                </div>
+                                                                            </div>
+                                                                            <button
+                                                                                onClick={() => handleAssignDriver(trip.id, driver.id)}
+                                                                                disabled={assigningDriver === driver.id}
+                                                                                className="px-3 py-1.5 bg-[#0d59f2] text-white rounded text-xs font-medium hover:bg-[#0d59f2]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1"
+                                                                            >
+                                                                                {assigningDriver === driver.id ? (
+                                                                                    <>
+                                                                                        <Loader2 className="size-3 animate-spin" />
+                                                                                        Assigning...
+                                                                                    </>
+                                                                                ) : (
+                                                                                    <>
+                                                                                        <CheckCircle size={14} />
+                                                                                        Assign
+                                                                                    </>
+                                                                                )}
+                                                                            </button>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            </React.Fragment>
                                         ))
                                     )}
                                 </tbody>
@@ -396,14 +521,6 @@ export function UnassignedTripsList() {
                     </>
                 )}
             </div>
-
-            {/* Trip Details Modal */}
-            {selectedTripId && (
-                <TripDetailsModal
-                    tripId={selectedTripId}
-                    onClose={() => setSelectedTripId(null)}
-                />
-            )}
         </div>
     );
 }

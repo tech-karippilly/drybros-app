@@ -126,6 +126,7 @@ function mapDriverToResponse(driver: any): DriverResponseDTO {
     previousExp: driver.previousExp,
     carTypes,
     status: driver.status,
+    driverTripStatus: driver.driverTripStatus || "AVAILABLE", // Default to AVAILABLE if not set
     complaintCount: driver.complaintCount,
     bannedGlobally: driver.bannedGlobally,
     dailyTargetAmount: driver.dailyTargetAmount,

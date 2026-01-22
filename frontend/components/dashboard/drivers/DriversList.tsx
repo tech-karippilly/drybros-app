@@ -3,6 +3,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAppSelector, useAppDispatch } from '@/lib/hooks';
 import { fetchDrivers, deleteDriver, banDriver } from '@/lib/features/drivers/driverSlice';
+import { getDrivers } from '@/lib/features/drivers/driverApi';
+import { PerformanceBadge } from '@/components/ui/PerformanceBadge';
 import {
     Plus,
     Search,
@@ -16,10 +18,12 @@ import {
     Edit2,
     Trash2,
     Ban,
-    Eye
+    Eye,
+    ArrowUpDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GetDriver, DriverStatus } from '@/lib/types/drivers';
+import { Driver } from '@/lib/types/driver';
 import { DeleteDriverModal, BanDriverModal } from './ActionModals';
 
 // Helper for status badge
@@ -63,6 +67,10 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
     const dispatch = useAppDispatch();
     const { drivers } = useAppSelector(state => state.drivers);
     
+    // Local state for drivers with performance
+    const [driversWithPerformance, setDriversWithPerformance] = useState<Record<string, Driver['performance']>>({});
+    const [isLoadingPerformance, setIsLoadingPerformance] = useState(false);
+    
     // Local filters state matching StaffList pattern
     const [filters, setFilters] = useState({
         search: '',
@@ -71,6 +79,10 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
         franchise: ''
     });
     const [showFilters, setShowFilters] = useState(false);
+    
+    // Sorting state
+    const [sortBy, setSortBy] = useState<"performance" | "name" | "status">("name");
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
     
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -84,9 +96,47 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
         dispatch(fetchDrivers());
     }, [dispatch]);
 
-    // Filter Logic
+    // Fetch drivers with performance data
+    useEffect(() => {
+        const fetchPerformanceData = async () => {
+            try {
+                setIsLoadingPerformance(true);
+                const driversWithPerf = await getDrivers({
+                    includePerformance: true,
+                });
+                
+                // Create a map of driver ID to performance data
+                const performanceMap: Record<string, Driver['performance']> = {};
+                driversWithPerf.forEach(driver => {
+                    if (driver.id && driver.performance) {
+                        // Convert UUID to number for matching with GetDriver._id
+                        const idNum = parseInt(driver.id.replace(/-/g, '').substring(0, 10), 16) || 0;
+                        performanceMap[driver.id] = driver.performance;
+                        performanceMap[idNum.toString()] = driver.performance;
+                    }
+                });
+                setDriversWithPerformance(performanceMap);
+            } catch (error) {
+                console.error("Failed to fetch driver performance:", error);
+            } finally {
+                setIsLoadingPerformance(false);
+            }
+        };
+
+        if (drivers.length > 0) {
+            fetchPerformanceData();
+        }
+    }, [drivers]);
+
+    // Helper to get performance for a driver
+    const getDriverPerformance = useCallback((driver: GetDriver) => {
+        const driverId = typeof driver._id === 'string' ? driver._id : driver._id.toString();
+        return driversWithPerformance[driverId] || driversWithPerformance[driver._id.toString()];
+    }, [driversWithPerformance]);
+
+    // Filter and Sort Logic
     const filteredList = useMemo(() => {
-        return drivers.filter(item => {
+        let filtered = drivers.filter(item => {
             const fullName = `${item.firstName} ${item.lastName}`.toLowerCase();
             const matchesSearch = fullName.includes(filters.search.toLowerCase()) || 
                                   (item.driverPhone?.includes(filters.search) ?? false);
@@ -109,7 +159,32 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
 
             return matchesSearch && matchesPhone && matchesStatus && matchesFranchise;
         });
-    }, [drivers, filters]);
+
+        // Sort drivers
+        filtered = [...filtered].sort((a, b) => {
+            if (sortBy === "performance") {
+                const perfA = getDriverPerformance(a);
+                const perfB = getDriverPerformance(b);
+                if (!perfA || !perfB) return 0;
+                const scoreA = perfA.score;
+                const scoreB = perfB.score;
+                return sortOrder === "asc" ? scoreA - scoreB : scoreB - scoreA;
+            } else if (sortBy === "name") {
+                const nameA = `${a.firstName} ${a.lastName}`.toLowerCase();
+                const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
+                return sortOrder === "asc" 
+                    ? nameA.localeCompare(nameB)
+                    : nameB.localeCompare(nameA);
+            } else if (sortBy === "status") {
+                return sortOrder === "asc"
+                    ? a.status - b.status
+                    : b.status - a.status;
+            }
+            return 0;
+        });
+
+        return filtered;
+    }, [drivers, filters, sortBy, sortOrder, getDriverPerformance]);
 
     // Pagination Logic
     const totalPages = Math.ceil(filteredList.length / itemsPerPage);
@@ -260,6 +335,22 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Franchise</th>
                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Location</th>
                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Status</th>
+                                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">
+                                    <button
+                                        onClick={() => {
+                                            if (sortBy === "performance") {
+                                                setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                                            } else {
+                                                setSortBy("performance");
+                                                setSortOrder("desc");
+                                            }
+                                        }}
+                                        className="flex items-center gap-1 hover:text-[#0d59f2] transition-colors"
+                                    >
+                                        Performance
+                                        <ArrowUpDown size={14} />
+                                    </button>
+                                </th>
                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c] text-right">Actions</th>
                             </tr>
                         </thead>
@@ -298,6 +389,31 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
                                     </td>
                                     <td className="px-6 py-4">
                                         <DriverStatusBadge status={driver.status} />
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        {(() => {
+                                            const performance = getDriverPerformance(driver);
+                                            if (isLoadingPerformance) {
+                                                return <span className="text-xs text-[#49659c]">Loading...</span>;
+                                            }
+                                            if (performance) {
+                                                return (
+                                                    <div className="flex flex-col gap-1">
+                                                        <PerformanceBadge
+                                                            category={performance.category}
+                                                            score={performance.score}
+                                                            showScore={true}
+                                                            size="sm"
+                                                        />
+                                                        <div className="text-xs text-[#49659c] dark:text-gray-400 mt-1">
+                                                            <div>Rating: {performance.rating?.toFixed(1) || "N/A"}</div>
+                                                            <div>Trips: {performance.completedTrips}/{performance.totalTrips}</div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                            return <span className="text-xs text-gray-400 dark:text-gray-500">N/A</span>;
+                                        })()}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                          <div className="flex items-center justify-end gap-2">

@@ -1,6 +1,6 @@
 // src/routes/driver.routes.ts
 import express from "express";
-import { getDrivers, getDriverById, getDriverWithPerformanceHandler, getDriverPerformanceHandler, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler } from "../controllers/driver.controller";
+import { getDrivers, getDriverById, getDriverWithPerformanceHandler, getDriverPerformanceHandler, getAvailableGreenDriversHandler, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler } from "../controllers/driver.controller";
 import { authMiddleware, requireRole } from "../middlewares/auth";
 import { UserRole } from "@prisma/client";
 import { validate, validateParams, validateQuery } from "../middlewares/validation";
@@ -17,6 +17,11 @@ router.use(authMiddleware);
 
 // GET /drivers (with optional pagination and performance)
 router.get("/", validateQuery(paginationQuerySchema), getDrivers);
+router.get(
+  "/available/green",
+  validateQuery(z.object({ franchiseId: z.string().uuid("Invalid franchise ID format").optional() })),
+  getAvailableGreenDriversHandler
+);
 router.get(
   "/:id",
   validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),

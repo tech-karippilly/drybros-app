@@ -93,6 +93,7 @@ export async function createDriver(data: {
   previousExp: boolean;
   carTypes: string; // JSON string
   createdBy?: string | null; // User UUID who created this driver
+  currentRating?: number; // Optional rating (defaults to 5 in service)
 }): Promise<Driver> {
   return prisma.driver.create({
     data,

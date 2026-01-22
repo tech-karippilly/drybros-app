@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Loader2, AlertCircle, MapPin, User, Calendar, Clock, DollarSign, CreditCard, FileText, CheckCircle, XCircle } from 'lucide-react';
-import { getTripById, TripResponse } from '@/lib/features/trip/tripApi';
+import { ArrowLeft, Loader2, AlertCircle, MapPin, User, Calendar, Clock, DollarSign, CreditCard, FileText, CheckCircle, XCircle, UserPlus, Phone } from 'lucide-react';
+import { getTripById, getAvailableDriversForTrip, assignDriverToTrip, TripResponse } from '@/lib/features/trip/tripApi';
+import { PerformanceBadge } from '@/components/ui/PerformanceBadge';
+import { AvailableDriver } from '@/lib/types/driver';
 import { cn } from '@/lib/utils';
 
 interface TripDetailsScreenProps {
@@ -14,6 +16,10 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
     const [trip, setTrip] = useState<TripResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [showAssignDriver, setShowAssignDriver] = useState(false);
+    const [availableDrivers, setAvailableDrivers] = useState<AvailableDriver[]>([]);
+    const [loadingDrivers, setLoadingDrivers] = useState(false);
+    const [assigningDriver, setAssigningDriver] = useState<string | null>(null);
 
     useEffect(() => {
         fetchTripDetails();
@@ -33,6 +39,61 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
             );
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleShowAssignDriver = async () => {
+        if (showAssignDriver) {
+            setShowAssignDriver(false);
+            return;
+        }
+
+        try {
+            setLoadingDrivers(true);
+            setError(null);
+            const drivers = await getAvailableDriversForTrip(tripId);
+            
+            // Filter for GREEN performance only and map to AvailableDriver format
+            const greenDrivers: AvailableDriver[] = drivers
+                .filter((driver: any) => driver.performance?.category === 'GREEN')
+                .map((driver: any) => ({
+                    id: driver.id,
+                    firstName: driver.firstName,
+                    lastName: driver.lastName,
+                    phone: driver.phone,
+                    driverCode: driver.driverCode,
+                    status: driver.status,
+                    currentRating: driver.currentRating,
+                    performance: driver.performance,
+                    matchScore: driver.matchScore || 0,
+                }));
+            
+            setAvailableDrivers(greenDrivers);
+            setShowAssignDriver(true);
+        } catch (err: any) {
+            setError(
+                err?.response?.data?.error ||
+                    err?.message ||
+                    'Failed to fetch available drivers'
+            );
+        } finally {
+            setLoadingDrivers(false);
+        }
+    };
+
+    const handleAssignDriver = async (driverId: string) => {
+        try {
+            setAssigningDriver(driverId);
+            await assignDriverToTrip(tripId, driverId);
+            // Refresh trip details to show updated driver assignment
+            await fetchTripDetails();
+            setShowAssignDriver(false);
+            setAvailableDrivers([]);
+        } catch (err: any) {
+            const errorMsg = err?.response?.data?.error || err?.message || 'Failed to assign driver';
+            alert(errorMsg);
+        } finally {
+            setAssigningDriver(null);
         }
     };
 
@@ -128,6 +189,15 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
                         </p>
                     </div>
                 </div>
+                {trip && !trip.driverId && (
+                    <button
+                        onClick={handleShowAssignDriver}
+                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-500/20 active:scale-95"
+                    >
+                        <UserPlus size={18} />
+                        <span>{showAssignDriver ? 'Hide' : 'Assign'} Driver</span>
+                    </button>
+                )}
             </div>
 
             {/* Content */}
@@ -150,6 +220,79 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
                     </div>
                 ) : trip ? (
                     <div className="max-w-6xl mx-auto space-y-6">
+                        {/* Assign Driver Section */}
+                        {showAssignDriver && (
+                            <div className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm">
+                                <h3 className="text-lg font-bold text-[#0d121c] dark:text-white mb-4 flex items-center gap-2">
+                                    <UserPlus size={20} />
+                                    Available Drivers (GREEN Performance Only)
+                                </h3>
+                                {loadingDrivers ? (
+                                    <div className="text-center py-8">
+                                        <Loader2 className="size-6 animate-spin text-[#0d59f2] mx-auto mb-2" />
+                                        <p className="text-sm text-[#49659c]">Loading available drivers...</p>
+                                    </div>
+                                ) : availableDrivers.length === 0 ? (
+                                    <div className="text-center py-8">
+                                        <AlertCircle className="size-8 text-[#49659c] opacity-50 mx-auto mb-2" />
+                                        <p className="text-sm text-[#49659c]">No GREEN performance drivers available for this trip</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {availableDrivers.map((driver) => (
+                                            <div
+                                                key={driver.id}
+                                                className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                            >
+                                                <div className="flex items-center gap-4 flex-1">
+                                                    <PerformanceBadge
+                                                        category={driver.performance.category}
+                                                        score={driver.performance.score}
+                                                        showScore={true}
+                                                        size="sm"
+                                                    />
+                                                    <div className="flex-1">
+                                                        <p className="font-medium text-sm text-[#0d121c] dark:text-white">
+                                                            {driver.firstName} {driver.lastName}
+                                                        </p>
+                                                        <div className="flex items-center gap-3 mt-1">
+                                                            <p className="text-xs text-[#49659c] dark:text-gray-400">
+                                                                Code: {driver.driverCode}
+                                                            </p>
+                                                            <div className="flex items-center gap-1 text-xs text-[#49659c] dark:text-gray-400">
+                                                                <Phone size={12} />
+                                                                {driver.phone}
+                                                            </div>
+                                                            <p className="text-xs text-[#49659c] dark:text-gray-400">
+                                                                Rating: {driver.currentRating?.toFixed(1) || "N/A"}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleAssignDriver(driver.id)}
+                                                    disabled={assigningDriver === driver.id}
+                                                    className="px-4 py-2 bg-[#0d59f2] text-white rounded-lg text-sm font-medium hover:bg-[#0d59f2]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                                >
+                                                    {assigningDriver === driver.id ? (
+                                                        <>
+                                                            <Loader2 className="size-4 animate-spin" />
+                                                            Assigning...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <CheckCircle size={16} />
+                                                            Assign
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Status Badge */}
                         <div className="flex items-center gap-4">
                             <span

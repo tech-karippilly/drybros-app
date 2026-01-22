@@ -26,6 +26,7 @@ import {
   getDriversWithPerformance,
   sortDriversByPerformance,
   calculateDriverPerformance,
+  getAvailableGreenDrivers,
   DriverWithPerformance,
   DriverPerformanceMetrics,
 } from "./driver-performance.service";
@@ -301,6 +302,7 @@ export async function createDriver(
     previousExp: input.previousExp,
     carTypes: JSON.stringify(input.carTypes),
     createdBy: createdBy || null,
+    currentRating: 5.0, // Set default rating to 5 for new drivers
   });
 
   // Send welcome email with credentials (non-blocking)
@@ -570,4 +572,17 @@ export async function softDeleteDriver(id: string): Promise<{ message: string }>
   return {
     message: "Driver deleted successfully",
   };
+}
+
+/**
+ * Get available drivers with GREEN performance category
+ */
+export async function getAvailableGreenDriversList(
+  franchiseId?: string
+): Promise<(DriverResponseDTO & { performance: DriverPerformanceMetrics })[]> {
+  const drivers = await getAvailableGreenDrivers(franchiseId);
+  return drivers.map((driver) => ({
+    ...mapDriverToResponse(driver),
+    performance: driver.performance,
+  }));
 }

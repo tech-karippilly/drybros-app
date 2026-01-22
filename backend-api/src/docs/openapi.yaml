@@ -968,6 +968,88 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated (missing or invalid token)
+  
+  /drivers/available/green:
+    get:
+      summary: Get available drivers with GREEN performance
+      description: |
+        Retrieves a list of drivers who are:
+        - **AVAILABLE** (driverTripStatus = AVAILABLE) - not currently on a trip
+        - **GREEN** performance category - excellent performance
+        - **ACTIVE** status - active drivers only
+        - **Not globally banned** - not banned from the system
+        
+        Drivers are sorted by performance score (highest first).
+        
+        **Franchise Filtering:**
+        - Use `franchiseId` query parameter to filter drivers by franchise (optional)
+        - If provided, only returns available GREEN drivers belonging to that franchise
+        
+        **Use Cases:**
+        - Assigning trips to the best available drivers
+        - Finding top-performing drivers for priority assignments
+        - Driver selection for high-value trips
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: franchiseId
+          in: query
+          required: false
+          description: Filter drivers by franchise ID (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: List of available GREEN drivers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    description: Array of available drivers with GREEN performance
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/Driver"
+                        - type: object
+                          properties:
+                            performance:
+                              $ref: "#/components/schemas/DriverPerformanceMetrics"
+              example:
+                data:
+                  - id: "550e8400-e29b-41d4-a716-446655440000"
+                    firstName: "John"
+                    lastName: "Doe"
+                    phone: "+1234567890"
+                    email: "john.doe@example.com"
+                    driverCode: "DRV-ABC123"
+                    status: "ACTIVE"
+                    driverTripStatus: "AVAILABLE"
+                    currentRating: 4.8
+                    performance:
+                      category: "GREEN"
+                      score: 85
+                      rating: 4.8
+                      complaintCount: 0
+                      totalTrips: 50
+                      completedTrips: 48
+                      rejectedTrips: 1
+                      completionRate: 96.0
+                      rejectionRate: 2.0
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  
     post:
       summary: Create a new driver
       description: |

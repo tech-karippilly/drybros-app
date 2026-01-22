@@ -244,3 +244,63 @@ export function sortDriversByPerformance(
     return b.performance.score - a.performance.score;
   });
 }
+
+/**
+ * Get available drivers with GREEN performance category
+ * Filters drivers who are:
+ * - AVAILABLE (driverTripStatus = AVAILABLE)
+ * - GREEN performance category
+ * - ACTIVE status
+ * - Not globally banned
+ */
+export async function getAvailableGreenDrivers(
+  franchiseId?: string
+): Promise<DriverWithPerformance[]> {
+  const whereClause: any = {
+    isActive: true,
+    status: "ACTIVE",
+    driverTripStatus: "AVAILABLE",
+    bannedGlobally: false,
+  };
+
+  if (franchiseId) {
+    whereClause.franchiseId = franchiseId;
+  }
+
+  // Calculate performance window (90 days)
+  const performanceWindowDate = new Date(
+    Date.now() - PERFORMANCE_CALCULATION_CONFIG.PERFORMANCE_WINDOW_DAYS * 24 * 60 * 60 * 1000
+  );
+
+  const drivers = await prisma.driver.findMany({
+    where: whereClause,
+    include: {
+      Trip: {
+        where: {
+          createdAt: {
+            gte: performanceWindowDate,
+          },
+        },
+      },
+    },
+  });
+
+  // Calculate performance for each driver and filter for GREEN only
+  const driversWithPerformance = await Promise.all(
+    drivers.map(async (driver) => {
+      const performance = await calculateDriverPerformance(driver.id);
+      return {
+        ...driver,
+        performance,
+      };
+    })
+  );
+
+  // Filter only GREEN category drivers
+  const greenDrivers = driversWithPerformance.filter(
+    (driver) => driver.performance.category === DRIVER_PERFORMANCE_CATEGORIES.GREEN
+  );
+
+  // Sort by performance score (higher is better)
+  return greenDrivers.sort((a, b) => b.performance.score - a.performance.score);
+}

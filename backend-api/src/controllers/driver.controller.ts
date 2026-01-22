@@ -1,6 +1,6 @@
 // src/controllers/driver.controller.ts
 import { Request, Response, NextFunction } from "express";
-import { listDrivers, listDriversPaginated, getDriver, getDriverWithPerformance, createDriver, loginDriver, updateDriver, updateDriverStatus, softDeleteDriver } from "../services/driver.service";
+import { listDrivers, listDriversPaginated, getDriver, getDriverWithPerformance, getAvailableGreenDriversList, createDriver, loginDriver, updateDriver, updateDriverStatus, softDeleteDriver } from "../services/driver.service";
 import { calculateDriverPerformance } from "../services/driver-performance.service";
 import { DriverLoginDTO, UpdateDriverDTO, UpdateDriverStatusDTO } from "../types/driver.dto";
 
@@ -139,6 +139,20 @@ export async function softDeleteDriverHandler(
     const id = req.params.id; // UUID string
     const result = await softDeleteDriver(id);
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getAvailableGreenDriversHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const franchiseId = req.query.franchiseId as string | undefined;
+    const drivers = await getAvailableGreenDriversList(franchiseId);
+    res.json({ data: drivers });
   } catch (err) {
     next(err);
   }

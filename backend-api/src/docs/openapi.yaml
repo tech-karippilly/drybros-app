@@ -1486,6 +1486,65 @@ paths:
           description: Not authenticated (missing or invalid token)
 
   /trips:
+    get:
+      summary: Get all trips
+      description: |
+        Get a list of all trips. Supports optional pagination via query parameters.
+
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 10, max: 100)
+
+        **Without pagination parameters:** Returns all trips (backward compatible)
+
+        **With pagination parameters:** Returns paginated results with metadata
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number (default: 1)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Number of items per page (default: 10, max: 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: List of trips (paginated or all)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    description: Paginated response (when page/limit provided)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Trip"
+                      pagination:
+                        $ref: "#/components/schemas/PaginationMeta"
+                  - type: object
+                    description: All trips (when no pagination params)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Trip"
+        "401":
+          description: Not authenticated (missing or invalid token)
     post:
       summary: Create a trip
       tags:
@@ -1507,6 +1566,118 @@ paths:
                 $ref: "#/components/schemas/TripResponse"
         "401":
           description: Not authenticated (missing or invalid token)
+
+  /trips/unassigned:
+    get:
+      summary: Get unassigned trips
+      description: |
+        Get a list of trips with PENDING or NOT_ASSIGNED status (trips without a driver assigned).
+        Supports optional pagination via query parameters.
+
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 10, max: 100)
+
+        **Without pagination parameters:** Returns all unassigned trips
+
+        **With pagination parameters:** Returns paginated results with metadata
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number (default: 1)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Number of items per page (default: 10, max: 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: List of unassigned trips (paginated or all)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    description: Paginated response (when page/limit provided)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Trip"
+                      pagination:
+                        $ref: "#/components/schemas/PaginationMeta"
+                  - type: object
+                    description: All unassigned trips (when no pagination params)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Trip"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /trips/{id}:
+    get:
+      summary: Get trip by ID
+      description: |
+        Get detailed information about a specific trip by its ID (UUID).
+        
+        Returns the trip with all related data including:
+        - Customer information
+        - Franchise information
+        - Driver information (if assigned)
+        - Trip status and details
+        - Payment information
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip ID (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Trip retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Trip"
+        "400":
+          description: Bad request - invalid UUID format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Trip not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /trips/phase1:
     post:
@@ -2441,7 +2612,7 @@ components:
                   example: 0
                 paymentStatus:
                   type: string
-                  enum: [PENDING, PAID, PARTIALLY_PAID]
+                  enum: [PENDING, COMPLETED, PAID, PARTIALLY_PAID]
                   description: Payment status (always PENDING for Phase 1)
                   example: "PENDING"
                 createdAt:
@@ -2584,10 +2755,10 @@ components:
           type: number
         paymentStatus:
           type: string
-          enum: [PENDING, PAID, PARTIALLY_PAID]
+          enum: [PENDING, COMPLETED, PAID, PARTIALLY_PAID]
         paymentMode:
           type: string
-          enum: [CASH, UPI, CARD, OTHER]
+          enum: [UPI, IN_HAND, CASH, CARD, OTHER]
         paymentReference:
           type: string
         overrideReason:

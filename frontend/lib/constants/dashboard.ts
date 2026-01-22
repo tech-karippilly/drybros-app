@@ -10,6 +10,8 @@ import {
     CalendarCheck,
     UserCircle,
     FileText,
+    PlusCircle,
+    Clock,
     ChevronDown,
     ChevronRight
 } from 'lucide-react';
@@ -36,6 +38,8 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
             id: 'trips',
             submenu: [
                 { icon: FileText, label: 'Trip Type', id: 'trip-types' },
+                { icon: PlusCircle, label: 'Booking', id: 'trip-booking' },
+                { icon: Clock, label: 'Unassigned Trips', id: 'unassigned-trips' },
             ],
         },
         { icon: MessageSquare, label: 'Complaints', id: 'complaints' },
@@ -52,6 +56,8 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
             id: 'trips',
             submenu: [
                 { icon: FileText, label: 'Trip Type', id: 'trip-types' },
+                { icon: PlusCircle, label: 'Booking', id: 'trip-booking' },
+                { icon: Clock, label: 'Unassigned Trips', id: 'unassigned-trips' },
             ],
         },
         { icon: MessageSquare, label: 'Complaints', id: 'complaints' },

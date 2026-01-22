@@ -160,6 +160,8 @@ export function AdminDashboard() {
                 return <PenaltiesManager />;
             case 'trips':
             case 'trip-types':
+            case 'trip-booking':
+            case 'unassigned-trips':
                 return <TripManager />;
             case 'complaints':
                 return <PlaceholderScreen icon={MessageSquare} title="Customer Support" description="Review resolve customer complaints, feedback, and service quality reports." />;

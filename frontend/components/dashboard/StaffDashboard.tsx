@@ -79,6 +79,8 @@ export function StaffDashboard() {
                 return <PenaltiesManager />;
             case 'trips':
             case 'trip-types':
+            case 'trip-booking':
+            case 'unassigned-trips':
                 return <TripManager />;
             case 'complaints':
                 return <PlaceholderScreen icon={MessageSquare} title="Complaint Resolution" description="Address and document customer feedback and complaints." />;

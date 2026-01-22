@@ -18,7 +18,11 @@ export function Sidebar({ className }: SidebarProps) {
     const dispatch = useAppDispatch();
     const router = useRouter();
     const [expandedMenus, setExpandedMenus] = useState<Set<string>>(
-        new Set(activeTab === 'trip-types' ? ['trips'] : [])
+        new Set(
+            ['trip-types', 'trip-booking', 'unassigned-trips'].includes(activeTab)
+                ? ['trips']
+                : []
+        )
     );
 
     const items = ROLE_MENUS[user?.role as keyof typeof ROLE_MENUS] || ROLE_MENUS.admin;

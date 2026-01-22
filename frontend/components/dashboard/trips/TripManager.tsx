@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { TripTypeList } from './TripTypeList';
 import { TripTypeCreateForm } from './TripTypeCreateForm';
+import { TripBookingForm } from './TripBookingForm';
+import { UnassignedTripsList } from './UnassignedTripsList';
 import { TripTypeResponse } from '@/lib/features/tripType/tripTypeApi';
 import { useAppSelector } from '@/lib/hooks';
 
@@ -33,6 +35,14 @@ export function TripManager() {
                     onCreateClick={handleCreateClick}
                     onEditClick={handleEditClick}
                 />
+            )}
+
+            {activeTab === 'trip-booking' && (
+                <TripBookingForm />
+            )}
+
+            {activeTab === 'unassigned-trips' && (
+                <UnassignedTripsList />
             )}
 
             {isCreateOpen && (

@@ -10,6 +10,7 @@ import {
   startTripHandler,
   generateEndOtpHandler,
   endTripHandler,
+  getUnassignedTripsHandler,
 } from "../controllers/trip.controller";
 import { authMiddleware } from "../middlewares/auth";
 
@@ -19,6 +20,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.get("/", getTrips);
+router.get("/unassigned", getUnassignedTripsHandler);
 router.get("/:id", getTripByIdHandler);
 router.post("/", createTripHandler);
 router.post("/phase1", createTripPhase1Handler);

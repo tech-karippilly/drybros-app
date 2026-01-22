@@ -11,6 +11,21 @@ export default function errorHandler(
   next: NextFunction
 ) {
   const requestId = (req as any).requestId || "unknown";
+  
+  // Handle JSON parsing errors specifically
+  if (err instanceof SyntaxError && 'body' in err) {
+    logger.error('JSON parse error', {
+      requestId,
+      method: req.method,
+      url: req.originalUrl || req.url,
+      error: err.message,
+    });
+    return res.status(400).json({
+      error: 'Invalid JSON format. Please check your request body for special characters or malformed JSON.',
+      details: 'The request body contains invalid JSON. Make sure all special characters are properly escaped.',
+    });
+  }
+  
   const status = err instanceof AppError ? err.statusCode : 500;
 
   // Log error with context

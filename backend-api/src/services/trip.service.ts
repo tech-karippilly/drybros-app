@@ -4,6 +4,9 @@ import {
   createTrip as repoCreateTrip,
   createTripPhase1 as repoCreateTripPhase1,
   updateTrip,
+  getUnassignedTrips,
+  getTripsPaginated,
+  getUnassignedTripsPaginated,
 } from "../repositories/trip.repository";
 import { TripStatus, PaymentStatus, PaymentMode, TripType } from "@prisma/client";
 
@@ -34,7 +37,87 @@ export async function listTrips() {
   return getAllTrips();
 }
 
-export async function getTrip(id: number) {
+export interface PaginationQuery {
+  page: number;
+  limit: number;
+}
+
+export interface PaginatedTripsResponse {
+  data: any[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+/**
+ * Get unassigned trips (PENDING or NOT_ASSIGNED status)
+ */
+export async function listUnassignedTrips() {
+  return getUnassignedTrips();
+}
+
+/**
+ * Get all trips with pagination
+ */
+export async function listTripsPaginated(
+  pagination: PaginationQuery
+): Promise<PaginatedTripsResponse> {
+  const { page, limit } = pagination;
+  const skip = (page - 1) * limit;
+
+  const { data, total } = await getTripsPaginated(skip, limit);
+
+  const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+  const hasNext = page < totalPages;
+  const hasPrev = page > 1;
+
+  return {
+    data,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNext,
+      hasPrev,
+    },
+  };
+}
+
+/**
+ * Get unassigned trips with pagination
+ */
+export async function listUnassignedTripsPaginated(
+  pagination: PaginationQuery
+): Promise<PaginatedTripsResponse> {
+  const { page, limit } = pagination;
+  const skip = (page - 1) * limit;
+
+  const { data, total } = await getUnassignedTripsPaginated(skip, limit);
+
+  const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+  const hasNext = page < totalPages;
+  const hasPrev = page > 1;
+
+  return {
+    data,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNext,
+      hasPrev,
+    },
+  };
+}
+
+export async function getTrip(id: string) {
   const trip = await repoGetTripById(id);
   if (!trip) {
     const err: any = new Error("Trip not found");
@@ -95,7 +178,7 @@ export async function createTrip(input: CreateTripInput) {
   });
 }
 
-export async function driverAcceptTrip(tripId: number, driverId: number) {
+export async function driverAcceptTrip(tripId: string, driverId: string) {
   const trip = await repoGetTripById(tripId);
   if (!trip) {
     const err: any = new Error("Trip not found");
@@ -118,7 +201,7 @@ export async function driverAcceptTrip(tripId: number, driverId: number) {
   return updateTrip(tripId, { status: "DRIVER_ACCEPTED" });
 }
 
-export async function driverRejectTrip(tripId: number, driverId: number) {
+export async function driverRejectTrip(tripId: string, driverId: string) {
   const trip = await repoGetTripById(tripId);
   if (!trip) {
     const err: any = new Error("Trip not found");
@@ -145,8 +228,8 @@ export async function driverRejectTrip(tripId: number, driverId: number) {
 }
 
 export async function generateStartOtpForTrip(
-  tripId: number,
-  driverId: number
+  tripId: string,
+  driverId: string
 ) {
   const trip = await repoGetTripById(tripId);
   if (!trip) {
@@ -178,8 +261,8 @@ export async function generateStartOtpForTrip(
 }
 
 export async function startTripWithOtp(
-  tripId: number,
-  driverId: number,
+  tripId: string,
+  driverId: string,
   otp: string
 ) {
   const trip = await repoGetTripById(tripId);
@@ -195,8 +278,9 @@ export async function startTripWithOtp(
     throw err;
   }
 
-  if (trip.status !== TripStatus.DRIVER_ACCEPTED) {
-    const err: any = new Error("Trip is not in DRIVER_ACCEPTED state");
+  // Allow both ASSIGNED and DRIVER_ACCEPTED (legacy) statuses
+  if (trip.status !== TripStatus.ASSIGNED && trip.status !== TripStatus.DRIVER_ACCEPTED) {
+    const err: any = new Error("Trip is not in ASSIGNED state");
     err.statusCode = 400;
     throw err;
   }
@@ -211,11 +295,11 @@ export async function startTripWithOtp(
 
   return updateTrip(tripId, {
     startedAt: now,
-    status: "IN_PROGRESS",
+    status: TripStatus.TRIP_STARTED,
   });
 }
 
-export async function generateEndOtpForTrip(tripId: number, driverId: number) {
+export async function generateEndOtpForTrip(tripId: string, driverId: string) {
   const trip = await repoGetTripById(tripId);
   if (!trip) {
     const err: any = new Error("Trip not found");
@@ -229,8 +313,8 @@ export async function generateEndOtpForTrip(tripId: number, driverId: number) {
     throw err;
   }
 
-  if (trip.status !== TripStatus.IN_PROGRESS) {
-    const err: any = new Error("Trip is not in IN_PROGRESS state");
+  if (trip.status !== TripStatus.TRIP_PROGRESS && trip.status !== TripStatus.TRIP_STARTED && trip.status !== TripStatus.IN_PROGRESS) {
+    const err: any = new Error("Trip is not in progress state");
     err.statusCode = 400;
     throw err;
   }
@@ -246,7 +330,7 @@ export async function generateEndOtpForTrip(tripId: number, driverId: number) {
 }
 
 interface EndTripInput {
-  driverId: number;
+  driverId: string;
   otp: string;
   finalAmount: number;
   paymentStatus: PaymentStatus;
@@ -255,7 +339,7 @@ interface EndTripInput {
   overrideReason?: string | null;
 }
 
-export async function endTripWithOtp(tripId: number, input: EndTripInput) {
+export async function endTripWithOtp(tripId: string, input: EndTripInput) {
   const trip = await repoGetTripById(tripId);
   if (!trip) {
     const err: any = new Error("Trip not found");
@@ -269,8 +353,8 @@ export async function endTripWithOtp(tripId: number, input: EndTripInput) {
     throw err;
   }
 
-  if (trip.status !== TripStatus.IN_PROGRESS) {
-    const err: any = new Error("Trip is not in IN_PROGRESS state");
+  if (trip.status !== TripStatus.TRIP_PROGRESS && trip.status !== TripStatus.TRIP_STARTED && trip.status !== TripStatus.IN_PROGRESS) {
+    const err: any = new Error("Trip is not in progress state");
     err.statusCode = 400;
     throw err;
   }
@@ -287,7 +371,7 @@ export async function endTripWithOtp(tripId: number, input: EndTripInput) {
 
   return updateTrip(tripId, {
     endedAt: now,
-    status: TripStatus.COMPLETED,
+    status: TripStatus.TRIP_ENDED,
     finalAmount: input.finalAmount,
     isAmountOverridden: isOverridden,
     overrideReason: isOverridden
@@ -351,13 +435,15 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
     throw err;
   }
 
-  if (!input.pickupLocation || !input.pickupAddress) {
+  // Validate pickup location (trim whitespace and check)
+  if (!input.pickupLocation?.trim() || !input.pickupAddress?.trim()) {
     const err: any = new Error(TRIP_ERROR_MESSAGES.MISSING_PICKUP_LOCATION);
     err.statusCode = 400;
     throw err;
   }
 
-  if (!input.destinationLocation || !input.destinationAddress) {
+  // Validate destination location (trim whitespace and check)
+  if (!input.destinationLocation?.trim() || !input.destinationAddress?.trim()) {
     const err: any = new Error(TRIP_ERROR_MESSAGES.MISSING_DESTINATION_LOCATION);
     err.statusCode = 400;
     throw err;
@@ -377,11 +463,58 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
     throw err;
   }
 
-  // Validate trip type
-  if (!Object.values(TripType).includes(input.tripType)) {
-    const err: any = new Error(TRIP_ERROR_MESSAGES.INVALID_TRIP_TYPE);
-    err.statusCode = 400;
-    throw err;
+  // Map trip type name to enum value (e.g., "City Drop" -> "CITY_DROPOFF")
+  // Normalize: remove extra spaces, convert to lowercase, handle various formats
+  const normalizeTripType = (tripType: string): string => {
+    return tripType
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ") // Replace multiple spaces with single space
+      .replace(/[_-]/g, " "); // Replace underscores and hyphens with spaces
+  };
+
+  const tripTypeMap: Record<string, TripType> = {
+    "city drop": TripType.CITY_DROPOFF,
+    "city dropoff": TripType.CITY_DROPOFF,
+    "city round": TripType.CITY_ROUND,
+    "city round trip": TripType.CITY_ROUND,
+    "long drop": TripType.LONG_DROPOFF,
+    "long dropoff": TripType.LONG_DROPOFF,
+    "long round": TripType.LONG_ROUND,
+    "long round trip": TripType.LONG_ROUND,
+    "city_dropoff": TripType.CITY_DROPOFF,
+    "city_round": TripType.CITY_ROUND,
+    "long_dropoff": TripType.LONG_DROPOFF,
+    "long_round": TripType.LONG_ROUND,
+  };
+  
+  let tripTypeEnum: TripType;
+  const normalizedTripType = normalizeTripType(input.tripType);
+  
+  // Check if it's already an enum value (case-insensitive)
+  const upperCaseTripType = input.tripType.trim().toUpperCase();
+  if (Object.values(TripType).includes(upperCaseTripType as TripType)) {
+    tripTypeEnum = upperCaseTripType as TripType;
+  } else if (tripTypeMap[normalizedTripType]) {
+    // Map from display name to enum
+    tripTypeEnum = tripTypeMap[normalizedTripType];
+  } else {
+    // Try to match by keywords (more flexible matching)
+    if (normalizedTripType.includes("city") && normalizedTripType.includes("drop")) {
+      tripTypeEnum = TripType.CITY_DROPOFF;
+    } else if (normalizedTripType.includes("city") && normalizedTripType.includes("round")) {
+      tripTypeEnum = TripType.CITY_ROUND;
+    } else if (normalizedTripType.includes("long") && normalizedTripType.includes("drop")) {
+      tripTypeEnum = TripType.LONG_DROPOFF;
+    } else if (normalizedTripType.includes("long") && normalizedTripType.includes("round")) {
+      tripTypeEnum = TripType.LONG_ROUND;
+    } else {
+      const err: any = new Error(
+        `${TRIP_ERROR_MESSAGES.INVALID_TRIP_TYPE}. Received: "${input.tripType}". Valid values: ${Object.values(TripType).join(", ")}`
+      );
+      err.statusCode = 400;
+      throw err;
+    }
   }
 
   // Find or create customer
@@ -403,12 +536,47 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
   let scheduledAt: Date | null = null;
   if (input.tripDate && input.tripTime) {
     try {
-      const [hours, minutes] = input.tripTime.split(":").map(Number);
-      const tripDateTime = new Date(input.tripDate);
-      tripDateTime.setHours(hours, minutes, 0, 0);
+      // Parse time - handle both 12-hour (AM/PM) and 24-hour formats
+      let hours: number, minutes: number;
+      const timeStr = input.tripTime.trim().toUpperCase();
+      
+      if (timeStr.includes("AM") || timeStr.includes("PM")) {
+        // 12-hour format: "12:04 PM" or "12:04PM"
+        const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/);
+        if (!timeMatch) {
+          throw new Error("Invalid time format");
+        }
+        hours = parseInt(timeMatch[1], 10);
+        minutes = parseInt(timeMatch[2], 10);
+        const period = timeMatch[3];
+        
+        if (period === "PM" && hours !== 12) {
+          hours += 12;
+        } else if (period === "AM" && hours === 12) {
+          hours = 0;
+        }
+      } else {
+        // 24-hour format: "12:04"
+        const [h, m] = input.tripTime.split(":").map(Number);
+        hours = h;
+        minutes = m;
+      }
+      
+      // Parse date - handle DD/MM/YYYY format
+      let tripDateTime: Date;
+      if (input.tripDate.includes("/")) {
+        // DD/MM/YYYY format
+        const [day, month, year] = input.tripDate.split("/").map(Number);
+        tripDateTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
+      } else {
+        // ISO format or other formats
+        tripDateTime = new Date(input.tripDate);
+        tripDateTime.setHours(hours, minutes, 0, 0);
+      }
+      
       scheduledAt = tripDateTime;
-    } catch (error) {
-      const err: any = new Error("Invalid trip date or time format");
+    } catch (error: any) {
+      const err: any = new Error(`Invalid trip date or time format: ${error.message}`);
       err.statusCode = 400;
       throw err;
     }
@@ -424,7 +592,7 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
   if (input.distance !== undefined || input.duration !== undefined) {
     try {
       calculatedPrice = await calculateTripPrice({
-        tripType: input.tripType,
+        tripType: tripTypeEnum,
         distance: input.distance,
         duration: input.duration,
         carType: input.carType,
@@ -441,14 +609,14 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
     }
   }
 
-  // Create trip in phase 1 (REQUESTED status, no driver assigned yet)
+  // Create trip in phase 1 (PENDING status, no driver assigned yet)
   const trip = await repoCreateTripPhase1({
     franchiseId: input.franchiseId,
     customerId: customer.id,
     customerName: input.customerName,
     customerPhone: input.customerPhone,
     customerEmail: input.customerEmail,
-    tripType: input.tripType,
+    tripType: tripTypeEnum,
     pickupLocation: input.pickupLocation,
     pickupAddress: input.pickupAddress,
     pickupLocationNote: input.pickupLocationNote,

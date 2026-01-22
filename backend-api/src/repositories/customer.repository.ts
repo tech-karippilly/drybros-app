@@ -26,7 +26,12 @@ export async function createCustomer(data: {
   notes?: string;
   franchiseId: string;
 }) {
-  return prisma.customer.create({ data });
+  return prisma.customer.create({
+    data: {
+      ...data,
+      updatedAt: new Date(),
+    },
+  });
 }
 
 export async function updateCustomer(id: number, data: Partial<{

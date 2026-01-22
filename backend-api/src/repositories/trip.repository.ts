@@ -2,22 +2,94 @@ import prisma from "../config/prismaClient";
 
 export async function getAllTrips() {
   return prisma.trip.findMany({
-    orderBy: { id: "asc" },
+    orderBy: { createdAt: "desc" },
     include: {
-      franchise: true,
-      driver: true,
-      customer: true,
+      Franchise: true,
+      Driver: true,
+      Customer: true,
     },
   });
 }
 
-export async function getTripById(id: number) {
+/**
+ * Get trips by status (PENDING or NOT_ASSIGNED)
+ */
+export async function getUnassignedTrips() {
+  return prisma.trip.findMany({
+    where: {
+      status: {
+        in: ["PENDING", "NOT_ASSIGNED"],
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    include: {
+      Franchise: true,
+      Driver: true,
+      Customer: true,
+    },
+  });
+}
+
+/**
+ * Get trips with pagination
+ */
+export async function getTripsPaginated(skip: number, take: number) {
+  const [data, total] = await Promise.all([
+    prisma.trip.findMany({
+      skip,
+      take,
+      orderBy: { createdAt: "desc" },
+      include: {
+        Franchise: true,
+        Driver: true,
+        Customer: true,
+      },
+    }),
+    prisma.trip.count(),
+  ]);
+
+  return { data, total };
+}
+
+/**
+ * Get unassigned trips with pagination
+ */
+export async function getUnassignedTripsPaginated(skip: number, take: number) {
+  const [data, total] = await Promise.all([
+    prisma.trip.findMany({
+      where: {
+        status: {
+          in: ["PENDING", "NOT_ASSIGNED"],
+        },
+      },
+      skip,
+      take,
+      orderBy: { createdAt: "desc" },
+      include: {
+        Franchise: true,
+        Driver: true,
+        Customer: true,
+      },
+    }),
+    prisma.trip.count({
+      where: {
+        status: {
+          in: ["PENDING", "NOT_ASSIGNED"],
+        },
+      },
+    }),
+  ]);
+
+  return { data, total };
+}
+
+export async function getTripById(id: string) {
   return prisma.trip.findUnique({
     where: { id },
     include: {
-      franchise: true,
-      driver: true,
-      customer: true,
+      Franchise: true,
+      Driver: true,
+      Customer: true,
     },
   });
 }
@@ -53,6 +125,7 @@ export async function createTrip(data: {
       totalAmount: data.totalAmount,
       finalAmount: data.finalAmount,
       status: "ASSIGNED",
+      updatedAt: new Date(),
     },
   });
 }
@@ -101,20 +174,21 @@ export async function createTripPhase1(data: {
       isFareDiscussed: data.isFareDiscussed,
       isPriceAccepted: data.isPriceAccepted,
       createdBy: data.createdBy ?? null,
-      status: "REQUESTED",
+      status: "PENDING",
       baseAmount: data.baseAmount ?? 0,
       extraAmount: data.extraAmount ?? 0,
       totalAmount: data.totalAmount ?? 0,
       finalAmount: data.finalAmount ?? 0,
+      updatedAt: new Date(),
     },
     include: {
-      customer: true,
-      franchise: true,
+      Customer: true,
+      Franchise: true,
     },
   });
 }
 
-export async function updateTrip(id: number, data: any) {
+export async function updateTrip(id: string, data: any) {
   return prisma.trip.update({
     where: { id },
     data,

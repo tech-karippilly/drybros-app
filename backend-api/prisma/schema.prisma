@@ -152,7 +152,7 @@ model Trip {
   customerName         String
   customerPhone        String
   tripType             TripType
-  status               TripStatus    @default(REQUESTED)
+  status               TripStatus    @default(PENDING)
   pickupLocation       String
   dropLocation         String?
   scheduledAt          DateTime?
@@ -271,14 +271,18 @@ enum DriverStatus {
 }
 
 enum PaymentMode {
-  CASH
   UPI
+  IN_HAND
+  // Legacy payment modes for backward compatibility
+  CASH
   CARD
   OTHER
 }
 
 enum PaymentStatus {
   PENDING
+  COMPLETED
+  // Legacy statuses for backward compatibility
   PAID
   PARTIALLY_PAID
 }
@@ -311,11 +315,18 @@ enum TripTypeConfigStatus {
 }
 
 enum TripStatus {
-  REQUESTED
+  PENDING
+  NOT_ASSIGNED
   ASSIGNED
+  TRIP_STARTED
+  TRIP_PROGRESS
+  TRIP_ENDED
+  COMPLETED
+  PAYMENT_DONE
+  // Legacy statuses for backward compatibility
+  REQUESTED
   DRIVER_ON_THE_WAY
   IN_PROGRESS
-  COMPLETED
   CANCELLED_BY_CUSTOMER
   CANCELLED_BY_OFFICE
   REJECTED_BY_DRIVER

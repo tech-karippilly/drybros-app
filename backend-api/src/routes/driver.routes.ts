@@ -1,6 +1,6 @@
 // src/routes/driver.routes.ts
 import express from "express";
-import { getDrivers, getDriverById, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler } from "../controllers/driver.controller";
+import { getDrivers, getDriverById, getDriverWithPerformanceHandler, getDriverPerformanceHandler, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler } from "../controllers/driver.controller";
 import { authMiddleware, requireRole } from "../middlewares/auth";
 import { UserRole } from "@prisma/client";
 import { validate, validateParams, validateQuery } from "../middlewares/validation";
@@ -15,12 +15,22 @@ router.post("/login", validate(driverLoginSchema), loginDriverHandler);
 // All other driver routes require authentication
 router.use(authMiddleware);
 
-// GET /drivers (with optional pagination)
+// GET /drivers (with optional pagination and performance)
 router.get("/", validateQuery(paginationQuerySchema), getDrivers);
 router.get(
   "/:id",
   validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),
   getDriverById
+);
+router.get(
+  "/:id/with-performance",
+  validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),
+  getDriverWithPerformanceHandler
+);
+router.get(
+  "/:id/performance",
+  validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),
+  getDriverPerformanceHandler
 );
 
 // POST /drivers - Create new driver (only ADMIN and OFFICE_STAFF)

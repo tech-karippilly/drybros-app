@@ -160,3 +160,41 @@ export async function softDeleteDriver(id: string): Promise<Driver> {
     data: { isActive: false },
   });
 }
+
+/**
+ * Get drivers with trip data for performance calculation
+ * Includes trips from the last 90 days
+ */
+export async function getDriversWithTripData(
+  includeInactive: boolean = false,
+  franchiseId?: string
+) {
+  const whereClause: any = {};
+
+  if (!includeInactive) {
+    whereClause.isActive = true;
+  }
+
+  if (franchiseId) {
+    whereClause.franchiseId = franchiseId;
+  }
+
+  // Calculate performance window (90 days)
+  const performanceWindowDate = new Date(
+    Date.now() - 90 * 24 * 60 * 60 * 1000
+  );
+
+  return prisma.driver.findMany({
+    where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
+    include: {
+      Trip: {
+        where: {
+          createdAt: {
+            gte: performanceWindowDate,
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}

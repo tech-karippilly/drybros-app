@@ -1,5 +1,9 @@
--- CreateEnum
-CREATE TYPE "CarType" AS ENUM ('MANUAL', 'AUTOMATIC', 'PREMIUM_CARS', 'LUXURY_CARS', 'SPORTY_CARS');
+-- CreateEnum (only if it doesn't exist)
+DO $$ BEGIN
+    CREATE TYPE "CarType" AS ENUM ('MANUAL', 'AUTOMATIC', 'PREMIUM_CARS', 'LUXURY_CARS', 'SPORTY_CARS');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- AlterTable
 ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "email" TEXT;

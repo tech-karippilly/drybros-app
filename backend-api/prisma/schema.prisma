@@ -72,6 +72,8 @@ model Driver {
   Complaints               Complaint[]
   Attendances              Attendance[]
   LeaveRequests            LeaveRequest[]
+  DriverRatings            DriverRating[]
+  ActivityLogs             ActivityLog[]
 }
 
 model Franchise {
@@ -93,6 +95,7 @@ model Franchise {
   // Driver relation commented out temporarily to allow dummy UUIDs
   // Driver    Driver[]
   Trip                    Trip[]
+  ActivityLogs            ActivityLog[]
 }
 
 model Role {
@@ -132,6 +135,7 @@ model Staff {
   Complaints               Complaint[]
   Attendances              Attendance[]
   LeaveRequests            LeaveRequest[]
+  ActivityLog              ActivityLog[]
 
   @@index([franchiseId, isActive])
   @@index([franchiseId, status])
@@ -153,13 +157,13 @@ model StaffHistory {
 }
 
 model Trip {
-  franchiseId          String        @db.Uuid
-  driverId             String?       @db.Uuid
+  franchiseId          String         @db.Uuid
+  driverId             String?        @db.Uuid
   customerId           Int?
   customerName         String
   customerPhone        String
   tripType             TripType
-  status               TripStatus    @default(PENDING)
+  status               TripStatus     @default(PENDING)
   pickupLocation       String
   dropLocation         String?
   scheduledAt          DateTime?
@@ -168,27 +172,27 @@ model Trip {
   startOtp             String?
   endOtp               String?
   baseAmount           Int
-  extraAmount          Int           @default(0)
+  extraAmount          Int            @default(0)
   totalAmount          Int
   finalAmount          Int
-  isAmountOverridden   Boolean       @default(false)
+  isAmountOverridden   Boolean        @default(false)
   overrideReason       String?
-  paymentStatus        PaymentStatus @default(PENDING)
+  paymentStatus        PaymentStatus  @default(PENDING)
   paymentMode          PaymentMode?
   paymentReference     String?
-  createdAt            DateTime      @default(now())
+  createdAt            DateTime       @default(now())
   updatedAt            DateTime
   alternativePhone     String?
   carType              String?
   customerEmail        String?
   dropLocationNote     String?
-  isDetailsReconfirmed Boolean       @default(false)
-  isFareDiscussed      Boolean       @default(false)
-  isPriceAccepted      Boolean       @default(false)
+  isDetailsReconfirmed Boolean        @default(false)
+  isFareDiscussed      Boolean        @default(false)
+  isPriceAccepted      Boolean        @default(false)
   pickupLocationNote   String?
-  id                   String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  tripPlacedDate       DateTime      @default(now())
-  createdBy            String?       @db.Uuid
+  id                   String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tripPlacedDate       DateTime       @default(now())
+  createdBy            String?        @db.Uuid
   dropAddress          String?
   pickupAddress        String?
   // Odometer and car images for trip start/end
@@ -196,10 +200,12 @@ model Trip {
   endOdometer          Float?
   carImageFront        String? // URL to front car image
   carImageBack         String? // URL to back car image
-  User                 User?         @relation(fields: [createdBy], references: [id])
-  Customer             Customer?     @relation(fields: [customerId], references: [id])
-  Driver               Driver?       @relation(fields: [driverId], references: [id])
-  Franchise            Franchise     @relation(fields: [franchiseId], references: [id])
+  User                 User?          @relation(fields: [createdBy], references: [id])
+  Customer             Customer?      @relation(fields: [customerId], references: [id])
+  Driver               Driver?        @relation(fields: [driverId], references: [id])
+  Franchise            Franchise      @relation(fields: [franchiseId], references: [id])
+  DriverRatings        DriverRating[]
+  ActivityLogs         ActivityLog[]
 }
 
 model TripPattern {
@@ -246,20 +252,24 @@ model TripTypeConfig {
 }
 
 model User {
-  email          String    @unique
+  email          String        @unique
   password       String
   fullName       String
   role           UserRole
-  isActive       Boolean   @default(true)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   phone          String?
-  id             String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  failedAttempts Int       @default(0)
+  id             String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  failedAttempts Int           @default(0)
   lockedUntil    DateTime?
+  franchiseId    String?       @db.Uuid // For MANAGER role to associate with franchise
   Trip           Trip[]
+  ActivityLogs   ActivityLog[]
 
   @@index([lockedUntil])
+  @@index([franchiseId])
+  @@index([role, franchiseId])
 }
 
 model Complaint {
@@ -475,4 +485,115 @@ enum LeaveRequestStatus {
   APPROVED
   REJECTED
   CANCELLED
+}
+
+model DriverRating {
+  id                 String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  driverId           String   @db.Uuid
+  tripId             String?  @db.Uuid
+  customerName       String
+  customerPhone      String
+  customerEmail      String?
+  // Rating fields
+  overallRating      Float // Overall rating (1-5)
+  experience         String? // How was experience (text feedback)
+  drivingSafety      Float // Safety rating (1-5)
+  drivingSmoothness  Float // Smoothness rating (1-5)
+  behaviorPoliteness Float // Politeness rating (1-5)
+  // Metadata
+  isVerified         Boolean  @default(false) // Whether rating is verified
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  Driver             Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Trip               Trip?    @relation(fields: [tripId], references: [id], onDelete: SetNull)
+
+  @@index([driverId])
+  @@index([tripId])
+  @@index([createdAt])
+}
+
+model ActivityLog {
+  id          String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  action      ActivityAction
+  entityType  ActivityEntityType
+  entityId    String? // ID of the related entity (trip, driver, staff, etc.)
+  franchiseId String?            @db.Uuid
+  driverId    String?            @db.Uuid
+  staffId     String?            @db.Uuid
+  tripId      String?            @db.Uuid
+  userId      String?            @db.Uuid // User who performed the action
+  description String
+  metadata    Json? // Additional data (old values, new values, etc.)
+  createdAt   DateTime           @default(now())
+  User        User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  Franchise   Franchise?         @relation(fields: [franchiseId], references: [id], onDelete: SetNull)
+  Driver      Driver?            @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  Staff       Staff?             @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  Trip        Trip?              @relation(fields: [tripId], references: [id], onDelete: SetNull)
+
+  @@index([franchiseId, createdAt])
+  @@index([driverId, createdAt])
+  @@index([staffId, createdAt])
+  @@index([tripId, createdAt])
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+  @@index([createdAt])
+}
+
+enum ActivityAction {
+  // Trip actions
+  TRIP_CREATED
+  TRIP_ASSIGNED
+  TRIP_ACCEPTED
+  TRIP_REJECTED
+  TRIP_STARTED
+  TRIP_ENDED
+  TRIP_CANCELLED
+  TRIP_STATUS_CHANGED
+  TRIP_UPDATED
+  // Driver actions
+  DRIVER_CREATED
+  DRIVER_UPDATED
+  DRIVER_STATUS_CHANGED
+  DRIVER_CLOCK_IN
+  DRIVER_CLOCK_OUT
+  // Staff actions
+  STAFF_CREATED
+  STAFF_UPDATED
+  STAFF_STATUS_CHANGED
+  STAFF_CLOCK_IN
+  STAFF_CLOCK_OUT
+  // Complaint actions
+  COMPLAINT_CREATED
+  COMPLAINT_RESOLVED
+  COMPLAINT_STATUS_CHANGED
+  // Leave actions
+  LEAVE_REQUESTED
+  LEAVE_APPROVED
+  LEAVE_REJECTED
+  LEAVE_CANCELLED
+  // Rating actions
+  RATING_SUBMITTED
+  // Attendance actions
+  ATTENDANCE_RECORDED
+  // Other
+  CUSTOMER_CREATED
+  CUSTOMER_UPDATED
+  FRANCHISE_CREATED
+  FRANCHISE_UPDATED
+  FRANCHISE_STATUS_CHANGED
+}
+
+enum ActivityEntityType {
+  TRIP
+  DRIVER
+  STAFF
+  CUSTOMER
+  FRANCHISE
+  COMPLAINT
+  LEAVE_REQUEST
+  RATING
+  ATTENDANCE
+  OTHER
 }

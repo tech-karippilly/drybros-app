@@ -3419,6 +3419,398 @@ paths:
         "404":
           description: Leave request not found
 
+  /ratings/public:
+    post:
+      summary: Submit driver rating (Public - No Authentication)
+      description: |
+        Submit a driver rating from a customer. This endpoint does not require authentication.
+        
+        **Rating Fields:**
+        - `overallRating`: Overall rating (1-5)
+        - `drivingSafety`: Safety rating (1-5)
+        - `drivingSmoothness`: Smoothness rating (1-5)
+        - `behaviorPoliteness`: Politeness rating (1-5)
+        - `experience`: Optional text feedback about the experience
+        
+        **Note:** If `tripId` is provided, only one rating per trip is allowed.
+        The driver's average rating will be automatically updated.
+      tags:
+        - Driver Ratings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDriverRatingRequest"
+            example:
+              driverId: "550e8400-e29b-41d4-a716-446655440000"
+              tripId: "660e8400-e29b-41d4-a716-446655440001"
+              customerName: "John Doe"
+              customerPhone: "+1234567890"
+              customerEmail: "john.doe@example.com"
+              overallRating: 4.5
+              experience: "Great driver, very professional and safe"
+              drivingSafety: 5
+              drivingSmoothness: 4
+              behaviorPoliteness: 5
+      responses:
+        "201":
+          description: Rating submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Rating submitted successfully"
+                  data:
+                    $ref: "#/components/schemas/DriverRating"
+        "400":
+          description: Bad request - validation error or rating already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Driver or trip not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ratings:
+    get:
+      summary: List driver ratings (Authenticated)
+      description: |
+        Get a list of driver ratings with optional pagination and filters.
+        Requires authentication.
+        
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 10, max: 100)
+        - `driverId` (optional): Filter by driver ID
+        - `tripId` (optional): Filter by trip ID
+      tags:
+        - Driver Ratings
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: driverId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: tripId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of ratings
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PaginatedDriverRatingResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/DriverRating"
+        "401":
+          description: Not authenticated (missing or invalid token)
+    post:
+      summary: Submit driver rating (Authenticated)
+      description: |
+        Submit a driver rating. This endpoint requires authentication.
+        Same functionality as the public endpoint but for internal use.
+      tags:
+        - Driver Ratings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDriverRatingRequest"
+      responses:
+        "201":
+          description: Rating submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Rating submitted successfully"
+                  data:
+                    $ref: "#/components/schemas/DriverRating"
+        "400":
+          description: Bad request - validation error
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Driver or trip not found
+
+  /ratings/{id}:
+    get:
+      summary: Get rating by ID (Authenticated)
+      description: |
+        Get detailed information about a specific rating by its ID.
+        Requires authentication.
+      tags:
+        - Driver Ratings
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Rating retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/DriverRating"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Rating not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /activities:
+    get:
+      summary: Get activity logs (Role-based filtering)
+      description: |
+        Get activity logs with role-based filtering. Different roles see different activities:
+        
+        **Admin:**
+        - Can see all activities across all franchises
+        - Can filter by specific franchiseId to see activities of selected franchise
+        - Real-time updates available via `/activities/stream`
+        
+        **Manager:**
+        - Sees all activities of their assigned franchise
+        - Automatically filtered by franchiseId
+        
+        **Staff/Office Staff:**
+        - Sees driver activities and trip creation/updates
+        - Filtered by their franchise
+        
+        **Driver:**
+        - Sees only trip-related activities (assigned, accepted, started, ended, etc.)
+        - Filtered by their driverId
+        
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 20, max: 100)
+        - `franchiseId` (optional): Filter by franchise (Admin only)
+        - `driverId` (optional): Filter by driver
+        - `staffId` (optional): Filter by staff
+        - `tripId` (optional): Filter by trip
+        - `action` (optional): Filter by action type
+        - `entityType` (optional): Filter by entity type
+        - `startDate` (optional): Filter by start date (ISO 8601)
+        - `endDate` (optional): Filter by end date (ISO 8601)
+      tags:
+        - Activity Logs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: franchiseId
+          in: query
+          required: false
+          description: Filter by franchise ID (Admin can use this to select franchise)
+          schema:
+            type: string
+            format: uuid
+        - name: driverId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: staffId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: tripId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [TRIP_CREATED, TRIP_ASSIGNED, TRIP_ACCEPTED, TRIP_REJECTED, TRIP_STARTED, TRIP_ENDED, TRIP_CANCELLED, TRIP_STATUS_CHANGED, TRIP_UPDATED, DRIVER_CREATED, DRIVER_UPDATED, DRIVER_STATUS_CHANGED, DRIVER_CLOCK_IN, DRIVER_CLOCK_OUT, STAFF_CREATED, STAFF_UPDATED, STAFF_STATUS_CHANGED, STAFF_CLOCK_IN, STAFF_CLOCK_OUT, COMPLAINT_CREATED, COMPLAINT_RESOLVED, COMPLAINT_STATUS_CHANGED, LEAVE_REQUESTED, LEAVE_APPROVED, LEAVE_REJECTED, LEAVE_CANCELLED, RATING_SUBMITTED, ATTENDANCE_RECORDED, CUSTOMER_CREATED, CUSTOMER_UPDATED, FRANCHISE_CREATED, FRANCHISE_UPDATED, FRANCHISE_STATUS_CHANGED]
+        - name: entityType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [TRIP, DRIVER, STAFF, CUSTOMER, FRANCHISE, COMPLAINT, LEAVE_REQUEST, RATING, ATTENDANCE, OTHER]
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: List of activity logs
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PaginatedActivityLogResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ActivityLog"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /activities/stream:
+    get:
+      summary: Stream activity logs (Server-Sent Events - Realtime)
+      description: |
+        Get real-time activity logs using Server-Sent Events (SSE).
+        Activities are pushed to the client as they occur.
+        
+        **Role-based filtering applies automatically:**
+        - Admin: Can filter by franchiseId query parameter
+        - Manager: Automatically filtered to their franchise
+        - Staff: Sees driver activities and trip creations
+        - Driver: Sees only trip-related activities
+        
+        **Usage:**
+        - Connect to this endpoint to receive real-time updates
+        - Activities are sent as JSON objects in SSE format
+        - Connection remains open until client disconnects
+        - Heartbeat messages sent every 2 seconds to keep connection alive
+      tags:
+        - Activity Logs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: franchiseId
+          in: query
+          required: false
+          description: Filter by franchise ID (Admin only - to select specific franchise)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Server-Sent Events stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: |
+                  data: {"type":"connected","message":"Activity log stream connected"}
+                  
+                  data: {"type":"activity","data":{"id":"...","action":"TRIP_CREATED",...}}
+                  
+                  : heartbeat
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /activities/{id}:
+    get:
+      summary: Get activity log by ID
+      description: |
+        Get detailed information about a specific activity log entry.
+      tags:
+        - Activity Logs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Activity log retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ActivityLog"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Activity log not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     CreateCustomerRequest:
@@ -5254,6 +5646,243 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LeaveRequest"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+
+    CreateDriverRatingRequest:
+      type: object
+      required:
+        - driverId
+        - customerName
+        - customerPhone
+        - overallRating
+        - drivingSafety
+        - drivingSmoothness
+        - behaviorPoliteness
+      properties:
+        driverId:
+          type: string
+          format: uuid
+          description: Driver ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        tripId:
+          type: string
+          format: uuid
+          description: Trip ID (optional, but if provided, only one rating per trip is allowed)
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        customerName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "John Doe"
+        customerPhone:
+          type: string
+          minLength: 10
+          maxLength: 20
+          example: "+1234567890"
+        customerEmail:
+          type: string
+          format: email
+          maxLength: 255
+          example: "john.doe@example.com"
+        overallRating:
+          type: number
+          minimum: 1
+          maximum: 5
+          description: Overall rating (1-5)
+          example: 4.5
+        experience:
+          type: string
+          maxLength: 1000
+          nullable: true
+          description: How was the experience (text feedback)
+          example: "Great driver, very professional and safe. Smooth ride throughout."
+        drivingSafety:
+          type: number
+          minimum: 1
+          maximum: 5
+          description: Safety rating (1-5)
+          example: 5
+        drivingSmoothness:
+          type: number
+          minimum: 1
+          maximum: 5
+          description: Smoothness rating (1-5)
+          example: 4
+        behaviorPoliteness:
+          type: number
+          minimum: 1
+          maximum: 5
+          description: Politeness rating (1-5)
+          example: 5
+
+    DriverRating:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        driverId:
+          type: string
+          format: uuid
+        tripId:
+          type: string
+          format: uuid
+          nullable: true
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        customerEmail:
+          type: string
+          nullable: true
+        overallRating:
+          type: number
+          description: Overall rating (1-5)
+        experience:
+          type: string
+          nullable: true
+          description: Experience feedback
+        drivingSafety:
+          type: number
+          description: Safety rating (1-5)
+        drivingSmoothness:
+          type: number
+          description: Smoothness rating (1-5)
+        behaviorPoliteness:
+          type: number
+          description: Politeness rating (1-5)
+        isVerified:
+          type: boolean
+          description: Whether rating is verified
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PaginatedDriverRatingResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/DriverRating"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+
+    ActivityLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum: [TRIP_CREATED, TRIP_ASSIGNED, TRIP_ACCEPTED, TRIP_REJECTED, TRIP_STARTED, TRIP_ENDED, TRIP_CANCELLED, TRIP_STATUS_CHANGED, TRIP_UPDATED, DRIVER_CREATED, DRIVER_UPDATED, DRIVER_STATUS_CHANGED, DRIVER_CLOCK_IN, DRIVER_CLOCK_OUT, STAFF_CREATED, STAFF_UPDATED, STAFF_STATUS_CHANGED, STAFF_CLOCK_IN, STAFF_CLOCK_OUT, COMPLAINT_CREATED, COMPLAINT_RESOLVED, COMPLAINT_STATUS_CHANGED, LEAVE_REQUESTED, LEAVE_APPROVED, LEAVE_REJECTED, LEAVE_CANCELLED, RATING_SUBMITTED, ATTENDANCE_RECORDED, CUSTOMER_CREATED, CUSTOMER_UPDATED, FRANCHISE_CREATED, FRANCHISE_UPDATED, FRANCHISE_STATUS_CHANGED]
+        entityType:
+          type: string
+          enum: [TRIP, DRIVER, STAFF, CUSTOMER, FRANCHISE, COMPLAINT, LEAVE_REQUEST, RATING, ATTENDANCE, OTHER]
+        entityId:
+          type: string
+          nullable: true
+        franchiseId:
+          type: string
+          format: uuid
+          nullable: true
+        driverId:
+          type: string
+          format: uuid
+          nullable: true
+        staffId:
+          type: string
+          format: uuid
+          nullable: true
+        tripId:
+          type: string
+          format: uuid
+          nullable: true
+        userId:
+          type: string
+          format: uuid
+          nullable: true
+        description:
+          type: string
+        metadata:
+          type: object
+          nullable: true
+          description: Additional data about the activity
+        createdAt:
+          type: string
+          format: date-time
+        user:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            fullName:
+              type: string
+            email:
+              type: string
+            role:
+              type: string
+        franchise:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            code:
+              type: string
+        driver:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            firstName:
+              type: string
+            lastName:
+              type: string
+            driverCode:
+              type: string
+        staff:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            email:
+              type: string
+        trip:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            customerName:
+              type: string
+            status:
+              type: string
+
+    PaginatedActivityLogResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityLog"
         pagination:
           $ref: "#/components/schemas/PaginationMeta"
 

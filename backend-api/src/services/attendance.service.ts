@@ -19,6 +19,8 @@ import {
 import { NotFoundError, BadRequestError } from "../utils/errors";
 import { ATTENDANCE_ERROR_MESSAGES } from "../constants/attendance";
 import logger from "../config/logger";
+import { logActivity } from "./activity.service";
+import { ActivityAction, ActivityEntityType } from "@prisma/client";
 
 function mapAttendanceToResponse(attendance: any): AttendanceResponseDTO {
   return {
@@ -87,6 +89,43 @@ export async function clockIn(
     staffId: input.staffId,
   });
 
+  // Log activity (non-blocking)
+  if (input.driverId) {
+    const driver = await getDriverById(input.driverId);
+    logActivity({
+      action: ActivityAction.DRIVER_CLOCK_IN,
+      entityType: ActivityEntityType.ATTENDANCE,
+      entityId: attendance.id,
+      franchiseId: driver?.franchiseId,
+      driverId: input.driverId,
+      description: `Driver clocked in`,
+      metadata: {
+        attendanceId: attendance.id,
+        date: attendance.date,
+        notes: input.notes,
+      },
+    }).catch((err) => {
+      logger.error("Failed to log clock in activity", { error: err });
+    });
+  } else if (input.staffId) {
+    const staff = await getStaffById(input.staffId);
+    logActivity({
+      action: ActivityAction.STAFF_CLOCK_IN,
+      entityType: ActivityEntityType.ATTENDANCE,
+      entityId: attendance.id,
+      franchiseId: staff?.franchiseId,
+      staffId: input.staffId,
+      description: `Staff clocked in`,
+      metadata: {
+        attendanceId: attendance.id,
+        date: attendance.date,
+        notes: input.notes,
+      },
+    }).catch((err) => {
+      logger.error("Failed to log clock in activity", { error: err });
+    });
+  }
+
   return {
     message: "Clocked in successfully",
     data: mapAttendanceToResponse(attendance),
@@ -148,6 +187,47 @@ export async function clockOut(
     driverId: input.driverId,
     staffId: input.staffId,
   });
+
+  // Log activity (non-blocking)
+  if (input.driverId) {
+    const driver = await getDriverById(input.driverId);
+    logActivity({
+      action: ActivityAction.DRIVER_CLOCK_OUT,
+      entityType: ActivityEntityType.ATTENDANCE,
+      entityId: attendance.id,
+      franchiseId: driver?.franchiseId,
+      driverId: input.driverId,
+      description: `Driver clocked out`,
+      metadata: {
+        attendanceId: attendance.id,
+        date: attendance.date,
+        clockIn: attendance.clockIn,
+        clockOut: attendance.clockOut,
+        notes: input.notes,
+      },
+    }).catch((err) => {
+      logger.error("Failed to log clock out activity", { error: err });
+    });
+  } else if (input.staffId) {
+    const staff = await getStaffById(input.staffId);
+    logActivity({
+      action: ActivityAction.STAFF_CLOCK_OUT,
+      entityType: ActivityEntityType.ATTENDANCE,
+      entityId: attendance.id,
+      franchiseId: staff?.franchiseId,
+      staffId: input.staffId,
+      description: `Staff clocked out`,
+      metadata: {
+        attendanceId: attendance.id,
+        date: attendance.date,
+        clockIn: attendance.clockIn,
+        clockOut: attendance.clockOut,
+        notes: input.notes,
+      },
+    }).catch((err) => {
+      logger.error("Failed to log clock out activity", { error: err });
+    });
+  }
 
   return {
     message: "Clocked out successfully",

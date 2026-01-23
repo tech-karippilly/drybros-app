@@ -18,6 +18,8 @@ import {
 import { NotFoundError, BadRequestError } from "../utils/errors";
 import { LEAVE_ERROR_MESSAGES } from "../constants/leave";
 import logger from "../config/logger";
+import { logActivity } from "./activity.service";
+import { ActivityAction, ActivityEntityType } from "@prisma/client";
 
 function mapLeaveRequestToResponse(leaveRequest: any): LeaveRequestResponseDTO {
   return {
@@ -80,6 +82,36 @@ export async function createLeaveRequest(
     leaveRequestId: leaveRequest.id,
     driverId: input.driverId,
     staffId: input.staffId,
+  });
+
+  // Log activity (non-blocking)
+  let franchiseId: string | undefined;
+  if (input.driverId) {
+    const driver = await getDriverById(input.driverId);
+    franchiseId = driver?.franchiseId;
+  } else if (input.staffId) {
+    const staff = await getStaffById(input.staffId);
+    franchiseId = staff?.franchiseId;
+  }
+
+  logActivity({
+    action: ActivityAction.LEAVE_REQUESTED,
+    entityType: ActivityEntityType.LEAVE_REQUEST,
+    entityId: leaveRequest.id,
+    franchiseId: franchiseId || null,
+    driverId: input.driverId || null,
+    staffId: input.staffId || null,
+    userId: requestedBy || null,
+    description: `Leave request created: ${input.leaveType} from ${input.startDate.toISOString().split('T')[0]} to ${input.endDate.toISOString().split('T')[0]}`,
+    metadata: {
+      leaveRequestId: leaveRequest.id,
+      leaveType: input.leaveType,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      reason: input.reason,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log leave request activity", { error: err });
   });
 
   return {
@@ -168,6 +200,41 @@ export async function updateLeaveRequestStatus(
   logger.info("Leave request status updated", {
     leaveRequestId: id,
     newStatus: input.status,
+  });
+
+  // Log activity (non-blocking)
+  let franchiseId: string | undefined;
+  if (leaveRequest.driverId) {
+    const driver = await getDriverById(leaveRequest.driverId);
+    franchiseId = driver?.franchiseId;
+  } else if (leaveRequest.staffId) {
+    const staff = await getStaffById(leaveRequest.staffId);
+    franchiseId = staff?.franchiseId;
+  }
+
+  const actionMap: Record<string, ActivityAction> = {
+    APPROVED: ActivityAction.LEAVE_APPROVED,
+    REJECTED: ActivityAction.LEAVE_REJECTED,
+    CANCELLED: ActivityAction.LEAVE_CANCELLED,
+  };
+
+  logActivity({
+    action: actionMap[input.status] || ActivityAction.LEAVE_REQUESTED,
+    entityType: ActivityEntityType.LEAVE_REQUEST,
+    entityId: id,
+    franchiseId: franchiseId || null,
+    driverId: leaveRequest.driverId || null,
+    staffId: leaveRequest.staffId || null,
+    userId: approvedBy || null,
+    description: `Leave request ${input.status.toLowerCase()}${input.rejectionReason ? ` - ${input.rejectionReason}` : ""}`,
+    metadata: {
+      leaveRequestId: id,
+      oldStatus: leaveRequest.status,
+      newStatus: input.status,
+      rejectionReason: input.rejectionReason,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log leave request status change activity", { error: err });
   });
 
   return {

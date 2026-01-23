@@ -27,6 +27,9 @@ import {
   DriverWithPerformance,
 } from "./driver-performance.service";
 import prisma from "../config/prismaClient";
+import { logActivity } from "./activity.service";
+import { ActivityAction, ActivityEntityType } from "@prisma/client";
+import logger from "../config/logger";
 
 interface CreateTripInput {
   franchiseId: number;
@@ -131,6 +134,26 @@ export async function getTrip(id: string) {
     err.statusCode = 404;
     throw err;
   }
+  // Log activity (non-blocking)
+  logActivity({
+    action: ActivityAction.TRIP_CREATED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: trip.id,
+    franchiseId: trip.franchiseId,
+    tripId: trip.id,
+    userId: input.createdBy || null,
+    description: `Trip created for customer ${input.customerName} (${input.customerPhone}) - ${tripTypeEnum}`,
+    metadata: {
+      tripType: tripTypeEnum,
+      customerName: input.customerName,
+      customerPhone: input.customerPhone,
+      pickupLocation: input.pickupAddress,
+      dropLocation: input.destinationAddress,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log trip creation activity", { error: err });
+  });
+
   return trip;
 }
 
@@ -368,6 +391,26 @@ export async function assignDriverToTrip(
   
   // Update driver trip status to ON_TRIP
   await updateDriverTripStatus(driverId, "ON_TRIP");
+
+  // Log activity (non-blocking)
+  logActivity({
+    action: ActivityAction.TRIP_ASSIGNED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: tripId,
+    franchiseId: trip.franchiseId,
+    driverId: driverId,
+    tripId: tripId,
+    userId: assignedBy || null,
+    description: `Trip ${tripId} assigned to driver ${driver.firstName} ${driver.lastName} (${driver.driverCode})`,
+    metadata: {
+      tripId: tripId,
+      driverId: driverId,
+      driverCode: driver.driverCode,
+      customerName: trip.customerName,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log trip assignment activity", { error: err });
+  });
   
   return updatedTrip;
 }
@@ -443,7 +486,27 @@ export async function driverAcceptTrip(tripId: string, driverId: string) {
     throw err;
   }
 
-  return updateTrip(tripId, { status: "DRIVER_ACCEPTED" });
+  const updatedTrip = await updateTrip(tripId, { status: "DRIVER_ACCEPTED" });
+
+  // Log activity (non-blocking)
+  logActivity({
+    action: ActivityAction.TRIP_ACCEPTED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: tripId,
+    franchiseId: trip.franchiseId,
+    driverId: driverId,
+    tripId: tripId,
+    description: `Driver accepted trip ${tripId}`,
+    metadata: {
+      tripId: tripId,
+      driverId: driverId,
+      customerName: trip.customerName,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log trip acceptance activity", { error: err });
+  });
+
+  return updatedTrip;
 }
 
 export async function driverRejectTrip(tripId: string, driverId: string) {
@@ -560,6 +623,25 @@ export async function startTripWithOtp(
   
   // Ensure driver trip status is ON_TRIP
   await updateDriverTripStatus(input.driverId, "ON_TRIP");
+
+  // Log activity (non-blocking)
+  logActivity({
+    action: ActivityAction.TRIP_STARTED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: tripId,
+    franchiseId: trip.franchiseId,
+    driverId: input.driverId,
+    tripId: tripId,
+    description: `Trip ${tripId} started by driver`,
+    metadata: {
+      tripId: tripId,
+      driverId: input.driverId,
+      odometerValue: input.odometerValue,
+      customerName: trip.customerName,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log trip start activity", { error: err });
+  });
   
   return updatedTrip;
 }
@@ -653,6 +735,28 @@ export async function endTripWithOtp(tripId: string, input: EndTripInput) {
   if (trip.driverId) {
     await updateDriverTripStatus(trip.driverId, "AVAILABLE");
   }
+
+  // Log activity (non-blocking)
+  logActivity({
+    action: ActivityAction.TRIP_ENDED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: tripId,
+    franchiseId: trip.franchiseId,
+    driverId: input.driverId,
+    tripId: tripId,
+    description: `Trip ${tripId} ended - Final amount: ₹${input.finalAmount}`,
+    metadata: {
+      tripId: tripId,
+      driverId: input.driverId,
+      finalAmount: input.finalAmount,
+      paymentStatus: input.paymentStatus,
+      paymentMode: input.paymentMode,
+      odometerValue: input.odometerValue,
+      customerName: trip.customerName,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log trip end activity", { error: err });
+  });
   
   return updatedTrip;
 }

@@ -19,6 +19,8 @@ import {
 import { NotFoundError, BadRequestError } from "../utils/errors";
 import { COMPLAINT_ERROR_MESSAGES } from "../constants/complaint";
 import logger from "../config/logger";
+import { logActivity } from "./activity.service";
+import { ActivityAction, ActivityEntityType } from "@prisma/client";
 
 function mapComplaintToResponse(complaint: any): ComplaintResponseDTO {
   return {
@@ -82,6 +84,36 @@ export async function createComplaint(
     complaintId: complaint.id,
     driverId: input.driverId,
     staffId: input.staffId,
+  });
+
+  // Log activity (non-blocking)
+  let franchiseId: string | undefined;
+  if (input.driverId) {
+    const driver = await getDriverById(input.driverId);
+    franchiseId = driver?.franchiseId;
+  } else if (input.staffId) {
+    const staff = await getStaffById(input.staffId);
+    franchiseId = staff?.franchiseId;
+  }
+
+  logActivity({
+    action: ActivityAction.COMPLAINT_CREATED,
+    entityType: ActivityEntityType.COMPLAINT,
+    entityId: complaint.id,
+    franchiseId: franchiseId || null,
+    driverId: input.driverId || null,
+    staffId: input.staffId || null,
+    userId: reportedBy || null,
+    description: `Complaint created: ${input.title} - ${input.severity} severity`,
+    metadata: {
+      complaintId: complaint.id,
+      title: input.title,
+      severity: input.severity,
+      driverId: input.driverId,
+      staffId: input.staffId,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log complaint activity", { error: err });
   });
 
   return {
@@ -155,6 +187,26 @@ export async function updateComplaintStatus(
   logger.info("Complaint status updated", {
     complaintId: id,
     newStatus: input.status,
+  });
+
+  // Log activity (non-blocking)
+  logActivity({
+    action: input.status === "RESOLVED" ? ActivityAction.COMPLAINT_RESOLVED : ActivityAction.COMPLAINT_STATUS_CHANGED,
+    entityType: ActivityEntityType.COMPLAINT,
+    entityId: id,
+    franchiseId: complaint.driverId ? (await getDriverById(complaint.driverId))?.franchiseId : (await getStaffById(complaint.staffId!))?.franchiseId || null,
+    driverId: complaint.driverId || null,
+    staffId: complaint.staffId || null,
+    userId: resolvedBy || null,
+    description: `Complaint status changed to ${input.status}${input.resolution ? ` - ${input.resolution}` : ""}`,
+    metadata: {
+      complaintId: id,
+      oldStatus: complaint.status,
+      newStatus: input.status,
+      resolution: input.resolution,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log complaint status change activity", { error: err });
   });
 
   return {

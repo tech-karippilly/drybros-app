@@ -61,6 +61,12 @@ export function Sidebar({ className }: SidebarProps) {
     };
 
     const handleMenuClick = (item: typeof items[0]) => {
+        // Handle external navigation
+        if (item.external && item.href) {
+            router.push(item.href);
+            return;
+        }
+        
         if (item.submenu && item.submenu.length > 0) {
             const wasExpanded = isMenuExpanded(item.id);
             toggleSubmenu(item.id);

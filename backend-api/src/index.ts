@@ -16,6 +16,8 @@ import tripTypeRoutes from "./routes/tripType.routes";
 import complaintRoutes from "./routes/complaint.routes";
 import attendanceRoutes from "./routes/attendance.routes";
 import leaveRoutes from "./routes/leave.routes";
+import ratingRoutes from "./routes/rating.routes";
+import activityRoutes from "./routes/activity.routes";
 
 import cors from "cors";
 import path from "path";
@@ -167,6 +169,8 @@ app.use("/trip-types", tripTypeRoutes);
 app.use("/complaints", complaintRoutes);
 app.use("/attendance", attendanceRoutes);
 app.use("/leave-requests", leaveRoutes);
+app.use("/ratings", ratingRoutes);
+app.use("/activities", activityRoutes);
 
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Drybros backend root 🚗" });

@@ -13,7 +13,8 @@ import {
     PlusCircle,
     Clock,
     ChevronDown,
-    ChevronRight
+    ChevronRight,
+    Shield
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 
@@ -22,6 +23,8 @@ export interface NavItem {
     label: string;
     id: string;
     submenu?: NavItem[];
+    external?: boolean; // If true, navigates to external route instead of setting activeTab
+    href?: string; // External route path
 }
 
 export const ROLE_MENUS: Record<string, NavItem[]> = {
@@ -44,6 +47,7 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
         },
         { icon: MessageSquare, label: 'Complaints', id: 'complaints' },
         { icon: CalendarCheck, label: 'Attendance', id: 'attendance' },
+        { icon: Shield, label: 'Policies', id: 'policies', external: true, href: '/policies' },
     ],
     staff: [
         { icon: Home, label: 'Home', id: 'home' },
@@ -63,6 +67,7 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
         { icon: MessageSquare, label: 'Complaints', id: 'complaints' },
         { icon: CalendarCheck, label: 'Attendance', id: 'attendance' },
         { icon: UserCircle, label: 'Customer', id: 'customer' },
+        { icon: Shield, label: 'Policies', id: 'policies', external: true, href: '/policies' },
     ],
     driver: [
         { icon: Home, label: 'Home', id: 'home' },
@@ -70,5 +75,6 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
         { icon: ShieldAlert, label: 'Penalties', id: 'payroll' },
         { icon: CalendarCheck, label: 'Attendance', id: 'attendance' },
         { icon: Map, label: 'Trips', id: 'trips' },
+        { icon: Shield, label: 'Policies', id: 'policies', external: true, href: '/policies' },
     ]
 };

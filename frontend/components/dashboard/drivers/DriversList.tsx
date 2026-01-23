@@ -66,6 +66,7 @@ interface DriversListProps {
 export function DriversList({ onCreateClick, onEditClick, onViewClick }: DriversListProps) {
     const dispatch = useAppDispatch();
     const { drivers } = useAppSelector(state => state.drivers);
+    const { list: franchises } = useAppSelector((state) => state.franchise);
     
     // Local state for drivers with performance
     const [driversWithPerformance, setDriversWithPerformance] = useState<Record<string, Driver['performance']>>({});
@@ -76,8 +77,22 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
         search: '',
         phone: '',
         status: 'all',
-        franchise: ''
+        franchiseId: 'all'
     });
+
+    // Create maps for franchise lookup (by UUID and by number ID)
+    const franchiseMap = useMemo(() => {
+        const map = new Map<string | number, { code: string; name: string; _id: string }>();
+        franchises.forEach(franchise => {
+            map.set(franchise._id, { code: franchise.code, name: franchise.name, _id: franchise._id });
+            // Also map by number if franchise._id can be converted
+            const numId = typeof franchise._id === 'string' ? parseInt(franchise._id.replace(/-/g, '').substring(0, 10), 16) : franchise._id;
+            if (!isNaN(numId)) {
+                map.set(numId, { code: franchise.code, name: franchise.name, _id: franchise._id });
+            }
+        });
+        return map;
+    }, [franchises]);
     const [showFilters, setShowFilters] = useState(false);
     
     // Sorting state
@@ -154,8 +169,16 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
                  matchesStatus = item.status === statusMap[filters.status];
             }
 
-            const matchesFranchise = filters.franchise === '' || 
-                                     (item.franchiseName && item.franchiseName.toLowerCase().includes(filters.franchise.toLowerCase()));
+            let matchesFranchise = true;
+            if (filters.franchiseId !== 'all' && item.franchiseId !== null && item.franchiseId !== undefined) {
+                const driverFranchiseId = item.franchiseId;
+                const selectedFranchiseId = filters.franchiseId;
+                
+                // Check if driver's franchiseId matches the selected franchise
+                // Driver franchiseId is a number (converted from UUID), so we need to check if it maps to the selected UUID
+                const franchise = franchiseMap.get(driverFranchiseId);
+                matchesFranchise = franchise?._id === selectedFranchiseId;
+            }
 
             return matchesSearch && matchesPhone && matchesStatus && matchesFranchise;
         });
@@ -203,7 +226,7 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
             search: '',
             phone: '',
             status: 'all',
-            franchise: ''
+            franchiseId: 'all'
         });
         setCurrentPage(1);
     }, []);
@@ -263,7 +286,7 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
                             onClick={() => setShowFilters(!showFilters)}
                             className={cn(
                                 "flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition-all",
-                                showFilters || filters.status !== 'all' || filters.phone !== '' || filters.franchise !== ''
+                                showFilters || filters.status !== 'all' || filters.phone !== '' || filters.franchiseId !== 'all'
                                     ? "bg-[#0d59f2]/10 border-[#0d59f2] text-[#0d59f2]"
                                     : "border-gray-200 dark:border-gray-800 text-[#49659c] hover:bg-gray-50 dark:hover:bg-gray-800"
                             )}
@@ -271,7 +294,7 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
                             <FilterIcon size={16} />
                             <span>Filters</span>
                         </button>
-                         {(filters.search !== '' || filters.status !== 'all' || filters.phone !== '' || filters.franchise !== '') && (
+                         {(filters.search !== '' || filters.status !== 'all' || filters.phone !== '' || filters.franchiseId !== 'all') && (
                             <button
                                 onClick={clearFilters}
                                 className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
@@ -286,6 +309,21 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
                 {/* Advanced Filters Panel */}
                 {showFilters && (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-100 dark:border-gray-800 animate-in slide-in-from-top-2 duration-300">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-[#49659c]">Franchise</label>
+                            <select
+                                value={filters.franchiseId}
+                                onChange={(e) => handleFilterChange('franchiseId', e.target.value)}
+                                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white"
+                            >
+                                <option value="all">All Franchises</option>
+                                {franchises.map(franchise => (
+                                    <option key={franchise._id} value={franchise._id}>
+                                        {franchise.name} ({franchise.code})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
                          <div className="space-y-1.5">
                             <label className="text-[10px] font-black uppercase tracking-widest text-[#49659c]">Phone Number</label>
                             <input
@@ -293,16 +331,6 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
                                 value={filters.phone}
                                 onChange={(e) => handleFilterChange('phone', e.target.value)}
                                 placeholder="Filter by phone..."
-                                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white"
-                            />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-[#49659c]">Franchise</label>
-                            <input
-                                type="text"
-                                value={filters.franchise}
-                                onChange={(e) => handleFilterChange('franchise', e.target.value)}
-                                placeholder="Filter by franchise name..."
                                 className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white"
                             />
                         </div>
@@ -381,7 +409,20 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                         <span className="text-sm font-medium dark:text-gray-300">{driver.franchiseName || 'N/A'}</span>
+                                        {(() => {
+                                            const franchise = driver.franchiseId !== null && driver.franchiseId !== undefined 
+                                                ? franchiseMap.get(driver.franchiseId) || franchiseMap.get(driver.franchiseId.toString())
+                                                : null;
+                                            if (franchise) {
+                                                return (
+                                                    <div>
+                                                        <div className="text-sm font-bold text-[#0d121c] dark:text-white">{franchise.name}</div>
+                                                        <div className="text-xs text-[#49659c] font-medium uppercase tracking-wider">{franchise.code}</div>
+                                                    </div>
+                                                );
+                                            }
+                                            return <span className="text-sm font-medium text-gray-400 dark:text-gray-500">N/A</span>;
+                                        })()}
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="text-sm font-medium dark:text-gray-300">{driver.city}</div>

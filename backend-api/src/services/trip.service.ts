@@ -510,10 +510,17 @@ export async function generateStartOtpForTrip(
   return { tripId: updated.id, otp };
 }
 
+interface StartTripInput {
+  driverId: string;
+  otp: string;
+  odometerValue: number;
+  carImageFront: string;
+  carImageBack: string;
+}
+
 export async function startTripWithOtp(
   tripId: string,
-  driverId: string,
-  otp: string
+  input: StartTripInput
 ) {
   const trip = await repoGetTripById(tripId);
   if (!trip) {
@@ -522,7 +529,7 @@ export async function startTripWithOtp(
     throw err;
   }
 
-  if (trip.driverId !== driverId) {
+  if (trip.driverId !== input.driverId) {
     const err: any = new Error("This trip is not assigned to this driver");
     err.statusCode = 403;
     throw err;
@@ -535,7 +542,7 @@ export async function startTripWithOtp(
     throw err;
   }
 
-  if (!trip.startOtp || trip.startOtp !== otp) {
+  if (!trip.startOtp || trip.startOtp !== input.otp) {
     const err: any = new Error("Invalid start OTP");
     err.statusCode = 400;
     throw err;
@@ -546,10 +553,13 @@ export async function startTripWithOtp(
   const updatedTrip = await updateTrip(tripId, {
     startedAt: now,
     status: TripStatus.TRIP_STARTED,
+    startOdometer: input.odometerValue,
+    carImageFront: input.carImageFront,
+    carImageBack: input.carImageBack,
   });
   
   // Ensure driver trip status is ON_TRIP
-  await updateDriverTripStatus(driverId, "ON_TRIP");
+  await updateDriverTripStatus(input.driverId, "ON_TRIP");
   
   return updatedTrip;
 }
@@ -592,6 +602,7 @@ interface EndTripInput {
   paymentMode: PaymentMode;
   paymentReference?: string | null;
   overrideReason?: string | null;
+  odometerValue: number;
 }
 
 export async function endTripWithOtp(tripId: string, input: EndTripInput) {
@@ -635,6 +646,7 @@ export async function endTripWithOtp(tripId: string, input: EndTripInput) {
     paymentStatus: input.paymentStatus,
     paymentMode: input.paymentMode,
     paymentReference: input.paymentReference ?? null,
+    endOdometer: input.odometerValue,
   });
   
   // Update driver trip status to AVAILABLE when trip ends

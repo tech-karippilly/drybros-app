@@ -36,6 +36,7 @@ interface StaffListProps {
 
 export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
     const { list, filters, pagination } = useAppSelector((state) => state.staff);
+    const { list: franchises } = useAppSelector((state) => state.franchise);
     const dispatch = useAppDispatch();
     const { toast } = useToast();
     const [showFilters, setShowFilters] = useState(false);
@@ -44,6 +45,15 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
     const [fireTarget, setFireTarget] = useState<Staff | null>(null);
     const [suspendTarget, setSuspendTarget] = useState<Staff | null>(null);
 
+    // Create a map of franchiseId to franchise code for quick lookup
+    const franchiseCodeMap = useMemo(() => {
+        const map = new Map<string, string>();
+        franchises.forEach(franchise => {
+            map.set(franchise._id, franchise.code);
+        });
+        return map;
+    }, [franchises]);
+
     // Filter Logic
     const filteredList = useMemo(() => {
         return list.filter(item => {
@@ -51,11 +61,12 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
             const matchesEmail = item.email.toLowerCase().includes(filters.email.toLowerCase());
             const matchesPhone = item.phone.includes(filters.phone);
             const matchesStatus = filters.status === 'all' || item.status === filters.status;
+            const matchesFranchise = filters.franchiseId === 'all' || item.franchiseId === filters.franchiseId;
 
             // Salary filter: simple numeric comparison (greater than or equal to)
             const matchesSalary = filters.salary === '' || item.salary >= parseInt(filters.salary);
 
-            return matchesName && matchesEmail && matchesPhone && matchesStatus && matchesSalary;
+            return matchesName && matchesEmail && matchesPhone && matchesStatus && matchesSalary && matchesFranchise;
         });
     }, [list, filters]);
 
@@ -76,7 +87,8 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
             salary: '',
             status: 'all',
             email: '',
-            phone: ''
+            phone: '',
+            franchiseId: 'all'
         }));
     };
 
@@ -116,7 +128,7 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
                             onClick={() => setShowFilters(!showFilters)}
                             className={cn(
                                 "flex items-center gap-2 px-4 py-2 border rounded-lg text-sm font-medium transition-all",
-                                showFilters || filters.status !== 'all' || filters.salary !== '' || filters.email !== '' || filters.phone !== ''
+                                showFilters || filters.status !== 'all' || filters.salary !== '' || filters.email !== '' || filters.phone !== '' || filters.franchiseId !== 'all'
                                     ? "bg-[#0d59f2]/10 border-[#0d59f2] text-[#0d59f2]"
                                     : "border-gray-200 dark:border-gray-800 text-[#49659c] hover:bg-gray-50 dark:hover:bg-gray-800"
                             )}
@@ -124,7 +136,7 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
                             <FilterIcon size={16} />
                             <span>Advanced Filters</span>
                         </button>
-                        {(filters.name !== '' || filters.status !== 'all' || filters.salary !== '' || filters.email !== '' || filters.phone !== '') && (
+                        {(filters.name !== '' || filters.status !== 'all' || filters.salary !== '' || filters.email !== '' || filters.phone !== '' || filters.franchiseId !== 'all') && (
                             <button
                                 onClick={clearFilters}
                                 className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
@@ -138,7 +150,22 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
 
                 {/* Advanced Filters Panel */}
                 {showFilters && (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-gray-100 dark:border-gray-800 animate-in slide-in-from-top-2 duration-300">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-4 border-t border-gray-100 dark:border-gray-800 animate-in slide-in-from-top-2 duration-300">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-[#49659c]">Franchise</label>
+                            <select
+                                value={filters.franchiseId}
+                                onChange={(e) => handleFilterChange('franchiseId', e.target.value)}
+                                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white"
+                            >
+                                <option value="all">All Franchises</option>
+                                {franchises.map(franchise => (
+                                    <option key={franchise._id} value={franchise._id}>
+                                        {franchise.name} ({franchise.code})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-black uppercase tracking-widest text-[#49659c]">Email</label>
                             <input
@@ -228,7 +255,7 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm font-medium text-[#49659c] dark:text-gray-300">
-                                        {staff.franchises_code}
+                                        {staff.franchises_code || franchiseCodeMap.get(staff.franchiseId) || 'N/A'}
                                     </td>
                                     <td className="px-6 py-4 text-sm font-bold text-[#0d121c] dark:text-white">
                                         <div className="flex items-center gap-1">

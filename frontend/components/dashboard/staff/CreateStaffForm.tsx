@@ -87,6 +87,30 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
         setFormData(prev => ({ ...prev, password: generateStaffPassword() }));
     }, []);
 
+    // Helper function to extract error message
+    const getErrorMessage = useCallback((error: any, defaultMessage: string): string => {
+        if (error?.response?.data?.error) {
+            return error.response.data.error;
+        }
+        if (error?.response?.data?.message) {
+            return error.response.data.message;
+        }
+        if (error?.message) {
+            return error.message;
+        }
+        return defaultMessage;
+    }, []);
+
+    // Helper function to build document flags
+    const buildDocumentFlags = useCallback((documentsCollected: string[] = []) => {
+        return {
+            govtId: documentsCollected.includes('Govt Identity'),
+            addressProof: documentsCollected.includes('Address Proof'),
+            certificates: documentsCollected.includes('Educational Certificates'),
+            previousExperienceCert: documentsCollected.includes('Previous Experience'),
+        };
+    }, []);
+
     const handleSubmit = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
@@ -177,30 +201,6 @@ export function CreateStaffForm({ onClose, editingStaff }: CreateStaffFormProps)
                 return { ...prev, documentsCollected: [...docs, doc] };
             }
         });
-    }, []);
-
-    // Helper function to extract error message
-    const getErrorMessage = useCallback((error: any, defaultMessage: string): string => {
-        if (error?.response?.data?.error) {
-            return error.response.data.error;
-        }
-        if (error?.response?.data?.message) {
-            return error.response.data.message;
-        }
-        if (error?.message) {
-            return error.message;
-        }
-        return defaultMessage;
-    }, []);
-
-    // Helper function to build document flags
-    const buildDocumentFlags = useCallback((documentsCollected: string[] = []) => {
-        return {
-            govtId: documentsCollected.includes('Govt Identity'),
-            addressProof: documentsCollected.includes('Address Proof'),
-            certificates: documentsCollected.includes('Educational Certificates'),
-            previousExperienceCert: documentsCollected.includes('Previous Experience'),
-        };
     }, []);
 
     // Memoize form field handlers

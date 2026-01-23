@@ -69,6 +69,9 @@ model Driver {
   createdAt                DateTime         @default(now())
   updatedAt                DateTime         @updatedAt
   Trip                     Trip[]
+  Complaints               Complaint[]
+  Attendances              Attendance[]
+  LeaveRequests            LeaveRequest[]
 }
 
 model Franchise {
@@ -126,6 +129,9 @@ model Staff {
   relieveDate              DateTime?
   relieveReason            RelieveReason?
   StaffHistory             StaffHistory[]
+  Complaints               Complaint[]
+  Attendances              Attendance[]
+  LeaveRequests            LeaveRequest[]
 
   @@index([franchiseId, isActive])
   @@index([franchiseId, status])
@@ -185,6 +191,11 @@ model Trip {
   createdBy            String?       @db.Uuid
   dropAddress          String?
   pickupAddress        String?
+  // Odometer and car images for trip start/end
+  startOdometer        Float?
+  endOdometer          Float?
+  carImageFront        String? // URL to front car image
+  carImageBack         String? // URL to back car image
   User                 User?         @relation(fields: [createdBy], references: [id])
   Customer             Customer?     @relation(fields: [customerId], references: [id])
   Driver               Driver?       @relation(fields: [driverId], references: [id])
@@ -249,6 +260,74 @@ model User {
   Trip           Trip[]
 
   @@index([lockedUntil])
+}
+
+model Complaint {
+  id          String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  driverId    String?           @db.Uuid
+  staffId     String?           @db.Uuid
+  title       String
+  description String
+  reportedBy  String?           @db.Uuid // User ID who reported the complaint
+  status      ComplaintStatus   @default(OPEN)
+  severity    ComplaintSeverity @default(MEDIUM)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  resolvedAt  DateTime?
+  resolvedBy  String?           @db.Uuid // User ID who resolved the complaint
+  resolution  String?
+  Driver      Driver?           @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Staff       Staff?            @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([driverId])
+  @@index([staffId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Attendance {
+  id        String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  driverId  String?          @db.Uuid
+  staffId   String?          @db.Uuid
+  date      DateTime         @db.Date
+  clockIn   DateTime?
+  clockOut  DateTime?
+  status    AttendanceStatus @default(PRESENT)
+  notes     String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  Driver    Driver?          @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Staff     Staff?           @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([driverId, date])
+  @@unique([staffId, date])
+  @@index([date])
+  @@index([driverId, date])
+  @@index([staffId, date])
+}
+
+model LeaveRequest {
+  id              String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  driverId        String?            @db.Uuid
+  staffId         String?            @db.Uuid
+  startDate       DateTime           @db.Date
+  endDate         DateTime           @db.Date
+  reason          String
+  leaveType       LeaveType
+  status          LeaveRequestStatus @default(PENDING)
+  requestedBy     String?            @db.Uuid // User ID who requested leave
+  approvedBy      String?            @db.Uuid // User ID who approved/rejected
+  approvedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  Driver          Driver?            @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Staff           Staff?             @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([driverId])
+  @@index([staffId])
+  @@index([status])
+  @@index([startDate])
 }
 
 enum DistanceScopeStatus {
@@ -359,4 +438,41 @@ enum FranchiseStatus {
   ACTIVE
   BLOCKED
   TEMPORARILY_CLOSED
+}
+
+enum ComplaintStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum ComplaintSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+  ON_LEAVE
+}
+
+enum LeaveType {
+  SICK_LEAVE
+  CASUAL_LEAVE
+  EARNED_LEAVE
+  EMERGENCY_LEAVE
+  OTHER
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }

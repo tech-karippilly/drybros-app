@@ -59,6 +59,7 @@ const mapBackendDriverToFrontend = (backendDriver: DriverResponse): GetDriver =>
     
     return {
         _id: driverId,
+        id: backendDriver.id, // Store original UUID for API calls
         userId: driverId,
         firstName: backendDriver.firstName,
         lastName: backendDriver.lastName,
@@ -314,7 +315,7 @@ export const createDriver = createAsyncThunk(
 
 export const updateDriver = createAsyncThunk(
     'drivers/updateDriver',
-    async ({ id, data }: { id: string | number; data: UpdateDriverInput }, { rejectWithValue }) => {
+    async ({ id, data }: { id: string | number; data: UpdateDriverInput }, { rejectWithValue, getState }) => {
         try {
             // Convert frontend UpdateDriverInput to backend UpdateDriverRequest
             const updateRequest: UpdateDriverRequest = {};
@@ -351,8 +352,26 @@ export const updateDriver = createAsyncThunk(
                 updateRequest.franchiseId = data.franchiseId.toString();
             }
             
-            // Convert id to string (UUID)
-            const driverId = typeof id === 'string' ? id : id.toString();
+            // Convert id to UUID string
+            let driverId: string;
+            if (typeof id === 'string') {
+                // Check if it's already a UUID format
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                if (uuidRegex.test(id)) {
+                    driverId = id;
+                } else {
+                    return rejectWithValue("Invalid driver ID format. Expected UUID.");
+                }
+            } else {
+                // If id is a number, find the driver in state to get its UUID
+                const state = getState() as any;
+                const driver = state.drivers?.list?.find((d: GetDriver) => d._id === id);
+                if (driver && driver.id) {
+                    driverId = driver.id;
+                } else {
+                    return rejectWithValue("Driver ID not found. Please refresh the driver list.");
+                }
+            }
             const response = await updateDriverApi(driverId, updateRequest);
             return mapBackendDriverToFrontend(response.data);
         } catch (error: any) {
@@ -362,14 +381,32 @@ export const updateDriver = createAsyncThunk(
     }
 );
 
+// Helper function to convert driver ID (number or string) to UUID string
+const getDriverUuid = (id: string | number, getState: any): string => {
+    if (typeof id === 'string') {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(id)) {
+            return id;
+        }
+    }
+    // If id is a number, find the driver in state to get its UUID
+    const state = getState();
+    const driver = state.drivers?.list?.find((d: GetDriver) => d._id === id);
+    if (driver && driver.id) {
+        return driver.id;
+    }
+    throw new Error("Driver ID not found. Please refresh the driver list.");
+};
+
 export const updateDriverStatus = createAsyncThunk(
     'drivers/updateDriverStatus',
-    async ({ id, status }: { id: string; status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED' | 'TERMINATED' }, { rejectWithValue }) => {
+    async ({ id, status }: { id: string | number; status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED' | 'TERMINATED' }, { rejectWithValue, getState }) => {
         try {
-            const response = await updateDriverStatusApi(id, { status });
+            const driverId = getDriverUuid(id, getState);
+            const response = await updateDriverStatusApi(driverId, { status });
             return mapBackendDriverToFrontend(response.data);
         } catch (error: any) {
-            const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Failed to update driver status';
+            const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || error?.message || 'Failed to update driver status';
             return rejectWithValue(errorMessage);
         }
     }
@@ -377,10 +414,11 @@ export const updateDriverStatus = createAsyncThunk(
 
 export const deleteDriver = createAsyncThunk(
     'drivers/deleteDriver',
-    async (id: string, { rejectWithValue }) => {
+    async (id: string | number, { rejectWithValue, getState }) => {
         try {
-            await deleteDriverApi(id);
-            return id;
+            const driverId = getDriverUuid(id, getState);
+            await deleteDriverApi(driverId);
+            return driverId;
         } catch (error: any) {
             const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || DRIVERS_STRINGS.DELETE_ERROR;
             return rejectWithValue(errorMessage);
@@ -390,9 +428,10 @@ export const deleteDriver = createAsyncThunk(
 
 export const banDriver = createAsyncThunk(
     'drivers/banDriver',
-    async (id: string, { rejectWithValue }) => {
+    async (id: string | number, { rejectWithValue, getState }) => {
         try {
-            const response = await updateDriverStatusApi(id, { status: 'BLOCKED' });
+            const driverId = getDriverUuid(id, getState);
+            const response = await updateDriverStatusApi(driverId, { status: 'BLOCKED' });
             const driver = mapBackendDriverToFrontend(response.data);
             return { _id: parseInt(id.replace(/-/g, '').substring(0, 10), 16) || 0, status: DriverStatus.BLOCKED, driver };
         } catch (error: any) {
@@ -404,11 +443,12 @@ export const banDriver = createAsyncThunk(
 
 export const reactivateDriver = createAsyncThunk(
     'drivers/reactivateDriver',
-    async (id: string, { rejectWithValue }) => {
+    async (id: string | number, { rejectWithValue, getState }) => {
         try {
-            const response = await updateDriverStatusApi(id, { status: 'ACTIVE' });
+            const driverId = getDriverUuid(id, getState);
+            const response = await updateDriverStatusApi(driverId, { status: 'ACTIVE' });
             const driver = mapBackendDriverToFrontend(response.data);
-            return { _id: parseInt(id.replace(/-/g, '').substring(0, 10), 16) || 0, status: DriverStatus.ACTIVE, driver };
+            return { _id: typeof id === 'number' ? id : driver._id, status: DriverStatus.ACTIVE, driver };
         } catch (error: any) {
             const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Failed to reactivate driver';
             return rejectWithValue(errorMessage);

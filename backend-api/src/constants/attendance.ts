@@ -1,0 +1,18 @@
+// src/constants/attendance.ts
+
+export const ATTENDANCE_ERROR_MESSAGES = {
+  ATTENDANCE_NOT_FOUND: "Attendance record not found",
+  DRIVER_NOT_FOUND: "Driver not found",
+  STAFF_NOT_FOUND: "Staff not found",
+  ALREADY_CLOCKED_IN: "Already clocked in for today",
+  NOT_CLOCKED_IN: "Must clock in before clocking out",
+  INVALID_ATTENDANCE_TYPE: "Either driverId or staffId must be provided, but not both",
+} as const;
+
+export const ATTENDANCE_STATUS = {
+  PRESENT: "PRESENT",
+  ABSENT: "ABSENT",
+  LATE: "LATE",
+  HALF_DAY: "HALF_DAY",
+  ON_LEAVE: "ON_LEAVE",
+} as const;

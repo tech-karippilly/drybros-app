@@ -568,17 +568,22 @@ paths:
     get:
       summary: List staff members
       description: |
-        Retrieves a list of staff members with optional pagination.
+        Retrieves a list of staff members with optional pagination and optional franchise filtering.
         
         **Pagination:**
         - Use `page` query parameter to specify the page number (default: 1)
         - Use `limit` query parameter to specify items per page (default: 10, max: 100)
         - If pagination parameters are not provided, returns all staff members (for backward compatibility)
         
-        **Example:**
-        - `/staff?page=1&limit=10` - Get first 10 staff members
-        - `/staff?page=2&limit=20` - Get next 20 staff members (page 2)
-        - `/staff` - Get all staff members (no pagination)
+        **Franchise Filtering:**
+        - Use `franchiseId` query parameter to filter staff by franchise (optional)
+        - If `franchiseId` is not provided, returns staff from all franchises
+        
+        **Examples:**
+        - `/staff` - Get all staff members from all franchises (no pagination)
+        - `/staff?franchiseId=<uuid>` - Get all staff members for a specific franchise
+        - `/staff?page=1&limit=10` - Get first 10 staff members from all franchises
+        - `/staff?page=1&limit=10&franchiseId=<uuid>` - Get first 10 staff members for a specific franchise
       tags:
         - Staff
       security:
@@ -601,24 +606,16 @@ paths:
             minimum: 1
             maximum: 100
             default: 10
-        - name: franchiseId
-          in: query
-          required: false
-          description: Filter staff by franchise ID (UUID)
-          schema:
-            type: string
-            format: uuid
-            example: "550e8400-e29b-41d4-a716-446655440000"
           description: Number of items per page (max 100)
           example: 10
         - name: franchiseId
           in: query
           required: false
-          description: Filter staff by franchise ID (UUID)
+          description: Filter staff by franchise ID (UUID). If not provided, returns staff from all franchises.
           schema:
             type: string
             format: uuid
-            example: "550e8400-e29b-41d4-a716-446655440000"
+          example: "550e8400-e29b-41d4-a716-446655440000"
       responses:
         "200":
           description: List of staff members (paginated or all)
@@ -633,10 +630,66 @@ paths:
                         type: array
                         items:
                           $ref: "#/components/schemas/Staff"
+              examples:
+                paginated:
+                  summary: Paginated response (when page/limit provided)
+                  value:
+                    data:
+                      - id: "550e8400-e29b-41d4-a716-446655440000"
+                        name: "John Doe"
+                        email: "john.doe@example.com"
+                        phone: "+1234567890"
+                        franchiseId: "660e8400-e29b-41d4-a716-446655440001"
+                        monthlySalary: 50000
+                        status: "ACTIVE"
+                        isActive: true
+                    pagination:
+                      page: 1
+                      limit: 10
+                      total: 50
+                      totalPages: 5
+                      hasNext: true
+                      hasPrev: false
+                all_staff:
+                  summary: All staff response (when no pagination)
+                  value:
+                    data:
+                      - id: "550e8400-e29b-41d4-a716-446655440000"
+                        name: "John Doe"
+                        email: "john.doe@example.com"
+                        phone: "+1234567890"
+                        franchiseId: "660e8400-e29b-41d4-a716-446655440001"
+                        monthlySalary: 50000
+                        status: "ACTIVE"
+                        isActive: true
+                      - id: "550e8400-e29b-41d4-a716-446655440001"
+                        name: "Jane Smith"
+                        email: "jane.smith@example.com"
+                        phone: "+1234567891"
+                        franchiseId: "660e8400-e29b-41d4-a716-446655440001"
+                        monthlySalary: 55000
+                        status: "ACTIVE"
+                        isActive: true
         "400":
-          description: Bad request (invalid pagination parameters)
+          description: Bad request (invalid pagination parameters or invalid franchiseId format)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid query parameters: page must be a positive integer, limit must be between 1 and 100"
         "401":
           description: Not authenticated (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Unauthorized - Invalid or missing authentication token"
     post:
       summary: Create a new staff member
       description: |
@@ -2269,6 +2322,9 @@ paths:
         **Request Body:**
         - `driverId` (required): Driver UUID (can also be passed as query parameter)
         - `otp` (required): 4-digit OTP from generate-start-otp endpoint
+        - `odometerValue` (required): Odometer reading at trip start
+        - `carImageFront` (required): URL to front car image
+        - `carImageBack` (required): URL to back car image
       tags:
         - Trips
       security:
@@ -2305,8 +2361,25 @@ paths:
                   type: string
                   description: 4-digit OTP from generate-start-otp
                   example: "1234"
+                odometerValue:
+                  type: number
+                  description: Odometer reading at trip start (in km)
+                  example: 12345.5
+                carImageFront:
+                  type: string
+                  format: uri
+                  description: URL to front car image
+                  example: "https://example.com/images/car-front.jpg"
+                carImageBack:
+                  type: string
+                  format: uri
+                  description: URL to back car image
+                  example: "https://example.com/images/car-back.jpg"
               required:
                 - otp
+                - odometerValue
+                - carImageFront
+                - carImageBack
       responses:
         "200":
           description: Trip started successfully
@@ -2416,7 +2489,28 @@ paths:
 
   /trips/{id}/end:
     patch:
-      summary: End trip with OTP and payment
+      summary: End trip with OTP, payment, and odometer
+      description: |
+        End a trip by providing the OTP, payment details, and odometer reading.
+        
+        **Prerequisites:**
+        - Trip must be in TRIP_STARTED, TRIP_PROGRESS, or IN_PROGRESS status
+        - Trip must be assigned to the driver making the request
+        - Valid OTP must be provided
+        
+        **Status Change:**
+        - TRIP_STARTED/TRIP_PROGRESS/IN_PROGRESS → TRIP_ENDED
+        - Driver trip status → AVAILABLE
+        
+        **Request Body:**
+        - `driverId` (required): Driver UUID (can also be passed as query parameter)
+        - `otp` (required): 4-digit OTP from generate-end-otp endpoint
+        - `odometerValue` (required): Odometer reading at trip end (in km)
+        - `finalAmount` (required): Final amount charged
+        - `paymentStatus` (required): Payment status
+        - `paymentMode` (required): Payment mode
+        - `paymentReference` (optional): Payment reference number
+        - `overrideReason` (optional): Reason if amount is overridden
       tags:
         - Trips
       security:
@@ -2425,23 +2519,56 @@ paths:
         - name: id
           in: path
           required: true
+          description: Trip UUID
           schema:
-            type: integer
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+        - name: driverId
+          in: query
+          required: false
+          description: Driver UUID (alternative to body parameter)
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/EndTripRequest"
+            example:
+              driverId: "550e8400-e29b-41d4-a716-446655440000"
+              otp: "5678"
+              odometerValue: 12350.2
+              finalAmount: 1500
+              paymentStatus: "COMPLETED"
+              paymentMode: "UPI"
+              paymentReference: "TXN123456789"
       responses:
         "200":
-          description: Trip completed
+          description: Trip completed successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TripResponse"
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TripResponse"
+        "400":
+          description: Bad request - missing parameters or invalid OTP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - trip not assigned to this driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /trip-types:
     get:
@@ -2733,6 +2860,564 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /complaints:
+    get:
+      summary: List complaints
+      description: |
+        Get a list of complaints with optional pagination and filters.
+        
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 10, max: 100)
+        - `driverId` (optional): Filter by driver ID
+        - `staffId` (optional): Filter by staff ID
+        - `status` (optional): Filter by status (OPEN, IN_PROGRESS, RESOLVED, CLOSED)
+        
+        **Without pagination parameters:** Returns all complaints
+      tags:
+        - Complaints
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: driverId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: staffId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+      responses:
+        "200":
+          description: List of complaints
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PaginatedComplaintResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Complaint"
+        "401":
+          description: Not authenticated (missing or invalid token)
+    post:
+      summary: Create a complaint
+      description: |
+        Create a new complaint for a driver or staff member.
+        
+        **Note:** Either `driverId` or `staffId` must be provided, but not both.
+      tags:
+        - Complaints
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateComplaintRequest"
+      responses:
+        "201":
+          description: Complaint created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Complaint created successfully"
+                  data:
+                    $ref: "#/components/schemas/Complaint"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /complaints/{id}:
+    get:
+      summary: Get complaint by ID
+      tags:
+        - Complaints
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Complaint retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Complaint"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Complaint not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      summary: Update complaint status
+      description: |
+        Update the status of a complaint (OPEN, IN_PROGRESS, RESOLVED, CLOSED).
+        When resolving, you can optionally provide a resolution message.
+      tags:
+        - Complaints
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateComplaintStatusRequest"
+      responses:
+        "200":
+          description: Complaint status updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Complaint status updated successfully"
+                  data:
+                    $ref: "#/components/schemas/Complaint"
+        "400":
+          description: Bad request - validation error
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Complaint not found
+
+  /attendance:
+    get:
+      summary: List attendance records
+      description: |
+        Get a list of attendance records with optional pagination and filters.
+        
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 10, max: 100)
+        - `driverId` (optional): Filter by driver ID
+        - `staffId` (optional): Filter by staff ID
+        - `startDate` (optional): Filter by start date (ISO 8601)
+        - `endDate` (optional): Filter by end date (ISO 8601)
+      tags:
+        - Attendance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: driverId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: staffId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: List of attendance records
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PaginatedAttendanceResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Attendance"
+        "401":
+          description: Not authenticated (missing or invalid token)
+    post:
+      summary: Clock in
+      description: |
+        Record clock in for a driver or staff member.
+        
+        **Note:** Either `driverId` or `staffId` must be provided, but not both.
+        You can only clock in once per day.
+      tags:
+        - Attendance
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClockInRequest"
+      responses:
+        "201":
+          description: Clocked in successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Clocked in successfully"
+                  data:
+                    $ref: "#/components/schemas/Attendance"
+        "400":
+          description: Bad request - validation error or already clocked in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /attendance/clock-out:
+    post:
+      summary: Clock out
+      description: |
+        Record clock out for a driver or staff member.
+        
+        **Note:** Either `driverId` or `staffId` must be provided, but not both.
+        You must clock in before clocking out.
+      tags:
+        - Attendance
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClockOutRequest"
+      responses:
+        "200":
+          description: Clocked out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Clocked out successfully"
+                  data:
+                    $ref: "#/components/schemas/Attendance"
+        "400":
+          description: Bad request - validation error or not clocked in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /attendance/{id}:
+    get:
+      summary: Get attendance record by ID
+      tags:
+        - Attendance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Attendance record retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Attendance"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Attendance record not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /leave-requests:
+    get:
+      summary: List leave requests
+      description: |
+        Get a list of leave requests with optional pagination and filters.
+        
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 10, max: 100)
+        - `driverId` (optional): Filter by driver ID
+        - `staffId` (optional): Filter by staff ID
+        - `status` (optional): Filter by status (PENDING, APPROVED, REJECTED, CANCELLED)
+        - `startDate` (optional): Filter by start date (ISO 8601)
+        - `endDate` (optional): Filter by end date (ISO 8601)
+      tags:
+        - Leave Requests
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: driverId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: staffId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [PENDING, APPROVED, REJECTED, CANCELLED]
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: List of leave requests
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PaginatedLeaveRequestResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/LeaveRequest"
+        "401":
+          description: Not authenticated (missing or invalid token)
+    post:
+      summary: Create a leave request
+      description: |
+        Create a new leave request for a driver or staff member.
+        
+        **Note:** Either `driverId` or `staffId` must be provided, but not both.
+        End date must be after or equal to start date.
+      tags:
+        - Leave Requests
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLeaveRequestRequest"
+      responses:
+        "201":
+          description: Leave request created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Leave request created successfully"
+                  data:
+                    $ref: "#/components/schemas/LeaveRequest"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /leave-requests/{id}:
+    get:
+      summary: Get leave request by ID
+      tags:
+        - Leave Requests
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Leave request retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/LeaveRequest"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Leave request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      summary: Update leave request status
+      description: |
+        Update the status of a leave request (APPROVED, REJECTED, CANCELLED).
+        When rejecting, you can optionally provide a rejection reason.
+      tags:
+        - Leave Requests
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLeaveRequestStatusRequest"
+      responses:
+        "200":
+          description: Leave request status updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Leave request status updated successfully"
+                  data:
+                    $ref: "#/components/schemas/LeaveRequest"
+        "400":
+          description: Bad request - validation error
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Leave request not found
 
 components:
   schemas:
@@ -3150,6 +3835,28 @@ components:
         paymentReference:
           type: string
           nullable: true
+        startOdometer:
+          type: number
+          nullable: true
+          description: Odometer reading at trip start (in km)
+          example: 12345.5
+        endOdometer:
+          type: number
+          nullable: true
+          description: Odometer reading at trip end (in km)
+          example: 12350.2
+        carImageFront:
+          type: string
+          format: uri
+          nullable: true
+          description: URL to front car image
+          example: "https://example.com/images/car-front.jpg"
+        carImageBack:
+          type: string
+          format: uri
+          nullable: true
+          description: URL to back car image
+          example: "https://example.com/images/car-back.jpg"
 
     TripResponse:
       type: object
@@ -3194,24 +3901,42 @@ components:
       type: object
       properties:
         driverId:
-          type: integer
+          type: string
+          format: uuid
+          description: Driver UUID
+          example: "550e8400-e29b-41d4-a716-446655440000"
         otp:
           type: string
+          description: 4-digit OTP from generate-end-otp
+          example: "5678"
+        odometerValue:
+          type: number
+          description: Odometer reading at trip end (in km)
+          example: 12350.2
         finalAmount:
           type: number
+          description: Final amount charged
+          example: 1500
         paymentStatus:
           type: string
           enum: [PENDING, COMPLETED, PAID, PARTIALLY_PAID]
+          description: Payment status
         paymentMode:
           type: string
           enum: [UPI, IN_HAND, CASH, CARD, OTHER]
+          description: Payment mode
         paymentReference:
           type: string
+          description: Payment reference number (optional)
+          example: "TXN123456789"
         overrideReason:
           type: string
+          description: Reason if amount is overridden (optional)
+          example: "Customer requested discount"
       required:
         - driverId
         - otp
+        - odometerValue
         - finalAmount
         - paymentStatus
         - paymentMode
@@ -4229,6 +4954,308 @@ components:
           type: boolean
           description: Whether there is a previous page
           example: false
+
+    CreateComplaintRequest:
+      type: object
+      required:
+        - title
+        - description
+      properties:
+        driverId:
+          type: string
+          format: uuid
+          description: Driver ID (required if staffId not provided)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        staffId:
+          type: string
+          format: uuid
+          description: Staff ID (required if driverId not provided)
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: "Rude behavior complaint"
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          example: "Driver was rude to customer during trip"
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          default: MEDIUM
+          example: "MEDIUM"
+
+    UpdateComplaintStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+          example: "RESOLVED"
+        resolution:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: "Issue resolved after discussion with driver"
+
+    Complaint:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        driverId:
+          type: string
+          format: uuid
+          nullable: true
+        staffId:
+          type: string
+          format: uuid
+          nullable: true
+        title:
+          type: string
+        description:
+          type: string
+        reportedBy:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        resolvedBy:
+          type: string
+          format: uuid
+          nullable: true
+        resolution:
+          type: string
+          nullable: true
+
+    PaginatedComplaintResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Complaint"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+
+    ClockInRequest:
+      type: object
+      required: []
+      properties:
+        driverId:
+          type: string
+          format: uuid
+          description: Driver ID (required if staffId not provided)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        staffId:
+          type: string
+          format: uuid
+          description: Staff ID (required if driverId not provided)
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        notes:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: "On time"
+
+    ClockOutRequest:
+      type: object
+      required: []
+      properties:
+        driverId:
+          type: string
+          format: uuid
+          description: Driver ID (required if staffId not provided)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        staffId:
+          type: string
+          format: uuid
+          description: Staff ID (required if driverId not provided)
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        notes:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: "Completed all tasks"
+
+    Attendance:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        driverId:
+          type: string
+          format: uuid
+          nullable: true
+        staffId:
+          type: string
+          format: uuid
+          nullable: true
+        date:
+          type: string
+          format: date
+        clockIn:
+          type: string
+          format: date-time
+          nullable: true
+        clockOut:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [PRESENT, ABSENT, LATE, HALF_DAY, ON_LEAVE]
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PaginatedAttendanceResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Attendance"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+
+    CreateLeaveRequestRequest:
+      type: object
+      required:
+        - startDate
+        - endDate
+        - reason
+        - leaveType
+      properties:
+        driverId:
+          type: string
+          format: uuid
+          description: Driver ID (required if staffId not provided)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        staffId:
+          type: string
+          format: uuid
+          description: Staff ID (required if driverId not provided)
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        startDate:
+          type: string
+          format: date-time
+          example: "2024-02-01T00:00:00Z"
+        endDate:
+          type: string
+          format: date-time
+          example: "2024-02-05T00:00:00Z"
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: "Family emergency"
+        leaveType:
+          type: string
+          enum: [SICK_LEAVE, CASUAL_LEAVE, EARNED_LEAVE, EMERGENCY_LEAVE, OTHER]
+          example: "EMERGENCY_LEAVE"
+
+    UpdateLeaveRequestStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, CANCELLED]
+          example: "APPROVED"
+        rejectionReason:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: "Insufficient leave balance"
+
+    LeaveRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        driverId:
+          type: string
+          format: uuid
+          nullable: true
+        staffId:
+          type: string
+          format: uuid
+          nullable: true
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        reason:
+          type: string
+        leaveType:
+          type: string
+          enum: [SICK_LEAVE, CASUAL_LEAVE, EARNED_LEAVE, EMERGENCY_LEAVE, OTHER]
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, CANCELLED]
+        requestedBy:
+          type: string
+          format: uuid
+          nullable: true
+        approvedBy:
+          type: string
+          format: uuid
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rejectionReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PaginatedLeaveRequestResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaveRequest"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
 
     ErrorResponse:
       type: object

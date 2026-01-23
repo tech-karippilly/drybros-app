@@ -123,6 +123,7 @@ export interface UpdateDriverInput{
 // no null values for necessary fields 
 export interface GetDriver{
     _id: number;
+    id?: string; // UUID string from backend (for API calls)
     userId :number; // foreign key to users table
     firstName: string;
     lastName: string;

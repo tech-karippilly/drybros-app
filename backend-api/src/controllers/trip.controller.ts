@@ -216,7 +216,33 @@ export async function startTripHandler(
       });
     }
 
-    const updated = await startTripWithOtp(tripId, driverId, otp);
+    const { odometerValue, carImageFront, carImageBack } = req.body;
+
+    if (odometerValue === undefined || odometerValue === null) {
+      return res.status(400).json({
+        error: "odometerValue is required",
+      });
+    }
+
+    if (!carImageFront) {
+      return res.status(400).json({
+        error: "carImageFront is required",
+      });
+    }
+
+    if (!carImageBack) {
+      return res.status(400).json({
+        error: "carImageBack is required",
+      });
+    }
+
+    const updated = await startTripWithOtp(tripId, {
+      driverId,
+      otp,
+      odometerValue: parseFloat(odometerValue),
+      carImageFront,
+      carImageBack,
+    });
     res.json({ data: updated });
   } catch (err) {
     next(err);
@@ -262,6 +288,7 @@ export async function endTripHandler(
       paymentMode,
       paymentReference,
       overrideReason,
+      odometerValue,
     } = req.body;
 
     if (!driverId) {
@@ -276,6 +303,12 @@ export async function endTripHandler(
       });
     }
 
+    if (odometerValue === undefined || odometerValue === null) {
+      return res.status(400).json({
+        error: "odometerValue is required",
+      });
+    }
+
     const updated = await endTripWithOtp(tripId, {
       driverId,
       otp,
@@ -284,6 +317,7 @@ export async function endTripHandler(
       paymentMode,
       paymentReference,
       overrideReason,
+      odometerValue: parseFloat(odometerValue),
     });
     res.json({ data: updated });
   } catch (err) {

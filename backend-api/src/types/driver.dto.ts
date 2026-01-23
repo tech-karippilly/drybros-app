@@ -150,9 +150,6 @@ export const updateDriverSchema = z.object({
       z.string().datetime("Invalid date format").transform((val) => new Date(val)),
       z.date(),
     ])
-    .refine((date) => date > new Date(), {
-      message: "License expiration date must be in the future",
-    })
     .optional(),
   bankAccountName: z.string().min(1, "Bank account name is required").optional(),
   bankAccountNumber: z.string().min(1, "Bank account number is required").optional(),

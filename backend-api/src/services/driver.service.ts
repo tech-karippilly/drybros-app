@@ -456,7 +456,7 @@ export async function updateDriver(
   if (input.lastName !== undefined) updateData.lastName = input.lastName;
   if (input.phone !== undefined) updateData.phone = input.phone;
   if (input.email !== undefined) updateData.email = input.email;
-  if (input.altPhone !== undefined) updateData.altPhone = input.altPhone;
+  if (input.altPhone !== undefined) updateData.altPhone = input.altPhone === '' ? null : input.altPhone;
   if (input.emergencyContactName !== undefined) updateData.emergencyContactName = input.emergencyContactName;
   if (input.emergencyContactPhone !== undefined) updateData.emergencyContactPhone = input.emergencyContactPhone;
   if (input.emergencyContactRelation !== undefined) updateData.emergencyContactRelation = input.emergencyContactRelation;

@@ -38,7 +38,7 @@ const getInitialFormData = (driver: GetDriver | null): Partial<Omit<CreateDriver
              address: driver.address || '',
              pincode: driver.pincode || '',
              licenseNumber: driver.licenseNumber || '',
-             franchiseId: driver.franchiseId || '',
+             franchiseId: driver.franchiseId !== null && driver.franchiseId !== undefined ? driver.franchiseId : '',
              status: driver.status,
              // Ensure email and password are always defined for controlled inputs
              email: (driver as any).email || '',
@@ -66,13 +66,34 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
     
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const [formData, setFormData] = useState(getInitialFormData(driver));
+    // Helper to get initial form data with proper franchiseId mapping
+    const getInitialFormDataWithFranchise = React.useCallback((driver: GetDriver | null) => {
+        const initialData = getInitialFormData(driver);
+        if (driver && driver.franchiseId) {
+            // Find the franchise UUID that matches the driver's franchiseId (number)
+            // We need to convert the number back to UUID by finding the matching franchise
+            const matchingFranchise = franchiseList.find(f => {
+                // Try to match by converting franchise._id UUID to number
+                if (typeof f._id === 'string') {
+                    const numId = parseInt(f._id.replace(/-/g, '').substring(0, 10), 16);
+                    return numId === driver.franchiseId;
+                }
+                return false;
+            });
+            if (matchingFranchise) {
+                initialData.franchiseId = matchingFranchise._id;
+            }
+        }
+        return initialData;
+    }, [franchiseList]);
+
+    const [formData, setFormData] = useState(getInitialFormDataWithFranchise(driver));
 
     React.useEffect(() => {
         if (isOpen) {
-            setFormData(getInitialFormData(driver));
+            setFormData(getInitialFormDataWithFranchise(driver));
         }
-    }, [isOpen, driver]);
+    }, [isOpen, driver, getInitialFormDataWithFranchise]);
 
     const handleGeneratePassword = React.useCallback(() => {
         setFormData(prev => ({ ...prev, password: generateDriverPassword() }));
@@ -108,25 +129,31 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
         setIsSubmitting(true);
         try {
             if (driver) {
+                // Helper to convert empty strings to null
+                const toNull = (val: any) => (val === '' || val === undefined) ? null : val;
+                
                 const updatePayload: UpdateDriverInput = {
                     _id: driver._id, userId: driver.userId,
-                    firstName: formData.firstName || null, lastName: formData.lastName || null,
-                    email: formData.email || null,
-                    driverPhone: formData.driverPhone || null, driverAltPhone: formData.driverAltPhone || null,
-                    dateOfBirth: formData.dateOfBirth || null, gender: formData.gender || null,
-                    profilePhoto: formData.profilePhoto || null, licenseNumber: formData.licenseNumber || null,
-                    licenseType: formData.licenseType || null, licenseExpiryDate: formData.licenseExpiryDate || null,
-                    address: formData.address || null, city: formData.city || null,
-                    state: formData.state || null, pincode: formData.pincode || null,
-                    franchiseId: formData.franchiseId ? (typeof formData.franchiseId === 'string' ? formData.franchiseId : formData.franchiseId.toString()) : null, dateOfJoining: formData.dateOfJoining || null,
-                    assignedCity: formData.assignedCity || null, employmentType: formData.employmentType || null,
-                    bankAccountNumber: formData.bankAccountNumber || null, accountHolderName: formData.accountHolderName || null,
-                    ifscCode: formData.ifscCode || null, upiId: formData.upiId || null,
-                    contactName: formData.contactName || null, contactNumber: formData.contactNumber || null,
-                    relationship: formData.relationship || null,
-                    documentsCollected: formData.documentsCollected || null
+                    firstName: toNull(formData.firstName), lastName: toNull(formData.lastName),
+                    email: toNull(formData.email),
+                    driverPhone: toNull(formData.driverPhone), driverAltPhone: toNull(formData.driverAltPhone),
+                    dateOfBirth: toNull(formData.dateOfBirth), gender: formData.gender || null,
+                    profilePhoto: toNull(formData.profilePhoto), licenseNumber: toNull(formData.licenseNumber),
+                    licenseType: toNull(formData.licenseType), licenseExpiryDate: toNull(formData.licenseExpiryDate),
+                    address: toNull(formData.address), city: toNull(formData.city),
+                    state: toNull(formData.state), pincode: toNull(formData.pincode),
+                    franchiseId: formData.franchiseId && formData.franchiseId !== '' ? (typeof formData.franchiseId === 'string' ? formData.franchiseId : formData.franchiseId.toString()) : null,
+                    dateOfJoining: toNull(formData.dateOfJoining),
+                    assignedCity: toNull(formData.assignedCity), employmentType: formData.employmentType || null,
+                    bankAccountNumber: toNull(formData.bankAccountNumber), accountHolderName: toNull(formData.accountHolderName),
+                    ifscCode: toNull(formData.ifscCode), upiId: toNull(formData.upiId),
+                    contactName: toNull(formData.contactName), contactNumber: toNull(formData.contactNumber),
+                    relationship: toNull(formData.relationship),
+                    documentsCollected: formData.documentsCollected && formData.documentsCollected.length > 0 ? formData.documentsCollected : null
                 };
-                await dispatch(updateDriver({ id: driver._id, data: updatePayload })).unwrap();
+                // Use driver.id (UUID) if available, otherwise fallback to driver._id
+                const driverId = (driver as any).id || driver._id;
+                await dispatch(updateDriver({ id: driverId, data: updatePayload })).unwrap();
                 toast({ title: 'Success', description: 'Driver updated successfully', variant: 'success' });
             } else {
                 const franchiseId = typeof formData.franchiseId === 'string' ? formData.franchiseId : formData.franchiseId?.toString() || '';

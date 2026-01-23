@@ -47,6 +47,7 @@ export interface StaffState {
         status: string;
         email: string;
         phone: string;
+        franchiseId: string;
     };
     pagination: {
         currentPage: number;

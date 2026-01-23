@@ -17,16 +17,19 @@ export async function getStaffList(
   next: NextFunction
 ) {
   try {
-    // Check if pagination query parameters are provided
+    // Get validated query (includes optional franchiseId, page, limit with defaults)
+    const validatedQuery = (req as any).validatedQuery as any;
+    const franchiseId = validatedQuery?.franchiseId;
+    
+    // Check if pagination query parameters were explicitly provided in raw query
+    // (validatedQuery always has page/limit due to defaults, so we check raw query)
     if (req.query.page || req.query.limit) {
-      // Use validated query (parsed and transformed by middleware)
-      const pagination = req.validatedQuery as any;
-      const result = await listStaffPaginated(pagination);
+      // Use paginated endpoint with optional franchiseId filter
+      const result = await listStaffPaginated(validatedQuery);
       res.json(result);
     } else {
       // Backward compatibility: return all staff if no pagination params
-      const pagination = (req as any).validatedQuery;
-      const franchiseId = pagination?.franchiseId;
+      // franchiseId is optional - if not provided, returns all staff across all franchises
       const data = await listStaff(franchiseId);
       res.json({ data });
     }

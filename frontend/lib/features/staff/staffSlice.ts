@@ -12,7 +12,8 @@ const initialState: StaffState = {
         salary: '',
         status: 'all',
         email: '',
-        phone: ''
+        phone: '',
+        franchiseId: 'all'
     },
     pagination: {
         currentPage: 1,

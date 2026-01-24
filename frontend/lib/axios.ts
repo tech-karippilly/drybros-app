@@ -46,51 +46,54 @@ const isRefreshTokenExpiredError = (error: any): boolean => {
     );
 };
 
+// Constants for auth pages
+const AUTH_PAGES = ['/login', '/register', '/forgot-password', '/reset-password'];
+const PROTECTED_ROUTE_PREFIXES = ['/auth/me', '/staff', '/drivers', '/customers'];
+
+// Helper to check if current path is an auth page
+const isAuthPage = (pathname: string): boolean => {
+    return AUTH_PAGES.some(page => pathname.includes(page));
+};
+
+// Helper to validate JWT token format
+const isValidJWTFormat = (token: string): boolean => {
+    return token.split('.').length === 3;
+};
+
 // Request Interceptor
 api.interceptors.request.use(
     (config) => {
-        if (typeof window !== 'undefined') {
-            const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-            
-            // Check if token exists and is valid (not empty)
-            if (token && token.trim() !== '') {
-                // Validate token format (basic check - JWT tokens have 3 parts separated by dots)
-                const tokenParts = token.split('.');
-                if (tokenParts.length === 3) {
-                    // Token appears valid, add to request
-                    config.headers.Authorization = `Bearer ${token}`;
-                } else {
-                    // Invalid token format, clear it
-                    console.warn('Invalid token format detected, clearing token');
-                    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-                    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-                    
-                    // Redirect to login if not already on auth page
-                    const currentPath = window.location.pathname;
-                    const isAuthPage = currentPath.includes('/login') || 
-                                     currentPath.includes('/register') ||
-                                     currentPath.includes('/forgot-password') ||
-                                     currentPath.includes('/reset-password');
-                    
-                    if (!isAuthPage) {
-                        window.location.href = '/login';
-                    }
-                }
+        if (typeof window === 'undefined') {
+            return config;
+        }
+
+        const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+        
+        if (token && token.trim() !== '') {
+            if (isValidJWTFormat(token)) {
+                config.headers.Authorization = `Bearer ${token}`;
             } else {
-                // No token found - for protected routes, this will be handled by 401 response
-                // But we can optionally redirect here for certain endpoints
-                const isProtectedRoute = config.url?.startsWith('/auth/me') || 
-                                       config.url?.startsWith('/staff') ||
-                                       config.url?.startsWith('/drivers') ||
-                                       config.url?.startsWith('/customers');
+                // Invalid token format, clear it
+                console.warn('Invalid token format detected, clearing token');
+                clearTokens();
                 
-                if (isProtectedRoute) {
-                    // Token is missing for protected route
-                    // Let the request proceed - 401 will be handled by response interceptor
-                    console.warn('Access token missing for protected route:', config.url);
+                // Redirect to login if not already on auth page
+                if (!isAuthPage(window.location.pathname)) {
+                    window.location.href = '/login';
                 }
             }
+        } else {
+            // No token found - check if it's a protected route
+            const isProtectedRoute = PROTECTED_ROUTE_PREFIXES.some(
+                prefix => config.url?.startsWith(prefix)
+            );
+            
+            if (isProtectedRoute) {
+                // Token is missing for protected route - 401 will be handled by response interceptor
+                console.warn('Access token missing for protected route:', config.url);
+            }
         }
+        
         return config;
     },
     (error) => Promise.reject(error)
@@ -172,7 +175,7 @@ api.interceptors.response.use(
 
                 // Other errors - clear tokens and redirect
                 clearTokens();
-                if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+                if (typeof window !== 'undefined' && !isAuthPage(window.location.pathname)) {
                     window.location.href = '/login';
                 }
                 return Promise.reject(refreshError);

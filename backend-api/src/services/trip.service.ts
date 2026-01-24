@@ -39,6 +39,11 @@ import { logActivity } from "./activity.service";
 import { ActivityAction, ActivityEntityType } from "@prisma/client";
 import logger from "../config/logger";
 import { sendTripStartOtpEmail, sendTripEndOtpEmail, sendTripEndConfirmationEmail } from "./email.service";
+import {
+  validateDriverForTripAssignment,
+  validateTripForAssignment,
+  getDriversWithActiveTrips,
+} from "./trip-validation.service";
 
 interface CreateTripInput {
   franchiseId: number;
@@ -173,31 +178,22 @@ export async function getAvailableDriversForTrip(tripId: string) {
   // Get all drivers with performance metrics from same franchise
   const allDrivers = await getDriversWithPerformance(trip.franchiseId, false);
 
-  // Filter eligible drivers and calculate match score
-  const availableDrivers = await Promise.all(
-    allDrivers.map(async (driver) => {
-      // Mandatory eligibility checks
-      if (driver.franchiseId !== trip.franchiseId) return null;
-      if (driver.status !== "ACTIVE" || !driver.isActive) return null;
-      if (driver.bannedGlobally) return null;
-      if (driver.licenseExpDate < new Date()) return null;
+  // Batch check which drivers have active trips (optimize N+1 query)
+  const driverIds = allDrivers.map((d) => d.id);
+  const driversWithActiveTrips = await getDriversWithActiveTrips(driverIds);
 
-      // Check if driver has active trip
-      const activeTrips = await prisma.trip.count({
-        where: {
-          driverId: driver.id,
-          status: {
-            in: [
-              "ASSIGNED",
-              "DRIVER_ACCEPTED",
-              "IN_PROGRESS",
-              "TRIP_STARTED",
-              "TRIP_PROGRESS",
-            ],
-          },
-        },
-      });
-      if (activeTrips > 0) return null;
+  // Filter eligible drivers and calculate match score
+  const availableDrivers = allDrivers
+    .filter((driver) => {
+      // Mandatory eligibility checks
+      if (driver.franchiseId !== trip.franchiseId) return false;
+      if (driver.status !== "ACTIVE" || !driver.isActive) return false;
+      if (driver.bannedGlobally) return false;
+      if (driver.licenseExpDate < new Date()) return false;
+      if (driversWithActiveTrips.has(driver.id)) return false;
+      return true;
+    })
+    .map((driver) => {
 
       // Calculate additional match score (car type, etc.)
       let matchScore = 0;
@@ -236,16 +232,7 @@ export async function getAvailableDriversForTrip(tripId: string) {
         driver,
         matchScore,
       };
-    })
-  );
-
-  // Filter out nulls (ineligible drivers)
-  const eligible = availableDrivers.filter(
-    (d) => d !== null
-  ) as Array<{
-    driver: DriverWithPerformance;
-    matchScore: number;
-  }>;
+    });
 
   // Sort by: Performance category first, then status, then match score
   const categoryOrder = {
@@ -261,7 +248,7 @@ export async function getAvailableDriversForTrip(tripId: string) {
     TERMINATED: 4,
   };
 
-  eligible.sort((a, b) => {
+  availableDrivers.sort((a, b) => {
     // First: Performance category (GREEN > YELLOW > RED)
     const catDiff =
       categoryOrder[a.driver.performance.category] -
@@ -283,7 +270,7 @@ export async function getAvailableDriversForTrip(tripId: string) {
   });
 
   // Return drivers with match information
-  return eligible.map(({ driver, matchScore }) => ({
+  return availableDrivers.map(({ driver, matchScore }) => ({
     id: driver.id,
     firstName: driver.firstName,
     lastName: driver.lastName,
@@ -319,69 +306,17 @@ export async function assignDriverToTripWithFranchise(
     throw err;
   }
   
-  if (trip.driverId) {
-    const err: any = new Error("Trip already has a driver assigned");
-    err.statusCode = 400;
-    throw err;
-  }
-  if (
-    trip.status !== "NOT_ASSIGNED" &&
-    trip.status !== "REQUESTED" &&
-    trip.status !== "PENDING"
-  ) {
-    const err: any = new Error(
-      `Cannot assign driver to trip with status: ${trip.status}`
-    );
-    err.statusCode = 400;
-    throw err;
-  }
+  validateTripForAssignment(trip);
+  
   const driver = await getDriverById(driverId);
   if (!driver) {
     const err: any = new Error("Driver not found");
     err.statusCode = 404;
     throw err;
   }
-  // Validate all criteria
-  if (driver.franchiseId !== franchiseId) {
-    const err: any = new Error("Driver belongs to different franchise");
-    err.statusCode = 400;
-    throw err;
-  }
-  if (driver.status !== "ACTIVE" || !driver.isActive) {
-    const err: any = new Error("Driver is not active");
-    err.statusCode = 400;
-    throw err;
-  }
-  if (driver.bannedGlobally) {
-    const err: any = new Error("Driver is globally banned");
-    err.statusCode = 400;
-    throw err;
-  }
-  if (driver.licenseExpDate < new Date()) {
-    const err: any = new Error("Driver license has expired");
-    err.statusCode = 400;
-    throw err;
-  }
-  // Check if driver has active trip
-  const activeTrips = await prisma.trip.count({
-    where: {
-      driverId: driver.id,
-      status: {
-        in: [
-          "ASSIGNED",
-          "DRIVER_ACCEPTED",
-          "IN_PROGRESS",
-          "TRIP_STARTED",
-          "TRIP_PROGRESS",
-        ],
-      },
-    },
-  });
-  if (activeTrips > 0) {
-    const err: any = new Error("Driver already has an active trip");
-    err.statusCode = 400;
-    throw err;
-  }
+  
+  // Validate driver eligibility
+  await validateDriverForTripAssignment(driver, trip, franchiseId);
   // Assign driver
   const updatedTrip = await updateTrip(tripId, {
     driverId,
@@ -429,69 +364,18 @@ export async function assignDriverToTrip(
     err.statusCode = 404;
     throw err;
   }
-  if (trip.driverId) {
-    const err: any = new Error("Trip already has a driver assigned");
-    err.statusCode = 400;
-    throw err;
-  }
-  if (
-    trip.status !== "NOT_ASSIGNED" &&
-    trip.status !== "REQUESTED" &&
-    trip.status !== "PENDING"
-  ) {
-    const err: any = new Error(
-      `Cannot assign driver to trip with status: ${trip.status}`
-    );
-    err.statusCode = 400;
-    throw err;
-  }
+  
+  validateTripForAssignment(trip);
+  
   const driver = await getDriverById(driverId);
   if (!driver) {
     const err: any = new Error("Driver not found");
     err.statusCode = 404;
     throw err;
   }
-  // Validate all criteria
-  if (driver.franchiseId !== trip.franchiseId) {
-    const err: any = new Error("Driver belongs to different franchise");
-    err.statusCode = 400;
-    throw err;
-  }
-  if (driver.status !== "ACTIVE" || !driver.isActive) {
-    const err: any = new Error("Driver is not active");
-    err.statusCode = 400;
-    throw err;
-  }
-  if (driver.bannedGlobally) {
-    const err: any = new Error("Driver is globally banned");
-    err.statusCode = 400;
-    throw err;
-  }
-  if (driver.licenseExpDate < new Date()) {
-    const err: any = new Error("Driver license has expired");
-    err.statusCode = 400;
-    throw err;
-  }
-  // Check if driver has active trip
-  const activeTrips = await prisma.trip.count({
-    where: {
-      driverId: driver.id,
-      status: {
-        in: [
-          "ASSIGNED",
-          "DRIVER_ACCEPTED",
-          "IN_PROGRESS",
-          "TRIP_STARTED",
-          "TRIP_PROGRESS",
-        ],
-      },
-    },
-  });
-  if (activeTrips > 0) {
-    const err: any = new Error("Driver already has an active trip");
-    err.statusCode = 400;
-    throw err;
-  }
+  
+  // Validate driver eligibility
+  await validateDriverForTripAssignment(driver, trip);
   // Assign driver
   const updatedTrip = await updateTrip(tripId, {
     driverId,

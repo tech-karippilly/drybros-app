@@ -9,17 +9,7 @@ import { fetchTripTypesPaginated } from '@/lib/features/tripType/tripTypeSlice';
 import { fetchFranchises } from '@/lib/features/franchise/franchiseSlice';
 import { PlacesAutocomplete, PlaceDetails } from '@/components/ui/PlacesAutocomplete';
 import { X, Save, Loader2, User, Phone, Mail, MapPin, Calendar, Clock, Car, CheckCircle2, Store, UserPlus, CheckCircle, AlertCircle } from 'lucide-react';
-
-const CAR_GEAR_TYPES = {
-    MANUAL: "MANUAL",
-    AUTOMATIC: "AUTOMATIC",
-} as const;
-
-const CAR_TYPE_CATEGORIES = {
-    PREMIUM: "PREMIUM",
-    LUXURY: "LUXURY",
-    NORMAL: "NORMAL",
-} as const;
+import { CAR_GEAR_TYPES, CAR_TYPE_CATEGORIES } from '@/lib/constants';
 
 interface TripBookingFormData {
     customerName: string;

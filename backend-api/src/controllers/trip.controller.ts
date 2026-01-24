@@ -24,6 +24,7 @@ import {
   getTripHistory,
 } from "../services/trip.service";
 import { PaymentStatus, PaymentMode } from "@prisma/client";
+import { requireValidUUID, validateAndGetUUID } from "../utils/validation";
 
 export async function getTrips(
   req: Request,
@@ -89,16 +90,7 @@ export async function getTripByIdHandler(
   next: NextFunction
 ) {
   try {
-    const id = req.params.id;
-    
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
-      return res.status(400).json({
-        error: "Invalid trip ID format. Expected UUID.",
-      });
-    }
-    
+    const id = validateAndGetUUID(req.params.id, "Trip ID");
     const trip = await getTrip(id);
     res.json({ data: trip });
   } catch (err) {
@@ -144,15 +136,12 @@ export async function driverAcceptTripHandler(
   next: NextFunction
 ) {
   try {
-    const tripId = req.params.id;
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
     // Get driverId from body or query (for now, later from auth token)
-    const driverId = (req.body.driverId || req.query.driverId) as string;
-    
-    if (!driverId) {
-      return res.status(400).json({
-        error: "driverId is required",
-      });
-    }
+    const driverId = validateAndGetUUID(
+      (req.body.driverId || req.query.driverId) as string,
+      "Driver ID"
+    );
 
     const updated = await driverAcceptTrip(tripId, driverId);
     res.json({ data: updated });
@@ -167,8 +156,8 @@ export async function driverRejectTripHandler(
   next: NextFunction
 ) {
   try {
-    const tripId = req.params.id;
-    const { driverId } = req.body;
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
+    const driverId = validateAndGetUUID(req.body.driverId, "Driver ID");
     const updated = await driverRejectTrip(tripId, driverId);
     res.json({ data: updated });
   } catch (err) {
@@ -182,15 +171,11 @@ export async function generateStartOtpHandler(
   next: NextFunction
 ) {
   try {
-    const tripId = req.params.id;
-    // Get driverId from body or query (for now, later from auth token)
-    const driverId = (req.body.driverId || req.query.driverId) as string;
-    
-    if (!driverId) {
-      return res.status(400).json({
-        error: "driverId is required",
-      });
-    }
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
+    const driverId = validateAndGetUUID(
+      (req.body.driverId || req.query.driverId) as string,
+      "Driver ID"
+    );
 
     const result = await generateStartOtpForTrip(tripId, driverId);
     res.json({ data: result });
@@ -205,16 +190,12 @@ export async function startTripHandler(
   next: NextFunction
 ) {
   try {
-    const tripId = req.params.id;
-    // Get driverId from body or query (for now, later from auth token)
-    const driverId = (req.body.driverId || req.query.driverId) as string;
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
+    const driverId = validateAndGetUUID(
+      (req.body.driverId || req.query.driverId) as string,
+      "Driver ID"
+    );
     const { otp } = req.body;
-    
-    if (!driverId) {
-      return res.status(400).json({
-        error: "driverId is required",
-      });
-    }
 
     if (!otp) {
       return res.status(400).json({
@@ -243,7 +224,7 @@ export async function startTripHandler(
     }
 
     const updated = await startTripWithOtp(tripId, {
-      driverId,
+      driverId: driverId,
       otp,
       odometerValue: parseFloat(odometerValue),
       carImageFront,
@@ -261,7 +242,7 @@ export async function getAvailableDriversForTripHandler(
   next: NextFunction
 ) {
   try {
-    const { id } = req.params;
+    const id = validateAndGetUUID(req.params.id, "Trip ID");
     const availableDrivers = await getAvailableDriversForTrip(id);
     res.json({ data: availableDrivers });
   } catch (err) {
@@ -288,12 +269,7 @@ export async function getDriverAssignedTripsHandler(
     }
 
     // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(driverId)) {
-      return res.status(400).json({
-        error: "Invalid driver ID format. Expected UUID.",
-      });
-    }
+    requireValidUUID(driverId, "Driver ID");
 
     const trips = await getDriverAssignedTrips(driverId);
     res.json({ data: trips });
@@ -336,21 +312,10 @@ export async function initiateStartTripHandler(
   next: NextFunction
 ) {
   try {
-    const { id } = req.params;
-    const { driverId, franchiseId, odometerValue, odometerPic, carFrontPic, carBackPic } = req.body;
-
-    // Validate required fields
-    if (!driverId) {
-      return res.status(400).json({
-        error: "driverId is required",
-      });
-    }
-
-    if (!franchiseId) {
-      return res.status(400).json({
-        error: "franchiseId is required",
-      });
-    }
+    const id = validateAndGetUUID(req.params.id, "Trip ID");
+    const driverId = validateAndGetUUID(req.body.driverId, "Driver ID");
+    const franchiseId = validateAndGetUUID(req.body.franchiseId, "Franchise ID");
+    const { odometerValue, odometerPic, carFrontPic, carBackPic } = req.body;
 
     if (odometerValue === undefined || odometerValue === null) {
       return res.status(400).json({
@@ -373,27 +338,6 @@ export async function initiateStartTripHandler(
     if (!carBackPic) {
       return res.status(400).json({
         error: "carBackPic is required",
-      });
-    }
-
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    
-    if (!uuidRegex.test(id)) {
-      return res.status(400).json({
-        error: "Invalid trip ID format. Expected UUID.",
-      });
-    }
-
-    if (!uuidRegex.test(driverId)) {
-      return res.status(400).json({
-        error: "Invalid driver ID format. Expected UUID.",
-      });
-    }
-
-    if (!uuidRegex.test(franchiseId)) {
-      return res.status(400).json({
-        error: "Invalid franchise ID format. Expected UUID.",
       });
     }
 
@@ -422,7 +366,7 @@ export async function verifyAndStartTripHandler(
   next: NextFunction
 ) {
   try {
-    const { id } = req.params;
+    const id = validateAndGetUUID(req.params.id, "Trip ID");
     const { token, otp } = req.body;
 
     if (!token) {
@@ -434,15 +378,6 @@ export async function verifyAndStartTripHandler(
     if (!otp) {
       return res.status(400).json({
         error: "otp is required",
-      });
-    }
-
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    
-    if (!uuidRegex.test(id)) {
-      return res.status(400).json({
-        error: "Invalid trip ID format. Expected UUID.",
       });
     }
 
@@ -464,14 +399,9 @@ export async function assignDriverToTripHandler(
   next: NextFunction
 ) {
   try {
-    const { id } = req.params;
-    const { driverId } = req.body;
+    const id = validateAndGetUUID(req.params.id, "Trip ID");
+    const driverId = validateAndGetUUID(req.body.driverId, "Driver ID");
     const userId = req.user?.userId; // Get from auth middleware if available
-    if (!driverId) {
-      const err: any = new Error("Driver ID is required");
-      err.statusCode = 400;
-      throw err;
-    }
     const trip = await assignDriverToTrip(id, driverId, userId);
     res.json({ data: trip });
   } catch (err) {
@@ -485,47 +415,10 @@ export async function assignDriverToTripWithFranchiseHandler(
   next: NextFunction
 ) {
   try {
-    const { tripId, driverId, franchiseId } = req.body;
+    const tripId = validateAndGetUUID(req.body.tripId, "Trip ID");
+    const driverId = validateAndGetUUID(req.body.driverId, "Driver ID");
+    const franchiseId = validateAndGetUUID(req.body.franchiseId, "Franchise ID");
     const userId = req.user?.userId; // Get from auth middleware if available
-    
-    if (!tripId) {
-      return res.status(400).json({
-        error: "Trip ID is required",
-      });
-    }
-    
-    if (!driverId) {
-      return res.status(400).json({
-        error: "Driver ID is required",
-      });
-    }
-    
-    if (!franchiseId) {
-      return res.status(400).json({
-        error: "Franchise ID is required",
-      });
-    }
-
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    
-    if (!uuidRegex.test(tripId)) {
-      return res.status(400).json({
-        error: "Invalid trip ID format. Expected UUID.",
-      });
-    }
-    
-    if (!uuidRegex.test(driverId)) {
-      return res.status(400).json({
-        error: "Invalid driver ID format. Expected UUID.",
-      });
-    }
-    
-    if (!uuidRegex.test(franchiseId)) {
-      return res.status(400).json({
-        error: "Invalid franchise ID format. Expected UUID.",
-      });
-    }
 
     const trip = await assignDriverToTripWithFranchise(tripId, driverId, franchiseId, userId);
     res.json({ data: trip });
@@ -543,7 +436,7 @@ export async function initiateEndTripHandler(
   next: NextFunction
 ) {
   try {
-    const tripId = req.params.id;
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
     const { driverId, franchiseId, odometerValue, odometerImage } = req.body;
 
     if (!driverId) {
@@ -593,7 +486,7 @@ export async function verifyAndEndTripHandler(
   next: NextFunction
 ) {
   try {
-    const tripId = req.params.id;
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
     const { token, otp } = req.body;
 
     if (!token) {
@@ -629,7 +522,7 @@ export async function collectPaymentHandler(
   next: NextFunction
 ) {
   try {
-    const tripId = req.params.id;
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
     const { driverId, paymentMethod, upiAmount, cashAmount, upiReference } = req.body;
 
     if (!driverId) {
@@ -674,14 +567,8 @@ export async function verifyPaymentAndEndTripHandler(
   next: NextFunction
 ) {
   try {
-    const tripId = req.params.id;
-    const { driverId } = req.body;
-
-    if (!driverId) {
-      return res.status(400).json({
-        error: "driverId is required",
-      });
-    }
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
+    const driverId = validateAndGetUUID(req.body.driverId, "Driver ID");
 
     const result = await verifyPaymentAndEndTrip({
       tripId,
@@ -703,16 +590,13 @@ export async function getTripHistoryHandler(
   next: NextFunction
 ) {
   try {
-    const tripId = req.params.id;
-    const driverId = req.driver?.driverId || req.body.driverId || req.query.driverId;
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
+    const driverId = validateAndGetUUID(
+      (req.driver?.driverId || req.body.driverId || req.query.driverId) as string,
+      "Driver ID"
+    );
 
-    if (!driverId) {
-      return res.status(400).json({
-        error: "driverId is required",
-      });
-    }
-
-    const result = await getTripHistory(tripId, driverId as string);
+    const result = await getTripHistory(tripId, driverId);
     res.json({ data: result });
   } catch (err) {
     next(err);

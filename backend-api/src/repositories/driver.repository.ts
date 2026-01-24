@@ -1,6 +1,11 @@
 // src/repositories/driver.repository.ts
 import prisma from "../config/prismaClient";
 import { Driver } from "@prisma/client";
+import {
+  getDriverEarningsConfigByDriver,
+  getDriverEarningsConfigByFranchise,
+  getDriverEarningsConfig,
+} from "./earningsConfig.repository";
 
 export async function getAllDrivers(includeInactive: boolean = false, franchiseId?: string) {
   const whereClause: any = {};
@@ -266,4 +271,159 @@ export async function getDriversWithTripData(
     },
     orderBy: { createdAt: "desc" },
   });
+}
+
+/**
+ * Add cash to driver's cash in hand
+ */
+export async function addCashInHand(driverId: string, cashAmount: number) {
+  const driver = await prisma.driver.findUnique({ where: { id: driverId } });
+  if (!driver) {
+    throw new Error("Driver not found");
+  }
+
+  const currentCash = Number(driver.cashInHand) || 0;
+  const newCash = currentCash + cashAmount;
+
+  return prisma.driver.update({
+    where: { id: driverId },
+    data: { cashInHand: newCash },
+  });
+}
+
+/**
+ * Get effective daily target for a driver (from config: driver > franchise > global)
+ */
+async function getEffectiveDailyTarget(driverId: string): Promise<number> {
+  const driver = await prisma.driver.findUnique({ 
+    where: { id: driverId },
+    select: { id: true, franchiseId: true, dailyTargetAmount: true },
+  });
+  
+  if (!driver) {
+    throw new Error("Driver not found");
+  }
+
+  // Priority: driver-specific config > franchise config > global config > driver.dailyTargetAmount > default
+  try {
+    // Check driver-specific config
+    const driverConfig = await getDriverEarningsConfigByDriver(driverId);
+    if (driverConfig?.dailyTargetDefault) {
+      return driverConfig.dailyTargetDefault;
+    }
+
+    // Check franchise config
+    const franchiseConfig = await getDriverEarningsConfigByFranchise(driver.franchiseId);
+    if (franchiseConfig?.dailyTargetDefault) {
+      return franchiseConfig.dailyTargetDefault;
+    }
+
+    // Check global config
+    const globalConfig = await getDriverEarningsConfig();
+    if (globalConfig?.dailyTargetDefault) {
+      return globalConfig.dailyTargetDefault;
+    }
+  } catch (error) {
+    // If config fetch fails, fall back to driver.dailyTargetAmount
+  }
+
+  // Fallback to driver's dailyTargetAmount or default
+  return driver.dailyTargetAmount || 1250;
+}
+
+/**
+ * Reduce remaining daily limit by trip amount
+ */
+export async function reduceRemainingDailyLimit(driverId: string, tripAmount: number) {
+  const driver = await prisma.driver.findUnique({ where: { id: driverId } });
+  if (!driver) {
+    throw new Error("Driver not found");
+  }
+
+  // If remainingDailyLimit is null, initialize it from config's dailyTargetDefault
+  let currentLimit: number;
+  if (driver.remainingDailyLimit) {
+    currentLimit = Number(driver.remainingDailyLimit);
+  } else {
+    // Initialize from config's dailyTargetDefault
+    currentLimit = await getEffectiveDailyTarget(driverId);
+  }
+
+  const newLimit = Math.max(0, currentLimit - tripAmount);
+
+  return prisma.driver.update({
+    where: { id: driverId },
+    data: { remainingDailyLimit: newLimit },
+  });
+}
+
+/**
+ * Reset cash in hand to zero (submit to company)
+ */
+export async function resetCashInHand(driverId: string) {
+  return prisma.driver.update({
+    where: { id: driverId },
+    data: { cashInHand: 0 },
+  });
+}
+
+/**
+ * Reset remaining daily limit for a driver (initialize from config's dailyTargetDefault)
+ * Useful for daily reset at start of day
+ */
+export async function resetRemainingDailyLimit(driverId: string) {
+  const dailyTarget = await getEffectiveDailyTarget(driverId);
+  return prisma.driver.update({
+    where: { id: driverId },
+    data: { remainingDailyLimit: dailyTarget },
+  });
+}
+
+/**
+ * Get driver daily limit information
+ */
+export async function getDriverDailyLimitInfo(driverId: string) {
+  const driver = await prisma.driver.findUnique({
+    where: { id: driverId },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      dailyTargetAmount: true,
+      remainingDailyLimit: true,
+      cashInHand: true,
+    },
+  });
+
+  if (!driver) {
+    throw new Error("Driver not found");
+  }
+
+  // Get effective daily target from config (driver > franchise > global)
+  const dailyTarget = await getEffectiveDailyTarget(driverId);
+  
+  // If remainingDailyLimit is null, initialize it to dailyTarget
+  let remainingLimit: number;
+  if (driver.remainingDailyLimit) {
+    remainingLimit = Number(driver.remainingDailyLimit);
+  } else {
+    remainingLimit = dailyTarget;
+    // Initialize it in the database
+    await prisma.driver.update({
+      where: { id: driverId },
+      data: { remainingDailyLimit: dailyTarget },
+    });
+  }
+  
+  const cashInHand = Number(driver.cashInHand) || 0;
+  const usedLimit = Math.max(0, dailyTarget - remainingLimit);
+
+  return {
+    driverId: driver.id,
+    driverName: `${driver.firstName} ${driver.lastName}`,
+    dailyTargetAmount: dailyTarget,
+    remainingDailyLimit: remainingLimit,
+    usedDailyLimit: usedLimit,
+    cashInHand: cashInHand,
+  };
 }

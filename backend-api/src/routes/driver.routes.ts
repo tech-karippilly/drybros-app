@@ -1,6 +1,6 @@
 // src/routes/driver.routes.ts
 import express from "express";
-import { getDrivers, getDriverById, getDriverWithPerformanceHandler, getDriverPerformanceHandler, getAvailableGreenDriversHandler, getDriversByFranchisesHandler, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler } from "../controllers/driver.controller";
+import { getDrivers, getDriverById, getDriverWithPerformanceHandler, getDriverPerformanceHandler, getAvailableGreenDriversHandler, getDriversByFranchisesHandler, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler, submitCashToCompanyHandler, getDriverDailyLimitHandler } from "../controllers/driver.controller";
 import { getDriverDailyStatsHandler, getDriverMonthlyStatsHandler, getDriverSettlementHandler } from "../controllers/driverEarnings.controller";
 import { authMiddleware, requireRole } from "../middlewares/auth";
 import { UserRole } from "@prisma/client";
@@ -65,6 +65,11 @@ router.get(
   validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),
   getDriverSettlementHandler
 );
+router.get(
+  "/:id/daily-limit",
+  validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),
+  getDriverDailyLimitHandler
+);
 
 // POST /drivers - Create new driver (only ADMIN and OFFICE_STAFF)
 router.post(
@@ -98,6 +103,13 @@ router.delete(
   requireRole(UserRole.ADMIN, UserRole.OFFICE_STAFF),
   validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),
   softDeleteDriverHandler
+);
+
+// POST /drivers/:id/submit-cash - Submit cash to company (reset cash in hand)
+router.post(
+  "/:id/submit-cash",
+  validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),
+  submitCashToCompanyHandler
 );
 
 export default router;

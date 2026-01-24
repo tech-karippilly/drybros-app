@@ -5,6 +5,7 @@ import staffReducer from './features/staff/staffSlice';
 import penaltiesReducer from './features/penalties/penaltiesSlice';
 import driversReducer from './features/drivers/driverSlice';
 import tripTypeReducer from './features/tripType/tripTypeSlice';
+import earningsConfigReducer from './features/earningsConfig/earningsConfigSlice';
 
 export const makeStore = () => {
     return configureStore({
@@ -15,6 +16,7 @@ export const makeStore = () => {
             penalties: penaltiesReducer,
             drivers: driversReducer,
             tripType: tripTypeReducer,
+            earningsConfig: earningsConfigReducer,
         },
     });
 };

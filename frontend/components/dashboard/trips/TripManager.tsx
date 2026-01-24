@@ -5,6 +5,7 @@ import { TripTypeList } from './TripTypeList';
 import { TripTypeCreateForm } from './TripTypeCreateForm';
 import { TripBookingForm } from './TripBookingForm';
 import { UnassignedTripsList } from './UnassignedTripsList';
+import { TripList } from './TripList';
 import { TripDetailsScreen } from './TripDetailsScreen';
 import { TripTypeResponse } from '@/lib/features/tripType/tripTypeApi';
 import { useAppSelector } from '@/lib/hooks';
@@ -50,6 +51,10 @@ export function TripManager() {
 
     return (
         <div className="relative">
+            {activeTab === 'all-trips' && (
+                <TripList onViewTrip={handleViewTrip} />
+            )}
+
             {activeTab === 'trip-types' && (
                 <TripTypeList
                     onCreateClick={handleCreateClick}

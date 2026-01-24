@@ -4,7 +4,6 @@ import {
     Users,
     Truck,
     BarChart3,
-    ShieldAlert,
     Map,
     MessageSquare,
     CalendarCheck,
@@ -12,11 +11,8 @@ import {
     FileText,
     PlusCircle,
     Clock,
-    ChevronDown,
-    ChevronRight,
     Shield,
-    Target,
-    AlertTriangle
+    Settings
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 
@@ -40,17 +36,16 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
             id: 'drivers',
             submenu: [
                 { icon: Truck, label: 'Driver List', id: 'drivers' },
-                { icon: Target, label: 'Daily Limits', id: 'driver-daily-limits' },
-                { icon: AlertTriangle, label: 'Penalties & Detections', id: 'driver-penalties' },
+                { icon: Settings, label: 'Earnings Configuration', id: 'driver-earnings-config' },
             ],
         },
         { icon: BarChart3, label: 'Reports', id: 'reports' },
-        { icon: ShieldAlert, label: 'Penalties', id: 'payroll' },
         {
             icon: Map,
             label: 'Trip Management',
             id: 'trips',
             submenu: [
+                { icon: Map, label: 'Trip', id: 'all-trips' },
                 { icon: FileText, label: 'Trip Type', id: 'trip-types' },
                 { icon: PlusCircle, label: 'Booking', id: 'trip-booking' },
                 { icon: Clock, label: 'Unassigned Trips', id: 'unassigned-trips' },
@@ -68,17 +63,16 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
             id: 'drivers',
             submenu: [
                 { icon: Truck, label: 'Driver List', id: 'drivers' },
-                { icon: Target, label: 'Daily Limits', id: 'driver-daily-limits' },
-                { icon: AlertTriangle, label: 'Penalties & Detections', id: 'driver-penalties' },
+                { icon: Settings, label: 'Earnings Configuration', id: 'driver-earnings-config' },
             ],
         },
         { icon: BarChart3, label: 'Reports', id: 'reports' },
-        { icon: ShieldAlert, label: 'Penalties', id: 'payroll' },
         {
             icon: Map,
             label: 'Trip Management',
             id: 'trips',
             submenu: [
+                { icon: Map, label: 'Trip', id: 'all-trips' },
                 { icon: FileText, label: 'Trip Type', id: 'trip-types' },
                 { icon: PlusCircle, label: 'Booking', id: 'trip-booking' },
                 { icon: Clock, label: 'Unassigned Trips', id: 'unassigned-trips' },
@@ -92,7 +86,6 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
     driver: [
         { icon: Home, label: 'Home', id: 'home' },
         { icon: BarChart3, label: 'Reports', id: 'reports' },
-        { icon: ShieldAlert, label: 'Penalties', id: 'payroll' },
         { icon: CalendarCheck, label: 'Attendance', id: 'attendance' },
         { icon: Map, label: 'Trips', id: 'trips' },
         { icon: Shield, label: 'Policies', id: 'policies', external: true, href: '/policies' },

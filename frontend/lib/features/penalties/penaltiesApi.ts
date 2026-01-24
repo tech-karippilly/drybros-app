@@ -42,6 +42,34 @@ export interface SetDriversDailyLimitRequest {
     dailyTargetAmount: number;
 }
 
+// Penalty Response DTOs
+export interface PenaltyResponse {
+    id: string;
+    name: string;
+    description: string | null;
+    amount: number;
+    type: 'PENALTY' | 'DEDUCTION';
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface CreatePenaltyRequest {
+    name: string;
+    description?: string;
+    amount: number;
+    type: 'PENALTY' | 'DEDUCTION';
+    isActive?: boolean;
+}
+
+export interface UpdatePenaltyRequest {
+    name?: string;
+    description?: string | null;
+    amount?: number;
+    type?: 'PENALTY' | 'DEDUCTION';
+    isActive?: boolean;
+}
+
 // Response DTOs
 export interface ApplyPenaltyToDriverResponse {
     message: string;
@@ -103,6 +131,72 @@ export interface SetDriversDailyLimitResponse {
     message: string;
     count: number;
     dailyTargetAmount: number;
+}
+
+/**
+ * Get list of penalties
+ */
+export async function getPenalties(params?: {
+    page?: number;
+    limit?: number;
+    isActive?: boolean;
+    type?: 'PENALTY' | 'DEDUCTION';
+}): Promise<{ data: PenaltyResponse[] } | { data: PenaltyResponse[]; pagination: any }> {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString());
+    if (params?.type) queryParams.append('type', params.type);
+
+    const response = await api.get<{ data: PenaltyResponse[] } | { data: PenaltyResponse[]; pagination: any }>(
+        `${PENALTY_ENDPOINTS.BASE}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+    );
+    return response.data;
+}
+
+/**
+ * Get penalty by ID
+ */
+export async function getPenaltyById(id: string): Promise<{ data: PenaltyResponse }> {
+    const response = await api.get<{ data: PenaltyResponse }>(
+        `${PENALTY_ENDPOINTS.BASE}/${id}`
+    );
+    return response.data;
+}
+
+/**
+ * Create penalty
+ */
+export async function createPenalty(data: CreatePenaltyRequest): Promise<{ message: string; data: PenaltyResponse }> {
+    const response = await api.post<{ message: string; data: PenaltyResponse }>(
+        PENALTY_ENDPOINTS.BASE,
+        data
+    );
+    return response.data;
+}
+
+/**
+ * Update penalty
+ */
+export async function updatePenalty(
+    id: string,
+    data: UpdatePenaltyRequest
+): Promise<{ message: string; data: PenaltyResponse }> {
+    const response = await api.patch<{ message: string; data: PenaltyResponse }>(
+        `${PENALTY_ENDPOINTS.BASE}/${id}`,
+        data
+    );
+    return response.data;
+}
+
+/**
+ * Delete penalty
+ */
+export async function deletePenalty(id: string): Promise<{ message: string }> {
+    const response = await api.delete<{ message: string }>(
+        `${PENALTY_ENDPOINTS.BASE}/${id}`
+    );
+    return response.data;
 }
 
 /**

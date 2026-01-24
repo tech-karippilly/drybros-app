@@ -1862,6 +1862,138 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /drivers/{id}/daily-limit:
+    get:
+      summary: Get driver daily limit information
+      description: |
+        Get driver's daily limit information including:
+        - Daily target amount
+        - Remaining daily limit (reduces as trips complete)
+        - Used daily limit
+        - Cash in hand (amount of cash driver currently has)
+        
+        **Note:** When a trip payment is collected (CASH or BOTH), the cash amount is added to driver's cash in hand, and the trip amount is deducted from remaining daily limit.
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Driver ID (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: "779a77f6-5704-4b00-8561-2892c58946a2"
+      responses:
+        "200":
+          description: Daily limit information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      driverId:
+                        type: string
+                        format: uuid
+                      driverName:
+                        type: string
+                        example: "John Doe"
+                      dailyTargetAmount:
+                        type: number
+                        description: Daily target amount set for the driver
+                        example: 1250
+                      remainingDailyLimit:
+                        type: number
+                        description: Remaining daily limit (reduces as trips complete)
+                        example: 750
+                      usedDailyLimit:
+                        type: number
+                        description: Amount used from daily limit
+                        example: 500
+                      cashInHand:
+                        type: number
+                        description: Cash amount currently in driver's hand
+                        example: 300
+              example:
+                data:
+                  driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+                  driverName: "John Doe"
+                  dailyTargetAmount: 1250
+                  remainingDailyLimit: 750
+                  usedDailyLimit: 500
+                  cashInHand: 300
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Driver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /drivers/{id}/submit-cash:
+    post:
+      summary: Submit cash to company
+      description: |
+        Submit cash to company. This resets the driver's cash in hand to zero.
+        
+        **Use Case:**
+        - Driver collects cash from customers (via CASH or BOTH payment methods)
+        - Cash is automatically added to driver's cash in hand when payment is collected
+        - When driver submits cash to company, this endpoint resets cash in hand to zero
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Driver ID (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: "779a77f6-5704-4b00-8561-2892c58946a2"
+      responses:
+        "200":
+          description: Cash submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      driverId:
+                        type: string
+                        format: uuid
+                      message:
+                        type: string
+                        example: "Cash submitted to company successfully"
+                      cashInHand:
+                        type: number
+                        description: Cash in hand after submission (always 0)
+                        example: 0
+              example:
+                data:
+                  driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+                  message: "Cash submitted to company successfully"
+                  cashInHand: 0
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Driver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /config/driver-earnings:
     get:
       summary: Get driver earnings configuration
@@ -2189,6 +2321,362 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /config/driver-earnings/franchises:
+    get:
+      summary: Get earnings configs by franchises
+      description: |
+        Fetch driver earnings configuration for one or more franchises.
+        Query param `franchiseIds` = comma-separated franchise UUIDs.
+      tags:
+        - Configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: franchiseIds
+          in: query
+          required: true
+          description: Comma-separated franchise UUIDs
+          schema:
+            type: string
+            example: "550e8400-e29b-41d4-a716-446655440001,660e8400-e29b-41d4-a716-446655440002"
+      responses:
+        "200":
+          description: Configs retrieved (array, one per franchise)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DriverEarningsConfigResponse"
+              example:
+                data:
+                  - id: "550e8400-e29b-41d4-a716-446655440000"
+                    franchiseId: "550e8400-e29b-41d4-a716-446655440001"
+                    driverId: null
+                    dailyTargetDefault: 1250
+                    incentiveTier1Min: 1250
+                    incentiveTier1Max: 1550
+                    incentiveTier1Type: "full_extra"
+                    incentiveTier2Min: 1550
+                    incentiveTier2Percent: 20
+                    monthlyBonusTiers:
+                      - minEarnings: 25000
+                        bonus: 3000
+                      - minEarnings: 28000
+                        bonus: 500
+                    monthlyDeductionTiers:
+                      - maxEarnings: 26000
+                        cutPercent: 25
+                      - maxEarnings: 22000
+                        cutPercent: 20
+                    isActive: true
+                    createdAt: "2024-01-20T10:00:00Z"
+                    updatedAt: "2024-01-20T10:00:00Z"
+        "400":
+          description: Bad request - franchiseIds required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /config/driver-earnings/franchise/{franchiseId}:
+    get:
+      summary: Get earnings config for a franchise
+      description: Fetch driver earnings configuration for a single franchise.
+      tags:
+        - Configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: franchiseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Config retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/DriverEarningsConfigResponse"
+              example:
+                data:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  franchiseId: "550e8400-e29b-41d4-a716-446655440001"
+                  driverId: null
+                  dailyTargetDefault: 1250
+                  incentiveTier1Min: 1250
+                  incentiveTier1Max: 1550
+                  incentiveTier1Type: "full_extra"
+                  incentiveTier2Min: 1550
+                  incentiveTier2Percent: 20
+                  monthlyBonusTiers:
+                    - minEarnings: 25000
+                      bonus: 3000
+                    - minEarnings: 28000
+                      bonus: 500
+                  monthlyDeductionTiers:
+                    - maxEarnings: 26000
+                      cutPercent: 25
+                    - maxEarnings: 22000
+                      cutPercent: 20
+                  isActive: true
+                  createdAt: "2024-01-20T10:00:00Z"
+                  updatedAt: "2024-01-20T10:00:00Z"
+        "401":
+          description: Not authenticated (missing or invalid token)
+    post:
+      summary: Set earnings config for a franchise
+      description: |
+        Set driver earnings configuration for a franchise. Only ADMIN.
+        Deactivates existing config for this franchise and creates a new one.
+      tags:
+        - Configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: franchiseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEarningsConfigRequest"
+      responses:
+        "200":
+          description: Config set successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/DriverEarningsConfigResponse"
+              example:
+                data:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  franchiseId: "550e8400-e29b-41d4-a716-446655440001"
+                  driverId: null
+                  dailyTargetDefault: 1300
+                  incentiveTier1Min: 1300
+                  incentiveTier1Max: 1600
+                  incentiveTier1Type: "full_extra"
+                  incentiveTier2Min: 1600
+                  incentiveTier2Percent: 25
+                  monthlyBonusTiers:
+                    - minEarnings: 25000
+                      bonus: 3000
+                    - minEarnings: 28000
+                      bonus: 500
+                  monthlyDeductionTiers:
+                    - maxEarnings: 26000
+                      cutPercent: 25
+                    - maxEarnings: 22000
+                      cutPercent: 20
+                  isActive: true
+                  createdAt: "2024-01-20T10:00:00Z"
+                  updatedAt: "2024-01-20T11:00:00Z"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - only ADMIN
+
+  /config/driver-earnings/driver/{driverId}:
+    get:
+      summary: Get earnings config for a driver
+      description: Fetch driver earnings configuration for a single driver.
+      tags:
+        - Configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: driverId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Config retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/DriverEarningsConfigResponse"
+              example:
+                data:
+                  id: "660e8400-e29b-41d4-a716-446655440000"
+                  franchiseId: null
+                  driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+                  dailyTargetDefault: 1250
+                  incentiveTier1Min: 1250
+                  incentiveTier1Max: 1550
+                  incentiveTier1Type: "full_extra"
+                  incentiveTier2Min: 1550
+                  incentiveTier2Percent: 20
+                  monthlyBonusTiers:
+                    - minEarnings: 25000
+                      bonus: 3000
+                    - minEarnings: 28000
+                      bonus: 500
+                  monthlyDeductionTiers:
+                    - maxEarnings: 26000
+                      cutPercent: 25
+                    - maxEarnings: 22000
+                      cutPercent: 20
+                  isActive: true
+                  createdAt: "2024-01-20T10:00:00Z"
+                  updatedAt: "2024-01-20T10:00:00Z"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /config/driver-earnings/drivers:
+    post:
+      summary: Set earnings config for drivers
+      description: |
+        Set driver earnings configuration for one or more drivers. Only ADMIN.
+        Same config is applied to each driver. Body must include `driverIds` array.
+      tags:
+        - Configuration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - driverIds
+              properties:
+                driverIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  description: Driver UUIDs
+                dailyTargetDefault:
+                  type: number
+                incentiveTier1Min:
+                  type: number
+                incentiveTier1Max:
+                  type: number
+                incentiveTier1Type:
+                  type: string
+                  enum: [full_extra, percent]
+                incentiveTier2Min:
+                  type: number
+                incentiveTier2Percent:
+                  type: number
+                monthlyBonusTiers:
+                  type: array
+                monthlyDeductionTiers:
+                  type: array
+            example:
+              driverIds:
+                - "779a77f6-5704-4b00-8561-2892c58946a2"
+                - "880a77f6-5704-4b00-8561-2892c58946a3"
+              dailyTargetDefault: 1250
+              incentiveTier1Min: 1250
+              incentiveTier1Max: 1550
+              incentiveTier1Type: "full_extra"
+              incentiveTier2Min: 1550
+              incentiveTier2Percent: 20
+      responses:
+        "200":
+          description: Configs set (array, one per driver)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DriverEarningsConfigResponse"
+              example:
+                data:
+                  - id: "770e8400-e29b-41d4-a716-446655440000"
+                    franchiseId: null
+                    driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+                    dailyTargetDefault: 1250
+                    incentiveTier1Min: 1250
+                    incentiveTier1Max: 1550
+                    incentiveTier1Type: "full_extra"
+                    incentiveTier2Min: 1550
+                    incentiveTier2Percent: 20
+                    monthlyBonusTiers:
+                      - minEarnings: 25000
+                        bonus: 3000
+                      - minEarnings: 28000
+                        bonus: 500
+                    monthlyDeductionTiers:
+                      - maxEarnings: 26000
+                        cutPercent: 25
+                      - maxEarnings: 22000
+                        cutPercent: 20
+                    isActive: true
+                    createdAt: "2024-01-20T10:00:00Z"
+                    updatedAt: "2024-01-20T10:00:00Z"
+                  - id: "880e8400-e29b-41d4-a716-446655440000"
+                    franchiseId: null
+                    driverId: "880a77f6-5704-4b00-8561-2892c58946a3"
+                    dailyTargetDefault: 1250
+                    incentiveTier1Min: 1250
+                    incentiveTier1Max: 1550
+                    incentiveTier1Type: "full_extra"
+                    incentiveTier2Min: 1550
+                    incentiveTier2Percent: 20
+                    monthlyBonusTiers:
+                      - minEarnings: 25000
+                        bonus: 3000
+                      - minEarnings: 28000
+                        bonus: 500
+                    monthlyDeductionTiers:
+                      - maxEarnings: 26000
+                        cutPercent: 25
+                      - maxEarnings: 22000
+                        cutPercent: 20
+                    isActive: true
+                    createdAt: "2024-01-20T10:00:00Z"
+                    updatedAt: "2024-01-20T10:00:00Z"
+        "400":
+          description: Bad request - driverIds required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "driverIds array is required and must not be empty"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - only ADMIN
 
   /auth/register-admin:
     post:
@@ -8544,6 +9032,77 @@ components:
             required:
               - maxEarnings
               - cutPercent
+
+    DriverEarningsConfigResponse:
+      type: object
+      description: Driver earnings configuration response
+      properties:
+        id:
+          type: string
+          format: uuid
+        franchiseId:
+          type: string
+          format: uuid
+          nullable: true
+        driverId:
+          type: string
+          format: uuid
+          nullable: true
+        dailyTargetDefault:
+          type: number
+          example: 1250
+        incentiveTier1Min:
+          type: number
+        incentiveTier1Max:
+          type: number
+        incentiveTier1Type:
+          type: string
+          enum: [full_extra, percent]
+        incentiveTier2Min:
+          type: number
+        incentiveTier2Percent:
+          type: number
+        monthlyBonusTiers:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              minEarnings:
+                type: number
+              bonus:
+                type: number
+          example:
+            - minEarnings: 25000
+              bonus: 3000
+            - minEarnings: 28000
+              bonus: 500
+        monthlyDeductionTiers:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              maxEarnings:
+                type: number
+              cutPercent:
+                type: number
+          example:
+            - maxEarnings: 26000
+              cutPercent: 25
+            - maxEarnings: 22000
+              cutPercent: 20
+        isActive:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-20T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-20T10:00:00Z"
 
   securitySchemes:
     bearerAuth:

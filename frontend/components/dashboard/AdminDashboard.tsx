@@ -11,6 +11,7 @@ import { PenaltiesManager } from './penalties/PenaltiesManager';
 import { DriversManager} from './drivers/DriversManager';
 import { DailyLimitsManager } from './drivers/DailyLimitsManager';
 import { DriverPenaltiesManager } from './drivers/DriverPenaltiesManager';
+import { DriverEarningsConfigManager } from './drivers/DriverEarningsConfigManager';
 import { TripManager } from './trips/TripManager';
 import { useAppSelector } from '@/lib/hooks';
 import { DashboardLayout } from './DashboardLayout';
@@ -160,11 +161,14 @@ export function AdminDashboard() {
                 return <DailyLimitsManager />;
             case 'driver-penalties':
                 return <DriverPenaltiesManager />;
+            case 'driver-earnings-config':
+                return <DriverEarningsConfigManager />;
             case 'reports':
                 return <PlaceholderScreen icon={BarChart3} title="Business Analytics" description="Generate detailed reports on revenue, operational efficiency, and customer satisfaction metrics." />;
             case 'payroll':
                 return <PenaltiesManager />;
             case 'trips':
+            case 'all-trips':
             case 'trip-types':
             case 'trip-booking':
             case 'unassigned-trips':

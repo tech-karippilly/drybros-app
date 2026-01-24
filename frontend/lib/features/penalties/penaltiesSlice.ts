@@ -2,63 +2,13 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { Penalty, CreatePenaltyInput, UpdatePenaltyInput, ApplyPenaltyInput, DriverPenalty, StaffPenalty } from '../../types/penalties';
 import { PENALTIES_STRINGS } from '../../constants/penalties';
 import { RootState } from '../../store';
-
-// Dummy data
-const DUMMY_PENALTIES: Penalty[] = [
-    {
-        id: 1,
-        name: 'Late Arrival',
-        amount: 500,
-        description: 'Penalty for arriving late to pickup location',
-        type: 'PENALTY',
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-    },
-    {
-        id: 2,
-        name: 'Customer Complaint',
-        amount: 1000,
-        description: 'Penalty for customer complaints about service quality',
-        type: 'PENALTY',
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-    },
-    {
-        id: 3,
-        name: 'Vehicle Maintenance',
-        amount: 300,
-        description: 'Deduction for vehicle maintenance costs',
-        type: 'DEDUCTION',
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-    },
-    {
-        id: 4,
-        name: 'No Show',
-        amount: 750,
-        description: 'Penalty for not showing up for assigned trip',
-        type: 'PENALTY',
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-    },
-    {
-        id: 5,
-        name: 'Fuel Deduction',
-        amount: 200,
-        description: 'Standard fuel cost deduction',
-        type: 'DEDUCTION',
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-    },
-];
-
-// Simulate API delay
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+import { 
+    getPenalties, 
+    createPenalty as createPenaltyApi, 
+    updatePenalty as updatePenaltyApi, 
+    deletePenalty as deletePenaltyApi,
+    PenaltyResponse 
+} from './penaltiesApi';
 
 interface PenaltiesState {
     penalties: Penalty[];
@@ -70,7 +20,7 @@ interface PenaltiesState {
 }
 
 const initialState: PenaltiesState = {
-    penalties: DUMMY_PENALTIES,
+    penalties: [],
     driverPenalties: [],
     staffPenalties: [],
     selectedPenalty: null,
@@ -78,16 +28,28 @@ const initialState: PenaltiesState = {
     error: null,
 };
 
-// Async thunks - Using dummy data for now
+// Helper function to convert API response to Penalty type
+const convertPenaltyResponse = (response: PenaltyResponse): Penalty => ({
+    id: response.id, // Keep as string (UUID)
+    name: response.name,
+    amount: response.amount,
+    description: response.description || undefined,
+    type: response.type,
+    isActive: response.isActive,
+    createdAt: typeof response.createdAt === 'string' ? response.createdAt : response.createdAt.toISOString(),
+    updatedAt: typeof response.updatedAt === 'string' ? response.updatedAt : response.updatedAt.toISOString(),
+});
+
+// Async thunks - Using real API
 export const fetchPenalties = createAsyncThunk(
     'penalties/fetchPenalties',
-    async (_, { rejectWithValue }) => {
+    async (params?: { isActive?: boolean; type?: 'PENALTY' | 'DEDUCTION' }, { rejectWithValue }) => {
         try {
-            await delay(500); // Simulate API delay
-            // Return dummy data
-            return DUMMY_PENALTIES;
+            const response = await getPenalties(params);
+            const penalties = Array.isArray(response.data) ? response.data : [];
+            return penalties.map(convertPenaltyResponse);
         } catch (error: any) {
-            return rejectWithValue(error?.message || PENALTIES_STRINGS.LOADING);
+            return rejectWithValue(error?.response?.data?.error || error?.message || PENALTIES_STRINGS.LOADING);
         }
     }
 );
@@ -96,24 +58,17 @@ export const createPenalty = createAsyncThunk(
     'penalties/createPenalty',
     async (input: CreatePenaltyInput, { rejectWithValue }) => {
         try {
-            await delay(500); // Simulate API delay
-            
-            // Create new penalty with dummy data
-            const newPenalty: Penalty = {
-                id: Date.now(), // Use timestamp as ID
+            const response = await createPenaltyApi({
                 name: input.name,
                 amount: input.amount,
                 description: input.description,
                 type: input.type,
-                isActive: true,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-            };
-            
-            return newPenalty;
+                isActive: input.type !== undefined ? undefined : true,
+            });
+            return convertPenaltyResponse(response.data);
         } catch (error: any) {
             return rejectWithValue({
-                message: error?.message || PENALTIES_STRINGS.CREATE_ERROR,
+                message: error?.response?.data?.error || error?.message || PENALTIES_STRINGS.CREATE_ERROR,
                 code: 'UNKNOWN_ERROR',
             });
         }
@@ -122,26 +77,32 @@ export const createPenalty = createAsyncThunk(
 
 export const updatePenalty = createAsyncThunk(
     'penalties/updatePenalty',
-    async (input: UpdatePenaltyInput, { rejectWithValue }) => {
+    async (input: UpdatePenaltyInput, { getState, rejectWithValue }) => {
         try {
-            await delay(500); // Simulate API delay
+            const state = getState() as RootState;
+            const existingPenalty = state.penalties.penalties.find(p => 
+                p.id === input.id || p.id.toString() === input.id.toString()
+            );
             
-            // Update penalty with dummy data
-            const updatedPenalty: Penalty = {
-                id: input.id,
+            if (!existingPenalty) {
+                return rejectWithValue({
+                    message: 'Penalty not found',
+                    code: 'NOT_FOUND',
+                });
+            }
+            
+            const penaltyId = existingPenalty.id.toString();
+            
+            const response = await updatePenaltyApi(penaltyId, {
                 name: input.name,
                 amount: input.amount,
-                description: input.description,
+                description: input.description || null,
                 type: input.type,
-                isActive: true,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-            };
-            
-            return updatedPenalty;
+            });
+            return convertPenaltyResponse(response.data);
         } catch (error: any) {
             return rejectWithValue({
-                message: error?.message || PENALTIES_STRINGS.UPDATE_ERROR,
+                message: error?.response?.data?.error || error?.message || PENALTIES_STRINGS.UPDATE_ERROR,
                 code: 'UNKNOWN_ERROR',
             });
         }
@@ -150,12 +111,22 @@ export const updatePenalty = createAsyncThunk(
 
 export const deletePenalty = createAsyncThunk(
     'penalties/deletePenalty',
-    async (id: number, { rejectWithValue }) => {
+    async (id: number | string, { getState, rejectWithValue }) => {
         try {
-            await delay(300); // Simulate API delay
-            return id;
+            const state = getState() as RootState;
+            const penalty = state.penalties.penalties.find(p => 
+                p.id === id || p.id.toString() === id.toString()
+            );
+            
+            if (!penalty) {
+                return rejectWithValue('Penalty not found');
+            }
+            
+            const penaltyId = penalty.id.toString();
+            await deletePenaltyApi(penaltyId);
+            return penalty.id;
         } catch (error: any) {
-            return rejectWithValue(error?.message || PENALTIES_STRINGS.DELETE_ERROR);
+            return rejectWithValue(error?.response?.data?.error || error?.message || PENALTIES_STRINGS.DELETE_ERROR);
         }
     }
 );
@@ -313,11 +284,16 @@ const penaltiesSlice = createSlice({
             })
             .addCase(updatePenalty.fulfilled, (state, action) => {
                 state.isLoading = false;
-                const index = state.penalties.findIndex((p) => p.id === action.payload.id);
+                const index = state.penalties.findIndex((p) => 
+                    p.id === action.payload.id || p.id.toString() === action.payload.id.toString()
+                );
                 if (index !== -1) {
                     state.penalties[index] = action.payload;
                 }
-                if (state.selectedPenalty?.id === action.payload.id) {
+                if (state.selectedPenalty && (
+                    state.selectedPenalty.id === action.payload.id || 
+                    state.selectedPenalty.id.toString() === action.payload.id.toString()
+                )) {
                     state.selectedPenalty = action.payload;
                 }
             })
@@ -334,8 +310,13 @@ const penaltiesSlice = createSlice({
             })
             .addCase(deletePenalty.fulfilled, (state, action) => {
                 state.isLoading = false;
-                state.penalties = state.penalties.filter((p) => p.id !== action.payload);
-                if (state.selectedPenalty?.id === action.payload) {
+                state.penalties = state.penalties.filter((p) => 
+                    p.id !== action.payload && p.id.toString() !== action.payload.toString()
+                );
+                if (state.selectedPenalty && (
+                    state.selectedPenalty.id === action.payload || 
+                    state.selectedPenalty.id.toString() === action.payload.toString()
+                )) {
                     state.selectedPenalty = null;
                 }
             })

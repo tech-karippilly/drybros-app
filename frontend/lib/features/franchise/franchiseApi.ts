@@ -14,6 +14,7 @@ import api from '../../axios';
 const FRANCHISE_ENDPOINTS = {
     BASE: '/franchises',
     BY_ID: (id: string) => `/franchises/${id}`,
+    PERSONNEL: (id: string) => `/franchises/${id}/personnel`,
 } as const;
 
 // Request DTOs (matching backend)
@@ -90,4 +91,30 @@ export async function getFranchiseByCode(code: string): Promise<FranchiseRespons
 export async function createFranchise(data: CreateFranchiseRequest): Promise<CreateFranchiseResponse> {
     const response = await api.post<CreateFranchiseResponse>(FRANCHISE_ENDPOINTS.BASE, data);
     return response.data;
+}
+
+// Personnel Response DTOs
+export interface PersonnelBasicInfo {
+    id: string;
+    name?: string;
+    firstName?: string;
+    lastName?: string;
+    email: string;
+    phone: string;
+}
+
+export interface FranchisePersonnelResponse {
+    data: {
+        staff: PersonnelBasicInfo[];
+        drivers: PersonnelBasicInfo[];
+        manager: PersonnelBasicInfo | null;
+    };
+}
+
+/**
+ * Get franchise personnel (staff, drivers, and manager)
+ */
+export async function getFranchisePersonnel(franchiseId: string): Promise<FranchisePersonnelResponse['data']> {
+    const response = await api.get<FranchisePersonnelResponse>(FRANCHISE_ENDPOINTS.PERSONNEL(franchiseId));
+    return response.data.data;
 }

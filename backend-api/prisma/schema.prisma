@@ -63,6 +63,8 @@ model Driver {
   complaintCount           Int              @default(0)
   bannedGlobally           Boolean          @default(false)
   dailyTargetAmount        Int?
+  remainingDailyLimit      Decimal?         @db.Decimal(10, 2) // Remaining daily limit (reduces as trips complete)
+  cashInHand               Decimal          @default(0) @db.Decimal(10, 2) // Cash amount in driver's hand
   currentRating            Float?
   isActive                 Boolean          @default(true)
   createdBy                String?          @db.Uuid // User ID who created this driver
@@ -282,6 +284,9 @@ model User {
 
 model DriverEarningsConfig {
   id                    String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  // Scope: null = global, franchiseId set = franchise-level, driverId set = driver-level
+  franchiseId           String?  @db.Uuid
+  driverId              String?  @db.Uuid
   // Daily incentive config
   dailyTargetDefault    Int      @default(1250) // Default daily target
   incentiveTier1Min     Int      @default(1250) // Min amount for tier 1
@@ -298,6 +303,10 @@ model DriverEarningsConfig {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   updatedBy             String?  @db.Uuid // User ID who last updated
+
+  @@index([franchiseId])
+  @@index([driverId])
+  @@index([franchiseId, driverId])
 }
 
 model Complaint {

@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from "express";
 import { listDrivers, listDriversPaginated, getDriver, getDriverWithPerformance, getAvailableGreenDriversList, getDriversByFranchises, createDriver, loginDriver, updateDriver, updateDriverStatus, softDeleteDriver } from "../services/driver.service";
 import { calculateDriverPerformance } from "../services/driver-performance.service";
 import { DriverLoginDTO, UpdateDriverDTO, UpdateDriverStatusDTO } from "../types/driver.dto";
+import { submitCashToCompany, getDriverDailyLimit } from "../services/driverCash.service";
 
 export async function getDrivers(
   req: Request,
@@ -195,6 +196,40 @@ export async function getDriversByFranchisesHandler(
 
     const drivers = await getDriversByFranchises(franchiseIds);
     res.json({ data: drivers });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Submit cash to company (reset cash in hand to zero)
+ */
+export async function submitCashToCompanyHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { id } = req.params;
+    const result = await submitCashToCompany(id);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Get driver daily limit information
+ */
+export async function getDriverDailyLimitHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { id } = req.params;
+    const result = await getDriverDailyLimit(id);
+    res.json({ data: result });
   } catch (err) {
     next(err);
   }

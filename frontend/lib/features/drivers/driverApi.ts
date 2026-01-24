@@ -20,6 +20,7 @@ const DRIVER_ENDPOINTS = {
     WITH_PERFORMANCE: (id: string) => `/drivers/${id}/with-performance`,
     PERFORMANCE: (id: string) => `/drivers/${id}/performance`,
     PAGINATED: '/drivers/paginated',
+    DAILY_LIMIT: (id: string) => `/drivers/${id}/daily-limit`,
 } as const;
 
 // Request DTOs (matching backend)
@@ -416,4 +417,26 @@ export async function setDriversDailyLimit(
         data
     );
     return response.data;
+}
+
+// Daily Limit Response DTOs
+export interface DriverDailyLimitResponse {
+    driverId: string;
+    driverName: string;
+    dailyTargetAmount: number;
+    remainingDailyLimit: number;
+    usedDailyLimit: number;
+    cashInHand: number;
+}
+
+/**
+ * Get driver daily limit information
+ */
+export async function getDriverDailyLimit(
+    driverId: string
+): Promise<DriverDailyLimitResponse> {
+    const response = await api.get<{ data: DriverDailyLimitResponse }>(
+        DRIVER_ENDPOINTS.DAILY_LIMIT(driverId)
+    );
+    return response.data.data;
 }

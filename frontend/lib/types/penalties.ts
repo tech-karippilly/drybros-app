@@ -1,7 +1,7 @@
 export type PenaltyType = 'PENALTY' | 'DEDUCTION';
 
 export interface Penalty {
-    id: number;
+    id: string | number; // Support both string (UUID) and number for backward compatibility
     name: string;
     amount: number;
     description?: string;
@@ -19,7 +19,7 @@ export interface CreatePenaltyInput {
 }
 
 export interface UpdatePenaltyInput extends CreatePenaltyInput {
-    id: number;
+    id: number | string; // Support both string (UUID) and number for backward compatibility
 }
 
 export type PenaltyTargetType = 'DRIVER' | 'STAFF';

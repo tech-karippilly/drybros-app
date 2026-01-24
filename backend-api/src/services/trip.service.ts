@@ -13,7 +13,12 @@ import { getActivityLogsByTripId } from "../repositories/activity.repository";
 import { TripStatus, PaymentStatus, PaymentMode, TripType } from "@prisma/client";
 
 import { getCustomerById } from "../repositories/customer.repository";
-import { getDriverById, updateDriverTripStatus } from "../repositories/driver.repository";
+import { 
+  getDriverById, 
+  updateDriverTripStatus,
+  addCashInHand,
+  reduceRemainingDailyLimit,
+} from "../repositories/driver.repository";
 import { generateOtp } from "../utils/otp";
 import jwt from "jsonwebtoken";
 import { authConfig } from "../config/authConfig";
@@ -1353,6 +1358,35 @@ export async function collectPayment(input: CollectPaymentInput) {
       ? `Split payment: UPI ₹${upiAmount}, Cash ₹${cashAmount}` 
       : null,
   });
+
+  // Handle cash in hand and daily limit updates
+  try {
+    // If payment includes cash (CASH or BOTH), add to driver's cash in hand
+    if (paymentMethod === "CASH" || paymentMethod === "BOTH") {
+      const cashToAdd = paymentMethod === "CASH" ? cashAmount! : cashAmount!;
+      await addCashInHand(driverId, cashToAdd);
+      logger.info("Cash added to driver's cash in hand", {
+        driverId,
+        cashAmount: cashToAdd,
+        tripId,
+      });
+    }
+
+    // Reduce trip amount from driver's remaining daily limit
+    await reduceRemainingDailyLimit(driverId, tripAmount);
+    logger.info("Daily limit reduced for driver", {
+      driverId,
+      tripAmount,
+      tripId,
+    });
+  } catch (err: any) {
+    // Log error but don't fail the payment collection
+    logger.error("Failed to update driver cash/daily limit", {
+      error: err,
+      driverId,
+      tripId,
+    });
+  }
 
   // Log activity (non-blocking)
   logActivity({

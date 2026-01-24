@@ -173,6 +173,64 @@ export async function softDeleteDriver(id: string): Promise<Driver> {
 }
 
 /**
+ * Update daily target amount for a single driver
+ */
+export async function updateDriverDailyLimit(
+  id: string,
+  dailyTargetAmount: number
+): Promise<Driver> {
+  return prisma.driver.update({
+    where: { id },
+    data: { dailyTargetAmount },
+  });
+}
+
+/**
+ * Update daily target amount for multiple drivers
+ */
+export async function updateDriversDailyLimit(
+  driverIds: string[],
+  dailyTargetAmount: number
+): Promise<{ count: number }> {
+  return prisma.driver.updateMany({
+    where: {
+      id: { in: driverIds },
+    },
+    data: { dailyTargetAmount },
+  });
+}
+
+/**
+ * Update daily target amount for all drivers in a franchise
+ */
+export async function updateFranchiseDriversDailyLimit(
+  franchiseId: string,
+  dailyTargetAmount: number
+): Promise<{ count: number }> {
+  return prisma.driver.updateMany({
+    where: {
+      franchiseId,
+      isActive: true,
+    },
+    data: { dailyTargetAmount },
+  });
+}
+
+/**
+ * Update daily target amount for all active drivers
+ */
+export async function updateAllDriversDailyLimit(
+  dailyTargetAmount: number
+): Promise<{ count: number }> {
+  return prisma.driver.updateMany({
+    where: {
+      isActive: true,
+    },
+    data: { dailyTargetAmount },
+  });
+}
+
+/**
  * Get drivers with trip data for performance calculation
  * Includes trips from the last 90 days
  */

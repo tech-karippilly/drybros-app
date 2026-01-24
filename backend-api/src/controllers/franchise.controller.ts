@@ -8,8 +8,7 @@ import {
   updateFranchise,
   softDeleteFranchise,
   updateFranchiseStatus,
-  getStaffByFranchiseId,
-  getDriversByFranchiseId,
+  getFranchisePersonnelDetails,
 } from "../services/franchise.service";
 import { CreateFranchiseDTO, UpdateFranchiseDTO, UpdateFranchiseStatusDTO } from "../types/franchise.dto";
 
@@ -104,28 +103,17 @@ export async function updateFranchiseStatusHandler(
   }
 }
 
-export async function getStaffByFranchiseIdHandler(
+/**
+ * Get staff, drivers, and manager by franchise ID (combined)
+ */
+export async function getFranchisePersonnelHandler(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
   try {
     const franchiseId = req.params.id;
-    const result = await getStaffByFranchiseId(franchiseId);
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function getDriversByFranchiseIdHandler(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    const franchiseId = req.params.id;
-    const result = await getDriversByFranchiseId(franchiseId);
+    const result = await getFranchisePersonnelDetails(franchiseId);
     res.json(result);
   } catch (err) {
     next(err);

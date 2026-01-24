@@ -5,6 +5,8 @@ import {
   createCustomer as repoCreateCustomer,
   updateCustomer,
 } from "../repositories/customer.repository";
+import { logActivity } from "./activity.service";
+import { ActivityAction, ActivityEntityType } from "@prisma/client";
 
 export async function listCustomers() {
   return getAllCustomers();
@@ -49,6 +51,21 @@ export async function findOrCreateCustomer(data: {
     
     if (Object.keys(updateData).length > 0) {
       const updated = await updateCustomer(existingCustomer.id, updateData);
+      
+      // Log customer update activity
+      logActivity({
+        action: ActivityAction.CUSTOMER_UPDATED,
+        entityType: ActivityEntityType.CUSTOMER,
+        entityId: updated.id.toString(),
+        franchiseId: data.franchiseId,
+        description: `Customer ${updated.fullName} (${updated.phone}) updated`,
+        metadata: {
+          customerName: updated.fullName,
+          customerPhone: updated.phone,
+          updatedFields: Object.keys(updateData),
+        },
+      });
+      
       return { customer: updated, isExisting: true };
     }
     
@@ -57,6 +74,22 @@ export async function findOrCreateCustomer(data: {
   
   // Create new customer
   const newCustomer = await repoCreateCustomer(data);
+  
+  // Log customer creation activity
+  logActivity({
+    action: ActivityAction.CUSTOMER_CREATED,
+    entityType: ActivityEntityType.CUSTOMER,
+    entityId: newCustomer.id.toString(),
+    franchiseId: data.franchiseId,
+    description: `Customer ${newCustomer.fullName} (${newCustomer.phone}) created`,
+    metadata: {
+      customerName: newCustomer.fullName,
+      customerPhone: newCustomer.phone,
+      customerEmail: newCustomer.email,
+      city: newCustomer.city,
+    },
+  });
+  
   return { customer: newCustomer, isExisting: false };
 }
 
@@ -68,5 +101,22 @@ export async function createCustomer(data: {
   notes?: string;
   franchiseId: string;
 }) {
-  return repoCreateCustomer(data);
+  const customer = await repoCreateCustomer(data);
+  
+  // Log customer creation activity
+  logActivity({
+    action: ActivityAction.CUSTOMER_CREATED,
+    entityType: ActivityEntityType.CUSTOMER,
+    entityId: customer.id.toString(),
+    franchiseId: data.franchiseId,
+    description: `Customer ${customer.fullName} (${customer.phone}) created`,
+    metadata: {
+      customerName: customer.fullName,
+      customerPhone: customer.phone,
+      customerEmail: customer.email,
+      city: customer.city,
+    },
+  });
+  
+  return customer;
 }

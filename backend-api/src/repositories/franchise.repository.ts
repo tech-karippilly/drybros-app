@@ -166,3 +166,107 @@ export async function getDriversByFranchiseId(franchiseId: string) {
     orderBy: { createdAt: "desc" },
   });
 }
+
+/**
+ * Get manager user by franchise ID
+ */
+export async function getManagerByFranchiseId(franchiseId: string) {
+  return prisma.user.findFirst({
+    where: {
+      franchiseId,
+      role: "MANAGER",
+      isActive: true,
+    },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      role: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+}
+
+/**
+ * Get staff, drivers, and manager by franchise ID (combined)
+ */
+export async function getFranchisePersonnel(franchiseId: string) {
+  // Get franchise details to match manager by inchargeName if needed
+  const franchise = await prisma.franchise.findUnique({
+    where: { id: franchiseId },
+    select: { inchargeName: true },
+  });
+
+  const [staff, drivers, managerByFranchiseId] = await Promise.all([
+    prisma.staff.findMany({
+      where: { franchiseId, isActive: true },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+      },
+    }),
+    prisma.driver.findMany({
+      where: { franchiseId, isActive: true },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+      },
+    }),
+    prisma.user.findFirst({
+      where: {
+        franchiseId,
+        role: "MANAGER",
+        isActive: true,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+      },
+    }),
+  ]);
+
+  // If manager not found by franchiseId, try to find by matching inchargeName
+  let manager = managerByFranchiseId;
+  if (!manager && franchise?.inchargeName) {
+    const managerByName = await prisma.user.findFirst({
+      where: {
+        role: "MANAGER",
+        isActive: true,
+        fullName: franchise.inchargeName,
+        franchiseId: null, // Only find managers not already assigned
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+      },
+    });
+
+    if (managerByName) {
+      // Update the manager's franchiseId for future queries
+      await prisma.user.update({
+        where: { id: managerByName.id },
+        data: { franchiseId },
+      }).catch((err) => {
+        // Log error but don't fail - this is a best-effort update
+        console.error("Failed to update manager franchiseId:", err);
+      });
+      manager = managerByName;
+    }
+  }
+
+  return { staff, drivers, manager };
+}

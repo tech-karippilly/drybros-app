@@ -82,30 +82,25 @@ function mapActivityLogToResponse(activityLog: any): ActivityLogResponseDTO {
 }
 
 /**
- * Get activity logs with role-based filtering
+ * Get activity logs filtered by franchiseId only
  */
 export async function getActivityLogs(
   userRole: UserRole,
-  userId?: string,
-  userFranchiseId?: string,
+  userId: string | undefined,
+  userFranchiseId: string | undefined,
   filters?: {
     franchiseId?: string;
-    driverId?: string;
-    staffId?: string;
-    tripId?: string;
-    action?: ActivityAction;
-    entityType?: ActivityEntityType;
-    startDate?: Date;
-    endDate?: Date;
   }
 ): Promise<ActivityLogResponseDTO[]> {
-  let whereClause: any = { ...filters };
+  const whereClause: any = {};
 
-  // Role-based filtering
+  // Role-based franchiseId filtering
   switch (userRole) {
     case UserRole.ADMIN:
       // Admin can see all activities, optionally filtered by franchiseId
-      // Filters already applied above
+      if (filters?.franchiseId) {
+        whereClause.franchiseId = filters.franchiseId;
+      }
       break;
 
     case UserRole.MANAGER:
@@ -118,31 +113,21 @@ export async function getActivityLogs(
 
     case UserRole.OFFICE_STAFF:
     case UserRole.STAFF:
-      // Staff sees driver activities and trip creations
-      whereClause.OR = [
-        { entityType: "DRIVER" },
-        { action: { in: ["TRIP_CREATED", "TRIP_UPDATED", "TRIP_ASSIGNED"] } },
-      ];
+      // Staff sees activities of their franchise
       if (userFranchiseId) {
         whereClause.franchiseId = userFranchiseId;
+      } else if (filters?.franchiseId) {
+        whereClause.franchiseId = filters.franchiseId;
       }
-      // Remove other filters that conflict with OR - they'll be applied via AND
-      delete whereClause.entityType;
-      delete whereClause.action;
       break;
 
     case UserRole.DRIVER:
-      // Driver sees only trip-related activities
-      whereClause.OR = [
-        { entityType: "TRIP" },
-        { action: { in: ["TRIP_ASSIGNED", "TRIP_ACCEPTED", "TRIP_REJECTED", "TRIP_STARTED", "TRIP_ENDED", "TRIP_CANCELLED"] } },
-      ];
-      if (filters?.driverId) {
-        whereClause.driverId = filters.driverId;
+      // Driver sees activities of their franchise
+      if (userFranchiseId) {
+        whereClause.franchiseId = userFranchiseId;
+      } else if (filters?.franchiseId) {
+        whereClause.franchiseId = filters.franchiseId;
       }
-      // Remove other filters that conflict with OR - they'll be applied via AND
-      delete whereClause.entityType;
-      delete whereClause.action;
       break;
 
     default:
@@ -160,19 +145,23 @@ export async function getActivityLogsPaginated(
   userFranchiseId: string | undefined,
   pagination: ActivityPaginationQueryDTO
 ): Promise<PaginatedActivityLogResponseDTO> {
-  const { page, limit, franchiseId, driverId, staffId, tripId, action, entityType, startDate, endDate } = pagination;
+  const { page, limit, franchiseId } = pagination;
   const skip = (page - 1) * limit;
 
-  // Build filters based on role
+  // Build filters - only franchiseId
   const filters: any = {};
   
-  // Role-based filtering
+  // Role-based franchiseId filtering
   switch (userRole) {
     case UserRole.ADMIN:
-      if (franchiseId) filters.franchiseId = franchiseId;
+      // Admin can see all activities, optionally filtered by franchiseId
+      if (franchiseId) {
+        filters.franchiseId = franchiseId;
+      }
       break;
 
     case UserRole.MANAGER:
+      // Manager sees all activities of their franchise
       if (!userFranchiseId) {
         throw new Error("Manager must have a franchiseId");
       }
@@ -181,63 +170,25 @@ export async function getActivityLogsPaginated(
 
     case UserRole.OFFICE_STAFF:
     case UserRole.STAFF:
+      // Staff sees activities of their franchise
       if (userFranchiseId) {
         filters.franchiseId = userFranchiseId;
+      } else if (franchiseId) {
+        filters.franchiseId = franchiseId;
       }
-      // Staff sees driver activities and trip creations - will add OR condition
-      filters.OR = [
-        { entityType: "DRIVER" },
-        { action: { in: ["TRIP_CREATED", "TRIP_UPDATED", "TRIP_ASSIGNED"] } },
-      ];
-      // Remove action and entityType from filters since they're in OR
-      if (action) delete filters.action;
-      if (entityType) delete filters.entityType;
       break;
 
     case UserRole.DRIVER:
-      // Driver sees only trip-related activities - will add OR condition
-      filters.OR = [
-        { entityType: "TRIP" },
-        { action: { in: ["TRIP_ASSIGNED", "TRIP_ACCEPTED", "TRIP_REJECTED", "TRIP_STARTED", "TRIP_ENDED", "TRIP_CANCELLED"] } },
-      ];
-      if (driverId) {
-        filters.driverId = driverId;
+      // Driver sees activities of their franchise
+      if (userFranchiseId) {
+        filters.franchiseId = userFranchiseId;
+      } else if (franchiseId) {
+        filters.franchiseId = franchiseId;
       }
-      // Remove action and entityType from filters since they're in OR
-      if (action) delete filters.action;
-      if (entityType) delete filters.entityType;
       break;
   }
 
-  // Apply additional filters (only if not in OR condition)
-  if (driverId && userRole !== UserRole.DRIVER && !filters.OR) {
-    filters.driverId = driverId;
-  }
-  if (staffId && !filters.OR) filters.staffId = staffId;
-  if (tripId) filters.tripId = tripId;
-  if (action && !filters.OR) filters.action = action;
-  if (entityType && !filters.OR) filters.entityType = entityType;
-  if (startDate) filters.startDate = new Date(startDate);
-  if (endDate) filters.endDate = new Date(endDate);
-
-  // For STAFF and DRIVER roles, we need custom filtering with OR conditions
-  let whereClause: any = { ...filters };
-  
-  if (userRole === UserRole.OFFICE_STAFF || userRole === UserRole.STAFF) {
-    // Staff sees driver activities and trip creations
-    whereClause.OR = [
-      { entityType: "DRIVER" },
-      { action: { in: ["TRIP_CREATED", "TRIP_UPDATED", "TRIP_ASSIGNED"] } },
-    ];
-  } else if (userRole === UserRole.DRIVER) {
-    // Driver sees only trip-related activities
-    whereClause.OR = [
-      { entityType: "TRIP" },
-      { action: { in: ["TRIP_ASSIGNED", "TRIP_ACCEPTED", "TRIP_REJECTED", "TRIP_STARTED", "TRIP_ENDED", "TRIP_CANCELLED"] } },
-    ];
-  }
-
-  const { data, total } = await getActivityLogsPaginated(skip, limit, whereClause);
+  const { data, total } = await getActivityLogsPaginated(skip, limit, filters);
 
   const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
   const hasNext = page < totalPages;

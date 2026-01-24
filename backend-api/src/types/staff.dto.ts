@@ -133,6 +133,13 @@ export interface StaffResponseDTO {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+  franchise?: {
+    id: string;
+    code: string;
+    name: string;
+    city: string;
+    region: string | null;
+  } | null;
 }
 
 /**

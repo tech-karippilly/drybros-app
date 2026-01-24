@@ -74,6 +74,7 @@ model Driver {
   LeaveRequests            LeaveRequest[]
   DriverRatings            DriverRating[]
   ActivityLogs             ActivityLog[]
+  DriverPenalties          DriverPenalty[]
 }
 
 model Franchise {
@@ -96,6 +97,7 @@ model Franchise {
   // Driver    Driver[]
   Trip                    Trip[]
   ActivityLogs            ActivityLog[]
+  Staff                   Staff[]
 }
 
 model Role {
@@ -136,6 +138,7 @@ model Staff {
   Attendances              Attendance[]
   LeaveRequests            LeaveRequest[]
   ActivityLog              ActivityLog[]
+  Franchise                Franchise      @relation(fields: [franchiseId], references: [id])
 
   @@index([franchiseId, isActive])
   @@index([franchiseId, status])
@@ -225,14 +228,17 @@ model TripTypeConfig {
   distanceScopeId String  @db.Uuid
   tripPatternId   String  @db.Uuid
 
-  // Base pricing
-  basePrice        Float // Base price (₹400, ₹500, etc.)
+  // Special pricing flag - when true, uses slab-based distance pricing (driver-negotiable)
+  specialPrice Boolean @default(false) // If true, basePrice and extraPerHour are not required
+
+  // Base pricing (required when specialPrice = false)
+  basePrice        Float? // Base price (₹400, ₹500, etc.) - nullable when specialPrice = true
   basePricePerHour Float? // Base price per hour (kept for backward compatibility)
   baseDuration     Float? // Base duration in hours (3h, 2h)
   baseDistance     Float? // Base distance in km (20 km)
 
-  // Extra charges
-  extraPerHour     Float  @default(0) // ₹100 per hour
+  // Extra charges (required when specialPrice = false)
+  extraPerHour     Float? // ₹100 per hour - nullable when specialPrice = true
   extraPerHalfHour Float? // ₹50 per 30 min (for CITY_DROPOFF)
   extraPerKm       Float? // For distance-based pricing
 
@@ -240,8 +246,9 @@ model TripTypeConfig {
   premiumCarMultiplier Float? // e.g., 1.5x or separate pricing
   forPremiumCars       Json? // Separate pricing structure
 
-  // Slab-based pricing for LONG_DROPOFF (stored as JSON)
-  distanceSlabs Json? // [{from: 0, to: 50, price: 1000}, ...]
+  // Slab-based pricing for specialPrice trip types (stored as JSON)
+  // Format: [{from: 0, to: 50, price: 1000}, {from: 51, to: 100, price: 1500}, ...]
+  distanceSlabs Json? // Required when specialPrice = true
 
   status    TripTypeConfigStatus @default(ACTIVE)
   createdAt DateTime             @default(now())
@@ -252,24 +259,45 @@ model TripTypeConfig {
 }
 
 model User {
-  email          String        @unique
+  email          String          @unique
   password       String
   fullName       String
   role           UserRole
-  isActive       Boolean       @default(true)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   phone          String?
-  id             String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  failedAttempts Int           @default(0)
+  id             String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  failedAttempts Int             @default(0)
   lockedUntil    DateTime?
-  franchiseId    String?       @db.Uuid // For MANAGER role to associate with franchise
+  franchiseId    String?         @db.Uuid // For MANAGER role to associate with franchise
   Trip           Trip[]
   ActivityLogs   ActivityLog[]
+  DriverPenalty  DriverPenalty[]
 
   @@index([lockedUntil])
   @@index([franchiseId])
   @@index([role, franchiseId])
+}
+
+model DriverEarningsConfig {
+  id                    String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  // Daily incentive config
+  dailyTargetDefault    Int      @default(1250) // Default daily target
+  incentiveTier1Min     Int      @default(1250) // Min amount for tier 1
+  incentiveTier1Max     Int      @default(1550) // Max amount for tier 1
+  incentiveTier1Type    String   @default("full_extra") // "full_extra" or "percent"
+  incentiveTier2Min     Int      @default(1550) // Min amount for tier 2
+  incentiveTier2Percent Int      @default(20) // Percentage for tier 2 (e.g., 20%)
+  // Monthly bonus config (stored as JSON array)
+  monthlyBonusTiers     Json? // [{ minEarnings: 25000, bonus: 3000 }, { minEarnings: 28000, bonus: 500 }, ...]
+  // Monthly deduction policy (stored as JSON array)
+  monthlyDeductionTiers Json? // [{ maxEarnings: 26000, cutPercent: 25 }, { maxEarnings: 22000, cutPercent: 20 }, ...]
+  // Metadata
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  updatedBy             String?  @db.Uuid // User ID who last updated
 }
 
 model Complaint {
@@ -596,4 +624,46 @@ enum ActivityEntityType {
   RATING
   ATTENDANCE
   OTHER
+}
+
+model Penalty {
+  id              String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name            String
+  description     String?
+  amount          Int // Default penalty amount
+  type            PenaltyType     @default(PENALTY)
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  DriverPenalties DriverPenalty[]
+
+  @@index([isActive])
+  @@index([type])
+}
+
+enum PenaltyType {
+  PENALTY // Deduction for violations
+  DEDUCTION // Standard deductions (fuel, maintenance, etc.)
+}
+
+model DriverPenalty {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  driverId      String   @db.Uuid
+  penaltyId     String   @db.Uuid
+  amount        Int // Actual amount applied (can override default)
+  reason        String? // Reason for penalty
+  violationDate DateTime @default(now()) // Date of violation
+  appliedAt     DateTime @default(now())
+  appliedBy     String?  @db.Uuid // User ID who applied the penalty
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  Driver        Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Penalty       Penalty  @relation(fields: [penaltyId], references: [id], onDelete: Restrict)
+  AppliedByUser User?    @relation(fields: [appliedBy], references: [id], onDelete: SetNull)
+
+  @@index([driverId, appliedAt])
+  @@index([penaltyId])
+  @@index([appliedAt])
+  @@index([violationDate])
 }

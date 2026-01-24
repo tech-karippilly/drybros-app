@@ -105,7 +105,7 @@ function mapUserToResponse(user: User): AuthResponseDTO["user"] {
     id: String(user.id),
     fullName: user.fullName,
     email: user.email,
-    phone: null, // Phone field not available in User model
+    phone: user.phone || null,
     role: user.role,
   };
 }
@@ -179,6 +179,7 @@ export async function registerAdmin(
       email: input.email,
       password: hashedPassword,
       role: UserRole.ADMIN,
+      phone: input.phone || null,
     },
   });
 
@@ -325,6 +326,7 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
       email: true,
       password: true,
       fullName: true,
+      phone: true,
       role: true,
       isActive: true,
       // Note: failedAttempts and lockedUntil may not exist in database
@@ -544,6 +546,7 @@ export async function getCurrentUser(userId: string): Promise<CurrentUserRespons
       id: true,
       fullName: true,
       email: true,
+      phone: true,
       role: true,
       isActive: true,
     },
@@ -561,7 +564,7 @@ export async function getCurrentUser(userId: string): Promise<CurrentUserRespons
     id: String(user.id),
     fullName: user.fullName,
     email: user.email,
-    phone: null, // Phone field not available in User model
+    phone: user.phone || null,
     role: user.role,
     isActive: user.isActive,
   };

@@ -10,10 +10,18 @@ export interface AuthUser {
   email: string;
 }
 
+export interface AuthDriver {
+  driverId: string;
+  driverCode: string;
+  email: string;
+  type: string;
+}
+
 declare global {
   namespace Express {
     interface Request {
       user?: AuthUser;
+      driver?: AuthDriver;
     }
   }
 }
@@ -33,8 +41,16 @@ export function authMiddleware(
   const token = header.substring("Bearer ".length);
 
   try {
-    const payload = jwt.verify(token, authConfig.jwtSecret) as AuthUser;
-    req.user = payload;
+    const payload = jwt.verify(token, authConfig.jwtSecret) as any;
+    
+    // Check if it's a driver token (has driverId)
+    if (payload.driverId) {
+      req.driver = payload as AuthDriver;
+    } else {
+      // It's a user token
+      req.user = payload as AuthUser;
+    }
+    
     next();
   } catch {
     return res.status(401).json({ error: "Invalid or expired token" });

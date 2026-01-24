@@ -22,6 +22,8 @@ import { emailConfig } from "../config/emailConfig";
 import { authConfig } from "../config/authConfig";
 import logger from "../config/logger";
 import { ERROR_MESSAGES } from "../constants/errors";
+import { logActivity } from "./activity.service";
+import { ActivityAction, ActivityEntityType } from "@prisma/client";
 import {
   getDriversWithPerformance,
   sortDriversByPerformance,
@@ -325,6 +327,24 @@ export async function createDriver(
     createdBy,
   });
 
+  // Log driver creation activity
+  logActivity({
+    action: ActivityAction.DRIVER_CREATED,
+    entityType: ActivityEntityType.DRIVER,
+    entityId: driver.id,
+    franchiseId: driver.franchiseId,
+    driverId: driver.id,
+    userId: createdBy || null,
+    description: `Driver ${input.firstName} ${input.lastName} (${driverCode}) created`,
+    metadata: {
+      driverName: `${input.firstName} ${input.lastName}`,
+      driverCode,
+      driverEmail: input.email,
+      driverPhone: input.phone,
+      franchiseId: driver.franchiseId,
+    },
+  });
+
   return {
     message: "Driver created successfully",
     data: mapDriverToResponse(driver),
@@ -491,6 +511,22 @@ export async function updateDriver(
     franchiseReassigned: input.franchiseId !== undefined && input.franchiseId !== existingDriver.franchiseId,
   });
 
+  // Log driver update activity
+  logActivity({
+    action: ActivityAction.DRIVER_UPDATED,
+    entityType: ActivityEntityType.DRIVER,
+    entityId: id,
+    franchiseId: updatedDriver.franchiseId,
+    driverId: id,
+    description: `Driver ${updatedDriver.firstName} ${updatedDriver.lastName} (${updatedDriver.driverCode}) updated`,
+    metadata: {
+      driverName: `${updatedDriver.firstName} ${updatedDriver.lastName}`,
+      driverCode: updatedDriver.driverCode,
+      updatedFields: Object.keys(updateData),
+      franchiseReassigned: input.franchiseId !== undefined && input.franchiseId !== existingDriver.franchiseId,
+    },
+  });
+
   return {
     message: "Driver updated successfully",
     data: mapDriverToResponse(updatedDriver),
@@ -537,6 +573,22 @@ export async function updateDriverStatus(
     driverCode: existingDriver.driverCode,
     oldStatus: existingDriver.status,
     newStatus: updatedDriver.status,
+  });
+
+  // Log driver status change activity
+  logActivity({
+    action: ActivityAction.DRIVER_STATUS_CHANGED,
+    entityType: ActivityEntityType.DRIVER,
+    entityId: id,
+    franchiseId: updatedDriver.franchiseId,
+    driverId: id,
+    description: `Driver ${updatedDriver.firstName} ${updatedDriver.lastName} (${updatedDriver.driverCode}) status changed to ${input.status}`,
+    metadata: {
+      driverName: `${updatedDriver.firstName} ${updatedDriver.lastName}`,
+      driverCode: updatedDriver.driverCode,
+      oldStatus: existingDriver.status,
+      newStatus: input.status,
+    },
   });
 
   return {

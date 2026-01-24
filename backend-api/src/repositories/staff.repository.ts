@@ -6,30 +6,17 @@ export async function getAllStaff(franchiseId?: string) {
   return prisma.staff.findMany({
     where: franchiseId ? { franchiseId, isActive: true } : { isActive: true },
     orderBy: { createdAt: "desc" },
-    // Only select fields needed for response
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      franchiseId: true,
-      monthlySalary: true,
-      address: true,
-      emergencyContact: true,
-      emergencyContactRelation: true,
-      govtId: true,
-      addressProof: true,
-      certificates: true,
-      previousExperienceCert: true,
-      profilePic: true,
-      status: true,
-      suspendedUntil: true,
-      joinDate: true,
-      relieveDate: true,
-      relieveReason: true,
-      isActive: true,
-      createdAt: true,
-      updatedAt: true,
+    // Include franchise details
+    include: {
+      Franchise: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          city: true,
+          region: true,
+        },
+      },
     },
   });
 }
@@ -46,30 +33,17 @@ export async function getStaffPaginated(skip: number, take: number, franchiseId?
       take,
       where: whereClause,
       orderBy: { createdAt: "desc" },
-      // Only select fields needed for response
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        franchiseId: true,
-        monthlySalary: true,
-        address: true,
-        emergencyContact: true,
-        emergencyContactRelation: true,
-        govtId: true,
-        addressProof: true,
-        certificates: true,
-        previousExperienceCert: true,
-        profilePic: true,
-        status: true,
-        suspendedUntil: true,
-        joinDate: true,
-        relieveDate: true,
-        relieveReason: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
+      // Include franchise details
+      include: {
+        Franchise: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            city: true,
+            region: true,
+          },
+        },
       },
     }),
     prisma.staff.count({ where: whereClause }),
@@ -81,6 +55,17 @@ export async function getStaffPaginated(skip: number, take: number, franchiseId?
 export async function getStaffById(id: string) {
   return prisma.staff.findUnique({
     where: { id },
+    include: {
+      Franchise: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          city: true,
+          region: true,
+        },
+      },
+    },
   });
 }
 
@@ -130,6 +115,18 @@ export async function createStaff(data: {
       previousExperienceCert: data.previousExperienceCert ?? false,
       profilePic: data.profilePic ?? null,
       joinDate: data.joinDate || new Date(),
+      updatedAt: new Date(),
+    },
+    include: {
+      Franchise: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          city: true,
+          region: true,
+        },
+      },
     },
   });
 }

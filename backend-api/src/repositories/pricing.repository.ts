@@ -87,11 +87,12 @@ export async function createTripTypeConfig(data: {
   description?: string;
   distanceScopeId: string;
   tripPatternId: string;
-  basePrice: number;
+  specialPrice?: boolean;
+  basePrice?: number | null;
   basePricePerHour?: number;
-  baseDuration?: number;
-  baseDistance?: number;
-  extraPerHour?: number;
+  baseDuration?: number | null;
+  baseDistance?: number | null;
+  extraPerHour?: number | null;
   extraPerHalfHour?: number;
   extraPerKm?: number;
   premiumCarMultiplier?: number;
@@ -104,11 +105,12 @@ export async function createTripTypeConfig(data: {
       description: data.description,
       distanceScopeId: data.distanceScopeId,
       tripPatternId: data.tripPatternId,
-      basePrice: data.basePrice,
+      specialPrice: data.specialPrice ?? false,
+      basePrice: data.basePrice ?? null,
       basePricePerHour: data.basePricePerHour ?? null,
       baseDuration: data.baseDuration ?? null,
       baseDistance: data.baseDistance ?? null,
-      extraPerHour: data.extraPerHour ?? 0,
+      extraPerHour: data.extraPerHour ?? null,
       extraPerHalfHour: data.extraPerHalfHour ?? null,
       extraPerKm: data.extraPerKm ?? null,
       premiumCarMultiplier: data.premiumCarMultiplier ?? null,
@@ -133,11 +135,12 @@ export async function updateTripTypeConfig(
     description: string;
     distanceScopeId: string;
     tripPatternId: string;
-    basePrice: number;
+    specialPrice: boolean;
+    basePrice: number | null;
     basePricePerHour: number;
-    baseDuration: number;
-    baseDistance: number;
-    extraPerHour: number;
+    baseDuration: number | null;
+    baseDistance: number | null;
+    extraPerHour: number | null;
     extraPerHalfHour: number;
     extraPerKm: number;
     premiumCarMultiplier: number;

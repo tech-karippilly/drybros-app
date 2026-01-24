@@ -65,13 +65,6 @@ export async function getActivityLogsHandler(
       const validatedQuery = (req as any).validatedQuery;
       const filters: any = {};
       if (validatedQuery?.franchiseId) filters.franchiseId = validatedQuery.franchiseId;
-      if (validatedQuery?.driverId) filters.driverId = validatedQuery.driverId;
-      if (validatedQuery?.staffId) filters.staffId = validatedQuery.staffId;
-      if (validatedQuery?.tripId) filters.tripId = validatedQuery.tripId;
-      if (validatedQuery?.action) filters.action = validatedQuery.action;
-      if (validatedQuery?.entityType) filters.entityType = validatedQuery.entityType;
-      if (validatedQuery?.startDate) filters.startDate = new Date(validatedQuery.startDate);
-      if (validatedQuery?.endDate) filters.endDate = new Date(validatedQuery.endDate);
 
       const data = await getActivityLogs(
         user.role,

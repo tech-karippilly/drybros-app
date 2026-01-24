@@ -30,6 +30,8 @@ import {
 } from "../repositories/staff.repository";
 import { sendStaffWelcomeEmail } from "./email.service";
 import { emailConfig } from "../config/emailConfig";
+import { logActivity } from "./activity.service";
+import { ActivityAction, ActivityEntityType } from "@prisma/client";
 
 /**
  * Helper function to map staff to response format
@@ -38,30 +40,7 @@ import { emailConfig } from "../config/emailConfig";
  * Helper function to map staff to response format
  * Optimized to handle Prisma Decimal type conversion efficiently
  */
-function mapStaffToResponse(staff: {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  franchiseId: string;
-  monthlySalary: any; // Decimal type from Prisma
-  address: string;
-  emergencyContact: string;
-  emergencyContactRelation: string;
-  govtId: boolean;
-  addressProof: boolean;
-  certificates: boolean;
-  previousExperienceCert: boolean;
-  profilePic: string | null;
-  status: any; // StaffStatus enum
-  suspendedUntil: Date | null;
-  joinDate: Date;
-  relieveDate: Date | null;
-  relieveReason: string | null;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}): StaffResponseDTO {
+function mapStaffToResponse(staff: any): StaffResponseDTO {
   // Optimize Decimal conversion - Prisma Decimal can be string or Decimal object
   const monthlySalary =
     typeof staff.monthlySalary === "string"
@@ -93,6 +72,13 @@ function mapStaffToResponse(staff: {
     isActive: staff.isActive,
     createdAt: staff.createdAt,
     updatedAt: staff.updatedAt,
+    franchise: staff.Franchise ? {
+      id: staff.Franchise.id,
+      code: staff.Franchise.code,
+      name: staff.Franchise.name,
+      city: staff.Franchise.city,
+      region: staff.Franchise.region,
+    } : null,
   };
 }
 
@@ -229,6 +215,23 @@ export async function createStaff(
     phone: staff.phone,
   });
 
+  // Log staff creation activity
+  logActivity({
+    action: ActivityAction.STAFF_CREATED,
+    entityType: ActivityEntityType.STAFF,
+    entityId: staff.id,
+    franchiseId: staff.franchiseId,
+    staffId: staff.id,
+    userId: changedBy || null,
+    description: `Staff member ${staff.name} created`,
+    metadata: {
+      staffName: staff.name,
+      staffEmail: staff.email,
+      staffPhone: staff.phone,
+      franchiseId: staff.franchiseId,
+    },
+  });
+
   return {
     message: "Staff member created successfully",
     data: mapStaffToResponse(staff),
@@ -302,6 +305,23 @@ export async function updateStaff(
       email: updatedStaff.email,
       changedFields,
     });
+
+    // Log staff update activity
+    logActivity({
+      action: ActivityAction.STAFF_UPDATED,
+      entityType: ActivityEntityType.STAFF,
+      entityId: id,
+      franchiseId: updatedStaff.franchiseId,
+      staffId: id,
+      userId: changedBy || null,
+      description: `Staff member ${updatedStaff.name} updated`,
+      metadata: {
+        staffName: updatedStaff.name,
+        changedFields,
+        oldValues: oldValue,
+        newValues: newValue,
+      },
+    });
   } else {
     logger.info("Staff member updated (no tracked fields changed)", {
       staffId: updatedStaff.id,
@@ -373,6 +393,22 @@ export async function updateStaffStatus(
     name: updatedStaff.name,
     status: updatedStaff.status,
     suspendedUntil: updatedStaff.suspendedUntil,
+  });
+
+  // Log staff status change activity
+  logActivity({
+    action: ActivityAction.STAFF_STATUS_CHANGED,
+    entityType: ActivityEntityType.STAFF,
+    entityId: id,
+    franchiseId: updatedStaff.franchiseId,
+    staffId: id,
+    description: `Staff member ${updatedStaff.name} status changed to ${input.status}`,
+    metadata: {
+      staffName: updatedStaff.name,
+      oldStatus: staff.status,
+      newStatus: input.status,
+      suspendedUntil: suspendedUntilDate,
+    },
   });
 
   return {

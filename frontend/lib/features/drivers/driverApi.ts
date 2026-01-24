@@ -367,3 +367,53 @@ export async function getDriversPaginated(params: {
     }>(`${DRIVER_ENDPOINTS.PAGINATED}?${queryParams.toString()}`);
     return response.data;
 }
+
+// Daily Limit APIs
+export interface SetDriverDailyLimitRequest {
+    dailyTargetAmount: number;
+}
+
+export interface SetDriversDailyLimitRequest {
+    driverIds?: string[];
+    franchiseId?: string;
+    dailyTargetAmount: number;
+}
+
+export interface SetDriverDailyLimitResponse {
+    message: string;
+    driverId: string;
+    dailyTargetAmount: number;
+}
+
+export interface SetDriversDailyLimitResponse {
+    message: string;
+    count: number;
+    dailyTargetAmount: number;
+}
+
+/**
+ * Set daily limit for a specific driver
+ */
+export async function setDriverDailyLimit(
+    driverId: string,
+    data: SetDriverDailyLimitRequest
+): Promise<SetDriverDailyLimitResponse> {
+    const response = await api.patch<SetDriverDailyLimitResponse>(
+        `/penalties/daily-limit/driver/${driverId}`,
+        data
+    );
+    return response.data;
+}
+
+/**
+ * Set daily limit for multiple drivers
+ */
+export async function setDriversDailyLimit(
+    data: SetDriversDailyLimitRequest
+): Promise<SetDriversDailyLimitResponse> {
+    const response = await api.patch<SetDriversDailyLimitResponse>(
+        '/penalties/daily-limit/drivers',
+        data
+    );
+    return response.data;
+}

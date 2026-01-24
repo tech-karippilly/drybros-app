@@ -9,26 +9,36 @@ import {
 } from "../repositories/pricing.repository";
 import prisma from "../config/prismaClient";
 
+export interface DistanceSlab {
+  from: number; // Starting distance in km
+  to: number; // Ending distance in km (use null or Infinity for open-ended)
+  price: number; // Price for this distance range
+}
+
 export interface CreateTripTypeInput {
   name: string; // Trip type name (user-defined)
-  basePrice: number;
-  baseHour: number; // Base hours included in base price
-  extraPerHour: number;
+  specialPrice?: boolean; // If true, uses slab-based distance pricing (driver-negotiable)
+  basePrice?: number; // Required when specialPrice = false
+  baseHour?: number; // Base hours included in base price (required when specialPrice = false)
+  extraPerHour?: number; // Required when specialPrice = false
   extraPerHalfHour?: number; // Extra for 30 min
   distance?: number; // Base distance in km (optional)
   description?: string;
   distanceScopeId?: string; // Optional - will create default if not provided
   tripPatternId?: string; // Optional - will create default if not provided
+  distanceSlabs?: DistanceSlab[]; // Required when specialPrice = true, format: [{from: 0, to: 50, price: 1000}, ...]
 }
 
 export interface UpdateTripTypeInput {
   name?: string;
+  specialPrice?: boolean; // If true, uses slab-based distance pricing
   basePrice?: number;
   baseHour?: number; // Base hours included in base price
   extraPerHour?: number;
   extraPerHalfHour?: number;
   distance?: number; // Base distance in km (optional)
   description?: string;
+  distanceSlabs?: DistanceSlab[]; // Required when specialPrice = true
 }
 
 /**
@@ -83,6 +93,8 @@ function mapTripTypeResponse(tripType: any) {
     ...tripType,
     baseHour: tripType.baseDuration ?? null,
     distance: tripType.baseDistance ?? null,
+    specialPrice: tripType.specialPrice ?? false,
+    distanceSlabs: tripType.distanceSlabs ? (typeof tripType.distanceSlabs === 'string' ? JSON.parse(tripType.distanceSlabs) : tripType.distanceSlabs) : null,
   };
 }
 
@@ -148,6 +160,8 @@ export async function getTripTypeById(id: string) {
 }
 
 export async function createTripType(input: CreateTripTypeInput) {
+  const specialPrice = input.specialPrice || false;
+
   // Validate trip type name is not empty
   if (!input.name || input.name.trim().length === 0) {
     const err: any = new Error("Trip type name is required and cannot be empty");
@@ -155,25 +169,67 @@ export async function createTripType(input: CreateTripTypeInput) {
     throw err;
   }
 
-  // Validate base price
-  if (input.basePrice < 0) {
-    const err: any = new Error("Base price must be a positive number");
-    err.statusCode = 400;
-    throw err;
-  }
+  if (specialPrice) {
+    // Special price mode: distance slab-based pricing
+    // Validate distanceSlabs is provided and valid
+    if (!input.distanceSlabs || !Array.isArray(input.distanceSlabs) || input.distanceSlabs.length === 0) {
+      const err: any = new Error("distanceSlabs is required when specialPrice is true");
+      err.statusCode = 400;
+      throw err;
+    }
 
-  // Validate base hour
-  if (input.baseHour < 0) {
-    const err: any = new Error("Base hour must be a positive number");
-    err.statusCode = 400;
-    throw err;
-  }
+    // Validate each slab
+    for (const slab of input.distanceSlabs) {
+      if (typeof slab.from !== "number" || slab.from < 0) {
+        const err: any = new Error("Slab 'from' distance must be a non-negative number");
+        err.statusCode = 400;
+        throw err;
+      }
+      if (slab.to !== null && slab.to !== undefined && (typeof slab.to !== "number" || slab.to < slab.from)) {
+        const err: any = new Error("Slab 'to' distance must be greater than or equal to 'from'");
+        err.statusCode = 400;
+        throw err;
+      }
+      if (typeof slab.price !== "number" || slab.price < 0) {
+        const err: any = new Error("Slab price must be a non-negative number");
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+  } else {
+    // Standard pricing mode: basePrice and extraPerHour required
+    if (input.basePrice === undefined || input.basePrice === null) {
+      const err: any = new Error("basePrice is required when specialPrice is false");
+      err.statusCode = 400;
+      throw err;
+    }
+    if (input.basePrice <= 0) {
+      const err: any = new Error("Base price must be greater than 0");
+      err.statusCode = 400;
+      throw err;
+    }
 
-  // Validate extra per hour
-  if (input.extraPerHour < 0) {
-    const err: any = new Error("Extra per hour must be a positive number");
-    err.statusCode = 400;
-    throw err;
+    if (input.baseHour === undefined || input.baseHour === null) {
+      const err: any = new Error("baseHour is required when specialPrice is false");
+      err.statusCode = 400;
+      throw err;
+    }
+    if (input.baseHour <= 0) {
+      const err: any = new Error("Base hour must be greater than 0");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    if (input.extraPerHour === undefined || input.extraPerHour === null) {
+      const err: any = new Error("extraPerHour is required when specialPrice is false");
+      err.statusCode = 400;
+      throw err;
+    }
+    if (input.extraPerHour < 0) {
+      const err: any = new Error("Extra per hour must be a non-negative number");
+      err.statusCode = 400;
+      throw err;
+    }
   }
 
   // Validate extra per half hour if provided
@@ -211,11 +267,14 @@ export async function createTripType(input: CreateTripTypeInput) {
     description: input.description,
     distanceScopeId,
     tripPatternId,
-    basePrice: input.basePrice,
-    baseDuration: input.baseHour, // Map baseHour to baseDuration in database
-    baseDistance: input.distance, // Map distance to baseDistance in database
-    extraPerHour: input.extraPerHour,
-    extraPerHalfHour: input.extraPerHalfHour,
+    specialPrice,
+    // When specialPrice is true, ignore basePrice/baseHour/extraPerHour even if provided
+    basePrice: specialPrice ? null : (input.basePrice ?? null),
+    baseDuration: specialPrice ? null : (input.baseHour ?? null), // Map baseHour to baseDuration in database
+    baseDistance: input.distance ?? null, // Map distance to baseDistance in database
+    extraPerHour: specialPrice ? null : (input.extraPerHour ?? null),
+    extraPerHalfHour: input.extraPerHalfHour ?? null,
+    distanceSlabs: input.distanceSlabs ? JSON.parse(JSON.stringify(input.distanceSlabs)) : null,
   });
 
   return mapTripTypeResponse(created);
@@ -230,6 +289,10 @@ export async function updateTripType(id: string, input: UpdateTripTypeInput) {
     throw err;
   }
 
+  // Determine if we're switching to/from specialPrice mode
+  const newSpecialPrice = input.specialPrice !== undefined ? input.specialPrice : existing.specialPrice;
+  const isSwitchingMode = input.specialPrice !== undefined && input.specialPrice !== existing.specialPrice;
+
   // Validate trip type name if provided
   if (input.name !== undefined) {
     if (!input.name || input.name.trim().length === 0) {
@@ -239,25 +302,78 @@ export async function updateTripType(id: string, input: UpdateTripTypeInput) {
     }
   }
 
-  // Validate base price if provided
-  if (input.basePrice !== undefined && input.basePrice < 0) {
-    const err: any = new Error("Base price must be a positive number");
-    err.statusCode = 400;
-    throw err;
-  }
+  if (newSpecialPrice) {
+    // Special price mode: validate distanceSlabs if provided or if switching modes
+    if (input.distanceSlabs !== undefined || isSwitchingMode) {
+      const slabsToValidate = input.distanceSlabs || existing.distanceSlabs;
+      if (!slabsToValidate || !Array.isArray(slabsToValidate) || slabsToValidate.length === 0) {
+        const err: any = new Error("distanceSlabs is required when specialPrice is true");
+        err.statusCode = 400;
+        throw err;
+      }
 
-  // Validate base hour if provided
-  if (input.baseHour !== undefined && input.baseHour < 0) {
-    const err: any = new Error("Base hour must be a positive number");
-    err.statusCode = 400;
-    throw err;
-  }
+      // Validate each slab
+      for (const slab of slabsToValidate) {
+        if (typeof slab.from !== "number" || slab.from < 0) {
+          const err: any = new Error("Slab 'from' distance must be a non-negative number");
+          err.statusCode = 400;
+          throw err;
+        }
+        if (slab.to !== null && slab.to !== undefined && (typeof slab.to !== "number" || slab.to < slab.from)) {
+          const err: any = new Error("Slab 'to' distance must be greater than or equal to 'from'");
+          err.statusCode = 400;
+          throw err;
+        }
+        if (typeof slab.price !== "number" || slab.price < 0) {
+          const err: any = new Error("Slab price must be a non-negative number");
+          err.statusCode = 400;
+          throw err;
+        }
+      }
+    }
+  } else {
+    // Standard pricing mode: validate basePrice and extraPerHour if provided or if switching modes
+    if (input.basePrice !== undefined || isSwitchingMode) {
+      const priceToValidate = input.basePrice !== undefined ? input.basePrice : existing.basePrice;
+      if (priceToValidate === null || priceToValidate === undefined) {
+        const err: any = new Error("basePrice is required when specialPrice is false");
+        err.statusCode = 400;
+        throw err;
+      }
+      if (priceToValidate < 0) {
+        const err: any = new Error("Base price must be a positive number");
+        err.statusCode = 400;
+        throw err;
+      }
+    }
 
-  // Validate extra per hour if provided
-  if (input.extraPerHour !== undefined && input.extraPerHour < 0) {
-    const err: any = new Error("Extra per hour must be a positive number");
-    err.statusCode = 400;
-    throw err;
+    if (input.baseHour !== undefined || isSwitchingMode) {
+      const hourToValidate = input.baseHour !== undefined ? input.baseHour : (existing.baseDuration ?? null);
+      if (hourToValidate === null || hourToValidate === undefined) {
+        const err: any = new Error("baseHour is required when specialPrice is false");
+        err.statusCode = 400;
+        throw err;
+      }
+      if (hourToValidate < 0) {
+        const err: any = new Error("Base hour must be a positive number");
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+
+    if (input.extraPerHour !== undefined || isSwitchingMode) {
+      const extraToValidate = input.extraPerHour !== undefined ? input.extraPerHour : (existing.extraPerHour ?? null);
+      if (extraToValidate === null || extraToValidate === undefined) {
+        const err: any = new Error("extraPerHour is required when specialPrice is false");
+        err.statusCode = 400;
+        throw err;
+      }
+      if (extraToValidate < 0) {
+        const err: any = new Error("Extra per hour must be a positive number");
+        err.statusCode = 400;
+        throw err;
+      }
+    }
   }
 
   // Validate extra per half hour if provided
@@ -296,6 +412,24 @@ export async function updateTripType(id: string, input: UpdateTripTypeInput) {
   if (input.distance !== undefined) {
     updateData.baseDistance = input.distance;
     delete updateData.distance;
+  }
+
+  // Handle distanceSlabs JSON serialization
+  if (input.distanceSlabs !== undefined) {
+    updateData.distanceSlabs = input.distanceSlabs ? JSON.parse(JSON.stringify(input.distanceSlabs)) : null;
+  }
+
+  // Handle specialPrice mode switching - clear opposite fields if switching
+  if (isSwitchingMode) {
+    if (newSpecialPrice) {
+      // Switching to specialPrice: clear standard pricing fields
+      updateData.basePrice = null;
+      updateData.baseDuration = null;
+      updateData.extraPerHour = null;
+    } else {
+      // Switching to standard: clear special pricing fields
+      updateData.distanceSlabs = null;
+    }
   }
 
   const updated = await repoUpdateTripTypeConfig(id, updateData);

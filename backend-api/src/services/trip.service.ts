@@ -9,11 +9,14 @@ import {
   getUnassignedTripsPaginated,
   getTripsByDriver,
 } from "../repositories/trip.repository";
+import { getActivityLogsByTripId } from "../repositories/activity.repository";
 import { TripStatus, PaymentStatus, PaymentMode, TripType } from "@prisma/client";
 
 import { getCustomerById } from "../repositories/customer.repository";
 import { getDriverById, updateDriverTripStatus } from "../repositories/driver.repository";
 import { generateOtp } from "../utils/otp";
+import jwt from "jsonwebtoken";
+import { authConfig } from "../config/authConfig";
 import { findOrCreateCustomer } from "./customer.service";
 import {
   CAR_GEAR_TYPES,
@@ -30,6 +33,7 @@ import prisma from "../config/prismaClient";
 import { logActivity } from "./activity.service";
 import { ActivityAction, ActivityEntityType } from "@prisma/client";
 import logger from "../config/logger";
+import { sendTripStartOtpEmail, sendTripEndOtpEmail, sendTripEndConfirmationEmail } from "./email.service";
 
 interface CreateTripInput {
   franchiseId: number;
@@ -134,25 +138,6 @@ export async function getTrip(id: string) {
     err.statusCode = 404;
     throw err;
   }
-  // Log activity (non-blocking)
-  logActivity({
-    action: ActivityAction.TRIP_CREATED,
-    entityType: ActivityEntityType.TRIP,
-    entityId: trip.id,
-    franchiseId: trip.franchiseId,
-    tripId: trip.id,
-    userId: input.createdBy || null,
-    description: `Trip created for customer ${input.customerName} (${input.customerPhone}) - ${tripTypeEnum}`,
-    metadata: {
-      tripType: tripTypeEnum,
-      customerName: input.customerName,
-      customerPhone: input.customerPhone,
-      pickupLocation: input.pickupAddress,
-      dropLocation: input.destinationAddress,
-    },
-  }).catch((err) => {
-    logger.error("Failed to log trip creation activity", { error: err });
-  });
 
   return trip;
 }
@@ -304,6 +289,125 @@ export async function getAvailableDriversForTrip(tripId: string) {
     performance: driver.performance,
     matchScore,
   }));
+}
+
+/**
+ * Assign a driver to a trip with explicit franchise validation
+ */
+export async function assignDriverToTripWithFranchise(
+  tripId: string,
+  driverId: string,
+  franchiseId: string,
+  assignedBy?: string
+) {
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error("Trip not found");
+    err.statusCode = 404;
+    throw err;
+  }
+  
+  // Validate franchise id matches trip
+  if (trip.franchiseId !== franchiseId) {
+    const err: any = new Error("Franchise ID does not match the trip's franchise");
+    err.statusCode = 400;
+    throw err;
+  }
+  
+  if (trip.driverId) {
+    const err: any = new Error("Trip already has a driver assigned");
+    err.statusCode = 400;
+    throw err;
+  }
+  if (
+    trip.status !== "NOT_ASSIGNED" &&
+    trip.status !== "REQUESTED" &&
+    trip.status !== "PENDING"
+  ) {
+    const err: any = new Error(
+      `Cannot assign driver to trip with status: ${trip.status}`
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+  const driver = await getDriverById(driverId);
+  if (!driver) {
+    const err: any = new Error("Driver not found");
+    err.statusCode = 404;
+    throw err;
+  }
+  // Validate all criteria
+  if (driver.franchiseId !== franchiseId) {
+    const err: any = new Error("Driver belongs to different franchise");
+    err.statusCode = 400;
+    throw err;
+  }
+  if (driver.status !== "ACTIVE" || !driver.isActive) {
+    const err: any = new Error("Driver is not active");
+    err.statusCode = 400;
+    throw err;
+  }
+  if (driver.bannedGlobally) {
+    const err: any = new Error("Driver is globally banned");
+    err.statusCode = 400;
+    throw err;
+  }
+  if (driver.licenseExpDate < new Date()) {
+    const err: any = new Error("Driver license has expired");
+    err.statusCode = 400;
+    throw err;
+  }
+  // Check if driver has active trip
+  const activeTrips = await prisma.trip.count({
+    where: {
+      driverId: driver.id,
+      status: {
+        in: [
+          "ASSIGNED",
+          "DRIVER_ACCEPTED",
+          "IN_PROGRESS",
+          "TRIP_STARTED",
+          "TRIP_PROGRESS",
+        ],
+      },
+    },
+  });
+  if (activeTrips > 0) {
+    const err: any = new Error("Driver already has an active trip");
+    err.statusCode = 400;
+    throw err;
+  }
+  // Assign driver
+  const updatedTrip = await updateTrip(tripId, {
+    driverId,
+    status: "ASSIGNED",
+  });
+  
+  // Update driver trip status to ON_TRIP
+  await updateDriverTripStatus(driverId, "ON_TRIP");
+
+  // Log activity (non-blocking)
+  logActivity({
+    action: ActivityAction.TRIP_ASSIGNED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: tripId,
+    franchiseId: franchiseId,
+    driverId: driverId,
+    tripId: tripId,
+    userId: assignedBy || null,
+    description: `Trip ${tripId} assigned to driver ${driver.firstName} ${driver.lastName} (${driver.driverCode})`,
+    metadata: {
+      tripId: tripId,
+      driverId: driverId,
+      driverCode: driver.driverCode,
+      customerName: trip.customerName,
+      franchiseId: franchiseId,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log trip assignment activity", { error: err });
+  });
+  
+  return updatedTrip;
 }
 
 /**
@@ -644,6 +748,945 @@ export async function startTripWithOtp(
   });
   
   return updatedTrip;
+}
+
+/**
+ * Initiate trip start - generates OTP, token, and sends OTP to customer
+ */
+interface InitiateStartTripInput {
+  tripId: string;
+  driverId: string;
+  franchiseId: string;
+  odometerValue: number;
+  odometerPic: string;
+  carFrontPic: string;
+  carBackPic: string;
+}
+
+export async function initiateStartTrip(input: InitiateStartTripInput) {
+  const { tripId, driverId, franchiseId, odometerValue, odometerPic, carFrontPic, carBackPic } = input;
+  
+  // Validate trip exists
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error("Trip not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Validate franchise matches
+  if (trip.franchiseId !== franchiseId) {
+    const err: any = new Error("Franchise ID does not match the trip's franchise");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate driver matches
+  if (trip.driverId !== driverId) {
+    const err: any = new Error("This trip is not assigned to this driver");
+    err.statusCode = 403;
+    throw err;
+  }
+
+  // Validate trip status
+  if (trip.status !== TripStatus.ASSIGNED && trip.status !== TripStatus.DRIVER_ACCEPTED) {
+    const err: any = new Error(`Trip is not in a valid status for starting. Current status: ${trip.status}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Generate OTP
+  const otp = generateOtp(4);
+
+  // Generate JWT token with trip info and OTP hash
+  const tokenPayload = {
+    tripId,
+    driverId,
+    franchiseId,
+    otpHash: otp, // In production, hash this
+    type: "trip-start-verification",
+    timestamp: Date.now(),
+  };
+
+  const token = jwt.sign(tokenPayload, authConfig.jwtSecret, {
+    expiresIn: "10m", // Token expires in 10 minutes
+  });
+
+  // Store OTP and temporary data in trip (before status change)
+  // Note: odometerPic is stored in alternativePhone field temporarily
+  // TODO: Add odometerPic field to Trip schema in future migration
+  await updateTrip(tripId, {
+    startOtp: otp,
+    startOdometer: odometerValue,
+    carImageFront: carFrontPic,
+    carImageBack: carBackPic,
+    alternativePhone: odometerPic, // Temporary storage - TODO: Add proper field
+  });
+
+  // Send OTP to customer via email
+  if (trip.customerEmail) {
+    try {
+      // Get driver name if available
+      let driverName: string | undefined;
+      if (trip.Driver) {
+        driverName = `${trip.Driver.firstName} ${trip.Driver.lastName}`.trim();
+      }
+
+      await sendTripStartOtpEmail({
+        to: trip.customerEmail,
+        customerName: trip.customerName,
+        otp,
+        tripId,
+        pickupAddress: trip.pickupAddress || undefined,
+        driverName,
+      });
+
+      logger.info("Trip start OTP email sent to customer", {
+        tripId,
+        customerEmail: trip.customerEmail,
+        customerName: trip.customerName,
+        otpSent: true,
+      });
+    } catch (error) {
+      // Log error but don't fail the request - email failure shouldn't block trip initiation
+      logger.error("Failed to send trip start OTP email", {
+        error: error instanceof Error ? error.message : String(error),
+        tripId,
+        customerEmail: trip.customerEmail,
+      });
+    }
+  } else {
+    logger.warn("Customer email not available, OTP email not sent", {
+      tripId,
+      customerPhone: trip.customerPhone,
+      customerName: trip.customerName,
+    });
+  }
+
+  // TODO: Also send OTP via SMS/WhatsApp if customer phone is available
+  // await sendSms(trip.customerPhone, `Your trip start OTP is: ${otp}`);
+  // or
+  // await sendWhatsApp(trip.customerPhone, `Your trip start OTP is: ${otp}`);
+
+  return {
+    token,
+    tripId,
+    message: trip.customerEmail 
+      ? "OTP sent to customer via email. Please verify with token and OTP to start trip."
+      : "OTP generated. Customer email not available. Please verify with token and OTP to start trip.",
+    emailSent: !!trip.customerEmail,
+  };
+}
+
+/**
+ * Verify token and OTP, then start the trip
+ */
+interface VerifyStartTripInput {
+  tripId: string;
+  token: string;
+  otp: string;
+}
+
+export async function verifyAndStartTrip(input: VerifyStartTripInput) {
+  const { tripId, token, otp } = input;
+
+  // Verify JWT token
+  let decoded: any;
+  try {
+    decoded = jwt.verify(token, authConfig.jwtSecret);
+  } catch (err) {
+    const error: any = new Error("Invalid or expired token");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  // Validate token type
+  if (decoded.type !== "trip-start-verification") {
+    const err: any = new Error("Invalid token type");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate trip ID matches
+  if (decoded.tripId !== tripId) {
+    const err: any = new Error("Token trip ID does not match");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Get trip
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error("Trip not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Verify OTP matches
+  if (!trip.startOtp || trip.startOtp !== otp) {
+    const err: any = new Error("Invalid OTP");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate trip status hasn't changed
+  if (trip.status !== TripStatus.ASSIGNED && trip.status !== TripStatus.DRIVER_ACCEPTED) {
+    const err: any = new Error(`Trip status has changed. Current status: ${trip.status}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Start the trip
+  const now = new Date();
+  const updatedTrip = await updateTrip(tripId, {
+    startedAt: now,
+    status: TripStatus.TRIP_STARTED,
+    // Odometer and images already stored in initiateStartTrip
+    startOtp: null, // Clear OTP after successful verification
+  });
+
+  // Update driver trip status to ON_TRIP
+  await updateDriverTripStatus(decoded.driverId, "ON_TRIP");
+
+  // Log activity (non-blocking)
+  logActivity({
+    action: ActivityAction.TRIP_STARTED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: tripId,
+    franchiseId: trip.franchiseId,
+    driverId: decoded.driverId,
+    tripId: tripId,
+    description: `Trip ${tripId} started by driver after OTP verification`,
+    metadata: {
+      tripId: tripId,
+      driverId: decoded.driverId,
+      odometerValue: trip.startOdometer,
+      customerName: trip.customerName,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log trip start activity", { error: err });
+  });
+
+  return updatedTrip;
+}
+
+/**
+ * Initiate trip end - generates OTP, token, and sends OTP to customer
+ */
+interface InitiateEndTripInput {
+  tripId: string;
+  driverId: string;
+  franchiseId: string;
+  odometerValue: number;
+  odometerImage: string;
+}
+
+export async function initiateEndTrip(input: InitiateEndTripInput) {
+  const { tripId, driverId, franchiseId, odometerValue, odometerImage } = input;
+  
+  // Validate trip exists
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error("Trip not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Validate franchise matches
+  if (trip.franchiseId !== franchiseId) {
+    const err: any = new Error("Franchise ID does not match the trip's franchise");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate driver matches
+  if (trip.driverId !== driverId) {
+    const err: any = new Error("This trip is not assigned to this driver");
+    err.statusCode = 403;
+    throw err;
+  }
+
+  // Validate trip status - must be started
+  if (trip.status !== TripStatus.TRIP_STARTED && trip.status !== TripStatus.TRIP_PROGRESS && trip.status !== TripStatus.IN_PROGRESS) {
+    const err: any = new Error(`Trip is not in a valid status for ending. Current status: ${trip.status}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate trip has been started
+  if (!trip.startedAt) {
+    const err: any = new Error("Trip has not been started yet");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate start odometer exists
+  if (!trip.startOdometer) {
+    const err: any = new Error("Start odometer reading is missing");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Generate OTP
+  const otp = generateOtp(4);
+
+  // Generate JWT token with trip info and OTP hash
+  const tokenPayload = {
+    tripId,
+    driverId,
+    franchiseId,
+    otpHash: otp, // In production, hash this
+    type: "trip-end-verification",
+    timestamp: Date.now(),
+  };
+
+  const token = jwt.sign(tokenPayload, authConfig.jwtSecret, {
+    expiresIn: "10m", // Token expires in 10 minutes
+  });
+
+  // Store OTP and temporary end odometer data (before status change)
+  // Note: odometerImage is stored in alternativePhone field temporarily
+  // TODO: Add odometerImage field to Trip schema in future migration
+  await updateTrip(tripId, {
+    endOtp: otp,
+    endOdometer: odometerValue,
+    alternativePhone: odometerImage, // Temporary storage - TODO: Add proper field
+  });
+
+  // Send OTP to customer via email
+  if (trip.customerEmail) {
+    try {
+      // Get driver name if available
+      let driverName: string | undefined;
+      if (trip.Driver) {
+        driverName = `${trip.Driver.firstName} ${trip.Driver.lastName}`.trim();
+      }
+
+      await sendTripEndOtpEmail({
+        to: trip.customerEmail,
+        customerName: trip.customerName,
+        otp,
+        tripId,
+        dropAddress: trip.dropAddress || undefined,
+        driverName,
+      });
+
+      logger.info("Trip end OTP email sent to customer", {
+        tripId,
+        customerEmail: trip.customerEmail,
+        customerName: trip.customerName,
+        otpSent: true,
+      });
+    } catch (error) {
+      // Log error but don't fail the request - email failure shouldn't block trip end initiation
+      logger.error("Failed to send trip end OTP email", {
+        error: error instanceof Error ? error.message : String(error),
+        tripId,
+        customerEmail: trip.customerEmail,
+      });
+    }
+  } else {
+    logger.warn("Customer email not available, OTP email not sent", {
+      tripId,
+      customerPhone: trip.customerPhone,
+      customerName: trip.customerName,
+    });
+  }
+
+  return {
+    token,
+    tripId,
+    message: trip.customerEmail 
+      ? "OTP sent to customer via email. Please verify with token and OTP to end trip."
+      : "OTP generated. Customer email not available. Please verify with token and OTP to end trip.",
+    emailSent: !!trip.customerEmail,
+  };
+}
+
+/**
+ * Verify token and OTP, then end the trip and calculate amount
+ */
+interface VerifyEndTripInput {
+  tripId: string;
+  token: string;
+  otp: string;
+}
+
+export async function verifyAndEndTrip(input: VerifyEndTripInput) {
+  const { tripId, token, otp } = input;
+
+  // Verify JWT token
+  let decoded: any;
+  try {
+    decoded = jwt.verify(token, authConfig.jwtSecret);
+  } catch (err) {
+    const error: any = new Error("Invalid or expired token");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  // Validate token type
+  if (decoded.type !== "trip-end-verification") {
+    const err: any = new Error("Invalid token type");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate trip ID matches
+  if (decoded.tripId !== tripId) {
+    const err: any = new Error("Token trip ID does not match");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Get trip with all relations
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error("Trip not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Verify OTP matches
+  if (!trip.endOtp || trip.endOtp !== otp) {
+    const err: any = new Error("Invalid OTP");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate trip status hasn't changed
+  if (trip.status !== TripStatus.TRIP_STARTED && trip.status !== TripStatus.TRIP_PROGRESS && trip.status !== TripStatus.IN_PROGRESS) {
+    const err: any = new Error(`Trip status has changed. Current status: ${trip.status}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate required data exists
+  if (!trip.startedAt) {
+    const err: any = new Error("Trip start time is missing");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (!trip.startOdometer) {
+    const err: any = new Error("Start odometer reading is missing");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (!trip.endOdometer) {
+    const err: any = new Error("End odometer reading is missing");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Calculate distance traveled (in km)
+  const distanceTraveled = trip.endOdometer - trip.startOdometer;
+  if (distanceTraveled < 0) {
+    const err: any = new Error("End odometer reading cannot be less than start odometer reading");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Calculate time taken (in hours)
+  const now = new Date();
+  const timeTakenMs = now.getTime() - trip.startedAt.getTime();
+  const timeTakenHours = timeTakenMs / (1000 * 60 * 60); // Convert milliseconds to hours
+
+  // Get trip type
+  const tripType = trip.tripType as TripType;
+
+  // Get car type from driver if available
+  let carType: "PREMIUM" | "LUXURY" | "NORMAL" | undefined;
+  if (trip.Driver?.carType) {
+    // Map driver car type to pricing car type category
+    const driverCarType = trip.Driver.carType.toUpperCase();
+    if (driverCarType === "PREMIUM" || driverCarType === "LUXURY") {
+      carType = driverCarType as "PREMIUM" | "LUXURY";
+    } else {
+      carType = "NORMAL";
+    }
+  }
+
+  // Calculate trip amount using pricing service
+  let calculatedAmount = 0;
+  let priceBreakdown: any = null;
+  try {
+    const priceResult = await calculateTripPrice({
+      tripType,
+      distance: distanceTraveled,
+      duration: timeTakenHours,
+      carType,
+    });
+    calculatedAmount = priceResult.totalPrice;
+    priceBreakdown = priceResult.breakdown;
+  } catch (error) {
+    logger.error("Failed to calculate trip price", {
+      error: error instanceof Error ? error.message : String(error),
+      tripId,
+      tripType,
+      distanceTraveled,
+      timeTakenHours,
+    });
+    // Use existing totalAmount as fallback
+    calculatedAmount = trip.totalAmount;
+  }
+
+  // Update trip with calculated amount but don't end it yet - wait for payment
+  await updateTrip(tripId, {
+    finalAmount: calculatedAmount,
+    totalAmount: calculatedAmount, // Update total amount with calculated value
+    endOtp: null, // Clear OTP after successful verification
+    status: TripStatus.TRIP_PROGRESS, // Keep trip in progress until payment is verified
+  });
+
+  // Return only calculated values and total amount
+  return {
+    totalAmount: calculatedAmount,
+    distanceTraveled: Math.round(distanceTraveled * 100) / 100, // Round to 2 decimal places
+    timeTakenHours: Math.round(timeTakenHours * 100) / 100, // Round to 2 decimal places
+    timeTakenMinutes: Math.round((timeTakenHours * 60) * 100) / 100,
+    tripType,
+    calculatedAmount,
+  };
+}
+
+/**
+ * Collect payment information from customer
+ */
+interface CollectPaymentInput {
+  tripId: string;
+  driverId: string;
+  paymentMethod: "UPI" | "CASH" | "BOTH";
+  upiAmount?: number;
+  cashAmount?: number;
+  upiReference?: string; // UPI transaction reference/ID
+}
+
+export async function collectPayment(input: CollectPaymentInput) {
+  const { tripId, driverId, paymentMethod, upiAmount, cashAmount, upiReference } = input;
+
+  // Validate trip exists
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error("Trip not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Validate driver matches
+  if (trip.driverId !== driverId) {
+    const err: any = new Error("This trip is not assigned to this driver");
+    err.statusCode = 403;
+    throw err;
+  }
+
+  // Validate trip status - must be in progress (after end-verify)
+  if (trip.status !== TripStatus.TRIP_PROGRESS && trip.status !== TripStatus.TRIP_STARTED && trip.status !== TripStatus.IN_PROGRESS) {
+    const err: any = new Error(`Trip is not in a valid status for payment collection. Current status: ${trip.status}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate payment method and amounts
+  let totalPaid = 0;
+  let paymentMode: PaymentMode;
+  let paymentRef: string | null = null;
+
+  if (paymentMethod === "UPI") {
+    if (!upiAmount || upiAmount <= 0) {
+      const err: any = new Error("UPI amount is required and must be greater than 0");
+      err.statusCode = 400;
+      throw err;
+    }
+    totalPaid = upiAmount;
+    paymentMode = PaymentMode.UPI;
+    paymentRef = upiReference || null;
+  } else if (paymentMethod === "CASH") {
+    if (!cashAmount || cashAmount <= 0) {
+      const err: any = new Error("Cash amount is required and must be greater than 0");
+      err.statusCode = 400;
+      throw err;
+    }
+    totalPaid = cashAmount;
+    paymentMode = PaymentMode.IN_HAND;
+  } else if (paymentMethod === "BOTH") {
+    if (!upiAmount || upiAmount <= 0) {
+      const err: any = new Error("UPI amount is required and must be greater than 0 when payment method is BOTH");
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!cashAmount || cashAmount <= 0) {
+      const err: any = new Error("Cash amount is required and must be greater than 0 when payment method is BOTH");
+      err.statusCode = 400;
+      throw err;
+    }
+    totalPaid = upiAmount + cashAmount;
+    paymentMode = PaymentMode.UPI; // Primary mode, split info stored in paymentReference
+    // Store split payment info as JSON in paymentReference
+    paymentRef = JSON.stringify({
+      upiAmount,
+      cashAmount,
+      upiReference: upiReference || null,
+    });
+  } else {
+    const err: any = new Error("Invalid payment method. Must be UPI, CASH, or BOTH");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate total paid matches trip amount
+  const tripAmount = trip.finalAmount || trip.totalAmount;
+  if (Math.abs(totalPaid - tripAmount) > 0.01) { // Allow small rounding differences
+    const err: any = new Error(`Payment amount (${totalPaid}) does not match trip amount (${tripAmount})`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Update trip with payment information
+  const updatedTrip = await updateTrip(tripId, {
+    paymentMode,
+    paymentReference: paymentRef,
+    paymentStatus: PaymentStatus.COMPLETED,
+    // Store split payment amounts in overrideReason field temporarily (can be moved to dedicated field later)
+    overrideReason: paymentMethod === "BOTH" 
+      ? `Split payment: UPI ₹${upiAmount}, Cash ₹${cashAmount}` 
+      : null,
+  });
+
+  // Log activity (non-blocking)
+  logActivity({
+    action: ActivityAction.TRIP_UPDATED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: tripId,
+    franchiseId: trip.franchiseId,
+    driverId: driverId,
+    tripId: tripId,
+    description: `Payment collected for trip ${tripId}`,
+    metadata: {
+      tripId: tripId,
+      driverId: driverId,
+      paymentMethod,
+      totalPaid,
+      upiAmount: paymentMethod === "UPI" || paymentMethod === "BOTH" ? upiAmount : null,
+      cashAmount: paymentMethod === "CASH" || paymentMethod === "BOTH" ? cashAmount : null,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log payment collection activity", { error: err });
+  });
+
+  return {
+    tripId: updatedTrip.id,
+    paymentMethod,
+    totalPaid,
+    upiAmount: paymentMethod === "UPI" || paymentMethod === "BOTH" ? upiAmount : null,
+    cashAmount: paymentMethod === "CASH" || paymentMethod === "BOTH" ? cashAmount : null,
+    paymentStatus: "COMPLETED",
+    message: "Payment collected successfully. Please verify payment to end trip.",
+  };
+}
+
+/**
+ * Verify payment and end trip - sends email with review form
+ */
+interface VerifyPaymentAndEndTripInput {
+  tripId: string;
+  driverId: string;
+}
+
+export async function verifyPaymentAndEndTrip(input: VerifyPaymentAndEndTripInput) {
+  const { tripId, driverId } = input;
+
+  // Validate trip exists
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error("Trip not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Validate driver matches
+  if (trip.driverId !== driverId) {
+    const err: any = new Error("This trip is not assigned to this driver");
+    err.statusCode = 403;
+    throw err;
+  }
+
+  // Validate payment is completed
+  if (trip.paymentStatus !== PaymentStatus.COMPLETED) {
+    const err: any = new Error("Payment not completed. Please collect payment first.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate trip status
+  if (trip.status !== TripStatus.TRIP_PROGRESS && trip.status !== TripStatus.TRIP_STARTED && trip.status !== TripStatus.IN_PROGRESS) {
+    const err: any = new Error(`Trip is not in a valid status for ending. Current status: ${trip.status}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // End the trip
+  const now = new Date();
+  const updatedTrip = await updateTrip(tripId, {
+    endedAt: now,
+    status: TripStatus.TRIP_ENDED,
+  });
+
+  // Update driver trip status to AVAILABLE
+  await updateDriverTripStatus(driverId, "AVAILABLE");
+
+  // Send trip end email with review form
+  if (trip.customerEmail) {
+    try {
+      // Get driver name if available
+      let driverName: string | undefined;
+      if (trip.Driver) {
+        driverName = `${trip.Driver.firstName} ${trip.Driver.lastName}`.trim();
+      }
+
+      await sendTripEndConfirmationEmail({
+        to: trip.customerEmail,
+        customerName: trip.customerName,
+        tripId,
+        driverName,
+        driverId: driverId,
+        tripAmount: trip.finalAmount || trip.totalAmount,
+        pickupAddress: trip.pickupAddress || trip.pickupLocation,
+        dropAddress: trip.dropAddress || trip.dropLocation,
+        startedAt: trip.startedAt,
+        endedAt: now,
+      });
+
+      logger.info("Trip end confirmation email sent to customer", {
+        tripId,
+        customerEmail: trip.customerEmail,
+        customerName: trip.customerName,
+      });
+    } catch (error) {
+      // Log error but don't fail the request - email failure shouldn't block trip ending
+      logger.error("Failed to send trip end confirmation email", {
+        error: error instanceof Error ? error.message : String(error),
+        tripId,
+        customerEmail: trip.customerEmail,
+      });
+    }
+  }
+
+  // Log activity (non-blocking)
+  logActivity({
+    action: ActivityAction.TRIP_ENDED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: tripId,
+    franchiseId: trip.franchiseId,
+    driverId: driverId,
+    tripId: tripId,
+    description: `Trip ${tripId} ended after payment verification`,
+    metadata: {
+      tripId: tripId,
+      driverId: driverId,
+      paymentStatus: trip.paymentStatus,
+      paymentMode: trip.paymentMode,
+      finalAmount: trip.finalAmount || trip.totalAmount,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log trip end activity", { error: err });
+  });
+
+  return {
+    tripId: updatedTrip.id,
+    status: "TRIP_ENDED",
+    message: "Trip ended successfully. Confirmation email sent to customer.",
+    emailSent: !!trip.customerEmail,
+  };
+}
+
+/**
+ * Get trip history for a driver - returns timeline of all events
+ */
+export async function getTripHistory(tripId: string, driverId: string) {
+  // Validate trip exists
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error("Trip not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Validate driver matches
+  if (trip.driverId !== driverId) {
+    const err: any = new Error("This trip is not assigned to this driver");
+    err.statusCode = 403;
+    throw err;
+  }
+
+  // Get all activity logs for this trip
+  const activityLogs = await getActivityLogsByTripId(tripId);
+
+  // Build timeline from activity logs and trip data
+  const timeline: any[] = [];
+
+  // Map activity actions to user-friendly event names
+  const eventMap: Record<string, string> = {
+    TRIP_CREATED: "Trip Created",
+    TRIP_ASSIGNED: "Request Accepted",
+    TRIP_ACCEPTED: "Request Accepted",
+    TRIP_STARTED: "Trip Started",
+    TRIP_ENDED: "Trip Ended",
+    TRIP_UPDATED: "Trip Updated",
+    TRIP_STATUS_CHANGED: "Status Changed",
+  };
+
+  // Add events from activity logs
+  activityLogs.forEach((log) => {
+    const eventName = eventMap[log.action] || log.action;
+    
+    // Map specific events
+    let eventType = "";
+    let description = log.description;
+    
+    if (log.action === "TRIP_ASSIGNED" || log.action === "TRIP_ACCEPTED") {
+      eventType = "request_accepted";
+      description = "Driver accepted the trip request";
+    } else if (log.action === "TRIP_STARTED") {
+      eventType = "trip_started";
+      description = "Trip started successfully";
+    } else if (log.action === "TRIP_ENDED") {
+      eventType = "trip_ended";
+      description = "Trip ended successfully";
+    } else if (log.action === "TRIP_UPDATED") {
+      // Check metadata to determine if it's payment related
+      const metadata = log.metadata as any;
+      if (metadata?.paymentMethod) {
+        eventType = "payment_initiated";
+        description = `Payment collected: ${metadata.paymentMethod}`;
+      } else {
+        eventType = "trip_updated";
+      }
+    }
+
+    timeline.push({
+      eventType: eventType || log.action.toLowerCase(),
+      eventName,
+      description,
+      timestamp: log.createdAt,
+      metadata: log.metadata,
+    });
+  });
+
+  // Add events based on trip status and timestamps
+  if (trip.createdAt) {
+    timeline.push({
+      eventType: "trip_created",
+      eventName: "Trip Created",
+      description: "Trip was created",
+      timestamp: trip.createdAt,
+    });
+  }
+
+  // Request accepted - when trip is assigned or driver accepts
+  if (trip.status === "ASSIGNED" || trip.status === "DRIVER_ACCEPTED") {
+    const existingEvent = timeline.find(e => e.eventType === "request_accepted");
+    if (!existingEvent && trip.updatedAt) {
+      timeline.push({
+        eventType: "request_accepted",
+        eventName: "Request Accepted",
+        description: "Driver accepted the trip request",
+        timestamp: trip.updatedAt,
+      });
+    }
+  }
+
+  // Trip initiated/started
+  if (trip.startedAt) {
+    const existingEvent = timeline.find(e => e.eventType === "trip_started");
+    if (!existingEvent) {
+      timeline.push({
+        eventType: "trip_started",
+        eventName: "Trip Started",
+        description: "Trip started successfully",
+        timestamp: trip.startedAt,
+      });
+    }
+  }
+
+  // Trip on progress - after end-verify but before payment
+  if (trip.status === "TRIP_PROGRESS" || trip.status === "IN_PROGRESS") {
+    timeline.push({
+      eventType: "trip_on_progress",
+      eventName: "Trip On Progress",
+      description: "Trip is in progress",
+      timestamp: trip.updatedAt || new Date(),
+    });
+  }
+
+  // Trip end initiated - when end-verify is called (trip has endOdometer but not ended)
+  if (trip.endOdometer && trip.status !== "TRIP_ENDED") {
+    timeline.push({
+      eventType: "trip_end_initiated",
+      eventName: "Trip End Initiated",
+      description: "Trip end process initiated",
+      timestamp: trip.updatedAt || new Date(),
+    });
+  }
+
+  // Payment initiated - when payment is collected
+  if (trip.paymentStatus === "COMPLETED" && trip.paymentMode) {
+    const existingEvent = timeline.find(e => e.eventType === "payment_initiated");
+    if (!existingEvent) {
+      timeline.push({
+        eventType: "payment_initiated",
+        eventName: "Payment Initiated",
+        description: `Payment collected via ${trip.paymentMode}`,
+        timestamp: trip.updatedAt || new Date(),
+      });
+    }
+  }
+
+  // Payment end - when payment is verified and trip ends
+  if (trip.status === "TRIP_ENDED" && trip.paymentStatus === "COMPLETED") {
+    const existingEvent = timeline.find(e => e.eventType === "payment_end");
+    if (!existingEvent) {
+      timeline.push({
+        eventType: "payment_end",
+        eventName: "Payment Completed",
+        description: "Payment verified and trip completed",
+        timestamp: trip.endedAt || trip.updatedAt || new Date(),
+      });
+    }
+  }
+
+  // Trip ended
+  if (trip.endedAt) {
+    const existingEvent = timeline.find(e => e.eventType === "trip_ended" && e.timestamp.getTime() === trip.endedAt!.getTime());
+    if (!existingEvent) {
+      timeline.push({
+        eventType: "trip_ended",
+        eventName: "Trip Ended",
+        description: "Trip ended successfully",
+        timestamp: trip.endedAt,
+      });
+    }
+  }
+
+  // Sort timeline by timestamp
+  timeline.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+  // Add trip summary
+  return {
+    tripId: trip.id,
+    tripStatus: trip.status,
+    paymentStatus: trip.paymentStatus,
+    paymentMode: trip.paymentMode,
+    totalAmount: trip.totalAmount,
+    finalAmount: trip.finalAmount,
+    customerName: trip.customerName,
+    pickupAddress: trip.pickupAddress || trip.pickupLocation,
+    dropAddress: trip.dropAddress || trip.dropLocation,
+    startedAt: trip.startedAt,
+    endedAt: trip.endedAt,
+    timeline,
+  };
 }
 
 export async function generateEndOtpForTrip(tripId: string, driverId: string) {

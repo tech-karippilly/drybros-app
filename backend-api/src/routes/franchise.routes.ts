@@ -7,8 +7,7 @@ import {
   updateFranchiseHandler,
   softDeleteFranchiseHandler,
   updateFranchiseStatusHandler,
-  getStaffByFranchiseIdHandler,
-  getDriversByFranchiseIdHandler,
+  getFranchisePersonnelHandler,
 } from "../controllers/franchise.controller";
 import { authMiddleware, requireRole } from "../middlewares/auth";
 import { validate, validateParams, validateQuery } from "../middlewares/validation";
@@ -63,18 +62,11 @@ router.patch(
   updateFranchiseStatusHandler
 );
 
-// GET /franchises/:id/staff - Get staff by franchise ID
+// GET /franchises/:id/personnel - Get staff, drivers, and manager by franchise ID (combined)
 router.get(
-  "/:id/staff",
+  "/:id/personnel",
   validateParams(z.object({ id: z.string().uuid("Invalid franchise ID format") })),
-  getStaffByFranchiseIdHandler
-);
-
-// GET /franchises/:id/drivers - Get drivers by franchise ID
-router.get(
-  "/:id/drivers",
-  validateParams(z.object({ id: z.string().uuid("Invalid franchise ID format") })),
-  getDriversByFranchiseIdHandler
+  getFranchisePersonnelHandler
 );
 
 export default router;

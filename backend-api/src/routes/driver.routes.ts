@@ -1,6 +1,7 @@
 // src/routes/driver.routes.ts
 import express from "express";
 import { getDrivers, getDriverById, getDriverWithPerformanceHandler, getDriverPerformanceHandler, getAvailableGreenDriversHandler, getDriversByFranchisesHandler, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler } from "../controllers/driver.controller";
+import { getDriverDailyStatsHandler, getDriverMonthlyStatsHandler, getDriverSettlementHandler } from "../controllers/driverEarnings.controller";
 import { authMiddleware, requireRole } from "../middlewares/auth";
 import { UserRole } from "@prisma/client";
 import { validate, validateParams, validateQuery } from "../middlewares/validation";
@@ -48,6 +49,21 @@ router.get(
   "/:id/performance",
   validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),
   getDriverPerformanceHandler
+);
+router.get(
+  "/:id/daily-stats",
+  validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),
+  getDriverDailyStatsHandler
+);
+router.get(
+  "/:id/monthly-stats",
+  validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),
+  getDriverMonthlyStatsHandler
+);
+router.get(
+  "/:id/settlement",
+  validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),
+  getDriverSettlementHandler
 );
 
 // POST /drivers - Create new driver (only ADMIN and OFFICE_STAFF)

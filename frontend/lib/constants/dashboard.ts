@@ -14,7 +14,9 @@ import {
     Clock,
     ChevronDown,
     ChevronRight,
-    Shield
+    Shield,
+    Target,
+    AlertTriangle
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 
@@ -32,7 +34,16 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
         { icon: Home, label: 'Home', id: 'home' },
         { icon: Store, label: 'Franchises', id: 'franchises' },
         { icon: Users, label: 'Staff', id: 'staff' },
-        { icon: Truck, label: 'Drivers', id: 'drivers' },
+        {
+            icon: Truck,
+            label: 'Drivers',
+            id: 'drivers',
+            submenu: [
+                { icon: Truck, label: 'Driver List', id: 'drivers' },
+                { icon: Target, label: 'Daily Limits', id: 'driver-daily-limits' },
+                { icon: AlertTriangle, label: 'Penalties & Detections', id: 'driver-penalties' },
+            ],
+        },
         { icon: BarChart3, label: 'Reports', id: 'reports' },
         { icon: ShieldAlert, label: 'Penalties', id: 'payroll' },
         {
@@ -51,7 +62,16 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
     ],
     staff: [
         { icon: Home, label: 'Home', id: 'home' },
-        { icon: Truck, label: 'Drivers', id: 'drivers' },
+        {
+            icon: Truck,
+            label: 'Drivers',
+            id: 'drivers',
+            submenu: [
+                { icon: Truck, label: 'Driver List', id: 'drivers' },
+                { icon: Target, label: 'Daily Limits', id: 'driver-daily-limits' },
+                { icon: AlertTriangle, label: 'Penalties & Detections', id: 'driver-penalties' },
+            ],
+        },
         { icon: BarChart3, label: 'Reports', id: 'reports' },
         { icon: ShieldAlert, label: 'Penalties', id: 'payroll' },
         {

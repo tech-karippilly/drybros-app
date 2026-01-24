@@ -37,81 +37,13 @@ export async function getActivityLogsPaginated(
   take: number,
   filters?: {
     franchiseId?: string;
-    driverId?: string;
-    staffId?: string;
-    tripId?: string;
-    userId?: string;
-    action?: ActivityAction;
-    entityType?: ActivityEntityType;
-    startDate?: Date;
-    endDate?: Date;
-    OR?: any; // For complex role-based filtering
   }
 ) {
-  // Build where clause - handle OR conditions properly with AND
+  // Build where clause - only filter by franchiseId
   const whereClause: any = {};
   
-  // If OR is provided, we need to combine it with other filters using AND
-  if (filters?.OR) {
-    // When OR is present, combine it with other filters using AND
-    const andConditions: any[] = [{ OR: filters.OR }];
-    
-    // Add other filters as AND conditions
-    if (filters.franchiseId) {
-      andConditions.push({ franchiseId: filters.franchiseId });
-    }
-    if (filters.driverId) {
-      andConditions.push({ driverId: filters.driverId });
-    }
-    if (filters.staffId) {
-      andConditions.push({ staffId: filters.staffId });
-    }
-    if (filters.tripId) {
-      andConditions.push({ tripId: filters.tripId });
-    }
-    if (filters.userId) {
-      andConditions.push({ userId: filters.userId });
-    }
-    if (filters.startDate || filters.endDate) {
-      const dateFilter: any = {};
-      if (filters.startDate) dateFilter.gte = filters.startDate;
-      if (filters.endDate) dateFilter.lte = filters.endDate;
-      andConditions.push({ createdAt: dateFilter });
-    }
-    
-    whereClause.AND = andConditions;
-  } else {
-    // No OR condition - apply filters directly
-    if (filters?.franchiseId) {
-      whereClause.franchiseId = filters.franchiseId;
-    }
-    if (filters?.driverId) {
-      whereClause.driverId = filters.driverId;
-    }
-    if (filters?.staffId) {
-      whereClause.staffId = filters.staffId;
-    }
-    if (filters?.tripId) {
-      whereClause.tripId = filters.tripId;
-    }
-    if (filters?.userId) {
-      whereClause.userId = filters.userId;
-    }
-    if (filters?.action) {
-      whereClause.action = filters.action;
-    }
-    if (filters?.entityType) {
-      whereClause.entityType = filters.entityType;
-    }
-    if (filters?.startDate || filters?.endDate) {
-      whereClause.createdAt = {};
-      if (filters.startDate) {
-        whereClause.createdAt.gte = filters.startDate;
-      }
-      if (filters.endDate) {
-        whereClause.createdAt.lte = filters.endDate;
-      }
-    }
+  if (filters?.franchiseId) {
+    whereClause.franchiseId = filters.franchiseId;
   }
 
   const [data, total] = await Promise.all([
@@ -168,80 +100,12 @@ export async function getActivityLogsPaginated(
 
 export async function getAllActivityLogs(filters?: {
   franchiseId?: string;
-  driverId?: string;
-  staffId?: string;
-  tripId?: string;
-  userId?: string;
-  action?: ActivityAction;
-  entityType?: ActivityEntityType;
-  startDate?: Date;
-  endDate?: Date;
-  OR?: any; // For complex role-based filtering
 }) {
-  // Build where clause - handle OR conditions properly with AND
+  // Build where clause - only filter by franchiseId
   const whereClause: any = {};
   
-  // If OR is provided, we need to combine it with other filters using AND
-  if (filters?.OR) {
-    // When OR is present, combine it with other filters using AND
-    const andConditions: any[] = [{ OR: filters.OR }];
-    
-    // Add other filters as AND conditions
-    if (filters.franchiseId) {
-      andConditions.push({ franchiseId: filters.franchiseId });
-    }
-    if (filters.driverId) {
-      andConditions.push({ driverId: filters.driverId });
-    }
-    if (filters.staffId) {
-      andConditions.push({ staffId: filters.staffId });
-    }
-    if (filters.tripId) {
-      andConditions.push({ tripId: filters.tripId });
-    }
-    if (filters.userId) {
-      andConditions.push({ userId: filters.userId });
-    }
-    if (filters.startDate || filters.endDate) {
-      const dateFilter: any = {};
-      if (filters.startDate) dateFilter.gte = filters.startDate;
-      if (filters.endDate) dateFilter.lte = filters.endDate;
-      andConditions.push({ createdAt: dateFilter });
-    }
-    
-    whereClause.AND = andConditions;
-  } else {
-    // No OR condition - apply filters directly
-    if (filters?.franchiseId) {
-      whereClause.franchiseId = filters.franchiseId;
-    }
-    if (filters?.driverId) {
-      whereClause.driverId = filters.driverId;
-    }
-    if (filters?.staffId) {
-      whereClause.staffId = filters.staffId;
-    }
-    if (filters?.tripId) {
-      whereClause.tripId = filters.tripId;
-    }
-    if (filters?.userId) {
-      whereClause.userId = filters.userId;
-    }
-    if (filters?.action) {
-      whereClause.action = filters.action;
-    }
-    if (filters?.entityType) {
-      whereClause.entityType = filters.entityType;
-    }
-    if (filters?.startDate || filters?.endDate) {
-      whereClause.createdAt = {};
-      if (filters.startDate) {
-        whereClause.createdAt.gte = filters.startDate;
-      }
-      if (filters.endDate) {
-        whereClause.createdAt.lte = filters.endDate;
-      }
-    }
+  if (filters?.franchiseId) {
+    whereClause.franchiseId = filters.franchiseId;
   }
 
   return prisma.activityLog.findMany({
@@ -328,6 +192,34 @@ export async function getActivityLogById(id: string) {
           id: true,
           customerName: true,
           status: true,
+        },
+      },
+    },
+  });
+}
+
+/**
+ * Get activity logs for a specific trip
+ */
+export async function getActivityLogsByTripId(tripId: string) {
+  return prisma.activityLog.findMany({
+    where: { tripId },
+    orderBy: { createdAt: "asc" },
+    include: {
+      User: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          role: true,
+        },
+      },
+      Driver: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          driverCode: true,
         },
       },
     },

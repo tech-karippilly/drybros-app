@@ -800,3 +800,669 @@ export async function sendPasswordResetConfirmationEmail({ to, name, loginLink }
     // Don't throw error - password reset should succeed even if email fails
   }
 }
+
+interface SendTripStartOtpEmailParams {
+  to: string;
+  customerName: string;
+  otp: string;
+  tripId: string;
+  pickupAddress?: string;
+  driverName?: string;
+}
+
+/**
+ * Send trip start OTP email to customer
+ */
+export async function sendTripStartOtpEmail({
+  to,
+  customerName,
+  otp,
+  tripId,
+  pickupAddress,
+  driverName,
+}: SendTripStartOtpEmailParams): Promise<void> {
+  if (!transporter) {
+    logger.warn("Email transporter not configured. Skipping OTP email send.");
+    return;
+  }
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .header {
+            background-color: #2196F3;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+          }
+          .content {
+            background-color: #f9f9f9;
+            padding: 30px;
+            border-radius: 0 0 5px 5px;
+          }
+          .otp-box {
+            background-color: #e3f2fd;
+            border: 3px solid #2196F3;
+            border-radius: 10px;
+            padding: 30px;
+            margin: 30px 0;
+            text-align: center;
+          }
+          .otp-code {
+            font-size: 36px;
+            font-weight: bold;
+            color: #1976D2;
+            letter-spacing: 8px;
+            font-family: 'Courier New', monospace;
+            margin: 20px 0;
+          }
+          .info-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #856404;
+          }
+          .trip-details {
+            background-color: white;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 15px 0;
+          }
+          .footer {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>🚗 Your Trip is Starting!</h1>
+        </div>
+        <div class="content">
+          <h2>Hello ${customerName},</h2>
+          <p>Your trip is about to start! Please provide the following OTP to your driver to begin the trip.</p>
+          
+          <div class="otp-box">
+            <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">Your Trip Start OTP:</p>
+            <div class="otp-code">${otp}</div>
+            <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">This OTP is valid for 10 minutes</p>
+          </div>
+
+          <div class="info-box">
+            <strong>⚠️ Important:</strong>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+              <li>Share this OTP only with your assigned driver</li>
+              <li>Do not share this OTP with anyone else</li>
+              <li>The OTP will expire in 10 minutes</li>
+            </ul>
+          </div>
+
+          ${pickupAddress ? `
+          <div class="trip-details">
+            <h3 style="margin-top: 0; color: #1976D2;">Trip Details</h3>
+            <p><strong>Pickup Location:</strong> ${pickupAddress}</p>
+            ${driverName ? `<p><strong>Driver:</strong> ${driverName}</p>` : ''}
+            <p><strong>Trip ID:</strong> ${tripId}</p>
+          </div>
+          ` : ''}
+
+          <p>If you have any questions or concerns, please contact our support team immediately.</p>
+          <p>Best regards,<br>The Drybros Team</p>
+        </div>
+        <div class="footer">
+          <p>This is an automated email. Please do not reply to this message.</p>
+          <p>&copy; ${new Date().getFullYear()} Drybros. All rights reserved.</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const textContent = `
+    Your Trip is Starting!
+    
+    Hello ${customerName},
+    
+    Your trip is about to start! Please provide the following OTP to your driver to begin the trip.
+    
+    Your Trip Start OTP: ${otp}
+    (This OTP is valid for 10 minutes)
+    
+    ⚠️ Important:
+    - Share this OTP only with your assigned driver
+    - Do not share this OTP with anyone else
+    - The OTP will expire in 10 minutes
+    
+    ${pickupAddress ? `Trip Details:\nPickup Location: ${pickupAddress}\n` : ''}
+    ${driverName ? `Driver: ${driverName}\n` : ''}
+    Trip ID: ${tripId}
+    
+    If you have any questions or concerns, please contact our support team immediately.
+    
+    Best regards,
+    The Drybros Team
+    
+    ---
+    This is an automated email. Please do not reply to this message.
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: emailConfig.from,
+      to: to,
+      subject: "Drybros - Trip Start OTP",
+      text: textContent,
+      html: htmlContent,
+    });
+
+    logger.info("Trip start OTP email sent successfully", { 
+      email: to, 
+      customerName, 
+      tripId,
+      otpSent: true 
+    });
+  } catch (error) {
+    logger.error("Failed to send trip start OTP email", { 
+      error: error instanceof Error ? error.message : String(error),
+      email: to,
+      customerName,
+      tripId 
+    });
+    // Don't throw error - trip initiation should continue even if email fails
+    // But log it for monitoring
+  }
+}
+
+interface SendTripEndOtpEmailParams {
+  to: string;
+  customerName: string;
+  otp: string;
+  tripId: string;
+  dropAddress?: string;
+  driverName?: string;
+}
+
+/**
+ * Send trip end OTP email to customer
+ */
+export async function sendTripEndOtpEmail({
+  to,
+  customerName,
+  otp,
+  tripId,
+  dropAddress,
+  driverName,
+}: SendTripEndOtpEmailParams): Promise<void> {
+  if (!transporter) {
+    logger.warn("Email transporter not configured. Skipping OTP email send.");
+    return;
+  }
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+          }
+          .content {
+            background-color: #f9f9f9;
+            padding: 30px;
+            border-radius: 0 0 5px 5px;
+          }
+          .otp-box {
+            background-color: #e8f5e9;
+            border: 3px solid #4CAF50;
+            border-radius: 10px;
+            padding: 30px;
+            margin: 30px 0;
+            text-align: center;
+          }
+          .otp-code {
+            font-size: 36px;
+            font-weight: bold;
+            color: #2E7D32;
+            letter-spacing: 8px;
+            font-family: 'Courier New', monospace;
+            margin: 20px 0;
+          }
+          .info-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #856404;
+          }
+          .trip-details {
+            background-color: white;
+            border-left: 4px solid #4CAF50;
+            padding: 15px;
+            margin: 15px 0;
+          }
+          .footer {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>🏁 Your Trip is Ending!</h1>
+        </div>
+        <div class="content">
+          <h2>Hello ${customerName},</h2>
+          <p>Your trip is about to end! Please provide the following OTP to your driver to complete the trip.</p>
+          
+          <div class="otp-box">
+            <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">Your Trip End OTP:</p>
+            <div class="otp-code">${otp}</div>
+            <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">This OTP is valid for 10 minutes</p>
+          </div>
+
+          <div class="info-box">
+            <strong>⚠️ Important:</strong>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+              <li>Share this OTP only with your assigned driver</li>
+              <li>Do not share this OTP with anyone else</li>
+              <li>The OTP will expire in 10 minutes</li>
+            </ul>
+          </div>
+
+          ${dropAddress ? `
+          <div class="trip-details">
+            <h3 style="margin-top: 0; color: #2E7D32;">Trip Details</h3>
+            <p><strong>Drop Location:</strong> ${dropAddress}</p>
+            ${driverName ? `<p><strong>Driver:</strong> ${driverName}</p>` : ''}
+            <p><strong>Trip ID:</strong> ${tripId}</p>
+          </div>
+          ` : ''}
+
+          <p>If you have any questions or concerns, please contact our support team immediately.</p>
+          <p>Best regards,<br>The Drybros Team</p>
+        </div>
+        <div class="footer">
+          <p>This is an automated email. Please do not reply to this message.</p>
+          <p>&copy; ${new Date().getFullYear()} Drybros. All rights reserved.</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const textContent = `
+    Your Trip is Ending!
+    
+    Hello ${customerName},
+    
+    Your trip is about to end! Please provide the following OTP to your driver to complete the trip.
+    
+    Your Trip End OTP: ${otp}
+    (This OTP is valid for 10 minutes)
+    
+    ⚠️ Important:
+    - Share this OTP only with your assigned driver
+    - Do not share this OTP with anyone else
+    - The OTP will expire in 10 minutes
+    
+    ${dropAddress ? `Trip Details:\nDrop Location: ${dropAddress}\n` : ''}
+    ${driverName ? `Driver: ${driverName}\n` : ''}
+    Trip ID: ${tripId}
+    
+    If you have any questions or concerns, please contact our support team immediately.
+    
+    Best regards,
+    The Drybros Team
+    
+    ---
+    This is an automated email. Please do not reply to this message.
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: emailConfig.from,
+      to: to,
+      subject: "Drybros - Trip End OTP",
+      text: textContent,
+      html: htmlContent,
+    });
+
+    logger.info("Trip end OTP email sent successfully", { 
+      email: to, 
+      customerName, 
+      tripId,
+      otpSent: true 
+    });
+  } catch (error) {
+    logger.error("Failed to send trip end OTP email", { 
+      error: error instanceof Error ? error.message : String(error),
+      email: to,
+      customerName,
+      tripId 
+    });
+    // Don't throw error - trip end initiation should continue even if email fails
+    // But log it for monitoring
+  }
+}
+
+interface SendTripEndConfirmationEmailParams {
+  to: string;
+  customerName: string;
+  tripId: string;
+  driverName?: string;
+  driverId: string;
+  tripAmount: number;
+  pickupAddress?: string;
+  dropAddress?: string;
+  startedAt: Date | null;
+  endedAt: Date;
+}
+
+/**
+ * Send trip end confirmation email with review form
+ */
+export async function sendTripEndConfirmationEmail({
+  to,
+  customerName,
+  tripId,
+  driverName,
+  driverId,
+  tripAmount,
+  pickupAddress,
+  dropAddress,
+  startedAt,
+  endedAt,
+}: SendTripEndConfirmationEmailParams): Promise<void> {
+  if (!transporter) {
+    logger.warn("Email transporter not configured. Skipping confirmation email send.");
+    return;
+  }
+
+  // Calculate trip duration
+  let durationText = "N/A";
+  if (startedAt) {
+    const durationMs = endedAt.getTime() - startedAt.getTime();
+    const hours = Math.floor(durationMs / (1000 * 60 * 60));
+    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+    durationText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  }
+
+  // Review form link (you can customize this URL)
+  const reviewFormLink = `${process.env.FRONTEND_URL || "http://localhost:3000"}/review/${tripId}?driverId=${driverId}`;
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+          }
+          .content {
+            background-color: #f9f9f9;
+            padding: 30px;
+            border-radius: 0 0 5px 5px;
+          }
+          .trip-summary {
+            background-color: white;
+            border-left: 4px solid #4CAF50;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+          }
+          .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+          }
+          .summary-row:last-child {
+            border-bottom: none;
+          }
+          .summary-label {
+            font-weight: bold;
+            color: #666;
+          }
+          .summary-value {
+            color: #333;
+          }
+          .amount-highlight {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4CAF50;
+            text-align: center;
+            padding: 15px;
+            background-color: #e8f5e9;
+            border-radius: 5px;
+            margin: 20px 0;
+          }
+          .review-section {
+            background-color: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 25px;
+            margin: 30px 0;
+            text-align: center;
+          }
+          .review-button {
+            display: inline-block;
+            padding: 15px 40px;
+            background-color: #FF9800;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 15px 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+          }
+          .review-button:hover {
+            background-color: #F57C00;
+          }
+          .info-box {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+          }
+          .footer {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>✅ Trip Completed Successfully!</h1>
+        </div>
+        <div class="content">
+          <h2>Hello ${customerName},</h2>
+          <p>Thank you for choosing Drybros! Your trip has been completed successfully.</p>
+          
+          <div class="trip-summary">
+            <h3 style="margin-top: 0; color: #4CAF50;">Trip Summary</h3>
+            <div class="summary-row">
+              <span class="summary-label">Trip ID:</span>
+              <span class="summary-value">${tripId}</span>
+            </div>
+            ${driverName ? `
+            <div class="summary-row">
+              <span class="summary-label">Driver:</span>
+              <span class="summary-value">${driverName}</span>
+            </div>
+            ` : ''}
+            ${pickupAddress ? `
+            <div class="summary-row">
+              <span class="summary-label">Pickup:</span>
+              <span class="summary-value">${pickupAddress}</span>
+            </div>
+            ` : ''}
+            ${dropAddress ? `
+            <div class="summary-row">
+              <span class="summary-label">Drop:</span>
+              <span class="summary-value">${dropAddress}</span>
+            </div>
+            ` : ''}
+            ${startedAt ? `
+            <div class="summary-row">
+              <span class="summary-label">Duration:</span>
+              <span class="summary-value">${durationText}</span>
+            </div>
+            ` : ''}
+            <div class="summary-row">
+              <span class="summary-label">Completed At:</span>
+              <span class="summary-value">${endedAt.toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div class="amount-highlight">
+            Amount Paid: ₹${tripAmount}
+          </div>
+
+          <div class="review-section">
+            <h3 style="margin-top: 0; color: #856404;">⭐ Share Your Experience</h3>
+            <p>We value your feedback! Please take a moment to rate your experience:</p>
+            <ul style="text-align: left; display: inline-block; margin: 15px 0;">
+              <li>Rate your driver</li>
+              <li>Rate your trip experience</li>
+              <li>Share your thoughts about Drybros</li>
+            </ul>
+            <p style="margin: 20px 0;">
+              <a href="${reviewFormLink}" class="review-button">Submit Review</a>
+            </p>
+            <p style="font-size: 12px; color: #666; margin-top: 15px;">
+              Or copy and paste this link: <br>
+              <span style="word-break: break-all; color: #2196F3;">${reviewFormLink}</span>
+            </p>
+          </div>
+
+          <div class="info-box">
+            <strong>💡 Tip:</strong> Your feedback helps us improve our services and helps other customers make informed decisions.
+          </div>
+
+          <p>Thank you for choosing Drybros. We hope to serve you again soon!</p>
+          <p>Best regards,<br>The Drybros Team</p>
+        </div>
+        <div class="footer">
+          <p>This is an automated email. Please do not reply to this message.</p>
+          <p>&copy; ${new Date().getFullYear()} Drybros. All rights reserved.</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const textContent = `
+    Trip Completed Successfully!
+    
+    Hello ${customerName},
+    
+    Thank you for choosing Drybros! Your trip has been completed successfully.
+    
+    Trip Summary:
+    =============
+    Trip ID: ${tripId}
+    ${driverName ? `Driver: ${driverName}\n` : ''}
+    ${pickupAddress ? `Pickup: ${pickupAddress}\n` : ''}
+    ${dropAddress ? `Drop: ${dropAddress}\n` : ''}
+    ${startedAt ? `Duration: ${durationText}\n` : ''}
+    Completed At: ${endedAt.toLocaleString()}
+    Amount Paid: ₹${tripAmount}
+    
+    ⭐ Share Your Experience
+    =======================
+    We value your feedback! Please take a moment to rate your experience:
+    - Rate your driver
+    - Rate your trip experience
+    - Share your thoughts about Drybros
+    
+    Submit your review here:
+    ${reviewFormLink}
+    
+    💡 Tip: Your feedback helps us improve our services and helps other customers make informed decisions.
+    
+    Thank you for choosing Drybros. We hope to serve you again soon!
+    
+    Best regards,
+    The Drybros Team
+    
+    ---
+    This is an automated email. Please do not reply to this message.
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: emailConfig.from,
+      to: to,
+      subject: "Drybros - Trip Completed Successfully!",
+      text: textContent,
+      html: htmlContent,
+    });
+
+    logger.info("Trip end confirmation email sent successfully", { 
+      email: to, 
+      customerName, 
+      tripId,
+      driverId 
+    });
+  } catch (error) {
+    logger.error("Failed to send trip end confirmation email", { 
+      error: error instanceof Error ? error.message : String(error),
+      email: to,
+      customerName,
+      tripId 
+    });
+    // Don't throw error - trip ending should continue even if email fails
+  }
+}

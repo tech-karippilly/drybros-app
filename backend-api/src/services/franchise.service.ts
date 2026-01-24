@@ -11,6 +11,7 @@ import {
   updateFranchiseStatus as repoUpdateFranchiseStatus,
   getStaffByFranchiseId as repoGetStaffByFranchiseId,
   getDriversByFranchiseId as repoGetDriversByFranchiseId,
+  getFranchisePersonnel,
 } from "../repositories/franchise.repository";
 import { getRoleByName } from "../repositories/role.repository";
 import { CreateFranchiseDTO, CreateFranchiseResponseDTO, FranchiseResponseDTO, UpdateFranchiseDTO, UpdateFranchiseStatusDTO, PaginationQueryDTO, PaginatedFranchiseResponseDTO } from "../types/franchise.dto";
@@ -22,6 +23,8 @@ import { UserRole } from "@prisma/client";
 import { generatePassword } from "../utils/password";
 import { sendManagerWelcomeEmail } from "./email.service";
 import { emailConfig } from "../config/emailConfig";
+import { logActivity } from "./activity.service";
+import { ActivityAction, ActivityEntityType } from "@prisma/client";
 
 /**
  * Map franchise to response format
@@ -136,6 +139,7 @@ export async function createFranchise(
         phone: input.managerPhone,
         password: hashedPassword,
         role: UserRole.MANAGER,
+        franchiseId: franchise.id, // Link manager to franchise
       },
     });
 
@@ -165,6 +169,37 @@ export async function createFranchise(
     region: result.franchise.region,
     managerEmail: input.managerEmail,
     managerUserId: result.managerUser.id,
+  });
+
+  // Log franchise creation activity
+  logActivity({
+    action: ActivityAction.FRANCHISE_CREATED,
+    entityType: ActivityEntityType.FRANCHISE,
+    entityId: result.franchise.id,
+    franchiseId: result.franchise.id,
+    userId: result.managerUser.id,
+    description: `Franchise ${result.franchise.name} (${result.franchise.code}) created`,
+    metadata: {
+      franchiseName: result.franchise.name,
+      franchiseCode: result.franchise.code,
+      city: result.franchise.city,
+      region: result.franchise.region,
+    },
+  });
+
+  // Log manager creation activity
+  logActivity({
+    action: ActivityAction.FRANCHISE_CREATED, // Using FRANCHISE_CREATED as manager is part of franchise creation
+    entityType: ActivityEntityType.FRANCHISE,
+    entityId: result.franchise.id,
+    franchiseId: result.franchise.id,
+    userId: result.managerUser.id,
+    description: `Manager ${input.inchargeName} added to franchise ${result.franchise.name}`,
+    metadata: {
+      managerName: input.inchargeName,
+      managerEmail: input.managerEmail,
+      franchiseName: result.franchise.name,
+    },
   });
 
   return {
@@ -227,6 +262,20 @@ export async function updateFranchise(
     updatedFields: Object.keys(input),
   });
 
+  // Log franchise update activity
+  logActivity({
+    action: ActivityAction.FRANCHISE_UPDATED,
+    entityType: ActivityEntityType.FRANCHISE,
+    entityId: id,
+    franchiseId: id,
+    description: `Franchise ${updatedFranchise.name} (${updatedFranchise.code}) updated`,
+    metadata: {
+      updatedFields: Object.keys(input),
+      franchiseName: updatedFranchise.name,
+      franchiseCode: updatedFranchise.code,
+    },
+  });
+
   return {
     message: "Franchise updated successfully",
     data: mapFranchiseToResponse(updatedFranchise),
@@ -272,6 +321,21 @@ export async function updateFranchiseStatus(
     newStatus: input.status,
   });
 
+  // Log franchise status change activity
+  logActivity({
+    action: ActivityAction.FRANCHISE_STATUS_CHANGED,
+    entityType: ActivityEntityType.FRANCHISE,
+    entityId: id,
+    franchiseId: id,
+    description: `Franchise ${updatedFranchise.name} status changed to ${input.status}`,
+    metadata: {
+      oldStatus: existingFranchise.status,
+      newStatus: input.status,
+      franchiseName: updatedFranchise.name,
+      franchiseCode: updatedFranchise.code,
+    },
+  });
+
   return {
     message: "Franchise status updated successfully",
     data: mapFranchiseToResponse(updatedFranchise),
@@ -280,6 +344,7 @@ export async function updateFranchiseStatus(
 
 /**
  * Get staff details by franchise ID
+ * @deprecated Use getFranchisePersonnel instead
  */
 export async function getStaffByFranchiseId(franchiseId: string) {
   const franchise = await getFranchiseById(franchiseId);
@@ -293,6 +358,7 @@ export async function getStaffByFranchiseId(franchiseId: string) {
 
 /**
  * Get driver details by franchise ID
+ * @deprecated Use getFranchisePersonnel instead
  */
 export async function getDriversByFranchiseId(franchiseId: string) {
   const franchise = await getFranchiseById(franchiseId);
@@ -302,4 +368,48 @@ export async function getDriversByFranchiseId(franchiseId: string) {
 
   const drivers = await repoGetDriversByFranchiseId(franchiseId);
   return { data: drivers };
+}
+
+/**
+ * Get staff, drivers, and manager details by franchise ID (combined)
+ */
+export async function getFranchisePersonnelDetails(franchiseId: string) {
+  const franchise = await getFranchiseById(franchiseId);
+  if (!franchise) {
+    throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
+  }
+
+  const { staff, drivers, manager } = await getFranchisePersonnel(franchiseId);
+  
+  // Map to simplified DTO format
+  const staffDTO = staff.map((s) => ({
+    id: s.id,
+    name: s.name,
+    email: s.email,
+    phone: s.phone,
+  }));
+
+  const driversDTO = drivers.map((d) => ({
+    id: d.id,
+    name: `${d.firstName} ${d.lastName}`,
+    email: d.email,
+    phone: d.phone,
+  }));
+
+  const managerDTO = manager
+    ? {
+        id: manager.id,
+        name: manager.fullName,
+        email: manager.email,
+        phone: manager.phone || null,
+      }
+    : null;
+  
+  return {
+    data: {
+      staff: staffDTO,
+      drivers: driversDTO,
+      manager: managerDTO,
+    },
+  };
 }

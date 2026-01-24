@@ -9,6 +9,8 @@ import { FranchiseManager } from './franchise/FranchiseManager';
 import { StaffManager } from './staff/StaffManager';
 import { PenaltiesManager } from './penalties/PenaltiesManager';
 import { DriversManager} from './drivers/DriversManager';
+import { DailyLimitsManager } from './drivers/DailyLimitsManager';
+import { DriverPenaltiesManager } from './drivers/DriverPenaltiesManager';
 import { TripManager } from './trips/TripManager';
 import { useAppSelector } from '@/lib/hooks';
 import { DashboardLayout } from './DashboardLayout';
@@ -154,6 +156,10 @@ export function AdminDashboard() {
                 return <StaffManager />;
             case 'drivers':
                 return <DriversManager />;
+            case 'driver-daily-limits':
+                return <DailyLimitsManager />;
+            case 'driver-penalties':
+                return <DriverPenaltiesManager />;
             case 'reports':
                 return <PlaceholderScreen icon={BarChart3} title="Business Analytics" description="Generate detailed reports on revenue, operational efficiency, and customer satisfaction metrics." />;
             case 'payroll':

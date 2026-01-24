@@ -358,13 +358,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /franchises/{id}/staff:
+  /franchises/{id}/personnel:
     get:
-      summary: Get staff by franchise ID
+      summary: Get franchise personnel (staff, drivers, and manager)
       description: |
-        Get all staff members associated with a specific franchise.
+        Get all staff members, drivers, and manager associated with a specific franchise in a single API call.
         
-        Returns only active staff members.
+        Returns:
+        - **staff**: All active staff members in the franchise
+        - **drivers**: All active drivers in the franchise
+        - **manager**: The manager user assigned to this franchise (if exists)
+        
+        This is a combined endpoint that replaces the separate `/franchises/{id}/staff` and `/franchises/{id}/drivers` endpoints.
       tags:
         - Franchises
       security:
@@ -379,56 +384,57 @@ paths:
             format: uuid
       responses:
         "200":
-          description: Staff list retrieved successfully
+          description: Personnel list retrieved successfully
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Staff"
-        "401":
-          description: Unauthorized - missing or invalid token
-        "404":
-          description: Franchise not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /franchises/{id}/drivers:
-    get:
-      summary: Get drivers by franchise ID
-      description: |
-        Get all drivers associated with a specific franchise.
-        
-        Returns only active drivers.
-      tags:
-        - Franchises
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: Franchise ID (UUID)
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Drivers list retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Driver"
+                    type: object
+                    properties:
+                      staff:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/PersonnelBasicInfo"
+                        description: List of staff members in the franchise (basic info only)
+                      drivers:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/PersonnelBasicInfo"
+                        description: List of drivers in the franchise (basic info only)
+                      manager:
+                        $ref: "#/components/schemas/PersonnelBasicInfo"
+                        nullable: true
+                        description: Manager user assigned to this franchise (basic info only, null if no manager assigned)
+              examples:
+                success:
+                  summary: Successful response
+                  value:
+                    data:
+                      staff:
+                        - id: "550e8400-e29b-41d4-a716-446655440000"
+                          name: "John Doe"
+                          email: "john.doe@example.com"
+                          phone: "+1234567890"
+                        - id: "550e8400-e29b-41d4-a716-446655440001"
+                          name: "Jane Smith"
+                          email: "jane.smith@example.com"
+                          phone: "+1234567891"
+                      drivers:
+                        - id: "770e8400-e29b-41d4-a716-446655440002"
+                          name: "Driver Name"
+                          email: "driver@example.com"
+                          phone: "+1234567891"
+                        - id: "770e8400-e29b-41d4-a716-446655440003"
+                          name: "Another Driver"
+                          email: "driver2@example.com"
+                          phone: "+1234567892"
+                      manager:
+                        id: "880e8400-e29b-41d4-a716-446655440003"
+                        name: "Manager Name"
+                        email: "manager@example.com"
+                        phone: "+1234567892"
         "401":
           description: Unauthorized - missing or invalid token
         "404":
@@ -566,9 +572,13 @@ paths:
 
   /staff:
     get:
-      summary: List staff members
+      summary: List staff members with franchise details
       description: |
-        Retrieves a list of staff members with optional pagination and optional franchise filtering.
+        Retrieves a list of staff members with complete details including franchise information. Supports optional pagination and franchise filtering.
+        
+        **Response includes:**
+        - Complete staff member details
+        - Franchise information (id, code, name, city, region) for each staff member
         
         **Pagination:**
         - Use `page` query parameter to specify the page number (default: 1)
@@ -580,7 +590,7 @@ paths:
         - If `franchiseId` is not provided, returns staff from all franchises
         
         **Examples:**
-        - `/staff` - Get all staff members from all franchises (no pagination)
+        - `/staff` - Get all staff members from all franchises with franchise details (no pagination)
         - `/staff?franchiseId=<uuid>` - Get all staff members for a specific franchise
         - `/staff?page=1&limit=10` - Get first 10 staff members from all franchises
         - `/staff?page=1&limit=10&franchiseId=<uuid>` - Get first 10 staff members for a specific franchise
@@ -643,6 +653,12 @@ paths:
                         monthlySalary: 50000
                         status: "ACTIVE"
                         isActive: true
+                        franchise:
+                          id: "660e8400-e29b-41d4-a716-446655440001"
+                          code: "FRN-XXXXXX"
+                          name: "DryBros Mumbai Central"
+                          city: "Mumbai"
+                          region: "Mumbai"
                     pagination:
                       page: 1
                       limit: 10
@@ -662,6 +678,12 @@ paths:
                         monthlySalary: 50000
                         status: "ACTIVE"
                         isActive: true
+                        franchise:
+                          id: "660e8400-e29b-41d4-a716-446655440001"
+                          code: "FRN-XXXXXX"
+                          name: "DryBros Mumbai Central"
+                          city: "Mumbai"
+                          region: "Mumbai"
                       - id: "550e8400-e29b-41d4-a716-446655440001"
                         name: "Jane Smith"
                         email: "jane.smith@example.com"
@@ -670,6 +692,12 @@ paths:
                         monthlySalary: 55000
                         status: "ACTIVE"
                         isActive: true
+                        franchise:
+                          id: "660e8400-e29b-41d4-a716-446655440001"
+                          code: "FRN-XXXXXX"
+                          name: "DryBros Mumbai Central"
+                          city: "Mumbai"
+                          region: "Mumbai"
         "400":
           description: Bad request (invalid pagination parameters or invalid franchiseId format)
           content:
@@ -1022,6 +1050,90 @@ paths:
         "401":
           description: Not authenticated (missing or invalid token)
   
+    post:
+      summary: Create a new driver
+      description: |
+        Create a new driver. Only ADMIN and OFFICE_STAFF roles can create drivers.
+        
+        **Auto-Generated Fields:**
+        - `driverCode`: Automatically generated in format DRV-XXXXXX (6 random alphanumeric characters)
+        - `currentRating`: Automatically set to 5.0 (5 stars) for new drivers
+        - `performanceStatus`: Automatically calculated as GREEN (excellent performance) for new drivers with 5-star rating
+        
+        **Email Notification:**
+        Upon successful creation, a welcome email is automatically sent to the driver's email address containing:
+        - Driver code and password for mobile app login
+        - Email and password for web portal login
+        - Web login link
+        
+        **Password:**
+        The password provided will be used for both app login (with driver code) and web login (with email).
+        The password is hashed before storage.
+        
+        **Default Values:**
+        - New drivers start with a 5-star rating (5.0)
+        - Performance category is automatically set to GREEN based on the 5-star rating
+        - Status is set to ACTIVE by default
+        - Driver trip status is set to AVAILABLE by default
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDriverRequest"
+            example:
+              firstName: "Sandeep"
+              lastName: "Krishnan"
+              phone: "+919845672310"
+              email: "tech.team.protons@gmail.com"
+              altPhone: "+919845672311"
+              password: "ChainReaction@123"
+              emergencyContactName: "Meera Krishnan"
+              emergencyContactPhone: "+919812345670"
+              emergencyContactRelation: "Wife"
+              address: "Vyttila, NH Bypass Road"
+              city: "Kochi"
+              state: "Kerala"
+              pincode: "682019"
+              licenseNumber: "KL07-2014-0098765"
+              licenseExpDate: "2027-08-31T00:00:00Z"
+              bankAccountName: "Sandeep Krishnan"
+              bankAccountNumber: "456789123456"
+              bankIfscCode: "SBIN0000843"
+              aadharCard: true
+              license: true
+              educationCert: false
+              previousExp: true
+              carTypes: ["MANUAL", "AUTOMATIC"]
+              franchiseId: "74ce561e-fa14-47d1-b9b0-e991db4ced48"
+      responses:
+        "201":
+          description: Driver created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateDriverResponse"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict - phone or email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions (only ADMIN and OFFICE_STAFF can create drivers)
+  
   /drivers/available/green:
     get:
       summary: Get available drivers with GREEN performance
@@ -1103,208 +1215,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
   
-  /drivers/by-franchises:
-    get:
-      summary: Get drivers by selected franchises
-      description: |
-        Retrieves a simplified list of drivers from selected franchises with essential details.
-        
-        **Required Fields Returned:**
-        - `id`: Driver UUID
-        - `name`: Full name (firstName + lastName)
-        - `phone`: Phone number
-        - `availableStatus`: Current trip status (AVAILABLE or ON_TRIP)
-        - `performanceStatus`: Performance category (GREEN, YELLOW, or RED)
-        - `complaintsNumber`: Number of complaints
-        - `franchiseId`: Franchise ID the driver belongs to
-        
-        **Query Parameters:**
-        - `franchiseIds` (optional): Comma-separated list of franchise UUIDs or array
-        - `franchiseId` (optional): Single franchise UUID (for backward compatibility)
-        
-        **Examples:**
-        - `/drivers/by-franchises?franchiseIds=uuid1,uuid2,uuid3` - Get drivers from multiple franchises
-        - `/drivers/by-franchises?franchiseId=uuid1` - Get drivers from single franchise
-      tags:
-        - Drivers
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: franchiseIds
-          in: query
-          required: false
-          description: Comma-separated list of franchise UUIDs or array
-          schema:
-            oneOf:
-              - type: array
-                items:
-                  type: string
-                  format: uuid
-              - type: string
-                pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(,[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})*$"
-          example: "550e8400-e29b-41d4-a716-446655440000,660e8400-e29b-41d4-a716-446655440001"
-        - name: franchiseId
-          in: query
-          required: false
-          description: Single franchise UUID (alternative to franchiseIds)
-          schema:
-            type: string
-            format: uuid
-            example: "550e8400-e29b-41d4-a716-446655440000"
-      responses:
-        "200":
-          description: List of drivers retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                          format: uuid
-                          description: Driver UUID
-                          example: "550e8400-e29b-41d4-a716-446655440000"
-                        name:
-                          type: string
-                          description: Full name (firstName + lastName)
-                          example: "John Doe"
-                        phone:
-                          type: string
-                          description: Phone number
-                          example: "+1234567890"
-                        availableStatus:
-                          type: string
-                          enum: ["AVAILABLE", "ON_TRIP"]
-                          description: Current trip availability status
-                          example: "AVAILABLE"
-                        performanceStatus:
-                          type: string
-                          enum: ["GREEN", "YELLOW", "RED"]
-                          description: Performance category
-                          example: "GREEN"
-                        complaintsNumber:
-                          type: integer
-                          description: Number of complaints
-                          example: 0
-                        franchiseId:
-                          type: string
-                          format: uuid
-                          description: Franchise ID
-                          example: "550e8400-e29b-41d4-a716-446655440000"
-              example:
-                data:
-                  - id: "550e8400-e29b-41d4-a716-446655440000"
-                    name: "John Doe"
-                    phone: "+1234567890"
-                    availableStatus: "AVAILABLE"
-                    performanceStatus: "GREEN"
-                    complaintsNumber: 0
-                    franchiseId: "550e8400-e29b-41d4-a716-446655440000"
-                  - id: "660e8400-e29b-41d4-a716-446655440001"
-                    name: "Jane Smith"
-                    phone: "+1234567891"
-                    availableStatus: "ON_TRIP"
-                    performanceStatus: "YELLOW"
-                    complaintsNumber: 2
-                    franchiseId: "550e8400-e29b-41d4-a716-446655440000"
-        "400":
-          description: Bad request - missing or invalid franchise IDs
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                error: "franchiseIds or franchiseId query parameter is required"
-        "401":
-          description: Not authenticated (missing or invalid token)
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-  
-    post:
-      summary: Create a new driver
-      description: |
-        Create a new driver. Only ADMIN and OFFICE_STAFF roles can create drivers.
-        
-        **Auto-Generated Fields:**
-        - `driverCode`: Automatically generated in format DRV-XXXXXX (6 random alphanumeric characters)
-        
-        **Email Notification:**
-        Upon successful creation, a welcome email is automatically sent to the driver's email address containing:
-        - Driver code and password for mobile app login
-        - Email and password for web portal login
-        - Web login link
-        
-        **Password:**
-        The password provided will be used for both app login (with driver code) and web login (with email).
-        The password is hashed before storage.
-      tags:
-        - Drivers
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateDriverRequest"
-            example:
-              firstName: "John"
-              lastName: "Doe"
-              phone: "+1234567890"
-              email: "john.doe@example.com"
-              altPhone: "+1234567891"
-              password: "SecurePass123!"
-              emergencyContactName: "Jane Doe"
-              emergencyContactPhone: "+1234567892"
-              emergencyContactRelation: "Spouse"
-              address: "123 Main Street"
-              city: "New York"
-              state: "NY"
-              pincode: "10001"
-              licenseNumber: "DL1234567890"
-              licenseExpDate: "2025-12-31T00:00:00Z"
-              bankAccountName: "John Doe"
-              bankAccountNumber: "1234567890"
-              bankIfscCode: "BANK0001234"
-              aadharCard: true
-              license: true
-              educationCert: false
-              previousExp: true
-              carTypes: ["MANUAL", "AUTOMATIC"]
-              franchiseId: 1
-      responses:
-        "201":
-          description: Driver created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CreateDriverResponse"
-        "400":
-          description: Bad request - validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: Conflict - phone or email already exists
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized - missing or invalid token
-        "403":
-          description: Forbidden - insufficient permissions (only ADMIN and OFFICE_STAFF can create drivers)
-
   /drivers/{id}:
     get:
       summary: Get driver by ID
@@ -1531,6 +1441,750 @@ paths:
           description: Forbidden - insufficient permissions (only ADMIN and OFFICE_STAFF can update driver status)
         "404":
           description: Driver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /drivers/{id}/daily-stats:
+    get:
+      summary: Get daily earnings stats for a driver
+      description: |
+        Get daily earnings statistics for a driver including target, amount run, trips count, and incentive calculation.
+        
+        **Query Parameters:**
+        - `date` (optional): Date in YYYY-MM-DD format. Defaults to today if not provided.
+        
+        **Returns:**
+        - Daily target amount
+        - Amount run today (sum of completed trip finalAmount)
+        - Number of trips completed today
+        - Daily incentive (calculated based on config)
+        - Remaining amount to achieve target
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Driver ID (UUID)
+          schema:
+            type: string
+            format: uuid
+        - name: date
+          in: query
+          required: false
+          description: Date in YYYY-MM-DD format (defaults to today)
+          schema:
+            type: string
+            format: date
+            example: "2024-01-20"
+      responses:
+        "200":
+          description: Daily stats retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      driverId:
+                        type: string
+                        format: uuid
+                        example: "779a77f6-5704-4b00-8561-2892c58946a2"
+                      date:
+                        type: string
+                        format: date
+                        example: "2024-01-20"
+                      dailyTargetAmount:
+                        type: number
+                        description: Daily target amount for the driver
+                        example: 1250
+                      amountRunToday:
+                        type: number
+                        description: Total amount earned today from completed trips
+                        example: 1500
+                      tripsCountToday:
+                        type: number
+                        description: Number of completed trips today
+                        example: 5
+                      incentiveToday:
+                        type: number
+                        description: Calculated daily incentive
+                        example: 250
+                      incentiveType:
+                        type: string
+                        nullable: true
+                        description: Type of incentive (full_extra or percentage)
+                        example: "full_extra"
+                      remainingToAchieve:
+                        type: number
+                        description: Remaining amount to achieve daily target
+                        example: 0
+              example:
+                data:
+                  driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+                  date: "2024-01-20"
+                  dailyTargetAmount: 1250
+                  amountRunToday: 1500
+                  tripsCountToday: 5
+                  incentiveToday: 250
+                  incentiveType: "full_extra"
+                  remainingToAchieve: 0
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Driver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /drivers/{id}/monthly-stats:
+    get:
+      summary: Get monthly earnings stats for a driver
+      description: |
+        Get monthly earnings statistics for a driver including earnings, trips count, bonus, and deduction policy cut.
+        
+        **Query Parameters:**
+        - `year` (required): Year (e.g., 2024)
+        - `month` (required): Month (1-12)
+        
+        **Returns:**
+        - Monthly earnings (sum of completed trip finalAmount)
+        - Number of trips completed in the month
+        - Monthly bonus (calculated based on config)
+        - Monthly deduction policy cut (calculated based on config)
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Driver ID (UUID)
+          schema:
+            type: string
+            format: uuid
+        - name: year
+          in: query
+          required: true
+          description: Year (e.g., 2024)
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+            example: 2024
+        - name: month
+          in: query
+          required: true
+          description: Month (1-12)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+            example: 1
+      responses:
+        "200":
+          description: Monthly stats retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      driverId:
+                        type: string
+                        format: uuid
+                        example: "779a77f6-5704-4b00-8561-2892c58946a2"
+                      year:
+                        type: integer
+                        example: 2024
+                      month:
+                        type: integer
+                        example: 1
+                      monthlyEarnings:
+                        type: number
+                        description: Total earnings for the month
+                        example: 28000
+                      tripsCount:
+                        type: number
+                        description: Number of completed trips in the month
+                        example: 45
+                      monthlyBonus:
+                        type: number
+                        description: Calculated monthly bonus
+                        example: 500
+                      bonusTier:
+                        type: object
+                        nullable: true
+                        description: Bonus tier applied
+                        properties:
+                          minEarnings:
+                            type: number
+                            example: 28000
+                          bonus:
+                            type: number
+                            example: 500
+                      monthlyDeductionPolicyCut:
+                        type: number
+                        description: Deduction policy cut amount
+                        example: 0
+                      deductionTier:
+                        type: object
+                        nullable: true
+                        description: Deduction tier applied
+                        properties:
+                          maxEarnings:
+                            type: number
+                            example: 26000
+                          cutPercent:
+                            type: number
+                            example: 25
+              example:
+                data:
+                  driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+                  year: 2024
+                  month: 1
+                  monthlyEarnings: 28000
+                  tripsCount: 45
+                  monthlyBonus: 500
+                  bonusTier:
+                    minEarnings: 28000
+                    bonus: 500
+                  monthlyDeductionPolicyCut: 0
+                  deductionTier: null
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingParams:
+                  summary: Missing year or month
+                  value:
+                    error: "year and month query parameters are required"
+                invalidMonth:
+                  summary: Invalid month
+                  value:
+                    error: "Invalid month. Must be between 1 and 12"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Driver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /drivers/{id}/settlement:
+    get:
+      summary: Get complete settlement for a driver
+      description: |
+        Get complete settlement breakdown for a driver including earnings, bonuses, penalties, and policy cuts.
+        
+        **Query Parameters:**
+        - `year` (required): Year (e.g., 2024)
+        - `month` (required): Month (1-12)
+        
+        **Returns:**
+        - Monthly earnings
+        - Monthly bonus
+        - Total penalties
+        - Monthly deduction policy cut
+        - Net earnings (earnings + bonus - penalties - policy cut)
+        - Detailed breakdown
+        - List of penalties applied
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Driver ID (UUID)
+          schema:
+            type: string
+            format: uuid
+        - name: year
+          in: query
+          required: true
+          description: Year (e.g., 2024)
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+            example: 2024
+        - name: month
+          in: query
+          required: true
+          description: Month (1-12)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+            example: 1
+      responses:
+        "200":
+          description: Settlement retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      driverId:
+                        type: string
+                        format: uuid
+                      year:
+                        type: integer
+                      month:
+                        type: integer
+                      monthlyEarnings:
+                        type: number
+                        description: Gross earnings for the month
+                      tripsCount:
+                        type: number
+                      monthlyBonus:
+                        type: number
+                      bonusTier:
+                        type: object
+                        nullable: true
+                      monthlyDeductionPolicyCut:
+                        type: number
+                      deductionTier:
+                        type: object
+                        nullable: true
+                      totalPenalties:
+                        type: number
+                        description: Total amount of penalties applied
+                      penaltiesCount:
+                        type: number
+                        description: Number of penalties applied
+                      penalties:
+                        type: array
+                        description: List of penalties applied
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            penaltyName:
+                              type: string
+                            amount:
+                              type: number
+                            violationDate:
+                              type: string
+                              format: date-time
+                            description:
+                              type: string
+                              nullable: true
+                      netEarnings:
+                        type: number
+                        description: Net earnings after all deductions
+                      breakdown:
+                        type: object
+                        description: Detailed breakdown
+                        properties:
+                          grossEarnings:
+                            type: number
+                          bonus:
+                            type: number
+                          penalties:
+                            type: number
+                          policyCut:
+                            type: number
+                          net:
+                            type: number
+              example:
+                data:
+                  driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+                  year: 2024
+                  month: 1
+                  monthlyEarnings: 28000
+                  tripsCount: 45
+                  monthlyBonus: 500
+                  bonusTier:
+                    minEarnings: 28000
+                    bonus: 500
+                  monthlyDeductionPolicyCut: 0
+                  deductionTier: null
+                  totalPenalties: 500
+                  penaltiesCount: 2
+                  penalties:
+                    - id: "550e8400-e29b-41d4-a716-446655440000"
+                      penaltyName: "Late report"
+                      amount: 200
+                      violationDate: "2024-01-15T09:30:00Z"
+                      description: "Driver reported late"
+                    - id: "660e8400-e29b-41d4-a716-446655440001"
+                      penaltyName: "Trip cancelled"
+                      amount: 300
+                      violationDate: "2024-01-20T14:00:00Z"
+                      description: "Driver cancelled trip without notice"
+                  netEarnings: 28000
+                  breakdown:
+                    grossEarnings: 28000
+                    bonus: 500
+                    penalties: -500
+                    policyCut: 0
+                    net: 28000
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Driver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /config/driver-earnings:
+    get:
+      summary: Get driver earnings configuration
+      description: |
+        Get the current driver earnings configuration including daily incentive rules, monthly bonus tiers, and deduction policy.
+        
+        **Returns:**
+        - Daily target default
+        - Incentive tier 1 (min, max, type)
+        - Incentive tier 2 (min, percent)
+        - Monthly bonus tiers (array)
+        - Monthly deduction tiers (array)
+      tags:
+        - Configuration
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Earnings config retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      dailyTargetDefault:
+                        type: number
+                        example: 1250
+                      incentiveTier1Min:
+                        type: number
+                        example: 1250
+                      incentiveTier1Max:
+                        type: number
+                        example: 1550
+                      incentiveTier1Type:
+                        type: string
+                        enum: [full_extra, percent]
+                        example: "full_extra"
+                      incentiveTier2Min:
+                        type: number
+                        example: 1550
+                      incentiveTier2Percent:
+                        type: number
+                        example: 20
+                      monthlyBonusTiers:
+                        type: array
+                        description: Monthly bonus tiers
+                        items:
+                          type: object
+                          properties:
+                            minEarnings:
+                              type: number
+                            bonus:
+                              type: number
+                        example:
+                          - minEarnings: 25000
+                            bonus: 3000
+                          - minEarnings: 28000
+                            bonus: 500
+                      monthlyDeductionTiers:
+                        type: array
+                        description: Monthly deduction policy tiers
+                        items:
+                          type: object
+                          properties:
+                            maxEarnings:
+                              type: number
+                            cutPercent:
+                              type: number
+                        example:
+                          - maxEarnings: 26000
+                            cutPercent: 25
+                          - maxEarnings: 22000
+                            cutPercent: 20
+                      isActive:
+                        type: boolean
+                      createdAt:
+                        type: string
+                        format: date-time
+                      updatedAt:
+                        type: string
+                        format: date-time
+              example:
+                data:
+                  dailyTargetDefault: 1250
+                  incentiveTier1Min: 1250
+                  incentiveTier1Max: 1550
+                  incentiveTier1Type: "full_extra"
+                  incentiveTier2Min: 1550
+                  incentiveTier2Percent: 20
+                  monthlyBonusTiers:
+                    - minEarnings: 25000
+                      bonus: 3000
+                    - minEarnings: 28000
+                      bonus: 500
+                  monthlyDeductionTiers:
+                    - maxEarnings: 26000
+                      cutPercent: 25
+                    - maxEarnings: 22000
+                      cutPercent: 20
+                  isActive: true
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+    post:
+      summary: Set driver earnings configuration
+      description: |
+        Set driver earnings configuration. Only ADMIN can set this configuration.
+        This will deactivate any existing active configuration and create a new one.
+        
+        **Request Body:**
+        All fields are optional. Missing fields will use defaults.
+        
+        **Daily Incentive:**
+        - `dailyTargetDefault`: Default daily target amount (default: 1250)
+        - `incentiveTier1Min`: Minimum amount for tier 1 (default: 1250)
+        - `incentiveTier1Max`: Maximum amount for tier 1 (default: 1550)
+        - `incentiveTier1Type`: "full_extra" or "percent" (default: "full_extra")
+        - `incentiveTier2Min`: Minimum amount for tier 2 (default: 1550)
+        - `incentiveTier2Percent`: Percentage for tier 2 (default: 20)
+        
+        **Monthly Bonus:**
+        - `monthlyBonusTiers`: Array of { minEarnings, bonus }
+        
+        **Monthly Deduction:**
+        - `monthlyDeductionTiers`: Array of { maxEarnings, cutPercent }
+      tags:
+        - Configuration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEarningsConfigRequest"
+            example:
+              dailyTargetDefault: 1250
+              incentiveTier1Min: 1250
+              incentiveTier1Max: 1550
+              incentiveTier1Type: "full_extra"
+              incentiveTier2Min: 1550
+              incentiveTier2Percent: 20
+              monthlyBonusTiers:
+                - minEarnings: 25000
+                  bonus: 3000
+                - minEarnings: 28000
+                  bonus: 500
+              monthlyDeductionTiers:
+                - maxEarnings: 26000
+                  cutPercent: 25
+                - maxEarnings: 22000
+                  cutPercent: 20
+      responses:
+        "200":
+          description: Earnings config set successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      dailyTargetDefault:
+                        type: number
+                      incentiveTier1Min:
+                        type: number
+                      incentiveTier1Max:
+                        type: number
+                      incentiveTier1Type:
+                        type: string
+                      incentiveTier2Min:
+                        type: number
+                      incentiveTier2Percent:
+                        type: number
+                      monthlyBonusTiers:
+                        type: array
+                      monthlyDeductionTiers:
+                        type: array
+                      isActive:
+                        type: boolean
+                      updatedAt:
+                        type: string
+                        format: date-time
+              example:
+                data:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  dailyTargetDefault: 1250
+                  incentiveTier1Min: 1250
+                  incentiveTier1Max: 1550
+                  incentiveTier1Type: "full_extra"
+                  incentiveTier2Min: 1550
+                  incentiveTier2Percent: 20
+                  monthlyBonusTiers:
+                    - minEarnings: 25000
+                      bonus: 3000
+                    - minEarnings: 28000
+                      bonus: 500
+                  monthlyDeductionTiers:
+                    - maxEarnings: 26000
+                      cutPercent: 25
+                    - maxEarnings: 22000
+                      cutPercent: 20
+                  isActive: true
+                  createdAt: "2024-01-20T10:00:00Z"
+                  updatedAt: "2024-01-20T10:00:00Z"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - only ADMIN can set earnings config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      summary: Update driver earnings configuration
+      description: |
+        Update driver earnings configuration. Only ADMIN can update this configuration.
+        
+        **Request Body:**
+        All fields are optional. Only provided fields will be updated.
+        
+        **Daily Incentive:**
+        - `dailyTargetDefault`: Default daily target amount
+        - `incentiveTier1Min`: Minimum amount for tier 1
+        - `incentiveTier1Max`: Maximum amount for tier 1
+        - `incentiveTier1Type`: "full_extra" or "percent"
+        - `incentiveTier2Min`: Minimum amount for tier 2
+        - `incentiveTier2Percent`: Percentage for tier 2 (e.g., 20 for 20%)
+        
+        **Monthly Bonus:**
+        - `monthlyBonusTiers`: Array of { minEarnings, bonus }
+        
+        **Monthly Deduction:**
+        - `monthlyDeductionTiers`: Array of { maxEarnings, cutPercent }
+      tags:
+        - Configuration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEarningsConfigRequest"
+            example:
+              dailyTargetDefault: 1250
+              incentiveTier1Min: 1250
+              incentiveTier1Max: 1550
+              incentiveTier1Type: "full_extra"
+              incentiveTier2Min: 1550
+              incentiveTier2Percent: 20
+              monthlyBonusTiers:
+                - minEarnings: 25000
+                  bonus: 3000
+                - minEarnings: 28000
+                  bonus: 500
+              monthlyDeductionTiers:
+                - maxEarnings: 26000
+                  cutPercent: 25
+                - maxEarnings: 22000
+                  cutPercent: 20
+      responses:
+        "200":
+          description: Earnings config updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      dailyTargetDefault:
+                        type: number
+                      incentiveTier1Min:
+                        type: number
+                      incentiveTier1Max:
+                        type: number
+                      incentiveTier1Type:
+                        type: string
+                      incentiveTier2Min:
+                        type: number
+                      incentiveTier2Percent:
+                        type: number
+                      monthlyBonusTiers:
+                        type: array
+                      monthlyDeductionTiers:
+                        type: array
+                      isActive:
+                        type: boolean
+                      updatedAt:
+                        type: string
+                        format: date-time
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - only ADMIN can update earnings config
           content:
             application/json:
               schema:
@@ -1840,8 +2494,8 @@ paths:
         - `driverId` (required): Driver UUID to get assigned trips for
         
         **Use Cases:**
-        - Driver mobile app to see their assigned trips
-        - Driver dashboard to view active trips
+        - Admin/Office staff viewing trips for a specific driver
+        - Driver dashboard to view active trips (when driverId is provided)
       tags:
         - Trips
       security:
@@ -1879,6 +2533,81 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /trips/my-assigned:
+    get:
+      summary: Get my assigned trips (Driver)
+      description: |
+        Get a list of trips assigned to the authenticated driver.
+        
+        This endpoint automatically uses the driver ID from the authentication token, so no driverId parameter is needed.
+        
+        Returns trips with status: ASSIGNED, DRIVER_ACCEPTED, TRIP_STARTED, or TRIP_PROGRESS.
+        
+        **Authentication:**
+        - Requires driver authentication token (from `/drivers/login`)
+        - Driver ID is automatically extracted from the token
+        
+        **Use Cases:**
+        - Driver mobile app to see their assigned trips
+        - Driver dashboard to view active trips
+        - Real-time trip status for drivers
+        
+        **Note:** This endpoint is specifically for drivers. For admin/office staff to view trips for any driver, use `/trips/driver/assigned?driverId=...`
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of assigned trips retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    description: Array of trips assigned to the authenticated driver
+                    items:
+                      $ref: "#/components/schemas/Trip"
+              example:
+                data:
+                  - id: "550e8400-e29b-41d4-a716-446655440000"
+                    franchiseId: "660e8400-e29b-41d4-a716-446655440001"
+                    driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+                    customerId: 1
+                    customerName: "John Doe"
+                    customerPhone: "+1234567890"
+                    tripType: "CITY_ROUND"
+                    status: "ASSIGNED"
+                    pickupLocation: "ChIJN1t_tDeuEmsRUsoyG83frY4"
+                    pickupAddress: "123 Main Street, New York, NY 10001"
+                    dropLocation: "ChIJN1t_tDeuEmsRUsoyG83frY5"
+                    dropAddress: "456 Oak Avenue, New York, NY 10002"
+                    baseAmount: 500
+                    extraAmount: 0
+                    totalAmount: 500
+                    finalAmount: 500
+                    paymentStatus: "PENDING"
+                    scheduledAt: "2024-01-20T14:30:00Z"
+                    createdAt: "2024-01-20T10:00:00Z"
+                    updatedAt: "2024-01-20T10:30:00Z"
+        "401":
+          description: Not authenticated or not a driver token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                notAuthenticated:
+                  summary: Not authenticated
+                  value:
+                    error: "Driver authentication required. Please login as a driver."
+                notDriverToken:
+                  summary: Not a driver token
+                  value:
+                    error: "Driver authentication required. Please login as a driver."
 
   /trips/unassigned:
     get:
@@ -2116,6 +2845,166 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /trips/assign-driver:
+    post:
+      summary: Assign driver to trip with franchise validation
+      description: |
+        Assign a driver to a trip with explicit validation of trip ID, driver ID, and franchise ID.
+        
+        This endpoint validates that:
+        - All three IDs (tripId, driverId, franchiseId) are provided and valid UUIDs
+        - The franchise ID matches the trip's franchise
+        - The driver belongs to the specified franchise
+        - The trip is in a valid status for assignment (NOT_ASSIGNED, REQUESTED, or PENDING)
+        - The driver is eligible (active, not banned, license valid, no active trips)
+        
+        **Prerequisites:**
+        - Trip must exist
+        - Trip must not already have a driver assigned
+        - Trip status must be NOT_ASSIGNED, REQUESTED, or PENDING
+        - Driver must exist and be active
+        - Driver must belong to the same franchise as the trip
+        - Driver must not have any active trips
+        - Driver must not be globally banned
+        - Driver's license must not be expired
+        
+        **Status Changes:**
+        - Trip status: PENDING/NOT_ASSIGNED/REQUESTED → ASSIGNED
+        - Driver trip status: AVAILABLE → ON_TRIP
+        
+        **Use Cases:**
+        - Admin/Office staff assigning trips to drivers
+        - Explicit franchise validation for cross-franchise operations
+        - Bulk trip assignment operations
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignDriverToTripRequest"
+            example:
+              tripId: "550e8400-e29b-41d4-a716-446655440000"
+              driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+              franchiseId: "660e8400-e29b-41d4-a716-446655440001"
+      responses:
+        "200":
+          description: Driver assigned to trip successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Trip"
+              example:
+                data:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  franchiseId: "660e8400-e29b-41d4-a716-446655440001"
+                  driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+                  customerId: 1
+                  customerName: "John Doe"
+                  customerPhone: "+1234567890"
+                  tripType: "CITY_ROUND"
+                  status: "ASSIGNED"
+                  pickupLocation: "ChIJN1t_tDeuEmsRUsoyG83frY4"
+                  pickupAddress: "123 Main Street, New York, NY 10001"
+                  dropLocation: "ChIJN1t_tDeuEmsRUsoyG83frY5"
+                  dropAddress: "456 Oak Avenue, New York, NY 10002"
+                  baseAmount: 500
+                  extraAmount: 0
+                  totalAmount: 500
+                  finalAmount: 500
+                  paymentStatus: "PENDING"
+                  createdAt: "2024-01-20T10:00:00Z"
+                  updatedAt: "2024-01-20T10:30:00Z"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingTripId:
+                  summary: Missing trip ID
+                  value:
+                    error: "Trip ID is required"
+                missingDriverId:
+                  summary: Missing driver ID
+                  value:
+                    error: "Driver ID is required"
+                missingFranchiseId:
+                  summary: Missing franchise ID
+                  value:
+                    error: "Franchise ID is required"
+                invalidTripId:
+                  summary: Invalid trip ID format
+                  value:
+                    error: "Invalid trip ID format. Expected UUID."
+                invalidDriverId:
+                  summary: Invalid driver ID format
+                  value:
+                    error: "Invalid driver ID format. Expected UUID."
+                invalidFranchiseId:
+                  summary: Invalid franchise ID format
+                  value:
+                    error: "Invalid franchise ID format. Expected UUID."
+                tripNotFound:
+                  summary: Trip not found
+                  value:
+                    error: "Trip not found"
+                driverNotFound:
+                  summary: Driver not found
+                  value:
+                    error: "Driver not found"
+                franchiseMismatch:
+                  summary: Franchise ID mismatch
+                  value:
+                    error: "Franchise ID does not match the trip's franchise"
+                driverFranchiseMismatch:
+                  summary: Driver belongs to different franchise
+                  value:
+                    error: "Driver belongs to different franchise"
+                tripAlreadyAssigned:
+                  summary: Trip already has driver
+                  value:
+                    error: "Trip already has a driver assigned"
+                invalidTripStatus:
+                  summary: Invalid trip status
+                  value:
+                    error: "Cannot assign driver to trip with status: COMPLETED"
+                driverNotActive:
+                  summary: Driver not active
+                  value:
+                    error: "Driver is not active"
+                driverBanned:
+                  summary: Driver is banned
+                  value:
+                    error: "Driver is globally banned"
+                driverLicenseExpired:
+                  summary: Driver license expired
+                  value:
+                    error: "Driver license has expired"
+                driverHasActiveTrip:
+                  summary: Driver has active trip
+                  value:
+                    error: "Driver already has an active trip"
+        "401":
+          description: Not authenticated (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trip or driver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /trips/{id}/driver-accept:
     patch:
       summary: Driver accepts a trip
@@ -2222,22 +3111,38 @@ paths:
         "401":
           description: Not authenticated (missing or invalid token)
 
-  /trips/{id}/generate-start-otp:
+  /trips/{id}/start-initiate:
     post:
-      summary: Generate start OTP for a trip
+      summary: Initiate trip start (Generate token and send OTP)
       description: |
-        Generate a 4-digit OTP required to start a trip.
+        Initiate the trip start process by providing trip details and images.
+        
+        This endpoint:
+        - Validates trip, driver, and franchise IDs
+        - Generates a 4-digit OTP
+        - Sends OTP to customer via email (if customer email is available)
+        - Generates a secure JWT token for verification
+        - Stores odometer reading and car images temporarily
+        - Returns token that must be used with OTP to complete trip start
         
         **Prerequisites:**
-        - Trip must be in DRIVER_ACCEPTED status
-        - Trip must be assigned to the driver making the request
+        - Trip must be in ASSIGNED or DRIVER_ACCEPTED status
+        - Trip must be assigned to the specified driver
+        - Franchise ID must match trip's franchise
         
-        **OTP Usage:**
-        - The generated OTP must be used in the start trip endpoint
-        - OTP is typically sent via SMS/WhatsApp to the customer
+        **Flow:**
+        1. Driver calls this endpoint with trip details and images
+        2. System generates OTP and sends to customer via email
+        3. System returns token to driver
+        4. Customer receives OTP via email and provides it to driver
+        5. Driver calls `/trips/{id}/start-verify` with token and OTP (received from customer)
+        6. System verifies and starts the trip
         
-        **Request Body:**
-        - `driverId` (required): Driver UUID (can also be passed as query parameter)
+        **Note:** OTP is sent to customer's email address. If customer email is not available, the OTP will still be generated and returned in the response message (for manual sharing).
+        
+        **Status Change:**
+        - No status change in this step (trip remains ASSIGNED/DRIVER_ACCEPTED)
+        - Trip status changes to TRIP_STARTED only after verification
       tags:
         - Trips
       security:
@@ -2246,33 +3151,27 @@ paths:
         - name: id
           in: path
           required: true
-          description: Trip UUID
+          description: Trip ID (UUID)
           schema:
             type: string
             format: uuid
             example: "550e8400-e29b-41d4-a716-446655440000"
-        - name: driverId
-          in: query
-          required: false
-          description: Driver UUID (alternative to body parameter)
-          schema:
-            type: string
-            format: uuid
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                driverId:
-                  type: string
-                  format: uuid
-                  description: Driver UUID
-                  example: "550e8400-e29b-41d4-a716-446655440000"
+              $ref: "#/components/schemas/InitiateStartTripRequest"
+            example:
+              driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+              franchiseId: "660e8400-e29b-41d4-a716-446655440001"
+              odometerValue: 12345.5
+              odometerPic: "https://example.com/images/odometer.jpg"
+              carFrontPic: "https://example.com/images/car-front.jpg"
+              carBackPic: "https://example.com/images/car-back.jpg"
       responses:
         "200":
-          description: Start OTP generated successfully
+          description: Token generated and OTP sent to customer successfully
           content:
             application/json:
               schema:
@@ -2281,50 +3180,226 @@ paths:
                   data:
                     type: object
                     properties:
+                      token:
+                        type: string
+                        description: JWT token for OTP verification (expires in 10 minutes)
+                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                       tripId:
                         type: string
                         format: uuid
+                        description: Trip ID
                         example: "550e8400-e29b-41d4-a716-446655440000"
-                      otp:
+                      message:
                         type: string
-                        description: 4-digit OTP
-                        example: "1234"
+                        description: Success message
+                        example: "OTP sent to customer via email. Please verify with token and OTP to start trip."
+                      emailSent:
+                        type: boolean
+                        description: Whether OTP email was successfully sent to customer
+                        example: true
+              example:
+                data:
+                  token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0cmlwSWQiOiI1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDAiLCJkcml2ZXJJZCI6Ijc3OWE3N2Y2LTU3MDQtNGIwMC04NTYxLTI4OTJjNTg5NDZhMiIsImZyYW5jaGlzZUlkIjoiNjYwZTg0MDAtZTI5Yi00MWQ0LWE3MTYtNDQ2NjU1NDQwMDAxIiwidHlwZSI6InRyaXAtc3RhcnQtdmVyaWZpY2F0aW9uIiwiaWF0IjoxNzA2MDAwMDAwfQ.signature"
+                  tripId: "550e8400-e29b-41d4-a716-446655440000"
+                  message: "OTP sent to customer via email. Please verify with token and OTP to start trip."
+                  emailSent: true
         "400":
-          description: Bad request - missing driverId or invalid trip status
+          description: Bad request - validation error
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingDriverId:
+                  summary: Missing driver ID
+                  value:
+                    error: "driverId is required"
+                missingFranchiseId:
+                  summary: Missing franchise ID
+                  value:
+                    error: "franchiseId is required"
+                missingOdometerValue:
+                  summary: Missing odometer value
+                  value:
+                    error: "odometerValue is required"
+                invalidTripStatus:
+                  summary: Invalid trip status
+                  value:
+                    error: "Trip is not in a valid status for starting. Current status: COMPLETED"
+                franchiseMismatch:
+                  summary: Franchise mismatch
+                  value:
+                    error: "Franchise ID does not match the trip's franchise"
         "401":
           description: Not authenticated (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: Forbidden - trip not assigned to this driver
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trip not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  /trips/{id}/start:
-    patch:
-      summary: Start trip with OTP
+  /trips/{id}/start-verify:
+    post:
+      summary: Verify token and OTP, then start trip
       description: |
-        Start a trip by providing the OTP generated from the generate-start-otp endpoint.
+        Verify the token and OTP received from the customer, then start the trip.
+        
+        This endpoint:
+        - Verifies the JWT token (must be valid and not expired)
+        - Validates the OTP matches the one sent to customer
+        - Updates trip status to TRIP_STARTED
+        - Updates driver status to ON_TRIP
+        - Clears the OTP after successful verification
         
         **Prerequisites:**
-        - Trip must be in ASSIGNED or DRIVER_ACCEPTED status
-        - Trip must be assigned to the driver making the request
-        - Valid OTP must be provided
+        - Must have called `/trips/{id}/start-initiate` first
+        - Token must be valid and not expired (10 minutes validity)
+        - OTP must match the one sent to customer
+        - Trip must still be in ASSIGNED or DRIVER_ACCEPTED status
         
         **Status Change:**
         - ASSIGNED/DRIVER_ACCEPTED → TRIP_STARTED
         - Driver trip status → ON_TRIP
         
-        **Request Body:**
-        - `driverId` (required): Driver UUID (can also be passed as query parameter)
-        - `otp` (required): 4-digit OTP from generate-start-otp endpoint
-        - `odometerValue` (required): Odometer reading at trip start
-        - `carImageFront` (required): URL to front car image
-        - `carImageBack` (required): URL to back car image
+        **Flow:**
+        1. Driver receives token from `/trips/{id}/start-initiate`
+        2. Customer receives OTP via email
+        3. Customer provides OTP to driver
+        4. Driver calls this endpoint with token and OTP
+        5. System verifies and starts the trip
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip ID (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyStartTripRequest"
+            example:
+              token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              otp: "1234"
+      responses:
+        "200":
+          description: Trip started successfully after verification
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Trip"
+              example:
+                data:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  franchiseId: "660e8400-e29b-41d4-a716-446655440001"
+                  driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+                  status: "TRIP_STARTED"
+                  startedAt: "2024-01-20T14:30:00Z"
+                  startOdometer: 12345.5
+                  carImageFront: "https://example.com/images/car-front.jpg"
+                  carImageBack: "https://example.com/images/car-back.jpg"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingToken:
+                  summary: Missing token
+                  value:
+                    error: "token is required"
+                missingOtp:
+                  summary: Missing OTP
+                  value:
+                    error: "otp is required"
+                invalidOtp:
+                  summary: Invalid OTP
+                  value:
+                    error: "Invalid OTP"
+                invalidToken:
+                  summary: Invalid token
+                  value:
+                    error: "Invalid or expired token"
+                tokenTripMismatch:
+                  summary: Token trip ID mismatch
+                  value:
+                    error: "Token trip ID does not match"
+                tripStatusChanged:
+                  summary: Trip status changed
+                  value:
+                    error: "Trip status has changed. Current status: TRIP_STARTED"
+        "401":
+          description: Not authenticated or invalid/expired token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trip not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trips/{id}/end-initiate:
+    post:
+      summary: Initiate trip end (Generate token and send OTP)
+      description: |
+        Initiate the trip end process by providing trip details and odometer reading.
+        
+        This endpoint:
+        - Validates trip, driver, and franchise IDs
+        - Validates trip is in TRIP_STARTED/TRIP_PROGRESS/IN_PROGRESS status
+        - Validates trip has been started and has start odometer reading
+        - Generates a 4-digit OTP
+        - Sends OTP to customer via email (if customer email is available)
+        - Generates a secure JWT token for verification
+        - Stores end odometer reading and odometer image temporarily
+        - Returns token that must be used with OTP to complete trip end
+        
+        **Prerequisites:**
+        - Trip must be in TRIP_STARTED, TRIP_PROGRESS, or IN_PROGRESS status
+        - Trip must be assigned to the specified driver
+        - Franchise ID must match trip's franchise
+        - Trip must have been started (startedAt must exist)
+        - Trip must have start odometer reading
+        
+        **Flow:**
+        1. Driver calls this endpoint with trip details and odometer reading
+        2. System generates OTP and sends to customer via email
+        3. System returns token to driver
+        4. Customer receives OTP via email and provides it to driver
+        5. Driver calls `/trips/{id}/end-verify` with token and OTP (received from customer)
+        6. System verifies, calculates distance/time/amount, and ends the trip
+        
+        **Note:** OTP is sent to customer's email address. If customer email is not available, the OTP will still be generated and returned in the response message (for manual sharing).
+        
+        **Status Change:**
+        - No status change in this step (trip remains TRIP_STARTED/TRIP_PROGRESS/IN_PROGRESS)
+        - Trip status changes to TRIP_ENDED only after verification
       tags:
         - Trips
       security:
@@ -2338,64 +3413,86 @@ paths:
             type: string
             format: uuid
             example: "550e8400-e29b-41d4-a716-446655440000"
-        - name: driverId
-          in: query
-          required: false
-          description: Driver UUID (alternative to body parameter)
-          schema:
-            type: string
-            format: uuid
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                driverId:
-                  type: string
-                  format: uuid
-                  description: Driver UUID
-                  example: "550e8400-e29b-41d4-a716-446655440000"
-                otp:
-                  type: string
-                  description: 4-digit OTP from generate-start-otp
-                  example: "1234"
-                odometerValue:
-                  type: number
-                  description: Odometer reading at trip start (in km)
-                  example: 12345.5
-                carImageFront:
-                  type: string
-                  format: uri
-                  description: URL to front car image
-                  example: "https://example.com/images/car-front.jpg"
-                carImageBack:
-                  type: string
-                  format: uri
-                  description: URL to back car image
-                  example: "https://example.com/images/car-back.jpg"
-              required:
-                - otp
-                - odometerValue
-                - carImageFront
-                - carImageBack
+              $ref: "#/components/schemas/InitiateEndTripRequest"
+            example:
+              driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+              franchiseId: "660e8400-e29b-41d4-a716-446655440001"
+              odometerValue: 12350.2
+              odometerImage: "https://example.com/images/odometer-end.jpg"
       responses:
         "200":
-          description: Trip started successfully
+          description: OTP generated and sent successfully
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   data:
-                    $ref: "#/components/schemas/TripResponse"
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        description: JWT token for verification (valid for 10 minutes)
+                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0cmlwSWQiOiI1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDAiLCJkcml2ZXJJZCI6Ijc3OWE3N2Y2LTU3MDQtNGIwMC04NTYxLTI4OTJjNTg5NDZhMiIsImZyYW5jaGlzZUlkIjoiNjYwZTg0MDAtZTI5Yi00MWQ0LWE3MTYtNDQ2NjU1NDQwMDAxIiwidHlwZSI6InRyaXAtZW5kLXZlcmlmaWNhdGlvbiIsImlhdCI6MTcwNjAwMDAwMH0.signature"
+                      tripId:
+                        type: string
+                        format: uuid
+                        description: Trip ID
+                        example: "550e8400-e29b-41d4-a716-446655440000"
+                      message:
+                        type: string
+                        description: Success message
+                        example: "OTP sent to customer via email. Please verify with token and OTP to end trip."
+                      emailSent:
+                        type: boolean
+                        description: Whether OTP email was successfully sent to customer
+                        example: true
+              example:
+                data:
+                  token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0cmlwSWQiOiI1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDAiLCJkcml2ZXJJZCI6Ijc3OWE3N2Y2LTU3MDQtNGIwMC04NTYxLTI4OTJjNTg5NDZhMiIsImZyYW5jaGlzZUlkIjoiNjYwZTg0MDAtZTI5Yi00MWQ0LWE3MTYtNDQ2NjU1NDQwMDAxIiwidHlwZSI6InRyaXAtZW5kLXZlcmlmaWNhdGlvbiIsImlhdCI6MTcwNjAwMDAwMH0.signature"
+                  tripId: "550e8400-e29b-41d4-a716-446655440000"
+                  message: "OTP sent to customer via email. Please verify with token and OTP to end trip."
+                  emailSent: true
         "400":
-          description: Bad request - missing parameters or invalid OTP
+          description: Bad request - validation error
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingDriverId:
+                  summary: Missing driverId
+                  value:
+                    error: "driverId is required"
+                missingFranchiseId:
+                  summary: Missing franchiseId
+                  value:
+                    error: "franchiseId is required"
+                missingOdometerValue:
+                  summary: Missing odometerValue
+                  value:
+                    error: "odometerValue is required"
+                missingOdometerImage:
+                  summary: Missing odometerImage
+                  value:
+                    error: "odometerImage is required"
+                invalidStatus:
+                  summary: Trip not in valid status
+                  value:
+                    error: "Trip is not in a valid status for ending. Current status: TRIP_CREATED"
+                tripNotStarted:
+                  summary: Trip not started
+                  value:
+                    error: "Trip has not been started yet"
+                missingStartOdometer:
+                  summary: Start odometer missing
+                  value:
+                    error: "Start odometer reading is missing"
         "401":
           description: Not authenticated (missing or invalid token)
         "403":
@@ -2404,23 +3501,53 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trip not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  /trips/{id}/generate-end-otp:
+  /trips/{id}/end-verify:
     post:
-      summary: Generate end OTP for a trip
+      summary: Verify token and OTP, then calculate trip amount
       description: |
-        Generate a 4-digit OTP required to end a trip.
+        Verify the token and OTP received from the customer, then calculate the final trip amount.
         
-        **Prerequisites:**
-        - Trip must be in TRIP_STARTED, TRIP_PROGRESS, or IN_PROGRESS status
-        - Trip must be assigned to the driver making the request
+        **This endpoint:**
+        - Verifies the JWT token and OTP
+        - Calculates distance traveled (endOdometer - startOdometer)
+        - Calculates time taken (endTime - startTime)
+        - Gets trip type
+        - Calculates trip amount based on trip type, distance, duration, and car type
+        - Updates trip with calculated amount but keeps trip in progress
+        - Returns calculated values
         
-        **OTP Usage:**
-        - The generated OTP must be used in the end trip endpoint
-        - OTP is typically sent via SMS/WhatsApp to the customer
+        **Important:** This endpoint does NOT end the trip. After calculation:
+        1. Driver must collect payment using `/trips/{id}/collect-payment`
+        2. Driver must verify payment using `/trips/{id}/verify-payment` to end the trip
         
-        **Request Body:**
-        - `driverId` (required): Driver UUID (can also be passed as query parameter)
+        **Flow:**
+        1. Driver receives token from `/trips/{id}/end-initiate`
+        2. Customer receives OTP via email
+        3. Customer provides OTP to driver
+        4. Driver calls this endpoint with token and OTP
+        5. System verifies, calculates distance/time/amount
+        6. Driver collects payment using `/trips/{id}/collect-payment`
+        7. Driver verifies payment using `/trips/{id}/verify-payment` to end trip
+        
+        **Calculations:**
+        - **Distance:** `endOdometer - startOdometer` (in km)
+        - **Time:** `endTime - startTime` (in hours and minutes)
+        - **Amount:** Calculated using pricing service based on:
+          - Trip type (CITY_ROUND, CITY_DROPOFF, LONG_ROUND, LONG_DROPOFF)
+          - Distance traveled
+          - Duration
+          - Car type (PREMIUM, LUXURY, NORMAL)
+        
+        **Status Change:**
+        - Trip remains in TRIP_PROGRESS status
+        - Trip ends only after payment verification
       tags:
         - Trips
       security:
@@ -2434,28 +3561,184 @@ paths:
             type: string
             format: uuid
             example: "550e8400-e29b-41d4-a716-446655440000"
-        - name: driverId
-          in: query
-          required: false
-          description: Driver UUID (alternative to body parameter)
-          schema:
-            type: string
-            format: uuid
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                driverId:
-                  type: string
-                  format: uuid
-                  description: Driver UUID
-                  example: "550e8400-e29b-41d4-a716-446655440000"
+              $ref: "#/components/schemas/VerifyEndTripRequest"
+            example:
+              token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0cmlwSWQiOiI1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDAiLCJkcml2ZXJJZCI6Ijc3OWE3N2Y2LTU3MDQtNGIwMC04NTYxLTI4OTJjNTg5NDZhMiIsImZyYW5jaGlzZUlkIjoiNjYwZTg0MDAtZTI5Yi00MWQ0LWE3MTYtNDQ2NjU1NDQwMDAxIiwidHlwZSI6InRyaXAtZW5kLXZlcmlmaWNhdGlvbiIsImlhdCI6MTcwNjAwMDAwMH0.signature"
+              otp: "5678"
       responses:
         "200":
-          description: End OTP generated successfully
+          description: Trip ended successfully with calculated values
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    description: Trip end calculation results
+                    properties:
+                      totalAmount:
+                        type: number
+                        description: Total trip amount in rupees
+                        example: 500
+                      distanceTraveled:
+                        type: number
+                        description: Distance traveled in km (rounded to 2 decimal places)
+                        example: 200
+                      timeTakenHours:
+                        type: number
+                        description: Time taken in hours (rounded to 2 decimal places)
+                        example: 0.3
+                      timeTakenMinutes:
+                        type: number
+                        description: Time taken in minutes (rounded to 2 decimal places)
+                        example: 17.79
+                      tripType:
+                        type: string
+                        enum: [CITY_ROUND, CITY_DROPOFF, LONG_ROUND, LONG_DROPOFF]
+                        description: Trip type
+                        example: "CITY_DROPOFF"
+                      calculatedAmount:
+                        type: number
+                        description: Calculated trip amount in rupees
+                        example: 500
+              example:
+                data:
+                  totalAmount: 500
+                  distanceTraveled: 200
+                  timeTakenHours: 0.3
+                  timeTakenMinutes: 17.79
+                  tripType: "CITY_DROPOFF"
+                  calculatedAmount: 500
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingToken:
+                  summary: Missing token
+                  value:
+                    error: "token is required"
+                missingOtp:
+                  summary: Missing OTP
+                  value:
+                    error: "otp is required"
+                invalidOtp:
+                  summary: Invalid OTP
+                  value:
+                    error: "Invalid OTP"
+                invalidToken:
+                  summary: Invalid token
+                  value:
+                    error: "Invalid or expired token"
+                tokenTripMismatch:
+                  summary: Token trip ID mismatch
+                  value:
+                    error: "Token trip ID does not match"
+                tripStatusChanged:
+                  summary: Trip status changed
+                  value:
+                    error: "Trip status has changed. Current status: TRIP_ENDED"
+                missingStartTime:
+                  summary: Trip start time missing
+                  value:
+                    error: "Trip start time is missing"
+                missingStartOdometer:
+                  summary: Start odometer missing
+                  value:
+                    error: "Start odometer reading is missing"
+                missingEndOdometer:
+                  summary: End odometer missing
+                  value:
+                    error: "End odometer reading is missing"
+                invalidOdometer:
+                  summary: Invalid odometer reading
+                  value:
+                    error: "End odometer reading cannot be less than start odometer reading"
+        "401":
+          description: Not authenticated or invalid/expired token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trip not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trips/{id}/collect-payment:
+    post:
+      summary: Collect payment information from customer
+      description: |
+        Collect payment information from customer. Supports UPI, Cash, or both payment methods.
+        
+        **Payment Methods:**
+        - `UPI`: Customer pays via UPI (requires upiAmount and optional upiReference)
+        - `CASH`: Customer pays in cash (requires cashAmount)
+        - `BOTH`: Customer pays partially via UPI and partially in cash (requires both upiAmount and cashAmount)
+        
+        **Validation:**
+        - Payment amount must match the trip's calculated amount
+        - Trip must be in TRIP_PROGRESS, TRIP_STARTED, or IN_PROGRESS status
+        - Trip must be assigned to the specified driver
+        
+        **After Payment Collection:**
+        - Payment status is set to COMPLETED
+        - Trip remains in progress until payment is verified
+        - Driver must call `/trips/{id}/verify-payment` to end the trip
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip UUID
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CollectPaymentRequest"
+            examples:
+              upiOnly:
+                summary: UPI payment only
+                value:
+                  driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+                  paymentMethod: "UPI"
+                  upiAmount: 500
+                  upiReference: "TXN123456789"
+              cashOnly:
+                summary: Cash payment only
+                value:
+                  driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+                  paymentMethod: "CASH"
+                  cashAmount: 500
+              both:
+                summary: Split payment (UPI + Cash)
+                value:
+                  driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+                  paymentMethod: "BOTH"
+                  upiAmount: 300
+                  cashAmount: 200
+                  upiReference: "TXN123456789"
+      responses:
+        "200":
+          description: Payment collected successfully
           content:
             application/json:
               schema:
@@ -2468,16 +3751,70 @@ paths:
                         type: string
                         format: uuid
                         example: "550e8400-e29b-41d4-a716-446655440000"
-                      otp:
+                      paymentMethod:
                         type: string
-                        description: 4-digit OTP
-                        example: "5678"
+                        enum: [UPI, CASH, BOTH]
+                        example: "BOTH"
+                      totalPaid:
+                        type: number
+                        description: Total amount paid
+                        example: 500
+                      upiAmount:
+                        type: number
+                        nullable: true
+                        description: Amount paid via UPI (if applicable)
+                        example: 300
+                      cashAmount:
+                        type: number
+                        nullable: true
+                        description: Amount paid in cash (if applicable)
+                        example: 200
+                      paymentStatus:
+                        type: string
+                        example: "COMPLETED"
+                      message:
+                        type: string
+                        example: "Payment collected successfully. Please verify payment to end trip."
+              example:
+                data:
+                  tripId: "550e8400-e29b-41d4-a716-446655440000"
+                  paymentMethod: "BOTH"
+                  totalPaid: 500
+                  upiAmount: 300
+                  cashAmount: 200
+                  paymentStatus: "COMPLETED"
+                  message: "Payment collected successfully. Please verify payment to end trip."
         "400":
-          description: Bad request - missing driverId or invalid trip status
+          description: Bad request - validation error
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingDriverId:
+                  summary: Missing driverId
+                  value:
+                    error: "driverId is required"
+                missingPaymentMethod:
+                  summary: Missing paymentMethod
+                  value:
+                    error: "paymentMethod is required. Must be UPI, CASH, or BOTH"
+                invalidPaymentMethod:
+                  summary: Invalid paymentMethod
+                  value:
+                    error: "Invalid paymentMethod. Must be UPI, CASH, or BOTH"
+                missingUpiAmount:
+                  summary: Missing UPI amount
+                  value:
+                    error: "UPI amount is required and must be greater than 0"
+                missingCashAmount:
+                  summary: Missing cash amount
+                  value:
+                    error: "Cash amount is required and must be greater than 0"
+                amountMismatch:
+                  summary: Payment amount mismatch
+                  value:
+                    error: "Payment amount (450) does not match trip amount (500)"
         "401":
           description: Not authenticated (missing or invalid token)
         "403":
@@ -2486,31 +3823,158 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trip not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  /trips/{id}/end:
-    patch:
-      summary: End trip with OTP, payment, and odometer
+  /trips/{id}/verify-payment:
+    post:
+      summary: Verify payment and end trip
       description: |
-        End a trip by providing the OTP, payment details, and odometer reading.
+        Verify that payment has been collected and end the trip. Sends confirmation email to customer with review form.
         
         **Prerequisites:**
-        - Trip must be in TRIP_STARTED, TRIP_PROGRESS, or IN_PROGRESS status
-        - Trip must be assigned to the driver making the request
-        - Valid OTP must be provided
+        - Payment must have been collected (paymentStatus = COMPLETED)
+        - Trip must be in TRIP_PROGRESS, TRIP_STARTED, or IN_PROGRESS status
+        - Trip must be assigned to the specified driver
         
-        **Status Change:**
-        - TRIP_STARTED/TRIP_PROGRESS/IN_PROGRESS → TRIP_ENDED
-        - Driver trip status → AVAILABLE
+        **After Verification:**
+        - Trip status changes to TRIP_ENDED
+        - Driver status changes to AVAILABLE
+        - Confirmation email sent to customer with review form link
+        - Customer can rate driver, trip, and Drybros experience
         
-        **Request Body:**
-        - `driverId` (required): Driver UUID (can also be passed as query parameter)
-        - `otp` (required): 4-digit OTP from generate-end-otp endpoint
-        - `odometerValue` (required): Odometer reading at trip end (in km)
-        - `finalAmount` (required): Final amount charged
-        - `paymentStatus` (required): Payment status
-        - `paymentMode` (required): Payment mode
-        - `paymentReference` (optional): Payment reference number
-        - `overrideReason` (optional): Reason if amount is overridden
+        **Email Includes:**
+        - Trip summary (trip ID, driver, pickup/drop locations, duration, amount)
+        - Review form link for customer feedback
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip UUID
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                driverId:
+                  type: string
+                  format: uuid
+                  description: Driver ID (UUID)
+                  example: "779a77f6-5704-4b00-8561-2892c58946a2"
+              required:
+                - driverId
+            example:
+              driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+      responses:
+        "200":
+          description: Payment verified and trip ended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      tripId:
+                        type: string
+                        format: uuid
+                        example: "550e8400-e29b-41d4-a716-446655440000"
+                      status:
+                        type: string
+                        example: "TRIP_ENDED"
+                      message:
+                        type: string
+                        example: "Trip ended successfully. Confirmation email sent to customer."
+                      emailSent:
+                        type: boolean
+                        description: Whether confirmation email was sent
+                        example: true
+              example:
+                data:
+                  tripId: "550e8400-e29b-41d4-a716-446655440000"
+                  status: "TRIP_ENDED"
+                  message: "Trip ended successfully. Confirmation email sent to customer."
+                  emailSent: true
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingDriverId:
+                  summary: Missing driverId
+                  value:
+                    error: "driverId is required"
+                paymentNotCompleted:
+                  summary: Payment not completed
+                  value:
+                    error: "Payment not completed. Please collect payment first."
+                invalidStatus:
+                  summary: Invalid trip status
+                  value:
+                    error: "Trip is not in a valid status for ending. Current status: TRIP_ENDED"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - trip not assigned to this driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trip not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trips/{id}/history:
+    get:
+      summary: Get trip history for driver
+      description: |
+        Get complete trip history with timeline of all events for a specific trip.
+        
+        **Returns:**
+        - Trip summary (status, payment info, customer details)
+        - Chronological timeline of all events:
+          - Trip Created
+          - Request Accepted
+          - Trip Started
+          - Trip On Progress
+          - Trip End Initiated
+          - Trip Ended
+          - Payment Initiated
+          - Payment Completed
+        
+        **Event Types:**
+        - `trip_created`: Trip was created
+        - `request_accepted`: Driver accepted the trip request
+        - `trip_started`: Trip started successfully
+        - `trip_on_progress`: Trip is in progress
+        - `trip_end_initiated`: Trip end process initiated
+        - `trip_ended`: Trip ended successfully
+        - `payment_initiated`: Payment collected
+        - `payment_end`: Payment verified and trip completed
+        
+        **Authentication:**
+        - Driver can access their own trip history
+        - driverId can be provided in query/body or extracted from auth token
       tags:
         - Trips
       security:
@@ -2527,44 +3991,155 @@ paths:
         - name: driverId
           in: query
           required: false
-          description: Driver UUID (alternative to body parameter)
+          description: Driver UUID (optional if authenticated as driver)
           schema:
             type: string
             format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/EndTripRequest"
-            example:
-              driverId: "550e8400-e29b-41d4-a716-446655440000"
-              otp: "5678"
-              odometerValue: 12350.2
-              finalAmount: 1500
-              paymentStatus: "COMPLETED"
-              paymentMode: "UPI"
-              paymentReference: "TXN123456789"
       responses:
         "200":
-          description: Trip completed successfully
+          description: Trip history retrieved successfully
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   data:
-                    $ref: "#/components/schemas/TripResponse"
+                    type: object
+                    properties:
+                      tripId:
+                        type: string
+                        format: uuid
+                        example: "550e8400-e29b-41d4-a716-446655440000"
+                      tripStatus:
+                        type: string
+                        example: "TRIP_ENDED"
+                      paymentStatus:
+                        type: string
+                        example: "COMPLETED"
+                      paymentMode:
+                        type: string
+                        nullable: true
+                        example: "UPI"
+                      totalAmount:
+                        type: number
+                        example: 500
+                      finalAmount:
+                        type: number
+                        example: 500
+                      customerName:
+                        type: string
+                        example: "John Doe"
+                      pickupAddress:
+                        type: string
+                        example: "123 Main St, City"
+                      dropAddress:
+                        type: string
+                        nullable: true
+                        example: "456 Oak Ave, City"
+                      startedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: "2024-01-20T14:30:00Z"
+                      endedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: "2024-01-20T17:00:00Z"
+                      timeline:
+                        type: array
+                        description: Chronological timeline of trip events
+                        items:
+                          type: object
+                          properties:
+                            eventType:
+                              type: string
+                              description: Event type identifier
+                              example: "trip_started"
+                            eventName:
+                              type: string
+                              description: Human-readable event name
+                              example: "Trip Started"
+                            description:
+                              type: string
+                              description: Event description
+                              example: "Trip started successfully"
+                            timestamp:
+                              type: string
+                              format: date-time
+                              description: When the event occurred
+                              example: "2024-01-20T14:30:00Z"
+                            metadata:
+                              type: object
+                              nullable: true
+                              description: Additional event metadata
+              example:
+                data:
+                  tripId: "550e8400-e29b-41d4-a716-446655440000"
+                  tripStatus: "TRIP_ENDED"
+                  paymentStatus: "COMPLETED"
+                  paymentMode: "UPI"
+                  totalAmount: 500
+                  finalAmount: 500
+                  customerName: "John Doe"
+                  pickupAddress: "123 Main St, City"
+                  dropAddress: "456 Oak Ave, City"
+                  startedAt: "2024-01-20T14:30:00Z"
+                  endedAt: "2024-01-20T17:00:00Z"
+                  timeline:
+                    - eventType: "trip_created"
+                      eventName: "Trip Created"
+                      description: "Trip was created"
+                      timestamp: "2024-01-20T10:00:00Z"
+                    - eventType: "request_accepted"
+                      eventName: "Request Accepted"
+                      description: "Driver accepted the trip request"
+                      timestamp: "2024-01-20T10:15:00Z"
+                    - eventType: "trip_started"
+                      eventName: "Trip Started"
+                      description: "Trip started successfully"
+                      timestamp: "2024-01-20T14:30:00Z"
+                    - eventType: "trip_on_progress"
+                      eventName: "Trip On Progress"
+                      description: "Trip is in progress"
+                      timestamp: "2024-01-20T15:00:00Z"
+                    - eventType: "trip_end_initiated"
+                      eventName: "Trip End Initiated"
+                      description: "Trip end process initiated"
+                      timestamp: "2024-01-20T16:45:00Z"
+                    - eventType: "payment_initiated"
+                      eventName: "Payment Initiated"
+                      description: "Payment collected via UPI"
+                      timestamp: "2024-01-20T16:50:00Z"
+                    - eventType: "payment_end"
+                      eventName: "Payment Completed"
+                      description: "Payment verified and trip completed"
+                      timestamp: "2024-01-20T17:00:00Z"
+                    - eventType: "trip_ended"
+                      eventName: "Trip Ended"
+                      description: "Trip ended successfully"
+                      timestamp: "2024-01-20T17:00:00Z"
         "400":
-          description: Bad request - missing parameters or invalid OTP
+          description: Bad request - validation error
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingDriverId:
+                  summary: Missing driverId
+                  value:
+                    error: "driverId is required"
         "401":
           description: Not authenticated (missing or invalid token)
         "403":
           description: Forbidden - trip not assigned to this driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trip not found
           content:
             application/json:
               schema:
@@ -2635,10 +4210,28 @@ paths:
                     data:
                       - id: "550e8400-e29b-41d4-a716-446655440000"
                         name: "City Round Trip"
+                        specialPrice: false
                         basePrice: 400
                         baseHour: 3
                         extraPerHour: 100
                         extraPerHalfHour: 50
+                        status: "ACTIVE"
+                      - id: "660e8400-e29b-41d4-a716-446655440001"
+                        name: "Long Round"
+                        specialPrice: true
+                        basePrice: null
+                        baseHour: null
+                        extraPerHour: null
+                        distanceSlabs:
+                          - from: 0
+                            to: 50
+                            price: 1000
+                          - from: 51
+                            to: 100
+                            price: 1500
+                          - from: 101
+                            to: null
+                            price: 2000
                         status: "ACTIVE"
                     pagination:
                       page: 1
@@ -2653,8 +4246,23 @@ paths:
                     data:
                       - id: "550e8400-e29b-41d4-a716-446655440000"
                         name: "CITY_ROUND"
+                        specialPrice: false
                         basePrice: 400
+                        baseHour: 3
                         extraPerHour: 100
+                      - id: "660e8400-e29b-41d4-a716-446655440001"
+                        name: "LONG_ROUND"
+                        specialPrice: true
+                        basePrice: null
+                        baseHour: null
+                        extraPerHour: null
+                        distanceSlabs:
+                          - from: 0
+                            to: 50
+                            price: 1000
+                          - from: 51
+                            to: null
+                            price: 1500
         "400":
           description: Bad request - invalid pagination parameters
           content:
@@ -2666,18 +4274,27 @@ paths:
     post:
       summary: Create a new trip type
       description: |
-        Create a new trip type configuration with pricing details.
-        Only ADMIN and MANAGER roles can create trip types.
+        Create a new trip type configuration. Only ADMIN and MANAGER roles can create trip types.
         
-        **Required Fields:**
-        - `name`: Trip type name (any string - user-defined)
-        - `basePrice`: Base price for the trip
-        - `baseHour`: Base hours included in the base price
-        - `extraPerHour`: Extra charge per hour
+        **Two Pricing Modes:**
         
-        **Optional Fields:**
-        - `extraPerHalfHour`: Extra charge for 30 minutes
+        1. **Standard Pricing** (`specialPrice: false` or omitted):
+           - **Required:** `name`, `basePrice`, `baseHour`, `extraPerHour`
+           - Time-based pricing with predefined rates
+           - Example: "City Round Trip" with base price ₹400 for 3 hours, ₹100 per extra hour
+        
+        2. **Special Pricing** (`specialPrice: true`):
+           - **Required:** `name`, `distanceSlabs` (array of distance-based price slabs)
+           - **NOT Required:** `basePrice`, `baseHour`, `extraPerHour`
+           - Distance-based slab pricing (driver-negotiable)
+           - Example: "Long Round" with slabs: 0-50km = ₹1000, 51-100km = ₹1500, 101km+ = ₹2000
+        
+        **Optional Fields (both modes):**
+        - `extraPerHalfHour`: Extra charge for 30 minutes (standard mode only)
+        - `distance`: Base distance in km
         - `description`: Description of the trip type
+        - `distanceScopeId`: Distance scope ID (default will be created if not provided)
+        - `tripPatternId`: Trip pattern ID (default will be created if not provided)
       tags:
         - Trip Types
       security:
@@ -2688,14 +4305,34 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/CreateTripTypeRequest"
-            example:
-              name: "City Round Trip"
-              basePrice: 400
-              baseHour: 3
-              distance: 20
-              extraPerHour: 100
-              extraPerHalfHour: 50
-              description: "City round trip pricing"
+            examples:
+              standardPricing:
+                summary: Standard pricing trip type
+                value:
+                  name: "City Round Trip"
+                  specialPrice: false
+                  basePrice: 400
+                  baseHour: 3
+                  distance: 20
+                  extraPerHour: 100
+                  extraPerHalfHour: 50
+                  description: "City round trip pricing"
+              specialPricing:
+                summary: Special pricing (slab-based) trip type
+                value:
+                  name: "Long Round"
+                  specialPrice: true
+                  distanceSlabs:
+                    - from: 0
+                      to: 50
+                      price: 1000
+                    - from: 51
+                      to: 100
+                      price: 1500
+                    - from: 101
+                      to: null
+                      price: 2000
+                  description: "Long round trip with distance-based slab pricing"
       responses:
         "201":
           description: Trip type created successfully
@@ -2725,6 +4362,18 @@ paths:
                   summary: Invalid price
                   value:
                     error: "Base price must be a positive number"
+                missingStandardFields:
+                  summary: Missing required fields for standard pricing
+                  value:
+                    error: "basePrice is required when specialPrice is false"
+                missingSlabs:
+                  summary: Missing distanceSlabs for special pricing
+                  value:
+                    error: "distanceSlabs is required when specialPrice is true"
+                invalidSlab:
+                  summary: Invalid slab format
+                  value:
+                    error: "Slab 'to' distance must be greater than or equal to 'from'"
         "401":
           description: Not authenticated (missing or invalid token)
         "403":
@@ -2772,6 +4421,10 @@ paths:
         Update an existing trip type configuration.
         Only ADMIN and MANAGER roles can update trip types.
         All fields are optional - only provide the fields you want to update.
+        
+        **Note:** When updating `specialPrice` mode, ensure required fields are provided:
+        - If switching to `specialPrice = true`, provide `distanceSlabs`
+        - If switching to `specialPrice = false`, provide `basePrice`, `baseHour`, `extraPerHour`
       tags:
         - Trip Types
       security:
@@ -2790,12 +4443,43 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/UpdateTripTypeRequest"
-            example:
-              basePrice: 450
-              baseHour: 3
-              distance: 25
-              extraPerHour: 120
-              extraPerHalfHour: 60
+            examples:
+              updateStandardPricing:
+                summary: Update standard pricing fields
+                value:
+                  basePrice: 450
+                  baseHour: 3
+                  distance: 25
+                  extraPerHour: 120
+                  extraPerHalfHour: 60
+              updateSpecialPricing:
+                summary: Update special pricing (slab-based)
+                value:
+                  specialPrice: true
+                  distanceSlabs:
+                    - from: 0
+                      to: 50
+                      price: 1200
+                    - from: 51
+                      to: 100
+                      price: 1800
+                    - from: 101
+                      to: null
+                      price: 2500
+              switchToSpecialPricing:
+                summary: Switch from standard to special pricing
+                value:
+                  specialPrice: true
+                  distanceSlabs:
+                    - from: 0
+                      to: 50
+                      price: 1000
+                    - from: 51
+                      to: null
+                      price: 1500
+                  basePrice: null
+                  baseHour: null
+                  extraPerHour: null
       responses:
         "200":
           description: Trip type updated successfully
@@ -3888,6 +5572,32 @@ components:
         - pickupLocation
         - baseAmount
 
+    AssignDriverToTripRequest:
+      type: object
+      description: |
+        Request body for assigning a driver to a trip with explicit franchise validation.
+        All three IDs must be provided and will be validated to ensure they match correctly.
+      properties:
+        tripId:
+          type: string
+          format: uuid
+          description: Trip ID (UUID)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        driverId:
+          type: string
+          format: uuid
+          description: Driver ID (UUID)
+          example: "779a77f6-5704-4b00-8561-2892c58946a2"
+        franchiseId:
+          type: string
+          format: uuid
+          description: Franchise ID (UUID) - must match both trip's franchise and driver's franchise
+          example: "660e8400-e29b-41d4-a716-446655440001"
+      required:
+        - tripId
+        - driverId
+        - franchiseId
+
     CreateTripPhase1Request:
       type: object
       description: |
@@ -4278,60 +5988,175 @@ components:
             otp:
               type: string
 
-    StartTripRequest:
+    InitiateStartTripRequest:
       type: object
-      properties:
-        driverId:
-          type: integer
-        otp:
-          type: string
-      required:
-        - driverId
-        - otp
-
-    EndTripRequest:
-      type: object
+      description: |
+        Request body for initiating trip start.
+        This generates a token and sends OTP to customer.
       properties:
         driverId:
           type: string
           format: uuid
-          description: Driver UUID
-          example: "550e8400-e29b-41d4-a716-446655440000"
+          description: Driver ID (UUID)
+          example: "779a77f6-5704-4b00-8561-2892c58946a2"
+        franchiseId:
+          type: string
+          format: uuid
+          description: Franchise ID (UUID) - must match trip's franchise
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        odometerValue:
+          type: number
+          description: Odometer reading at trip start (in km)
+          example: 12345.5
+          minimum: 0
+        odometerPic:
+          type: string
+          format: uri
+          description: URL to odometer picture
+          example: "https://example.com/images/odometer.jpg"
+        carFrontPic:
+          type: string
+          format: uri
+          description: URL to front car image
+          example: "https://example.com/images/car-front.jpg"
+        carBackPic:
+          type: string
+          format: uri
+          description: URL to back car image
+          example: "https://example.com/images/car-back.jpg"
+      required:
+        - driverId
+        - franchiseId
+        - odometerValue
+        - odometerPic
+        - carFrontPic
+        - carBackPic
+
+    VerifyStartTripRequest:
+      type: object
+      description: |
+        Request body for verifying token and OTP to start trip.
+      properties:
+        token:
+          type: string
+          description: JWT token received from /start-initiate endpoint
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
         otp:
           type: string
-          description: 4-digit OTP from generate-end-otp
-          example: "5678"
+          description: 4-digit OTP received from customer (sent via SMS/WhatsApp)
+          example: "1234"
+          pattern: "^[0-9]{4}$"
+      required:
+        - token
+        - otp
+
+    InitiateEndTripRequest:
+      type: object
+      description: |
+        Request body for initiating trip end.
+        This generates a token and sends OTP to customer.
+      properties:
+        driverId:
+          type: string
+          format: uuid
+          description: Driver ID (UUID)
+          example: "779a77f6-5704-4b00-8561-2892c58946a2"
+        franchiseId:
+          type: string
+          format: uuid
+          description: Franchise ID (UUID) - must match trip's franchise
+          example: "660e8400-e29b-41d4-a716-446655440001"
         odometerValue:
           type: number
           description: Odometer reading at trip end (in km)
           example: 12350.2
-        finalAmount:
-          type: number
-          description: Final amount charged
-          example: 1500
-        paymentStatus:
+          minimum: 0
+        odometerImage:
           type: string
-          enum: [PENDING, COMPLETED, PAID, PARTIALLY_PAID]
-          description: Payment status
-        paymentMode:
-          type: string
-          enum: [UPI, IN_HAND, CASH, CARD, OTHER]
-          description: Payment mode
-        paymentReference:
-          type: string
-          description: Payment reference number (optional)
-          example: "TXN123456789"
-        overrideReason:
-          type: string
-          description: Reason if amount is overridden (optional)
-          example: "Customer requested discount"
+          format: uri
+          description: URL to odometer image at trip end
+          example: "https://example.com/images/odometer-end.jpg"
       required:
         - driverId
-        - otp
+        - franchiseId
         - odometerValue
-        - finalAmount
-        - paymentStatus
-        - paymentMode
+        - odometerImage
+
+    VerifyEndTripRequest:
+      type: object
+      description: |
+        Request body for verifying token and OTP to end trip.
+        After verification, the system calculates distance, time, and amount.
+      properties:
+        token:
+          type: string
+          description: JWT token received from /end-initiate endpoint
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        otp:
+          type: string
+          description: 4-digit OTP received from customer (sent via email)
+          example: "5678"
+          pattern: "^[0-9]{4}$"
+      required:
+        - token
+        - otp
+
+    CollectPaymentRequest:
+      type: object
+      description: |
+        Request body for collecting payment information.
+        Supports UPI, Cash, or both payment methods.
+      properties:
+        driverId:
+          type: string
+          format: uuid
+          description: Driver ID (UUID)
+          example: "779a77f6-5704-4b00-8561-2892c58946a2"
+        paymentMethod:
+          type: string
+          enum: [UPI, CASH, BOTH]
+          description: Payment method
+          example: "BOTH"
+        upiAmount:
+          type: number
+          description: Amount paid via UPI (required for UPI and BOTH methods)
+          example: 300
+          minimum: 0
+        cashAmount:
+          type: number
+          description: Amount paid in cash (required for CASH and BOTH methods)
+          example: 200
+          minimum: 0
+        upiReference:
+          type: string
+          description: UPI transaction reference/ID (optional)
+          example: "TXN123456789"
+      required:
+        - driverId
+        - paymentMethod
+      allOf:
+        - if:
+            properties:
+              paymentMethod:
+                enum: [UPI]
+          then:
+            required:
+              - upiAmount
+        - if:
+            properties:
+              paymentMethod:
+                enum: [CASH]
+          then:
+            required:
+              - cashAmount
+        - if:
+            properties:
+              paymentMethod:
+                enum: [BOTH]
+          then:
+            required:
+              - upiAmount
+              - cashAmount
 
     TripTypeConfig:
       type: object
@@ -4351,14 +6176,21 @@ components:
           nullable: true
           description: Configuration description
           example: "City round trip pricing"
+        specialPrice:
+          type: boolean
+          description: |
+            If `true`, uses slab-based distance pricing (driver-negotiable).
+            When `true`, `basePrice` and `extraPerHour` may be null.
+          example: false
         basePrice:
           type: number
-          description: Base price
+          nullable: true
+          description: Base price (null when specialPrice = true)
           example: 400
         baseHour:
           type: number
           nullable: true
-          description: Base hours included in the base price
+          description: Base hours included in the base price (null when specialPrice = true)
           example: 3
         distance:
           type: number
@@ -4367,13 +6199,43 @@ components:
           example: 20
         extraPerHour:
           type: number
-          description: Extra charge per hour
+          nullable: true
+          description: Extra charge per hour (null when specialPrice = true)
           example: 100
         extraPerHalfHour:
           type: number
           nullable: true
           description: Extra charge per half hour (30 minutes)
           example: 50
+        distanceSlabs:
+          type: array
+          nullable: true
+          description: |
+            Distance-based price slabs (present when specialPrice = true).
+            Format: `[{from: 0, to: 50, price: 1000}, ...]`
+          items:
+            type: object
+            properties:
+              from:
+                type: number
+                description: Starting distance in km
+                example: 0
+              to:
+                type: number
+                nullable: true
+                description: Ending distance in km (null for open-ended)
+                example: 50
+              price:
+                type: number
+                description: Price for this distance range
+                example: 1000
+          example:
+            - from: 0
+              to: 50
+              price: 1000
+            - from: 51
+              to: 100
+              price: 1500
         status:
           type: string
           enum: [ACTIVE, INACTIVE]
@@ -4390,12 +6252,21 @@ components:
 
     CreateTripTypeRequest:
       type: object
-      description: Request body for creating a new trip type
+      description: |
+        Request body for creating a new trip type.
+        
+        **Two Pricing Modes:**
+        
+        1. **Standard Pricing** (`specialPrice: false` or omitted):
+           - Requires: `basePrice`, `baseHour`, `extraPerHour`
+           - Time-based pricing with predefined rates
+        
+        2. **Special Pricing** (`specialPrice: true`):
+           - Requires: `distanceSlabs` (array of distance-based price slabs)
+           - Distance-based slab pricing (driver-negotiable)
+           - `basePrice`, `baseHour`, `extraPerHour` are NOT required
       required:
         - name
-        - basePrice
-        - baseHour
-        - extraPerHour
       properties:
         name:
           type: string
@@ -4403,19 +6274,36 @@ components:
           example: "City Round Trip"
           minLength: 1
           maxLength: 100
+        specialPrice:
+          type: boolean
+          default: false
+          description: |
+            If `true`, uses slab-based distance pricing (driver-negotiable).
+            When `true`, `basePrice`, `baseHour`, and `extraPerHour` are NOT required.
+            Instead, `distanceSlabs` is required.
+          example: false
         basePrice:
           type: number
-          description: Base price (must be positive)
+          nullable: true
+          description: |
+            Base price (required when `specialPrice = false`, not required when `specialPrice = true`).
+            Must be positive if provided.
           example: 400
           minimum: 0
         baseHour:
           type: number
-          description: Base hours included in the base price (must be positive)
+          nullable: true
+          description: |
+            Base hours included in the base price (required when `specialPrice = false`, not required when `specialPrice = true`).
+            Must be positive if provided.
           example: 3
           minimum: 0
         extraPerHour:
           type: number
-          description: Extra charge per hour (must be positive)
+          nullable: true
+          description: |
+            Extra charge per hour (required when `specialPrice = false`, not required when `specialPrice = true`).
+            Must be positive if provided.
           example: 100
           minimum: 0
         extraPerHalfHour:
@@ -4436,10 +6324,55 @@ components:
           description: Description of the trip type
           example: "City round trip pricing"
           maxLength: 500
+        distanceSlabs:
+          type: array
+          nullable: true
+          description: |
+            Distance-based price slabs (required when `specialPrice = true`).
+            Each slab defines a price for a distance range.
+            Format: `[{from: 0, to: 50, price: 1000}, {from: 51, to: 100, price: 1500}, ...]`
+            Use `null` for `to` in the last slab to indicate open-ended range.
+          items:
+            type: object
+            required:
+              - from
+              - price
+            properties:
+              from:
+                type: number
+                description: Starting distance in km (must be >= 0)
+                example: 0
+                minimum: 0
+              to:
+                type: number
+                nullable: true
+                description: Ending distance in km (must be >= from, or null for open-ended)
+                example: 50
+                minimum: 0
+              price:
+                type: number
+                description: Price for this distance range (must be >= 0)
+                example: 1000
+                minimum: 0
+          example:
+            - from: 0
+              to: 50
+              price: 1000
+            - from: 51
+              to: 100
+              price: 1500
+            - from: 101
+              to: null
+              price: 2000
 
     UpdateTripTypeRequest:
       type: object
-      description: Request body for updating a trip type. All fields are optional.
+      description: |
+        Request body for updating a trip type. All fields are optional.
+        
+        **Note:** When updating `specialPrice` mode, ensure required fields are provided:
+        - If switching to `specialPrice = true`, provide `distanceSlabs`
+        - If switching to `specialPrice = false`, provide `basePrice`, `baseHour`, `extraPerHour`
       properties:
         name:
           type: string
@@ -4447,19 +6380,28 @@ components:
           example: "City Round Trip"
           minLength: 1
           maxLength: 100
+        specialPrice:
+          type: boolean
+          description: |
+            If `true`, uses slab-based distance pricing.
+            When updating, ensure required fields match the mode.
+          example: false
         basePrice:
           type: number
-          description: Base price (must be positive)
+          nullable: true
+          description: Base price (required when `specialPrice = false`)
           example: 450
           minimum: 0
         baseHour:
           type: number
-          description: Base hours included in the base price (must be positive)
+          nullable: true
+          description: Base hours included in the base price (required when `specialPrice = false`)
           example: 3
           minimum: 0
         extraPerHour:
           type: number
-          description: Extra charge per hour (must be positive)
+          nullable: true
+          description: Extra charge per hour (required when `specialPrice = false`)
           example: 120
           minimum: 0
         extraPerHalfHour:
@@ -4479,6 +6421,34 @@ components:
           nullable: true
           description: Description of the trip type
           maxLength: 500
+        distanceSlabs:
+          type: array
+          nullable: true
+          description: |
+            Distance-based price slabs (required when `specialPrice = true`).
+            Format: `[{from: 0, to: 50, price: 1000}, ...]`
+          items:
+            type: object
+            required:
+              - from
+              - price
+            properties:
+              from:
+                type: number
+                description: Starting distance in km
+                example: 0
+                minimum: 0
+              to:
+                type: number
+                nullable: true
+                description: Ending distance in km (null for open-ended)
+                example: 50
+                minimum: 0
+              price:
+                type: number
+                description: Price for this distance range
+                example: 1000
+                minimum: 0
 
     CreateRoleRequest:
       type: object
@@ -4886,6 +6856,48 @@ components:
           type: string
           format: date-time
           description: Last update timestamp
+        franchise:
+          type: object
+          nullable: true
+          description: Franchise details (included in response)
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: Franchise ID
+            code:
+              type: string
+              description: Franchise code
+            name:
+              type: string
+              description: Franchise name
+            city:
+              type: string
+              description: Franchise city
+            region:
+              type: string
+              nullable: true
+              description: Franchise region
+
+    PersonnelBasicInfo:
+      type: object
+      description: Basic information for personnel (staff, drivers, manager)
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Personnel ID
+        name:
+          type: string
+          description: Full name (for staff and manager) or combined first and last name (for drivers)
+        email:
+          type: string
+          format: email
+          description: Email address
+        phone:
+          type: string
+          nullable: true
+          description: Phone number
 
     CreateStaffResponse:
       type: object
@@ -6022,9 +8034,10 @@ components:
           description: Types of cars the driver can drive
           example: ["MANUAL", "AUTOMATIC"]
         franchiseId:
-          type: integer
-          description: Franchise ID (for now use dummy UUID as integer)
-          example: 1
+          type: string
+          format: uuid
+          description: Franchise ID (UUID)
+          example: "74ce561e-fa14-47d1-b9b0-e991db4ced48"
 
     Driver:
       type: object
@@ -6461,6 +8474,76 @@ components:
             isActive:
               type: boolean
               description: Whether the user account is active
+
+    UpdateEarningsConfigRequest:
+      type: object
+      description: Request body for updating driver earnings configuration
+      properties:
+        dailyTargetDefault:
+          type: number
+          description: Default daily target amount
+          example: 1250
+          minimum: 0
+        incentiveTier1Min:
+          type: number
+          description: Minimum amount for tier 1 incentive
+          example: 1250
+          minimum: 0
+        incentiveTier1Max:
+          type: number
+          description: Maximum amount for tier 1 incentive
+          example: 1550
+          minimum: 0
+        incentiveTier1Type:
+          type: string
+          enum: [full_extra, percent]
+          description: Type of tier 1 incentive
+          example: "full_extra"
+        incentiveTier2Min:
+          type: number
+          description: Minimum amount for tier 2 incentive
+          example: 1550
+          minimum: 0
+        incentiveTier2Percent:
+          type: number
+          description: Percentage for tier 2 incentive (e.g., 20 for 20%)
+          example: 20
+          minimum: 0
+          maximum: 100
+        monthlyBonusTiers:
+          type: array
+          description: Monthly bonus tiers
+          items:
+            type: object
+            properties:
+              minEarnings:
+                type: number
+                description: Minimum earnings to qualify for this bonus tier
+                example: 25000
+              bonus:
+                type: number
+                description: Bonus amount for this tier
+                example: 3000
+            required:
+              - minEarnings
+              - bonus
+        monthlyDeductionTiers:
+          type: array
+          description: Monthly deduction policy tiers
+          items:
+            type: object
+            properties:
+              maxEarnings:
+                type: number
+                description: Maximum earnings for this deduction tier
+                example: 26000
+              cutPercent:
+                type: number
+                description: Percentage cut for this tier (e.g., 25 for 25%)
+                example: 25
+            required:
+              - maxEarnings
+              - cutPercent
 
   securitySchemes:
     bearerAuth:

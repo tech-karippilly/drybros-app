@@ -54,7 +54,10 @@ export function TripTypeList({ onCreateClick, onEditClick }: TripTypeListProps) 
         item.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const formatPrice = (price: number) => {
+    const formatPrice = (price: number | null | undefined) => {
+        if (price === null || price === undefined) {
+            return '-';
+        }
         return `₹${price.toFixed(2)}`;
     };
 

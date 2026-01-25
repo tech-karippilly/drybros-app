@@ -12,7 +12,12 @@ import {
   TooManyRequestsError,
 } from "../utils/errors";
 import logger from "../config/logger";
-import { AUTH_RATE_LIMIT } from "../constants/auth";
+import {
+  AUTH_RATE_LIMIT,
+  ROLES_WITH_FRANCHISE,
+  ROLES_ALLOWED_FOR_PASSWORD_RESET,
+  PASSWORD_RESET_ENTITY,
+} from "../constants/auth";
 import { ERROR_MESSAGES } from "../constants/errors";
 import {
   RegisterAdminDTO,
@@ -29,6 +34,7 @@ import {
   AccessTokenPayload,
   RefreshTokenPayload,
   PasswordResetTokenPayload,
+  PasswordResetEntityType,
   UserResponseDTO,
 } from "../types/auth.dto";
 import { getRoleByName } from "../repositories/role.repository";
@@ -62,11 +68,17 @@ function generateRefreshToken(userId: string): string {
 }
 
 /**
- * Helper function to generate password reset token
+ * Helper function to generate password reset token.
+ * entityType + entityId identify User, Staff, or Driver.
  */
-function generatePasswordResetToken(userId: string, email: string): string {
+function generatePasswordResetToken(
+  entityType: PasswordResetEntityType,
+  entityId: string,
+  email: string
+): string {
   const payload: PasswordResetTokenPayload = {
-    userId,
+    entityType,
+    entityId,
     email,
     type: "password-reset",
   };
@@ -98,22 +110,77 @@ function verifyToken<T>(
 }
 
 /**
- * Helper function to map user to response format
+ * Resolve franchiseId for manager | staff | driver.
+ * MANAGER: User.franchiseId; STAFF/OFFICE_STAFF: Staff by email; DRIVER: Driver by email.
  */
-function mapUserToResponse(user: User): AuthResponseDTO["user"] {
-  return {
+async function resolveFranchiseIdForLogin(user: {
+  id: string;
+  email: string;
+  role: UserRole;
+  franchiseId?: string | null;
+}): Promise<string | null> {
+  if (!ROLES_WITH_FRANCHISE.includes(user.role)) return null;
+  if (user.role === UserRole.MANAGER && user.franchiseId) return user.franchiseId;
+  if (user.role === UserRole.STAFF || user.role === UserRole.OFFICE_STAFF) {
+    const staff = await prisma.staff.findFirst({
+      where: { email: user.email },
+      select: { franchiseId: true },
+    });
+    return staff?.franchiseId ?? null;
+  }
+  if (user.role === UserRole.DRIVER) {
+    const driver = await prisma.driver.findFirst({
+      where: { email: user.email },
+      select: { franchiseId: true },
+    });
+    return driver?.franchiseId ?? null;
+  }
+  return user.franchiseId ?? null;
+}
+
+/**
+ * Resolve franchiseId directly from Staff or Driver entity
+ */
+function getFranchiseIdFromEntity(entity: { franchiseId: string }): string {
+  return entity.franchiseId;
+}
+
+/** Minimal user shape used for login/refresh token mapping */
+type UserAuthShape = {
+  id: string;
+  fullName: string;
+  email: string;
+  phone?: string | null;
+  role: UserRole;
+};
+
+/**
+ * Helper function to map user to response format
+ * Supports User, Staff, and Driver entities
+ */
+function mapUserToResponse(
+  user: UserAuthShape,
+  franchiseId?: string | null
+): AuthResponseDTO["user"] {
+  const base = {
     id: String(user.id),
     fullName: user.fullName,
     email: user.email,
-    phone: user.phone || null,
+    phone: user.phone ?? null,
     role: user.role,
   };
+  // Include franchiseId for MANAGER, STAFF, OFFICE_STAFF, and DRIVER
+  if (franchiseId && ROLES_WITH_FRANCHISE.includes(user.role)) {
+    return { ...base, franchiseId };
+  }
+  return base;
 }
 
 /**
  * Helper function to create access token payload from user
+ * Supports User, Staff, and Driver entities
  */
-function createAccessTokenPayload(user: User): AccessTokenPayload {
+function createAccessTokenPayload(user: UserAuthShape): AccessTokenPayload {
   return {
     userId: String(user.id),
     role: user.role,
@@ -313,14 +380,17 @@ async function resetFailedAttempts(userId: string): Promise<void> {
 
 /**
  * Login user and return access and refresh tokens
+ * Unified login for ADMIN, MANAGER (User table), STAFF (Staff table), and DRIVER (Driver table)
  * Optimized with cached date, early returns, and atomic operations
  */
 export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
   // Cache current time to avoid multiple Date() calls
   const now = new Date();
+  const email = input.email.toLowerCase().trim();
 
-  const user = await prisma.user.findUnique({
-    where: { email: input.email },
+  // 1. Try User table first (ADMIN, MANAGER)
+  let user = await prisma.user.findUnique({
+    where: { email },
     select: {
       id: true,
       email: true,
@@ -329,152 +399,452 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
       phone: true,
       role: true,
       isActive: true,
+      franchiseId: true,
       // Note: failedAttempts and lockedUntil may not exist in database
       // Uncomment if migration 20260120104642_add_auth_rate_limiting is applied
-      // failedAttempts: true,
-      // lockedUntil: true,
+      failedAttempts: true,
+      lockedUntil: true,
     },
   });
 
-  if (!user || !user.isActive) {
-    throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
-  }
+  let userAuthShape: UserAuthShape;
+  let franchiseId: string | null = null;
+  let entityId: string;
 
-  // Check if account is locked (before expensive password check)
-  // Note: failedAttempts and lockedUntil may not exist in database - use type casting
-  const userWithLockout = user as any;
-  checkAccountLockout(userWithLockout, now);
+  if (user && user.isActive) {
+    // Check if account is locked (before expensive password check)
+    const userWithLockout = user as any;
+    checkAccountLockout(userWithLockout, now);
 
-  // Verify password (expensive operation, done after lockout check)
-  const isPasswordValid = await bcrypt.compare(
-    input.password,
-    user.password
-  );
+    // Verify password (expensive operation, done after lockout check)
+    const isPasswordValid = await bcrypt.compare(
+      input.password,
+      user.password
+    );
 
-  if (!isPasswordValid) {
-    // Handle failed login attempt with atomic increment
-    await handleFailedLogin(String(user.id), userWithLockout.failedAttempts || 0, now);
-    throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
-  }
+    if (!isPasswordValid) {
+      // Handle failed login attempt with atomic increment
+      await handleFailedLogin(String(user.id), userWithLockout.failedAttempts || 0, now);
+      throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+    }
 
-  // Password is correct - reset failed attempts and unlock account
-  // Only update database if there are failed attempts or account is locked (optimization)
-  const needsReset = (userWithLockout.failedAttempts && userWithLockout.failedAttempts > 0) || userWithLockout.lockedUntil;
-  if (needsReset) {
-    await resetFailedAttempts(String(user.id));
+    // Password is correct - reset failed attempts and unlock account
+    // Only update database if there are failed attempts or account is locked (optimization)
+    const needsReset = (userWithLockout.failedAttempts && userWithLockout.failedAttempts > 0) || userWithLockout.lockedUntil;
+    if (needsReset) {
+      await resetFailedAttempts(String(user.id));
+    }
+
+    userAuthShape = {
+      id: String(user.id),
+      fullName: user.fullName,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+    };
+    entityId = String(user.id);
+    franchiseId = await resolveFranchiseIdForLogin(user);
+  } else {
+    // 2. Try Staff table
+    const staff = await prisma.staff.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        name: true,
+        phone: true,
+        franchiseId: true,
+        isActive: true,
+        status: true,
+      },
+    });
+
+    if (staff && staff.isActive && staff.status === "ACTIVE") {
+      // Validate password exists and is not empty
+      if (!staff.password || staff.password.trim().length === 0) {
+        logger.error("Staff password is empty or null", {
+          staffId: staff.id,
+          email: staff.email,
+        });
+        throw new BadRequestError(
+          "Password security issue detected. Please contact administrator to reset your password."
+        );
+      }
+
+      // Check if password is hashed (bcrypt hashes start with $2a$, $2b$, or $2y$)
+      const isPasswordHashed = staff.password.startsWith("$2a$") || 
+                               staff.password.startsWith("$2b$") || 
+                               staff.password.startsWith("$2y$");
+      
+      if (!isPasswordHashed) {
+        // Password is stored as plain text - security issue
+        logger.error("Staff password is not hashed (stored as plain text)", {
+          staffId: staff.id,
+          email: staff.email,
+        });
+        throw new BadRequestError(
+          "Password security issue detected. Please contact administrator to reset your password."
+        );
+      }
+
+      // Verify password using bcrypt
+      let isPasswordValid = false;
+      try {
+        isPasswordValid = await bcrypt.compare(
+          input.password,
+          staff.password
+        );
+      } catch (error) {
+        logger.error("Error comparing staff password", {
+          staffId: staff.id,
+          email: staff.email,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+      }
+
+      if (!isPasswordValid) {
+        throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+      }
+
+      userAuthShape = {
+        id: staff.id,
+        fullName: staff.name,
+        email: staff.email,
+        phone: staff.phone,
+        role: UserRole.STAFF,
+      };
+      entityId = staff.id;
+      franchiseId = getFranchiseIdFromEntity(staff);
+    } else {
+      // 3. Try Driver table
+      const driver = await prisma.driver.findUnique({
+        where: { email },
+        select: {
+          id: true,
+          email: true,
+          password: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          franchiseId: true,
+          isActive: true,
+          status: true,
+          bannedGlobally: true,
+        },
+      });
+
+      if (
+        driver &&
+        driver.isActive &&
+        driver.status === "ACTIVE" &&
+        !driver.bannedGlobally
+      ) {
+        // Validate password exists and is not empty
+        if (!driver.password || driver.password.trim().length === 0) {
+          logger.error("Driver password is empty or null", {
+            driverId: driver.id,
+            email: driver.email,
+          });
+          throw new BadRequestError(
+            "Password security issue detected. Please contact administrator to reset your password."
+          );
+        }
+
+        // Check if password is hashed (bcrypt hashes start with $2a$, $2b$, or $2y$)
+        const isPasswordHashed = driver.password.startsWith("$2a$") || 
+                                 driver.password.startsWith("$2b$") || 
+                                 driver.password.startsWith("$2y$");
+        
+        if (!isPasswordHashed) {
+          // Password is stored as plain text - security issue
+          logger.error("Driver password is not hashed (stored as plain text)", {
+            driverId: driver.id,
+            email: driver.email,
+          });
+          throw new BadRequestError(
+            "Password security issue detected. Please contact administrator to reset your password."
+          );
+        }
+
+        // Verify password using bcrypt
+        let isPasswordValid = false;
+        try {
+          isPasswordValid = await bcrypt.compare(
+            input.password,
+            driver.password
+          );
+        } catch (error) {
+          logger.error("Error comparing driver password", {
+            driverId: driver.id,
+            email: driver.email,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+        }
+
+        if (!isPasswordValid) {
+          throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+        }
+
+        userAuthShape = {
+          id: driver.id,
+          fullName: `${driver.firstName} ${driver.lastName}`.trim(),
+          email: driver.email,
+          phone: driver.phone,
+          role: UserRole.DRIVER,
+        };
+        entityId = driver.id;
+        franchiseId = getFranchiseIdFromEntity(driver);
+      } else {
+        // No matching user found in any table
+        throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+      }
+    }
   }
 
   // Generate tokens
-  const accessToken = generateAccessToken(createAccessTokenPayload(user));
-  const refreshToken = generateRefreshToken(String(user.id));
+  const accessToken = generateAccessToken(createAccessTokenPayload(userAuthShape));
+  const refreshToken = generateRefreshToken(entityId);
 
   logger.info("Successful login", {
-    userId: String(user.id),
-    email: user.email,
+    userId: entityId,
+    email: userAuthShape.email,
+    role: userAuthShape.role,
   });
 
   return {
     accessToken,
     refreshToken,
-    user: mapUserToResponse(user),
+    user: mapUserToResponse(userAuthShape, franchiseId),
   };
 }
 
 /**
- * Forgot password - verify email and send reset link
- * Returns error if email does not exist in the system
+ * Forgot password - verify email and send reset link.
+ * Supports User (manager, staff, driver, admin), Staff, and Driver.
+ * Lookup order: User (allowed roles) → Staff → Driver.
  */
 export async function forgotPassword(
   input: ForgotPasswordDTO
 ): Promise<ForgotPasswordResponseDTO> {
+  const email = input.email.toLowerCase().trim();
+
+  // 1. User (manager, staff, driver, admin)
   const user = await prisma.user.findUnique({
-    where: { email: input.email },
+    where: { email },
+    select: { id: true, email: true, fullName: true, role: true, isActive: true },
   });
-
-  // Check if user exists
-  if (!user) {
-    throw new NotFoundError(ERROR_MESSAGES.EMAIL_NOT_FOUND);
+  if (
+    user &&
+    user.isActive &&
+    ROLES_ALLOWED_FOR_PASSWORD_RESET.includes(user.role as UserRole)
+  ) {
+    const resetToken = generatePasswordResetToken(
+      PASSWORD_RESET_ENTITY.USER as PasswordResetEntityType,
+      String(user.id),
+      user.email
+    );
+    const resetLink = `${emailConfig.resetPasswordLink}?token=${resetToken}`;
+    await sendEmailSafely(
+      () =>
+        sendPasswordResetEmail({
+          to: user.email,
+          name: user.fullName,
+          resetLink,
+        }),
+      "Password reset email sent successfully",
+      "Failed to send password reset email",
+      { email: user.email }
+    );
+    return {
+      message: "Password reset link has been sent to your email address.",
+    };
   }
 
-  // Check if user is active
-  if (!user.isActive) {
-    throw new BadRequestError(ERROR_MESSAGES.ACCOUNT_INACTIVE);
+  // 2. Staff
+  const staff = await prisma.staff.findFirst({
+    where: { email, isActive: true, status: "ACTIVE" },
+    select: { id: true, email: true, name: true },
+  });
+  if (staff) {
+    const resetToken = generatePasswordResetToken(
+      PASSWORD_RESET_ENTITY.STAFF as PasswordResetEntityType,
+      staff.id,
+      staff.email
+    );
+    const resetLink = `${emailConfig.resetPasswordLink}?token=${resetToken}`;
+    await sendEmailSafely(
+      () =>
+        sendPasswordResetEmail({
+          to: staff.email,
+          name: staff.name,
+          resetLink,
+        }),
+      "Password reset email sent successfully (staff)",
+      "Failed to send password reset email to staff",
+      { email: staff.email }
+    );
+    return {
+      message: "Password reset link has been sent to your email address.",
+    };
   }
 
-  // Generate reset token and send email
-  const resetToken = generatePasswordResetToken(String(user.id), user.email);
-  const resetLink = `${emailConfig.resetPasswordLink}?token=${resetToken}`;
+  // 3. Driver
+  const driver = await prisma.driver.findFirst({
+    where: {
+      email,
+      isActive: true,
+      status: "ACTIVE",
+      bannedGlobally: false,
+    },
+    select: { id: true, email: true, firstName: true, lastName: true },
+  });
+  if (driver) {
+    const resetToken = generatePasswordResetToken(
+      PASSWORD_RESET_ENTITY.DRIVER as PasswordResetEntityType,
+      driver.id,
+      driver.email
+    );
+    const resetLink = `${emailConfig.resetPasswordLink}?token=${resetToken}`;
+    const driverName = `${driver.firstName} ${driver.lastName}`.trim();
+    await sendEmailSafely(
+      () =>
+        sendPasswordResetEmail({
+          to: driver.email,
+          name: driverName,
+          resetLink,
+        }),
+      "Password reset email sent successfully (driver)",
+      "Failed to send password reset email to driver",
+      { email: driver.email }
+    );
+    return {
+      message: "Password reset link has been sent to your email address.",
+    };
+  }
 
-  await sendEmailSafely(
-    () =>
-      sendPasswordResetEmail({
-        to: user.email,
-        name: user.fullName,
-        resetLink,
-      }),
-    "Password reset email sent successfully",
-    "Failed to send password reset email",
-    { email: user.email }
-  );
-
-  return {
-    message: "Password reset link has been sent to your email address.",
-  };
+  throw new NotFoundError(ERROR_MESSAGES.EMAIL_NOT_FOUND);
 }
 
 /**
- * Reset password using token
+ * Reset password using token.
+ * Supports User (manager, staff, driver, admin), Staff, and Driver.
+ * Backward compatible: tokens with userId but no entityType/entityId are treated as user.
  */
 export async function resetPassword(
   input: ResetPasswordDTO
 ): Promise<ResetPasswordResponseDTO> {
-  // Verify and decode token
   const decoded = verifyToken<PasswordResetTokenPayload>(input.token);
 
-  // Verify token type
   if (decoded.type !== "password-reset") {
     throw new BadRequestError(ERROR_MESSAGES.TOKEN_INVALID_TYPE);
   }
 
-  // Find user
-  // This is a known issue with Prisma client type generation timing
-  // The database uses UUID strings, but TypeScript may show cached number types
-  // @ts-ignore - Prisma types may show number but database uses UUID string
-  const user = await prisma.user.findUnique({
-    where: { id: decoded.userId },
-  } as any);
-
-  if (!user || !user.isActive) {
-    throw new BadRequestError(ERROR_MESSAGES.USER_NOT_FOUND);
-  }
-
-  // Verify email matches
-  if (user.email !== decoded.email) {
+  const entityType = decoded.entityType ?? (decoded.userId ? "user" : null);
+  const entityId = decoded.entityId ?? decoded.userId;
+  if (!entityType || !entityId) {
     throw new BadRequestError(ERROR_MESSAGES.INVALID_TOKEN);
   }
 
-  // Hash new password
   const hashedPassword = await bcrypt.hash(input.password, 10);
 
-  // Update password
-  await prisma.user.update({
-    // @ts-ignore - Prisma types may show number but database uses UUID string
-    where: { id: user.id },
-    data: { password: hashedPassword },
-  });
-
-  // Send confirmation email (non-blocking)
-  await sendEmailSafely(
-    () =>
-      sendPasswordResetConfirmationEmail({
-        to: user.email,
-        name: user.fullName,
-        loginLink: emailConfig.loginLink,
-      }),
-    "Password reset confirmation email sent successfully",
-    "Failed to send password reset confirmation email",
-    { email: user.email }
-  );
+  if (entityType === PASSWORD_RESET_ENTITY.USER) {
+    const user = await prisma.user.findUnique({
+      where: { id: entityId },
+      select: { id: true, email: true, fullName: true, isActive: true },
+    });
+    if (!user || !user.isActive) {
+      throw new BadRequestError(ERROR_MESSAGES.USER_NOT_FOUND);
+    }
+    if (user.email !== decoded.email) {
+      throw new BadRequestError(ERROR_MESSAGES.INVALID_TOKEN);
+    }
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword },
+    });
+    await sendEmailSafely(
+      () =>
+        sendPasswordResetConfirmationEmail({
+          to: user.email,
+          name: user.fullName,
+          loginLink: emailConfig.loginLink,
+        }),
+      "Password reset confirmation email sent successfully",
+      "Failed to send password reset confirmation email",
+      { email: user.email }
+    );
+  } else if (entityType === PASSWORD_RESET_ENTITY.STAFF) {
+    const staff = await prisma.staff.findUnique({
+      where: { id: entityId },
+      select: { id: true, email: true, name: true, isActive: true, status: true },
+    });
+    if (!staff || !staff.isActive || staff.status !== "ACTIVE") {
+      throw new BadRequestError(ERROR_MESSAGES.STAFF_NOT_FOUND);
+    }
+    if (staff.email !== decoded.email) {
+      throw new BadRequestError(ERROR_MESSAGES.INVALID_TOKEN);
+    }
+    await prisma.staff.update({
+      where: { id: staff.id },
+      data: { password: hashedPassword },
+    });
+    await sendEmailSafely(
+      () =>
+        sendPasswordResetConfirmationEmail({
+          to: staff.email,
+          name: staff.name,
+          loginLink: emailConfig.loginLink,
+        }),
+      "Password reset confirmation email sent successfully (staff)",
+      "Failed to send password reset confirmation email to staff",
+      { email: staff.email }
+    );
+  } else if (entityType === PASSWORD_RESET_ENTITY.DRIVER) {
+    const driver = await prisma.driver.findUnique({
+      where: { id: entityId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        isActive: true,
+        status: true,
+        bannedGlobally: true,
+      },
+    });
+    if (
+      !driver ||
+      !driver.isActive ||
+      driver.status !== "ACTIVE" ||
+      driver.bannedGlobally
+    ) {
+      throw new BadRequestError(ERROR_MESSAGES.DRIVER_NOT_FOUND);
+    }
+    if (driver.email !== decoded.email) {
+      throw new BadRequestError(ERROR_MESSAGES.INVALID_TOKEN);
+    }
+    const driverName = `${driver.firstName} ${driver.lastName}`.trim();
+    await prisma.driver.update({
+      where: { id: driver.id },
+      data: { password: hashedPassword },
+    });
+    await sendEmailSafely(
+      () =>
+        sendPasswordResetConfirmationEmail({
+          to: driver.email,
+          name: driverName,
+          loginLink: emailConfig.loginLink,
+        }),
+      "Password reset confirmation email sent successfully (driver)",
+      "Failed to send password reset confirmation email to driver",
+      { email: driver.email }
+    );
+  } else {
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_TOKEN);
+  }
 
   return {
     message:
@@ -502,6 +872,15 @@ export async function refreshToken(
   // @ts-ignore - Prisma types may show number but database uses UUID string
   const user = await prisma.user.findUnique({
     where: { id: decoded.userId },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      role: true,
+      isActive: true,
+      franchiseId: true,
+    },
   } as any);
 
   if (!user || !user.isActive) {
@@ -512,10 +891,12 @@ export async function refreshToken(
   const accessToken = generateAccessToken(createAccessTokenPayload(user));
   const newRefreshToken = generateRefreshToken(String(user.id));
 
+  const franchiseId = await resolveFranchiseIdForLogin(user);
+
   return {
     accessToken,
     refreshToken: newRefreshToken,
-    user: mapUserToResponse(user),
+    user: mapUserToResponse(user, franchiseId),
   };
 }
 
@@ -549,6 +930,7 @@ export async function getCurrentUser(userId: string): Promise<CurrentUserRespons
       phone: true,
       role: true,
       isActive: true,
+      franchiseId: true,
     },
   } as any);
 
@@ -560,6 +942,8 @@ export async function getCurrentUser(userId: string): Promise<CurrentUserRespons
     throw new BadRequestError(ERROR_MESSAGES.USER_INACTIVE);
   }
 
+  const franchiseId = await resolveFranchiseIdForLogin(user);
+
   return {
     id: String(user.id),
     fullName: user.fullName,
@@ -567,5 +951,6 @@ export async function getCurrentUser(userId: string): Promise<CurrentUserRespons
     phone: user.phone || null,
     role: user.role,
     isActive: user.isActive,
+    ...(franchiseId && { franchiseId }),
   };
 }

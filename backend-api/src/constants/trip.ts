@@ -29,4 +29,39 @@ export const TRIP_ERROR_MESSAGES = {
   MISSING_DESTINATION_LOCATION: "Destination location is required",
   MISSING_CUSTOMER_PHONE: "Customer phone number is required",
   MISSING_CUSTOMER_NAME: "Customer name is required",
+  // Reschedule, cancel, reassign
+  TRIP_NOT_FOUND: "Trip not found",
+  RESCHEDULE_NOT_ALLOWED: "Trip cannot be rescheduled in current status",
+  CANCEL_NOT_ALLOWED: "Trip cannot be cancelled in current status",
+  REASSIGN_NOT_ALLOWED: "Trip cannot be reassigned in current status",
+  MISSING_TRIP_DATE: "tripDate is required for reschedule",
+  MISSING_TRIP_TIME: "tripTime is required for reschedule",
+  MISSING_CANCELLED_BY: "cancelledBy is required (OFFICE or CUSTOMER)",
+  INVALID_CANCELLED_BY: "cancelledBy must be OFFICE or CUSTOMER",
+  TRIP_HAS_NO_DRIVER: "Trip has no driver to reassign",
+  REASSIGN_SAME_DRIVER: "New driver must be different from current driver",
 } as const;
+
+/** Trip statuses that allow reschedule (before trip has started) */
+export const RESCHEDULABLE_TRIP_STATUSES = [
+  "PENDING",
+  "NOT_ASSIGNED",
+  "REQUESTED",
+  "ASSIGNED",
+  "DRIVER_ACCEPTED",
+] as const;
+
+/** Trip statuses that allow cancel */
+export const CANCELLABLE_TRIP_STATUSES = [
+  "PENDING",
+  "NOT_ASSIGNED",
+  "REQUESTED",
+  "ASSIGNED",
+  "DRIVER_ACCEPTED",
+] as const;
+
+/** Trip statuses that allow driver reassign (has driver, not started) */
+export const REASSIGNABLE_TRIP_STATUSES = [
+  "ASSIGNED",
+  "DRIVER_ACCEPTED",
+] as const;

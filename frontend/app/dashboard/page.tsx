@@ -5,23 +5,16 @@ import { useRouter } from 'next/navigation';
 import { useAppSelector, useAppDispatch } from '@/lib/hooks';
 import { setCredentials } from '@/lib/features/auth/authSlice';
 import { AdminDashboard } from '@/components/dashboard/AdminDashboard';
+import { ManagerDashboard } from '@/components/dashboard/ManagerDashboard';
 import { StaffDashboard } from '@/components/dashboard/StaffDashboard';
 import { DriverDashboard } from '@/components/dashboard/DriverDashboard';
 import { AUTH_ROUTES, REFRESH_TOKEN_EXPIRED_ERROR } from '@/lib/constants/auth';
+import { mapBackendRoleToFrontend, USER_ROLES } from '@/lib/constants/roles';
 import { getAuthTokens } from '@/lib/utils/auth';
 import { getCurrentUser } from '@/lib/features/auth/authApi';
 import { getIsRefreshTokenExpired } from '@/lib/utils/tokenRefresh';
 import { fetchFranchises, fetchFranchiseById } from '@/lib/features/franchise/franchiseSlice';
 import { getFranchiseByCode } from '@/lib/features/franchise/franchiseApi';
-
-// Role mapping function - extracted outside component for optimization
-const mapBackendRoleToFrontend = (backendRole: string): string => {
-    const role = backendRole.toUpperCase();
-    if (role === 'ADMIN') return 'admin';
-    if (role === 'OFFICE_STAFF' || role === 'STAFF') return 'staff';
-    if (role === 'DRIVER') return 'driver';
-    return 'admin';
-};
 
 export default function DashboardPage() {
     const { user, isAuthenticated, isLogin } = useAppSelector((state) => state.auth);
@@ -49,11 +42,11 @@ export default function DashboardPage() {
 
             // Fetch franchises based on role
             const userRole = mapBackendRoleToFrontend(userData.role);
-            if (userRole === 'admin') {
+            if (userRole === USER_ROLES.ADMIN) {
                 // Admin: fetch all franchises
                 await dispatch(fetchFranchises()).unwrap();
             } else {
-                // For other roles: fetch franchise by code if available
+                // For other roles (manager, staff, driver): fetch franchise by code if available
                 // Note: If user data includes franchiseCode, use getFranchiseByCode
                 // For now, we'll fetch all and let the user select if needed
                 // You can add franchiseCode to user data in backend if needed
@@ -120,11 +113,12 @@ export default function DashboardPage() {
         return null;
     }
 
-    const role = user?.role || 'admin';
+    const role = user?.role || USER_ROLES.ADMIN;
     const DashboardComponent = {
-        admin: AdminDashboard,
-        staff: StaffDashboard,
-        driver: DriverDashboard,
+        [USER_ROLES.ADMIN]: AdminDashboard,
+        [USER_ROLES.MANAGER]: ManagerDashboard,
+        [USER_ROLES.STAFF]: StaffDashboard,
+        [USER_ROLES.DRIVER]: DriverDashboard,
     }[role] || AdminDashboard;
 
     return <DashboardComponent />;

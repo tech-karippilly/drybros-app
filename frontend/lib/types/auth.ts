@@ -1,5 +1,7 @@
 import { Franchise } from './franchise';
 
+export type { Franchise };
+
 export interface User {
     _id: string;
     email: string;

@@ -95,7 +95,7 @@ export function PenaltyForm({ isOpen, onClose, penalty }: PenaltyFormProps) {
         } catch (error: any) {
             // When using .unwrap(), the error is the payload from rejectWithValue
             // Our slice returns: { message, code, status }
-            let errorMessage = PENALTIES_STRINGS.CREATE_ERROR;
+            let errorMessage: string = PENALTIES_STRINGS.CREATE_ERROR;
             let errorTitle = "Error";
             
             // Extract error message from the error object

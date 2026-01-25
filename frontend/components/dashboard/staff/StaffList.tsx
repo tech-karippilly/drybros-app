@@ -64,7 +64,7 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
             const matchesFranchise = filters.franchiseId === 'all' || item.franchiseId === filters.franchiseId;
 
             // Salary filter: simple numeric comparison (greater than or equal to)
-            const matchesSalary = filters.salary === '' || item.salary >= parseInt(filters.salary);
+            const matchesSalary = filters.salary === '' || (item.salary ?? 0) >= parseInt(filters.salary);
 
             return matchesName && matchesEmail && matchesPhone && matchesStatus && matchesSalary && matchesFranchise;
         });
@@ -260,7 +260,7 @@ export function StaffList({ onCreateClick, onEditClick }: StaffListProps) {
                                     <td className="px-6 py-4 text-sm font-bold text-[#0d121c] dark:text-white">
                                         <div className="flex items-center gap-1">
                                             <span className="text-green-600 font-bold">₹</span>
-                                            <span>{staff.salary.toLocaleString()}</span>
+                                            <span>{(staff.salary ?? 0).toLocaleString()}</span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">

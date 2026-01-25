@@ -117,7 +117,7 @@ export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
                         <h4 className="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Compensation</h4>
                         <div className="flex items-baseline gap-2">
                             <span className="text-3xl font-black italic">₹</span>
-                            <span className="text-4xl font-black">{selectedStaff.salary.toLocaleString()}</span>
+                            <span className="text-4xl font-black">{(selectedStaff.salary ?? 0).toLocaleString()}</span>
                         </div>
                         <p className="text-[#49659c] text-xs font-bold mt-2">Monthly Net CTC</p>
                     </div>
@@ -167,13 +167,13 @@ export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
                                 <h4 className="font-black text-[#0d121c] dark:text-white uppercase tracking-widest text-xs">Credential Status</h4>
                             </div>
                             <div className="space-y-3">
-                                {selectedStaff.documentsCollected.map((doc, i) => (
+                                {(selectedStaff.documentsCollected ?? []).map((doc, i) => (
                                     <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800">
                                         <FileCheck size={16} className="text-green-600" />
                                         <span className="text-sm font-bold text-[#49659c] dark:text-gray-300">{doc}</span>
                                     </div>
                                 ))}
-                                {selectedStaff.documentsCollected.length === 0 && (
+                                {(selectedStaff.documentsCollected ?? []).length === 0 && (
                                     <p className="text-sm text-[#49659c] italic">No documents verified yet.</p>
                                 )}
                             </div>

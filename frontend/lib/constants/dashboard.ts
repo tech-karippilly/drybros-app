@@ -12,7 +12,9 @@ import {
     PlusCircle,
     Clock,
     Shield,
-    Settings
+    Settings,
+    CalendarOff,
+    Star
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 
@@ -53,6 +55,39 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
         },
         { icon: MessageSquare, label: 'Complaints', id: 'complaints' },
         { icon: CalendarCheck, label: 'Attendance', id: 'attendance' },
+        { icon: CalendarOff, label: 'Leave', id: 'leave' },
+        { icon: Star, label: 'Ratings', id: 'ratings' },
+        { icon: Shield, label: 'Policies', id: 'policies', external: true, href: '/policies' },
+    ],
+    manager: [
+        { icon: Home, label: 'Home', id: 'home' },
+        { icon: Users, label: 'Staff', id: 'staff' },
+        {
+            icon: Truck,
+            label: 'Drivers',
+            id: 'drivers',
+            submenu: [
+                { icon: Truck, label: 'Driver List', id: 'drivers' },
+                { icon: Settings, label: 'Earnings Configuration', id: 'driver-earnings-config' },
+            ],
+        },
+        { icon: BarChart3, label: 'Reports', id: 'reports' },
+        {
+            icon: Map,
+            label: 'Trip Management',
+            id: 'trips',
+            submenu: [
+                { icon: Map, label: 'Trip', id: 'all-trips' },
+                { icon: FileText, label: 'Trip Type', id: 'trip-types' },
+                { icon: PlusCircle, label: 'Booking', id: 'trip-booking' },
+                { icon: Clock, label: 'Unassigned Trips', id: 'unassigned-trips' },
+            ],
+        },
+        { icon: MessageSquare, label: 'Complaints', id: 'complaints' },
+        { icon: CalendarCheck, label: 'Attendance', id: 'attendance' },
+        { icon: CalendarOff, label: 'Leave', id: 'leave' },
+        { icon: Star, label: 'Ratings', id: 'ratings' },
+        { icon: UserCircle, label: 'Customer', id: 'customer' },
         { icon: Shield, label: 'Policies', id: 'policies', external: true, href: '/policies' },
     ],
     staff: [
@@ -80,6 +115,8 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
         },
         { icon: MessageSquare, label: 'Complaints', id: 'complaints' },
         { icon: CalendarCheck, label: 'Attendance', id: 'attendance' },
+        { icon: CalendarOff, label: 'Leave', id: 'leave' },
+        { icon: Star, label: 'Ratings', id: 'ratings' },
         { icon: UserCircle, label: 'Customer', id: 'customer' },
         { icon: Shield, label: 'Policies', id: 'policies', external: true, href: '/policies' },
     ],

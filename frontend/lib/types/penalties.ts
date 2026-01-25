@@ -25,7 +25,7 @@ export interface UpdatePenaltyInput extends CreatePenaltyInput {
 export type PenaltyTargetType = 'DRIVER' | 'STAFF';
 
 export interface ApplyPenaltyInput {
-    penaltyId: number;
+    penaltyId: number | string;
     targetType: PenaltyTargetType;
     driverId?: number;
     staffId?: string;
@@ -35,7 +35,7 @@ export interface ApplyPenaltyInput {
 
 export interface DriverPenalty {
     id: number;
-    penaltyId: number;
+    penaltyId: number | string;
     penalty: Penalty;
     driverId: number;
     driver: {
@@ -52,7 +52,7 @@ export interface DriverPenalty {
 
 export interface StaffPenalty {
     id: number;
-    penaltyId: number;
+    penaltyId: number | string;
     penalty: Penalty;
     staffId: string;
     staff: {

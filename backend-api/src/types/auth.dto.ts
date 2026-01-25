@@ -123,6 +123,7 @@ export type RefreshTokenDTO = z.infer<typeof refreshTokenSchema>;
 
 /**
  * DTO for auth response (login only)
+ * franchiseId is included when role is manager | staff | driver (from User, Staff, or Driver)
  */
 export interface AuthResponseDTO {
   accessToken: string;
@@ -133,6 +134,7 @@ export interface AuthResponseDTO {
     email: string;
     phone: string | null;
     role: string;
+    franchiseId?: string;
   };
 }
 
@@ -169,12 +171,21 @@ export interface RefreshTokenPayload {
 }
 
 /**
- * JWT payload for password reset token
+ * Entity types for password reset (user | staff | driver)
+ */
+export type PasswordResetEntityType = "user" | "staff" | "driver";
+
+/**
+ * JWT payload for password reset token.
+ * entityType + entityId identify User, Staff, or Driver.
  */
 export interface PasswordResetTokenPayload {
-  userId: string;
+  entityType: PasswordResetEntityType;
+  entityId: string;
   email: string;
   type: "password-reset";
+  /** @deprecated Use entityId. Kept for backward compatibility with old tokens. */
+  userId?: string;
 }
 
 /**
@@ -186,6 +197,7 @@ export interface LogoutResponseDTO {
 
 /**
  * DTO for current user response
+ * franchiseId is included when role is manager | staff | driver
  */
 export interface CurrentUserResponseDTO {
   id: string;
@@ -194,4 +206,5 @@ export interface CurrentUserResponseDTO {
   phone: string | null;
   role: string;
   isActive: boolean;
+  franchiseId?: string;
 }

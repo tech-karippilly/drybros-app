@@ -102,7 +102,7 @@ export interface UpdateDriverInput{
     pincode: string | null;
 
     // Employment Details
-    franchiseId: number | null;
+    franchiseId: number | string | null;
     dateOfJoining: string | null; // ISO Date string
     assignedCity: string | null;
     employmentType:EmploymentType | null;

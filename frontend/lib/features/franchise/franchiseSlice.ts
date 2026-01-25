@@ -86,6 +86,9 @@ const franchiseSlice = createSlice({
         setSelectedFranchise: (state, action: PayloadAction<Franchise | null>) => {
             state.selectedFranchise = action.payload;
         },
+        addFranchise: (state, action: PayloadAction<Franchise>) => {
+            state.list.push(action.payload);
+        },
         updateFranchise: (state, action: PayloadAction<Franchise>) => {
             const index = state.list.findIndex(f => f._id === action.payload._id);
             if (index !== -1) {

@@ -1,10 +1,19 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Loader2, AlertCircle, MapPin, User, Calendar, Clock, DollarSign, CreditCard, FileText, CheckCircle, XCircle, UserPlus, Phone } from 'lucide-react';
-import { getTripById, getAvailableDriversForTrip, assignDriverToTrip, TripResponse } from '@/lib/features/trip/tripApi';
+import { ArrowLeft, Loader2, AlertCircle, MapPin, User, Calendar, Clock, DollarSign, CreditCard, FileText, CheckCircle, XCircle, UserPlus, Phone, CalendarClock, Ban, UserMinus } from 'lucide-react';
+import {
+    getTripById,
+    getAvailableDriversForTrip,
+    assignDriverToTrip,
+    rescheduleTrip as rescheduleTripApi,
+    cancelTrip as cancelTripApi,
+    reassignDriverToTrip as reassignDriverToTripApi,
+    TripResponse,
+} from '@/lib/features/trip/tripApi';
 import { PerformanceBadge } from '@/components/ui/PerformanceBadge';
 import { AvailableDriver } from '@/lib/types/driver';
+import { RESCHEDULABLE_TRIP_STATUSES, CANCELLABLE_TRIP_STATUSES, REASSIGNABLE_TRIP_STATUSES } from '@/lib/constants/trips';
 import { cn } from '@/lib/utils';
 
 interface TripDetailsScreenProps {
@@ -17,9 +26,17 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [showAssignDriver, setShowAssignDriver] = useState(false);
+    const [showReassignDriver, setShowReassignDriver] = useState(false);
     const [availableDrivers, setAvailableDrivers] = useState<AvailableDriver[]>([]);
     const [loadingDrivers, setLoadingDrivers] = useState(false);
     const [assigningDriver, setAssigningDriver] = useState<string | null>(null);
+    const [reassigningDriver, setReassigningDriver] = useState<string | null>(null);
+    const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [rescheduleDate, setRescheduleDate] = useState('');
+    const [rescheduleTime, setRescheduleTime] = useState('');
+    const [cancelBy, setCancelBy] = useState<'OFFICE' | 'CUSTOMER'>('OFFICE');
+    const [cancelReason, setCancelReason] = useState('');
 
     useEffect(() => {
         fetchTripDetails();
@@ -85,7 +102,6 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
         try {
             setAssigningDriver(driverId);
             await assignDriverToTrip(tripId, driverId);
-            // Refresh trip details to show updated driver assignment
             await fetchTripDetails();
             setShowAssignDriver(false);
             setAvailableDrivers([]);
@@ -96,6 +112,91 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
             setAssigningDriver(null);
         }
     };
+
+    const handleShowReassignDriver = async () => {
+        if (showReassignDriver) {
+            setShowReassignDriver(false);
+            return;
+        }
+        try {
+            setLoadingDrivers(true);
+            setError(null);
+            const drivers = await getAvailableDriversForTrip(tripId);
+            const greenDrivers: AvailableDriver[] = drivers
+                .filter((d: any) => d.performance?.category === 'GREEN')
+                .map((d: any) => ({
+                    id: d.id,
+                    firstName: d.firstName,
+                    lastName: d.lastName,
+                    phone: d.phone,
+                    driverCode: d.driverCode,
+                    status: d.status,
+                    currentRating: d.currentRating,
+                    performance: d.performance,
+                    matchScore: d.matchScore || 0,
+                }));
+            setAvailableDrivers(greenDrivers);
+            setShowReassignDriver(true);
+        } catch (err: any) {
+            setError(err?.response?.data?.error || err?.message || 'Failed to fetch available drivers');
+        } finally {
+            setLoadingDrivers(false);
+        }
+    };
+
+    const handleReassignDriver = async (driverId: string) => {
+        try {
+            setReassigningDriver(driverId);
+            await reassignDriverToTripApi(tripId, {
+                driverId,
+                franchiseId: trip?.franchiseId,
+            });
+            await fetchTripDetails();
+            setShowReassignDriver(false);
+            setAvailableDrivers([]);
+        } catch (err: any) {
+            alert(err?.response?.data?.error || err?.message || 'Failed to reassign driver');
+        } finally {
+            setReassigningDriver(null);
+        }
+    };
+
+    const handleRescheduleSubmit = async () => {
+        if (!rescheduleDate || !rescheduleTime) {
+            alert('Please set date and time.');
+            return;
+        }
+        try {
+            await rescheduleTripApi(tripId, {
+                tripDate: rescheduleDate,
+                tripTime: rescheduleTime,
+            });
+            await fetchTripDetails();
+            setShowRescheduleModal(false);
+            setRescheduleDate('');
+            setRescheduleTime('');
+        } catch (err: any) {
+            alert(err?.response?.data?.error || err?.message || 'Failed to reschedule trip');
+        }
+    };
+
+    const handleCancelSubmit = async () => {
+        try {
+            await cancelTripApi(tripId, {
+                cancelledBy: cancelBy,
+                reason: cancelReason.trim() || undefined,
+            });
+            await fetchTripDetails();
+            setShowCancelModal(false);
+            setCancelReason('');
+        } catch (err: any) {
+            alert(err?.response?.data?.error || err?.message || 'Failed to cancel trip');
+        }
+    };
+
+    const canReschedule = trip && (RESCHEDULABLE_TRIP_STATUSES as readonly string[]).includes(trip.status);
+    const canCancel = trip && (CANCELLABLE_TRIP_STATUSES as readonly string[]).includes(trip.status);
+    const canReassign = trip && trip.driverId && (REASSIGNABLE_TRIP_STATUSES as readonly string[]).includes(trip.status);
 
     const formatPrice = (price: number) => {
         return `₹${price.toFixed(2)}`;
@@ -189,15 +290,55 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
                         </p>
                     </div>
                 </div>
-                {trip && !trip.driverId && (
-                    <button
-                        onClick={handleShowAssignDriver}
-                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-500/20 active:scale-95"
-                    >
-                        <UserPlus size={18} />
-                        <span>{showAssignDriver ? 'Hide' : 'Assign'} Driver</span>
-                    </button>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                    {trip && !trip.driverId && (
+                        <button
+                            onClick={handleShowAssignDriver}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-500/20 active:scale-95"
+                        >
+                            <UserPlus size={18} />
+                            <span>{showAssignDriver ? 'Hide' : 'Assign'} Driver</span>
+                        </button>
+                    )}
+                    {canReassign && (
+                        <button
+                            onClick={handleShowReassignDriver}
+                            className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700 transition-all active:scale-95"
+                        >
+                            <UserMinus size={18} />
+                            <span>{showReassignDriver ? 'Hide' : 'Reassign'} Driver</span>
+                        </button>
+                    )}
+                    {canReschedule && (
+                        <button
+                            onClick={() => {
+                                if (trip?.scheduledAt) {
+                                    const d = new Date(trip.scheduledAt);
+                                    setRescheduleDate(d.toISOString().slice(0, 10));
+                                    setRescheduleTime(d.toTimeString().slice(0, 5));
+                                } else {
+                                    const n = new Date();
+                                    setRescheduleDate(n.toISOString().slice(0, 10));
+                                    setRescheduleTime('12:00');
+                                }
+                                setShowRescheduleModal(true);
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all active:scale-95"
+                        >
+                            <CalendarClock size={18} />
+                            Reschedule
+                        </button>
+                    )}
+                    {canCancel && (
+                        <button
+                            onClick={() => setShowCancelModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-all active:scale-95"
+                        >
+                            <Ban size={18} />
+                            Cancel Trip
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Content */}
@@ -288,6 +429,81 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
                                                 </button>
                                             </div>
                                         ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Reassign Driver Section */}
+                        {showReassignDriver && (
+                            <div className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm">
+                                <h3 className="text-lg font-bold text-[#0d121c] dark:text-white mb-4 flex items-center gap-2">
+                                    <UserMinus size={20} />
+                                    Reassign Driver (GREEN Performance Only)
+                                </h3>
+                                {loadingDrivers ? (
+                                    <div className="text-center py-8">
+                                        <Loader2 className="size-6 animate-spin text-[#0d59f2] mx-auto mb-2" />
+                                        <p className="text-sm text-[#49659c]">Loading available drivers...</p>
+                                    </div>
+                                ) : availableDrivers.filter((d) => d.id !== trip?.driverId).length === 0 ? (
+                                    <div className="text-center py-8">
+                                        <AlertCircle className="size-8 text-[#49659c] opacity-50 mx-auto mb-2" />
+                                        <p className="text-sm text-[#49659c]">No other GREEN drivers available to reassign</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {availableDrivers
+                                            .filter((d) => d.id !== trip?.driverId)
+                                            .map((driver) => (
+                                                <div
+                                                    key={driver.id}
+                                                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                                >
+                                                    <div className="flex items-center gap-4 flex-1">
+                                                        <PerformanceBadge
+                                                            category={driver.performance.category}
+                                                            score={driver.performance.score}
+                                                            showScore={true}
+                                                            size="sm"
+                                                        />
+                                                        <div className="flex-1">
+                                                            <p className="font-medium text-sm text-[#0d121c] dark:text-white">
+                                                                {driver.firstName} {driver.lastName}
+                                                            </p>
+                                                            <div className="flex items-center gap-3 mt-1">
+                                                                <p className="text-xs text-[#49659c] dark:text-gray-400">
+                                                                    Code: {driver.driverCode}
+                                                                </p>
+                                                                <div className="flex items-center gap-1 text-xs text-[#49659c] dark:text-gray-400">
+                                                                    <Phone size={12} />
+                                                                    {driver.phone}
+                                                                </div>
+                                                                <p className="text-xs text-[#49659c] dark:text-gray-400">
+                                                                    Rating: {driver.currentRating?.toFixed(1) || "N/A"}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleReassignDriver(driver.id)}
+                                                        disabled={reassigningDriver === driver.id}
+                                                        className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                                    >
+                                                        {reassigningDriver === driver.id ? (
+                                                            <>
+                                                                <Loader2 className="size-4 animate-spin" />
+                                                                Reassigning...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <CheckCircle size={16} />
+                                                                Reassign
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            ))}
                                     </div>
                                 )}
                             </div>
@@ -697,6 +913,95 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
                     </div>
                 ) : null}
             </div>
+
+            {/* Reschedule Modal */}
+            {showRescheduleModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6">
+                        <h3 className="text-lg font-bold text-[#0d121c] dark:text-white mb-4">Reschedule Trip</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-[#49659c] dark:text-gray-400 mb-1">Date</label>
+                                <input
+                                    type="date"
+                                    value={rescheduleDate}
+                                    onChange={(e) => setRescheduleDate(e.target.value)}
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#0d121c] dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-[#49659c] dark:text-gray-400 mb-1">Time</label>
+                                <input
+                                    type="time"
+                                    value={rescheduleTime}
+                                    onChange={(e) => setRescheduleTime(e.target.value)}
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#0d121c] dark:text-white"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setShowRescheduleModal(false)}
+                                className="flex-1 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 font-medium text-[#0d121c] dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleRescheduleSubmit}
+                                className="flex-1 px-4 py-2 rounded-lg bg-[#0d59f2] text-white font-bold hover:bg-[#0d59f2]/90"
+                            >
+                                Reschedule
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Cancel Trip Modal */}
+            {showCancelModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6">
+                        <h3 className="text-lg font-bold text-[#0d121c] dark:text-white mb-4">Cancel Trip</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-[#49659c] dark:text-gray-400 mb-1">Cancelled by</label>
+                                <select
+                                    value={cancelBy}
+                                    onChange={(e) => setCancelBy(e.target.value as 'OFFICE' | 'CUSTOMER')}
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#0d121c] dark:text-white"
+                                >
+                                    <option value="OFFICE">Office</option>
+                                    <option value="CUSTOMER">Customer</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-[#49659c] dark:text-gray-400 mb-1">Reason (optional)</label>
+                                <textarea
+                                    value={cancelReason}
+                                    onChange={(e) => setCancelReason(e.target.value)}
+                                    rows={3}
+                                    placeholder="Optional reason..."
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#0d121c] dark:text-white resize-none"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setShowCancelModal(false)}
+                                className="flex-1 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 font-medium text-[#0d121c] dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800"
+                            >
+                                Back
+                            </button>
+                            <button
+                                onClick={handleCancelSubmit}
+                                className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700"
+                            >
+                                Cancel Trip
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

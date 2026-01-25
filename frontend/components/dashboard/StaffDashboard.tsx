@@ -6,6 +6,11 @@ import { SettingsScreen } from './SettingsScreen';
 import { PenaltiesManager } from './penalties/PenaltiesManager';
 import { DriversManager } from './drivers/DriversManager';
 import { TripManager } from './trips/TripManager';
+import { ComplaintsManager } from './complaints/ComplaintsManager';
+import { AttendanceManager } from './attendance/AttendanceManager';
+import { LeaveManager } from './leave/LeaveManager';
+import { RatingsManager } from './ratings/RatingsManager';
+import { CustomersManager } from './customers/CustomersManager';
 import { useAppSelector } from '@/lib/hooks';
 import { DashboardLayout } from './DashboardLayout';
 import {
@@ -14,9 +19,7 @@ import {
     ClipboardList,
     Store,
     Users,
-    Truck,
     BarChart3,
-    ShieldAlert,
     Map,
     MessageSquare,
     CalendarCheck,
@@ -78,16 +81,21 @@ export function StaffDashboard() {
             case 'payroll':
                 return <PenaltiesManager />;
             case 'trips':
+            case 'all-trips':
             case 'trip-types':
             case 'trip-booking':
             case 'unassigned-trips':
                 return <TripManager />;
             case 'complaints':
-                return <PlaceholderScreen icon={MessageSquare} title="Complaint Resolution" description="Address and document customer feedback and complaints." />;
+                return <ComplaintsManager />;
             case 'attendance':
-                return <PlaceholderScreen icon={CalendarCheck} title="Daily Attendance" description="Record your daily attendance and view historical logs." />;
+                return <AttendanceManager />;
+            case 'leave':
+                return <LeaveManager />;
+            case 'ratings':
+                return <RatingsManager />;
             case 'customer':
-                return <PlaceholderScreen icon={UserCircle} title="Customer Database" description="Manage customer profiles, order history, and relationship metrics." />;
+                return <CustomersManager />;
             case 'notifications':
                 return <PlaceholderScreen icon={Bell} title="Staff Notifications" description="View important updates and task assignments for your role." />;
             case 'settings':

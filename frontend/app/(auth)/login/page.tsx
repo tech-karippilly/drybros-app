@@ -13,6 +13,7 @@ import { useToast } from '@/components/ui/toast';
 import { useAppDispatch, useAppSelector } from '@/lib/hooks';
 import { setCredentials } from '@/lib/features/auth/authSlice';
 import { AUTH_ROUTES, STORAGE_KEYS } from '@/lib/constants/auth';
+import { mapBackendRoleToFrontend } from '@/lib/constants/roles';
 import { login } from '@/lib/features/auth/authApi';
 import { getAuthTokens } from '@/lib/utils/auth';
 import { resetRefreshTokenExpired } from '@/lib/utils/tokenRefresh';
@@ -82,21 +83,11 @@ export default function LoginPage() {
             });
 
             // Map backend user response to frontend User type
-            // Backend roles: ADMIN, OFFICE_STAFF, DRIVER, STAFF
-            // Frontend expects: admin, staff, driver
-            const mapRole = (backendRole: string): string => {
-                const role = backendRole.toUpperCase();
-                if (role === 'ADMIN') return 'admin';
-                if (role === 'OFFICE_STAFF' || role === 'STAFF') return 'staff';
-                if (role === 'DRIVER') return 'driver';
-                return 'admin'; // Default fallback
-            };
-
             const user = {
                 _id: response.user.id,
                 email: response.user.email,
                 name: response.user.fullName,
-                role: mapRole(response.user.role),
+                role: mapBackendRoleToFrontend(response.user.role),
             };
 
             // Store tokens in localStorage

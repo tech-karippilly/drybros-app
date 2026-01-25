@@ -4,12 +4,12 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, ArrowRight, ArrowLeft, User, Phone, Mail, MapPin, Car, CheckCircle, Calendar, DollarSign } from 'lucide-react';
 import { CreateTripStep1Input, CarType, CAR_TYPE_LABELS } from '@/lib/types/trips';
 import { useAppSelector, useAppDispatch } from '@/lib/hooks';
-import { fetchTripTypeDetails } from '@/lib/features/tripTypeDetail/tripTypeDetailSlice';
+import { fetchTripTypesPaginated } from '@/lib/features/tripType/tripTypeSlice';
 import { useToast } from '@/components/ui/toast';
 import { TRIPS_STRINGS } from '@/lib/constants/trips';
 import { TripTypeStatus } from '@/lib/types/tripTypes';
 import { DatePicker } from '@/components/ui/date-picker';
-import { PlacesAutocomplete } from '@/components/ui/places-autocomplete';
+import { PlacesAutocomplete } from '@/components/ui/PlacesAutocomplete';
 
 interface CreateTripFormProps {
     isOpen: boolean;
@@ -40,7 +40,7 @@ const TEXTAREA_CLASSES = `${INPUT_CLASSES} text-sm resize-none`;
 export function CreateTripForm({ isOpen, onClose, onStep1Complete }: CreateTripFormProps) {
     const dispatch = useAppDispatch();
     const { toast } = useToast();
-    const { list: tripTypes } = useAppSelector((state) => state.tripTypeDetail);
+    const { list: tripTypes } = useAppSelector((state) => state.tripType);
 
     const [currentStep, setCurrentStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,7 +50,7 @@ export function CreateTripForm({ isOpen, onClose, onStep1Complete }: CreateTripF
 
     useEffect(() => {
         if (isOpen) {
-            dispatch(fetchTripTypeDetails());
+            dispatch(fetchTripTypesPaginated({ page: 1, limit: 100 }));
             setCurrentStep(1);
             setStep1Data(INITIAL_STEP1_DATA);
             setScheduledDate(undefined);
@@ -101,12 +101,12 @@ export function CreateTripForm({ isOpen, onClose, onStep1Complete }: CreateTripF
     }, [validateStep1, step1Data, onStep1Complete]);
 
     const activeTripTypes = useMemo(
-        () => tripTypes.filter(t => t.status === TripTypeStatus.ACTIVE || t.status === 'ACTIVE'),
+        () => tripTypes.filter(t => t.status === 'ACTIVE'),
         [tripTypes]
     );
 
     const selectedTripType = useMemo(
-        () => tripTypes.find(t => t.id === step1Data.tripTypeId),
+        () => tripTypes.find(t => String(t.id) === String(step1Data.tripTypeId)),
         [tripTypes, step1Data.tripTypeId]
     );
 
@@ -333,7 +333,7 @@ export function CreateTripForm({ isOpen, onClose, onStep1Complete }: CreateTripF
                                     </label>
                                     <PlacesAutocomplete
                                         value={step1Data.pickupLocation}
-                                        onChange={(value) => setStep1Data((prev) => ({ ...prev, pickupLocation: value }))}
+                                        onChange={(place) => setStep1Data((prev) => ({ ...prev, pickupLocation: place.formattedAddress }))}
                                         placeholder={TRIPS_STRINGS.PICKUP_LOCATION_PLACEHOLDER}
                                     />
                                     <textarea
@@ -351,7 +351,7 @@ export function CreateTripForm({ isOpen, onClose, onStep1Complete }: CreateTripF
                                     </label>
                                     <PlacesAutocomplete
                                         value={step1Data.destinationLocation}
-                                        onChange={(value) => setStep1Data((prev) => ({ ...prev, destinationLocation: value }))}
+                                        onChange={(place) => setStep1Data((prev) => ({ ...prev, destinationLocation: place.formattedAddress }))}
                                         placeholder={TRIPS_STRINGS.DESTINATION_LOCATION_PLACEHOLDER}
                                     />
                                     <textarea

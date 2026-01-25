@@ -19,6 +19,9 @@ export const ERROR_MESSAGES = {
   
   // Driver errors
   DRIVER_NOT_FOUND: "Driver not found",
+
+  // Staff errors
+  STAFF_NOT_FOUND: "Staff not found",
   
   // Franchise errors
   FRANCHISE_NOT_FOUND: "Franchise not found",

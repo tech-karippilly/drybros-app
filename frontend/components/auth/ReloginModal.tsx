@@ -59,7 +59,7 @@ export function ReloginModal({ isOpen, onClose }: ReloginModalProps) {
                     </div>
 
                     <div className="text-center space-y-2">
-                        <Text variant="h4" className="border-none font-semibold text-[#0d121c] dark:text-white">
+                        <Text variant="subheading" className="border-none font-semibold text-[#0d121c] dark:text-white">
                             Your Refresh Token Has Expired
                         </Text>
                         <Text variant="small" className="text-[#49659c] dark:text-gray-400">

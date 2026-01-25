@@ -261,7 +261,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const fetchDrivers = createAsyncThunk(
     'drivers/fetchDrivers',
-    async (pagination?: PaginationQuery, { rejectWithValue }) => {
+    async (pagination: PaginationQuery | undefined, { rejectWithValue }) => {
         try {
             const result = await getDriverList(pagination);
             
@@ -433,7 +433,7 @@ export const banDriver = createAsyncThunk(
             const driverId = getDriverUuid(id, getState);
             const response = await updateDriverStatusApi(driverId, { status: 'BLOCKED' });
             const driver = mapBackendDriverToFrontend(response.data);
-            return { _id: parseInt(id.replace(/-/g, '').substring(0, 10), 16) || 0, status: DriverStatus.BLOCKED, driver };
+            return { _id: parseInt(String(id).replace(/-/g, '').substring(0, 10), 16) || 0, status: DriverStatus.BLOCKED, driver };
         } catch (error: any) {
             const errorMessage = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Failed to ban driver';
             return rejectWithValue(errorMessage);

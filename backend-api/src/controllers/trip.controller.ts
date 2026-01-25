@@ -6,6 +6,9 @@ import {
   createTripPhase1,
   driverAcceptTrip,
   driverRejectTrip,
+  rescheduleTrip,
+  cancelTrip,
+  reassignDriverToTrip,
   generateStartOtpForTrip,
   startTripWithOtp,
   listUnassignedTrips,
@@ -26,27 +29,44 @@ import {
 import { PaymentStatus, PaymentMode } from "@prisma/client";
 import { requireValidUUID, validateAndGetUUID } from "../utils/validation";
 
+function parseTripFilters(q: Record<string, unknown>): import("../repositories/trip.repository").TripFilters | undefined {
+  const dateFrom = typeof q.dateFrom === "string" ? q.dateFrom.trim() || undefined : undefined;
+  const dateTo = typeof q.dateTo === "string" ? q.dateTo.trim() || undefined : undefined;
+  const status = typeof q.status === "string" ? q.status.trim() || undefined : undefined;
+  const statuses = typeof q.statuses === "string"
+    ? q.statuses.split(",").map((s) => s.trim()).filter(Boolean)
+    : undefined;
+  const franchiseId = typeof q.franchiseId === "string" ? q.franchiseId.trim() || undefined : undefined;
+  if (!dateFrom && !dateTo && !status && !statuses?.length && !franchiseId) return undefined;
+  return {
+    dateFrom,
+    dateTo,
+    status: statuses?.length ? undefined : status,
+    statuses: statuses?.length ? statuses : undefined,
+    franchiseId,
+  };
+}
+
 export async function getTrips(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
   try {
-    // Check if pagination parameters are provided
     if (req.query.page || req.query.limit) {
       const page = parseInt(req.query.page as string) || 1;
-      const limit = Math.min(parseInt(req.query.limit as string) || 10, 100); // Max 100 per page
-      
+      const limit = Math.min(parseInt(req.query.limit as string) || 10, 100);
+
       if (page < 1 || limit < 1) {
         return res.status(400).json({
           error: "Page and limit must be positive numbers",
         });
       }
 
-      const result = await listTripsPaginated({ page, limit });
+      const filters = parseTripFilters(req.query as Record<string, unknown>);
+      const result = await listTripsPaginated({ page, limit }, filters);
       res.json(result);
     } else {
-      // Backward compatibility: return all trips if no pagination params
       const data = await listTrips();
       res.json({ data });
     }
@@ -598,6 +618,68 @@ export async function getTripHistoryHandler(
 
     const result = await getTripHistory(tripId, driverId);
     res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Reschedule a trip (update scheduled date/time)
+ */
+export async function rescheduleTripHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
+    const { tripDate, tripTime } = req.body;
+    const updated = await rescheduleTrip(tripId, { tripDate, tripTime });
+    res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Cancel a trip
+ */
+export async function cancelTripHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
+    const { cancelledBy, reason } = req.body;
+    const updated = await cancelTrip(tripId, { cancelledBy, reason });
+    res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Reassign driver to a trip
+ */
+export async function reassignDriverToTripHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
+    const driverId = validateAndGetUUID(req.body.driverId, "Driver ID");
+    const franchiseId = req.body.franchiseId
+      ? validateAndGetUUID(req.body.franchiseId, "Franchise ID")
+      : undefined;
+    const userId = req.user?.userId;
+    const updated = await reassignDriverToTrip(
+      tripId,
+      { driverId, franchiseId },
+      userId
+    );
+    res.json({ data: updated });
   } catch (err) {
     next(err);
   }

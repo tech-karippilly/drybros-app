@@ -13,6 +13,11 @@ import { DailyLimitsManager } from './drivers/DailyLimitsManager';
 import { DriverPenaltiesManager } from './drivers/DriverPenaltiesManager';
 import { DriverEarningsConfigManager } from './drivers/DriverEarningsConfigManager';
 import { TripManager } from './trips/TripManager';
+import { ComplaintsManager } from './complaints/ComplaintsManager';
+import { AttendanceManager } from './attendance/AttendanceManager';
+import { LeaveManager } from './leave/LeaveManager';
+import { RatingsManager } from './ratings/RatingsManager';
+import { CustomersManager } from './customers/CustomersManager';
 import { useAppSelector } from '@/lib/hooks';
 import { DashboardLayout } from './DashboardLayout';
 import {
@@ -26,7 +31,6 @@ import {
     Bell,
     Settings,
     UserCircle,
-    ShieldAlert
 } from 'lucide-react';
 
 export function AdminDashboard() {
@@ -174,11 +178,15 @@ export function AdminDashboard() {
             case 'unassigned-trips':
                 return <TripManager />;
             case 'complaints':
-                return <PlaceholderScreen icon={MessageSquare} title="Customer Support" description="Review resolve customer complaints, feedback, and service quality reports." />;
+                return <ComplaintsManager />;
             case 'attendance':
-                return <PlaceholderScreen icon={CalendarCheck} title="Workforce Attendance" description="Track daily log-ins, leave requests, and shift schedules for all employees." />;
+                return <AttendanceManager />;
+            case 'leave':
+                return <LeaveManager />;
+            case 'ratings':
+                return <RatingsManager />;
             case 'customer':
-                return <PlaceholderScreen icon={UserCircle} title="Customer Database" description="Comprehensive management of the global user base and franchise-specific customers." />;
+                return <CustomersManager />;
             case 'notifications':
                 return <PlaceholderScreen icon={Bell} title="System Notifications" description="Stay updated with real-time alerts regarding system status, order updates, and administrative tasks." />;
             case 'settings':

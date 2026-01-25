@@ -30,12 +30,63 @@ export async function getUnassignedTrips() {
   });
 }
 
+export interface TripFilters {
+  dateFrom?: string; // YYYY-MM-DD
+  dateTo?: string;
+  status?: string;
+  statuses?: string[];
+  franchiseId?: string;
+}
+
 /**
- * Get trips with pagination
+ * Build Prisma where clause from filters.
+ * Date filters use scheduledAt when set; otherwise createdAt for trips without scheduledAt.
  */
-export async function getTripsPaginated(skip: number, take: number) {
+function buildTripWhere(filters?: TripFilters): object {
+  if (!filters) return {};
+  const where: Record<string, unknown> = {};
+
+  if (filters.franchiseId) where.franchiseId = filters.franchiseId;
+  if (filters.status) where.status = filters.status;
+  else if (filters.statuses?.length) where.status = { in: filters.statuses };
+
+  if (filters.dateFrom || filters.dateTo) {
+    const dr: Record<string, Date> = {};
+    if (filters.dateFrom) {
+      const s = new Date(filters.dateFrom);
+      s.setHours(0, 0, 0, 0);
+      dr.gte = s;
+    }
+    if (filters.dateTo) {
+      const e = new Date(filters.dateTo);
+      e.setHours(23, 59, 59, 999);
+      dr.lte = e;
+    }
+    where.AND = [
+      {
+        OR: [
+          { scheduledAt: dr },
+          { scheduledAt: null, createdAt: dr },
+        ],
+      },
+    ];
+  }
+
+  return Object.keys(where).length ? where : {};
+}
+
+/**
+ * Get trips with pagination and optional filters
+ */
+export async function getTripsPaginated(
+  skip: number,
+  take: number,
+  filters?: TripFilters
+) {
+  const where = buildTripWhere(filters);
   const [data, total] = await Promise.all([
     prisma.trip.findMany({
+      where,
       skip,
       take,
       orderBy: { createdAt: "desc" },
@@ -45,7 +96,7 @@ export async function getTripsPaginated(skip: number, take: number) {
         Customer: true,
       },
     }),
-    prisma.trip.count(),
+    prisma.trip.count({ where }),
   ]);
 
   return { data, total };

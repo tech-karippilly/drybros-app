@@ -463,11 +463,15 @@ export function DriverEarningsConfigManager() {
                                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white"
                             >
                                 <option value="">Select a driver to view/edit config</option>
-                                {filteredDrivers.map(driver => (
-                                    <option key={driver._id || driver.id} value={(driver._id || driver.id).toString()}>
-                                        {driver.firstName} {driver.lastName} ({driver.driverPhone || driver.phone})
-                                    </option>
-                                ))}
+                                {filteredDrivers.map(driver => {
+                                    const id = driver._id ?? driver.id ?? '';
+                                    const phone = 'driverPhone' in driver ? driver.driverPhone : 'phone' in driver ? (driver as { phone?: string }).phone : '';
+                                    return (
+                                        <option key={id} value={String(id)}>
+                                            {driver.firstName} {driver.lastName} ({phone || '—'})
+                                        </option>
+                                    );
+                                })}
                             </select>
                         )}
                     </div>

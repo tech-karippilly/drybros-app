@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ import { useToast } from '@/components/ui/toast';
 import { AUTH_ROUTES } from '@/lib/constants/auth';
 import { resetPassword } from '@/lib/features/auth/authApi';
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -160,5 +160,13 @@ export default function ResetPasswordPage() {
                 </Button>
             </form>
         </div>
+    );
+}
+
+export default function ResetPasswordPage() {
+    return (
+        <Suspense fallback={<div className="space-y-6 text-center"><Text variant="muted">Loading...</Text></div>}>
+            <ResetPasswordContent />
+        </Suspense>
     );
 }

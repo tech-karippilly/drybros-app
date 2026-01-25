@@ -71,7 +71,7 @@ export function SettingsScreen() {
                                     <section.icon size={20} />
                                 </div>
                                 <div className="flex-1">
-                                    <Text variant="h4" className="border-none mb-1 font-semibold dark:text-white">
+                                    <Text variant="subheading" className="border-none mb-1 font-semibold dark:text-white">
                                         {section.title}
                                     </Text>
                                     <Text variant="small" className="text-[#49659c] dark:text-gray-400 mb-3">
@@ -101,7 +101,7 @@ export function SettingsScreen() {
                                 <LogOut size={20} />
                             </div>
                             <div>
-                                <Text variant="h4" className="border-none mb-1 font-semibold text-red-600 dark:text-red-400">
+                                <Text variant="subheading" className="border-none mb-1 font-semibold text-red-600 dark:text-red-400">
                                     Sign Out
                                 </Text>
                                 <Text variant="small" className="text-[#49659c] dark:text-gray-400">

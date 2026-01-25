@@ -8,6 +8,7 @@ import {
   getTripsPaginated,
   getUnassignedTripsPaginated,
   getTripsByDriver,
+  type TripFilters,
 } from "../repositories/trip.repository";
 import { getActivityLogsByTripId } from "../repositories/activity.repository";
 import { TripStatus, PaymentStatus, PaymentMode, TripType } from "@prisma/client";
@@ -27,6 +28,9 @@ import {
   CAR_GEAR_TYPES,
   CAR_TYPE_CATEGORIES,
   TRIP_ERROR_MESSAGES,
+  RESCHEDULABLE_TRIP_STATUSES,
+  CANCELLABLE_TRIP_STATUSES,
+  REASSIGNABLE_TRIP_STATUSES,
 } from "../constants/trip";
 import { calculateTripPrice } from "./pricing.service";
 import {
@@ -66,6 +70,10 @@ export interface PaginationQuery {
   limit: number;
 }
 
+export interface TripListQuery extends PaginationQuery {
+  filters?: TripFilters;
+}
+
 export interface PaginatedTripsResponse {
   data: any[];
   pagination: {
@@ -86,15 +94,16 @@ export async function listUnassignedTrips() {
 }
 
 /**
- * Get all trips with pagination
+ * Get all trips with pagination and optional filters
  */
 export async function listTripsPaginated(
-  pagination: PaginationQuery
+  pagination: PaginationQuery,
+  filters?: TripFilters
 ): Promise<PaginatedTripsResponse> {
   const { page, limit } = pagination;
   const skip = (page - 1) * limit;
 
-  const { data, total } = await getTripsPaginated(skip, limit);
+  const { data, total } = await getTripsPaginated(skip, limit, filters);
 
   const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
   const hasNext = page < totalPages;
@@ -530,6 +539,223 @@ export async function driverRejectTrip(tripId: string, driverId: string) {
   // Update driver trip status back to AVAILABLE when they reject
   await updateDriverTripStatus(driverId, "AVAILABLE");
   
+  return updatedTrip;
+}
+
+export interface RescheduleTripInput {
+  tripDate: string; // YYYY-MM-DD or DD/MM/YYYY
+  tripTime: string; // HH:mm or HH:mm AM/PM
+}
+
+export async function rescheduleTrip(
+  tripId: string,
+  input: RescheduleTripInput
+) {
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error(TRIP_ERROR_MESSAGES.TRIP_NOT_FOUND);
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (!(RESCHEDULABLE_TRIP_STATUSES as readonly string[]).includes(trip.status)) {
+    const err: any = new Error(TRIP_ERROR_MESSAGES.RESCHEDULE_NOT_ALLOWED);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  let scheduledAt: Date;
+  try {
+    let hours: number, minutes: number;
+    const timeStr = input.tripTime.trim().toUpperCase();
+    if (timeStr.includes("AM") || timeStr.includes("PM")) {
+      const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (!match) throw new Error("Invalid time format");
+      let h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      const period = match[3].toUpperCase();
+      if (period === "PM" && h !== 12) h += 12;
+      if (period === "AM" && h === 12) h = 0;
+      hours = h;
+      minutes = m;
+    } else {
+      const [h, m] = input.tripTime.split(":").map(Number);
+      hours = h;
+      minutes = m;
+    }
+    let tripDateTime: Date;
+    if (input.tripDate.includes("/")) {
+      const [day, month, year] = input.tripDate.split("/").map(Number);
+      tripDateTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
+    } else {
+      tripDateTime = new Date(input.tripDate);
+      tripDateTime.setHours(hours, minutes, 0, 0);
+    }
+    scheduledAt = tripDateTime;
+  } catch (e: any) {
+    const err: any = new Error(`Invalid trip date or time format: ${e?.message || "Unknown"}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const updatedTrip = await updateTrip(tripId, {
+    scheduledAt,
+    updatedAt: new Date(),
+  });
+
+  logActivity({
+    action: ActivityAction.TRIP_UPDATED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: tripId,
+    franchiseId: trip.franchiseId,
+    tripId,
+    userId: null,
+    description: `Trip ${tripId} rescheduled to ${scheduledAt.toISOString()}`,
+    metadata: { tripId, scheduledAt: scheduledAt.toISOString(), rescheduled: true },
+  }).catch((err) => logger.error("Failed to log reschedule activity", { error: err }));
+
+  return updatedTrip;
+}
+
+export interface CancelTripInput {
+  cancelledBy: "OFFICE" | "CUSTOMER";
+  reason?: string | null;
+}
+
+export async function cancelTrip(tripId: string, input: CancelTripInput) {
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error(TRIP_ERROR_MESSAGES.TRIP_NOT_FOUND);
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (!(CANCELLABLE_TRIP_STATUSES as readonly string[]).includes(trip.status)) {
+    const err: any = new Error(TRIP_ERROR_MESSAGES.CANCEL_NOT_ALLOWED);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const status =
+    input.cancelledBy === "OFFICE" ? "CANCELLED_BY_OFFICE" : "CANCELLED_BY_CUSTOMER";
+  const previousDriverId = trip.driverId;
+
+  const updateData: { status: string; driverId?: null; updatedAt: Date } = {
+    status,
+    updatedAt: new Date(),
+  };
+  if (previousDriverId) {
+    updateData.driverId = null;
+  }
+
+  const updatedTrip = await updateTrip(tripId, updateData);
+
+  if (previousDriverId) {
+    await updateDriverTripStatus(previousDriverId, "AVAILABLE");
+  }
+
+  logActivity({
+    action: ActivityAction.TRIP_CANCELLED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: tripId,
+    franchiseId: trip.franchiseId,
+    driverId: previousDriverId,
+    tripId,
+    userId: null,
+    description: `Trip ${tripId} cancelled by ${input.cancelledBy}`,
+    metadata: {
+      tripId,
+      cancelledBy: input.cancelledBy,
+      reason: input.reason ?? null,
+      previousDriverId: previousDriverId ?? null,
+    },
+  }).catch((err) => logger.error("Failed to log cancel activity", { error: err }));
+
+  return updatedTrip;
+}
+
+export interface ReassignDriverInput {
+  driverId: string;
+  franchiseId?: string;
+}
+
+export async function reassignDriverToTrip(
+  tripId: string,
+  input: ReassignDriverInput,
+  assignedBy?: string
+) {
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error(TRIP_ERROR_MESSAGES.TRIP_NOT_FOUND);
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (!(REASSIGNABLE_TRIP_STATUSES as readonly string[]).includes(trip.status)) {
+    const err: any = new Error(TRIP_ERROR_MESSAGES.REASSIGN_NOT_ALLOWED);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (!trip.driverId) {
+    const err: any = new Error(TRIP_ERROR_MESSAGES.TRIP_HAS_NO_DRIVER);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (trip.driverId === input.driverId) {
+    const err: any = new Error(TRIP_ERROR_MESSAGES.REASSIGN_SAME_DRIVER);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const franchiseId = input.franchiseId ?? trip.franchiseId;
+  if (trip.franchiseId !== franchiseId) {
+    const err: any = new Error(TRIP_ERROR_MESSAGES.INVALID_FRANCHISE);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const newDriver = await getDriverById(input.driverId);
+  if (!newDriver) {
+    const err: any = new Error("Driver not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  await validateDriverForTripAssignment(newDriver, trip, franchiseId);
+
+  const previousDriverId = trip.driverId;
+  await updateDriverTripStatus(previousDriverId, "AVAILABLE");
+
+  const updatedTrip = await updateTrip(tripId, {
+    driverId: input.driverId,
+    status: "ASSIGNED",
+    updatedAt: new Date(),
+  });
+
+  await updateDriverTripStatus(input.driverId, "ON_TRIP");
+
+  logActivity({
+    action: ActivityAction.TRIP_ASSIGNED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: tripId,
+    franchiseId,
+    driverId: input.driverId,
+    tripId,
+    userId: assignedBy ?? null,
+    description: `Trip ${tripId} reassigned to driver ${newDriver.firstName} ${newDriver.lastName} (${newDriver.driverCode})`,
+    metadata: {
+      tripId,
+      driverId: input.driverId,
+      driverCode: newDriver.driverCode,
+      previousDriverId,
+      reassigned: true,
+      customerName: trip.customerName,
+      franchiseId,
+    },
+  }).catch((err) => logger.error("Failed to log reassign activity", { error: err }));
+
   return updatedTrip;
 }
 

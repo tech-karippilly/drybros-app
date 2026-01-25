@@ -335,6 +335,7 @@ export async function getDriversByFranchises(franchiseId: string): Promise<Drive
 
 /**
  * Get paginated drivers with optional performance
+ * Uses GET /drivers?page=&limit=
  */
 export async function getDriversPaginated(params: {
     page?: number;
@@ -351,21 +352,14 @@ export async function getDriversPaginated(params: {
     };
 }> {
     const queryParams = new URLSearchParams();
-    
-    if (params.page) queryParams.append('page', params.page.toString());
-    if (params.limit) queryParams.append('limit', params.limit.toString());
+    queryParams.set('page', String(params.page ?? 1));
+    queryParams.set('limit', String(params.limit ?? 10));
     if (params.franchiseId) queryParams.append('franchiseId', params.franchiseId);
     if (params.includePerformance) queryParams.append('includePerformance', 'true');
-    
     const response = await api.get<{
         data: Driver[];
-        pagination: {
-            page: number;
-            limit: number;
-            total: number;
-            totalPages: number;
-        };
-    }>(`${DRIVER_ENDPOINTS.PAGINATED}?${queryParams.toString()}`);
+        pagination: { page: number; limit: number; total: number; totalPages: number };
+    }>(`${DRIVER_ENDPOINTS.BASE}?${queryParams.toString()}`);
     return response.data;
 }
 
@@ -437,6 +431,72 @@ export async function getDriverDailyLimit(
 ): Promise<DriverDailyLimitResponse> {
     const response = await api.get<{ data: DriverDailyLimitResponse }>(
         DRIVER_ENDPOINTS.DAILY_LIMIT(driverId)
+    );
+    return response.data.data;
+}
+
+/** Driver daily stats (GET /drivers/:id/daily-stats) */
+export interface DriverDailyStatsResponse {
+    driverId: string;
+    date: string;
+    dailyTargetAmount: number;
+    amountRunToday: number;
+    tripsCountToday: number;
+    incentiveToday: number;
+    incentiveType: string | null;
+    remainingToAchieve: number;
+}
+
+export async function getDriverDailyStats(
+    driverId: string,
+    date?: string
+): Promise<DriverDailyStatsResponse> {
+    const params = date ? `?date=${encodeURIComponent(date)}` : '';
+    const response = await api.get<{ data: DriverDailyStatsResponse }>(
+        `/drivers/${driverId}/daily-stats${params}`
+    );
+    return response.data.data;
+}
+
+/** Driver monthly stats (GET /drivers/:id/monthly-stats) */
+export interface DriverMonthlyStatsResponse {
+    driverId: string;
+    year: number;
+    month: number;
+    monthlyEarnings: number;
+    tripsCount: number;
+    monthlyBonus: number;
+    bonusTier: unknown;
+    monthlyDeductionPolicyCut: number;
+    deductionTier: unknown;
+}
+
+export async function getDriverMonthlyStats(
+    driverId: string,
+    year: number,
+    month: number
+): Promise<DriverMonthlyStatsResponse> {
+    const response = await api.get<{ data: DriverMonthlyStatsResponse }>(
+        `/drivers/${driverId}/monthly-stats?year=${year}&month=${month}`
+    );
+    return response.data.data;
+}
+
+/** Driver settlement (GET /drivers/:id/settlement) */
+export interface DriverSettlementResponse {
+    driverId: string;
+    year: number;
+    month: number;
+    [key: string]: unknown;
+}
+
+export async function getDriverSettlement(
+    driverId: string,
+    year: number,
+    month: number
+): Promise<DriverSettlementResponse> {
+    const response = await api.get<{ data: DriverSettlementResponse }>(
+        `/drivers/${driverId}/settlement?year=${year}&month=${month}`
     );
     return response.data.data;
 }

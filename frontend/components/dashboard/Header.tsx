@@ -6,6 +6,7 @@ import { useAppSelector, useAppDispatch } from '@/lib/hooks';
 import { setSelectedFranchise, setFranchiseList, setActiveTab } from '@/lib/features/auth/authSlice';
 import { getFranchiseList, FranchiseResponse } from '@/lib/features/franchise/franchiseApi';
 import { Franchise } from '@/lib/types/franchise';
+import { USER_ROLES } from '@/lib/constants/roles';
 import { cn } from '@/lib/utils';
 
 export function Header() {
@@ -27,7 +28,8 @@ export function Header() {
 
     useEffect(() => {
         // Fetch franchises from API when component mounts (only if list is empty or contains dummy data)
-        if (user?.role === 'admin') {
+        // Admin and Manager can see franchise selector
+        if (user?.role === USER_ROLES.ADMIN || user?.role === USER_ROLES.MANAGER) {
             // Check if franchiseList is empty or contains dummy data (dummy data has _id starting with 'fran_')
             const hasDummyData = franchiseList.length > 0 && franchiseList.some(f => f._id.startsWith('fran_'));
             if (franchiseList.length === 0 || hasDummyData) {
@@ -88,7 +90,7 @@ export function Header() {
             </div>
 
             <div className="flex items-center gap-4">
-                {user?.role === 'admin' && (
+                {(user?.role === USER_ROLES.ADMIN || user?.role === USER_ROLES.MANAGER) && (
                     <div className="relative" ref={dropdownRef}>
                         <button
                             onClick={() => {

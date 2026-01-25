@@ -127,12 +127,61 @@ export interface TripListResponse {
     data: TripResponse[];
 }
 
+export interface TripFilters {
+    dateFrom?: string;
+    dateTo?: string;
+    status?: string;
+    statuses?: string[];
+    franchiseId?: string;
+}
+
+export interface TripsPaginatedResponse {
+    data: TripResponse[];
+    pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+        hasNext: boolean;
+        hasPrev: boolean;
+    };
+}
+
 /**
- * Get list of all trips
+ * Get list of all trips (no pagination)
  */
 export async function getTripList(): Promise<TripResponse[]> {
     const response = await api.get<TripListResponse>(TRIP_ENDPOINTS.BASE);
     return response.data.data;
+}
+
+/**
+ * Get trips with pagination and optional filters
+ */
+export async function getTripsPaginated(params: {
+    page?: number;
+    limit?: number;
+} & TripFilters): Promise<TripsPaginatedResponse> {
+    const { page = 1, limit = 10, dateFrom, dateTo, status, statuses, franchiseId } = params;
+    const search = new URLSearchParams();
+    search.set('page', String(page));
+    search.set('limit', String(limit));
+    if (dateFrom) search.set('dateFrom', dateFrom);
+    if (dateTo) search.set('dateTo', dateTo);
+    if (status) search.set('status', status);
+    if (statuses?.length) search.set('statuses', statuses.join(','));
+    if (franchiseId) search.set('franchiseId', franchiseId);
+    const url = `${TRIP_ENDPOINTS.BASE}?${search.toString()}`;
+    const response = await api.get<TripsPaginatedResponse>(url);
+    return response.data;
+}
+
+/**
+ * Get trip count for a given filter (for KPIs). Uses page=1, limit=1 and returns pagination.total.
+ */
+export async function getTripCount(filters: TripFilters): Promise<number> {
+    const res = await getTripsPaginated({ page: 1, limit: 1, ...filters });
+    return res.pagination.total;
 }
 
 /**
@@ -173,4 +222,28 @@ export async function assignDriverToTrip(tripId: string, driverId: string): Prom
 export async function createTripPhase1(data: CreateTripPhase1Request): Promise<CreateTripPhase1Response> {
     const response = await api.post<CreateTripPhase1Response>(TRIP_ENDPOINTS.PHASE1, data);
     return response.data;
+}
+
+/**
+ * Reschedule a trip
+ */
+export async function rescheduleTrip(tripId: string, payload: { tripDate: string; tripTime: string }): Promise<TripResponse> {
+    const response = await api.patch<{ data: TripResponse }>(`/trips/${tripId}/reschedule`, payload);
+    return response.data.data;
+}
+
+/**
+ * Cancel a trip
+ */
+export async function cancelTrip(tripId: string, payload: { cancelledBy: 'OFFICE' | 'CUSTOMER'; reason?: string | null }): Promise<TripResponse> {
+    const response = await api.patch<{ data: TripResponse }>(`/trips/${tripId}/cancel`, payload);
+    return response.data.data;
+}
+
+/**
+ * Reassign driver to a trip
+ */
+export async function reassignDriverToTrip(tripId: string, payload: { driverId: string; franchiseId?: string }): Promise<TripResponse> {
+    const response = await api.patch<{ data: TripResponse }>(`/trips/${tripId}/reassign-driver`, payload);
+    return response.data.data;
 }

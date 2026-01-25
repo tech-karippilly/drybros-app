@@ -36,14 +36,14 @@ const convertPenaltyResponse = (response: PenaltyResponse): Penalty => ({
     description: response.description || undefined,
     type: response.type,
     isActive: response.isActive,
-    createdAt: typeof response.createdAt === 'string' ? response.createdAt : response.createdAt.toISOString(),
-    updatedAt: typeof response.updatedAt === 'string' ? response.updatedAt : response.updatedAt.toISOString(),
+    createdAt: typeof response.createdAt === 'string' ? response.createdAt : (response.createdAt as Date).toISOString(),
+    updatedAt: typeof response.updatedAt === 'string' ? response.updatedAt : (response.updatedAt as Date).toISOString(),
 });
 
 // Async thunks - Using real API
 export const fetchPenalties = createAsyncThunk(
     'penalties/fetchPenalties',
-    async (params?: { isActive?: boolean; type?: 'PENALTY' | 'DEDUCTION' }, { rejectWithValue }) => {
+    async (params: { isActive?: boolean; type?: 'PENALTY' | 'DEDUCTION' } | undefined, { rejectWithValue }) => {
         try {
             const response = await getPenalties(params);
             const penalties = Array.isArray(response.data) ? response.data : [];
@@ -135,8 +135,6 @@ export const applyPenaltyToDriver = createAsyncThunk(
     'penalties/applyPenalty',
     async (input: ApplyPenaltyInput, { getState, rejectWithValue }) => {
         try {
-            await delay(500); // Simulate API delay
-            
             const state = getState() as RootState;
             const penalty = state.penalties.penalties.find(p => p.id === input.penaltyId);
             
@@ -197,9 +195,9 @@ export const applyPenaltyToDriver = createAsyncThunk(
                     id: Date.now(),
                     penaltyId: input.penaltyId,
                     penalty: penalty,
-                    staffId: input.staffId,
+                    staffId: input.staffId!,
                     staff: {
-                        _id: staff._id,
+                        _id: staff._id ?? staff.id,
                         name: staff.name,
                         email: staff.email,
                         phone: staff.phone,
@@ -225,7 +223,6 @@ export const fetchDriverPenalties = createAsyncThunk(
     'penalties/fetchDriverPenalties',
     async (driverId: number, { rejectWithValue }) => {
         try {
-            await delay(500); // Simulate API delay
             // Return empty array for now (no driver penalties in dummy data)
             return [];
         } catch (error: any) {

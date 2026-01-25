@@ -10,8 +10,16 @@ import { TripDetailsScreen } from './TripDetailsScreen';
 import { TripTypeResponse } from '@/lib/features/tripType/tripTypeApi';
 import { useAppSelector } from '@/lib/hooks';
 
-export function TripManager() {
+export type TripManagerTab = 'all-trips' | 'trip-types' | 'trip-booking' | 'unassigned-trips';
+
+interface TripManagerProps {
+    /** When provided (e.g. from route), use this tab instead of Redux activeTab */
+    tab?: TripManagerTab;
+}
+
+export function TripManager({ tab: tabProp }: TripManagerProps) {
     const { activeTab } = useAppSelector((state) => state.auth);
+    const tab = tabProp ?? activeTab;
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [editingTripType, setEditingTripType] = useState<TripTypeResponse | null>(null);
     const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
@@ -51,22 +59,22 @@ export function TripManager() {
 
     return (
         <div className="relative">
-            {activeTab === 'all-trips' && (
+            {tab === 'all-trips' && (
                 <TripList onViewTrip={handleViewTrip} />
             )}
 
-            {activeTab === 'trip-types' && (
+            {tab === 'trip-types' && (
                 <TripTypeList
                     onCreateClick={handleCreateClick}
                     onEditClick={handleEditClick}
                 />
             )}
 
-            {activeTab === 'trip-booking' && (
+            {tab === 'trip-booking' && (
                 <TripBookingForm />
             )}
 
-            {activeTab === 'unassigned-trips' && (
+            {tab === 'unassigned-trips' && (
                 <UnassignedTripsList onViewTrip={handleViewTrip} />
             )}
 

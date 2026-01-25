@@ -4,22 +4,46 @@ import {
   getCustomerByPhone,
   createCustomer as repoCreateCustomer,
   updateCustomer,
+  getTripsCountByCustomerId,
+  getComplaintsCountByCustomerId,
 } from "../repositories/customer.repository";
 import { logActivity } from "./activity.service";
 import { ActivityAction, ActivityEntityType } from "@prisma/client";
+import { CUSTOMER_ERROR_MESSAGES } from "../constants/customer";
 
 export async function listCustomers() {
   return getAllCustomers();
 }
 
-export async function getCustomer(id: number) {
+export async function getCustomer(id: string) {
   const customer = await getCustomerById(id);
   if (!customer) {
-    const err: any = new Error("Customer not found");
+    const err: any = new Error(CUSTOMER_ERROR_MESSAGES.NOT_FOUND);
     err.statusCode = 404;
     throw err;
   }
   return customer;
+}
+
+/**
+ * Get customer details with history: profile + trips booked count + complaints raised count.
+ */
+export async function getCustomerDetails(id: string) {
+  const customer = await getCustomerById(id);
+  if (!customer) {
+    const err: any = new Error(CUSTOMER_ERROR_MESSAGES.NOT_FOUND);
+    err.statusCode = 404;
+    throw err;
+  }
+  const [tripsBooked, complaintsRaised] = await Promise.all([
+    getTripsCountByCustomerId(id),
+    getComplaintsCountByCustomerId(id),
+  ]);
+  return {
+    ...customer,
+    tripsBooked,
+    complaintsRaised,
+  };
 }
 
 export async function findOrCreateCustomer(data: {
@@ -56,7 +80,7 @@ export async function findOrCreateCustomer(data: {
       logActivity({
         action: ActivityAction.CUSTOMER_UPDATED,
         entityType: ActivityEntityType.CUSTOMER,
-        entityId: updated.id.toString(),
+        entityId: updated.id,
         franchiseId: data.franchiseId,
         description: `Customer ${updated.fullName} (${updated.phone}) updated`,
         metadata: {
@@ -79,7 +103,7 @@ export async function findOrCreateCustomer(data: {
   logActivity({
     action: ActivityAction.CUSTOMER_CREATED,
     entityType: ActivityEntityType.CUSTOMER,
-    entityId: newCustomer.id.toString(),
+    entityId: newCustomer.id,
     franchiseId: data.franchiseId,
     description: `Customer ${newCustomer.fullName} (${newCustomer.phone}) created`,
     metadata: {
@@ -107,7 +131,7 @@ export async function createCustomer(data: {
   logActivity({
     action: ActivityAction.CUSTOMER_CREATED,
     entityType: ActivityEntityType.CUSTOMER,
-    entityId: customer.id.toString(),
+    entityId: customer.id,
     franchiseId: data.franchiseId,
     description: `Customer ${customer.fullName} (${customer.phone}) created`,
     metadata: {

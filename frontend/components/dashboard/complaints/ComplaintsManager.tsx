@@ -9,11 +9,14 @@ import {
     type CreateComplaintRequest,
     type UpdateComplaintStatusRequest,
     type PaginatedComplaintsResponse,
+    type ComplaintStatus,
+    type ComplaintResolutionAction,
 } from '@/lib/features/complaints/complaintsApi';
+import { COMPLAINT_STATUS_LABELS, COMPLAINT_RESOLUTION_ACTION_LABELS, COMPLAINT_SEVERITY } from '@/lib/constants/complaints';
 import { Plus, Search, Loader2, AlertCircle, CheckCircle, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const STATUS_OPTIONS = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const;
+const STATUS_OPTIONS: ComplaintStatus[] = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 
 function isPaginated(r: ComplaintResponse[] | PaginatedComplaintsResponse): r is PaginatedComplaintsResponse {
     return typeof r === 'object' && 'pagination' in r && Array.isArray((r as PaginatedComplaintsResponse).data);
@@ -124,7 +127,7 @@ export function ComplaintsManager() {
                 >
                     <option value="all">All statuses</option>
                     {STATUS_OPTIONS.map((s) => (
-                        <option key={s} value={s}>{s}</option>
+                        <option key={s} value={s}>{COMPLAINT_STATUS_LABELS[s] ?? s}</option>
                     ))}
                 </select>
             </div>
@@ -149,6 +152,7 @@ export function ComplaintsManager() {
                                     <th className="text-left px-6 py-3 font-semibold text-[#0d121c] dark:text-white">Title</th>
                                     <th className="text-left px-6 py-3 font-semibold text-[#0d121c] dark:text-white">Status</th>
                                     <th className="text-left px-6 py-3 font-semibold text-[#0d121c] dark:text-white">Severity</th>
+                                    <th className="text-left px-6 py-3 font-semibold text-[#0d121c] dark:text-white">Action taken</th>
                                     <th className="text-left px-6 py-3 font-semibold text-[#0d121c] dark:text-white">Created</th>
                                     <th className="text-left px-6 py-3 font-semibold text-[#0d121c] dark:text-white">Actions</th>
                                 </tr>
@@ -169,10 +173,25 @@ export function ComplaintsManager() {
                                                         : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                                                 )}
                                             >
-                                                {c.status}
+                                                {COMPLAINT_STATUS_LABELS[c.status] ?? c.status}
                                             </span>
                                         </td>
                                         <td className="px-6 py-3 text-[#49659c] dark:text-gray-400">{c.severity}</td>
+                                        <td className="px-6 py-3 text-[#49659c] dark:text-gray-400 max-w-[200px]">
+                                            {c.status === 'RESOLVED' && c.resolutionAction ? (
+                                                <span className="block truncate" title={c.resolutionReason ?? undefined}>
+                                                    <span className={cn(
+                                                        'font-medium',
+                                                        c.resolutionAction === 'FIRE' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
+                                                    )}>
+                                                        {COMPLAINT_RESOLUTION_ACTION_LABELS[c.resolutionAction]}:
+                                                    </span>{' '}
+                                                    {c.resolutionReason ?? '—'}
+                                                </span>
+                                            ) : (
+                                                '—'
+                                            )}
+                                        </td>
                                         <td className="px-6 py-3 text-[#49659c] dark:text-gray-400">
                                             {new Date(c.createdAt).toLocaleDateString()}
                                         </td>
@@ -306,7 +325,7 @@ function CreateComplaintModal({
                             onChange={(e) => setSeverity(e.target.value as CreateComplaintRequest['severity'])}
                             className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#0d121c] dark:text-white"
                         >
-                            {(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const).map((s) => (
+                            {COMPLAINT_SEVERITY.map((s) => (
                                 <option key={s} value={s}>{s}</option>
                             ))}
                         </select>
@@ -336,17 +355,32 @@ function UpdateStatusModal({
     onSubmit: (b: UpdateComplaintStatusRequest) => void;
     submitting: boolean;
 }) {
-    const [status, setStatus] = useState<UpdateComplaintStatusRequest['status']>(complaint.status as UpdateComplaintStatusRequest['status']);
+    const [status, setStatus] = useState<ComplaintStatus>(complaint.status);
+    const [action, setAction] = useState<ComplaintResolutionAction | ''>(complaint.resolutionAction || '');
+    const [reason, setReason] = useState(complaint.resolutionReason || '');
     const [resolution, setResolution] = useState(complaint.resolution || '');
+    const isResolved = status === 'RESOLVED';
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSubmit({ status, resolution: resolution.trim() || undefined });
+        if (isResolved && (!action || !reason.trim())) {
+            alert('When resolving, you must choose an action (Warning or Fire) and provide a reason.');
+            return;
+        }
+        const body: UpdateComplaintStatusRequest = {
+            status,
+            resolution: resolution.trim() || undefined,
+        };
+        if (isResolved) {
+            body.action = action as ComplaintResolutionAction;
+            body.reason = reason.trim();
+        }
+        onSubmit(body);
     };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold text-[#0d121c] dark:text-white">Update status</h3>
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
@@ -359,20 +393,58 @@ function UpdateStatusModal({
                         <label className="block text-sm font-medium text-[#49659c] dark:text-gray-400 mb-1">Status</label>
                         <select
                             value={status}
-                            onChange={(e) => setStatus(e.target.value as UpdateComplaintStatusRequest['status'])}
+                            onChange={(e) => {
+                                const v = e.target.value as ComplaintStatus;
+                                setStatus(v);
+                                if (v !== 'RESOLVED') { setAction(''); setReason(''); }
+                            }}
                             className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#0d121c] dark:text-white"
                         >
                             {STATUS_OPTIONS.map((s) => (
-                                <option key={s} value={s}>{s}</option>
+                                <option key={s} value={s}>{COMPLAINT_STATUS_LABELS[s] ?? s}</option>
                             ))}
                         </select>
                     </div>
+                    {isResolved && (
+                        <>
+                            <div>
+                                <label className="block text-sm font-medium text-[#49659c] dark:text-gray-400 mb-1">Action *</label>
+                                <select
+                                    value={action}
+                                    onChange={(e) => setAction(e.target.value as ComplaintResolutionAction | '')}
+                                    required={isResolved}
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#0d121c] dark:text-white"
+                                >
+                                    <option value="">Select action</option>
+                                    <option value="WARNING">{COMPLAINT_RESOLUTION_ACTION_LABELS.WARNING} (2+ warnings auto-fire)</option>
+                                    <option value="FIRE">{COMPLAINT_RESOLUTION_ACTION_LABELS.FIRE}</option>
+                                </select>
+                                <p className="text-xs text-[#49659c] dark:text-gray-500 mt-1">
+                                    Warning: issue warning. Fire: terminate driver/staff (blacklisted, cannot login or register).
+                                </p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-[#49659c] dark:text-gray-400 mb-1">Reason *</label>
+                                <textarea
+                                    value={reason}
+                                    onChange={(e) => setReason(e.target.value)}
+                                    required={isResolved}
+                                    rows={2}
+                                    placeholder="e.g. Repeated misconduct per customer complaint"
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#0d121c] dark:text-white resize-none"
+                                />
+                            </div>
+                        </>
+                    )}
                     <div>
-                        <label className="block text-sm font-medium text-[#49659c] dark:text-gray-400 mb-1">Resolution (optional)</label>
+                        <label className="block text-sm font-medium text-[#49659c] dark:text-gray-400 mb-1">
+                            Resolution summary (optional)
+                        </label>
                         <textarea
                             value={resolution}
                             onChange={(e) => setResolution(e.target.value)}
-                            rows={3}
+                            rows={2}
+                            placeholder="Brief summary of resolution"
                             className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#0d121c] dark:text-white resize-none"
                         />
                     </div>

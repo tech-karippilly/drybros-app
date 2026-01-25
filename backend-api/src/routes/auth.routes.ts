@@ -7,6 +7,7 @@ import {
   refreshTokenHandler,
   logoutHandler,
   getCurrentUserHandler,
+  changePasswordHandler,
 } from "../controllers/auth.controller";
 import { validate } from "../middlewares/validation";
 import {
@@ -15,6 +16,7 @@ import {
   forgotPasswordSchema,
   resetPasswordSchema,
   refreshTokenSchema,
+  changePasswordSchema,
 } from "../types/auth.dto";
 import { authMiddleware } from "../middlewares/auth";
 
@@ -40,5 +42,8 @@ router.post("/logout", authMiddleware, logoutHandler);
 
 // Get current user (requires authentication)
 router.get("/me", authMiddleware, getCurrentUserHandler);
+
+// Change password (requires authentication)
+router.post("/change-password", authMiddleware, validate(changePasswordSchema), changePasswordHandler);
 
 export default router;

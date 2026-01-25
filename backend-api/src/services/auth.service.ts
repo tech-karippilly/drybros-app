@@ -5,6 +5,7 @@ import jwt, { SignOptions, Secret } from "jsonwebtoken";
 import { authConfig } from "../config/authConfig";
 import { emailConfig } from "../config/emailConfig";
 import prisma from "../config/prismaClient";
+import { trackLogin } from "./attendance.service";
 import {
   ConflictError,
   BadRequestError,
@@ -36,6 +37,8 @@ import {
   PasswordResetTokenPayload,
   PasswordResetEntityType,
   UserResponseDTO,
+  ChangePasswordDTO,
+  ChangePasswordResponseDTO,
 } from "../types/auth.dto";
 import { getRoleByName } from "../repositories/role.repository";
 import {
@@ -460,6 +463,12 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
       },
     });
 
+    if (staff && !staff.isActive) {
+      throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+    }
+    if (staff && staff.status === "FIRED") {
+      throw new BadRequestError(ERROR_MESSAGES.STAFF_FIRED);
+    }
     if (staff && staff.isActive && staff.status === "ACTIVE") {
       // Validate password exists and is not empty
       if (!staff.password || staff.password.trim().length === 0) {
@@ -532,9 +541,13 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
           isActive: true,
           status: true,
           bannedGlobally: true,
+          blacklisted: true,
         },
       });
 
+      if (driver && (driver.blacklisted || driver.status === "TERMINATED")) {
+        throw new BadRequestError(ERROR_MESSAGES.DRIVER_BLACKLISTED);
+      }
       if (
         driver &&
         driver.isActive &&
@@ -613,6 +626,31 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
     email: userAuthShape.email,
     role: userAuthShape.role,
   });
+
+  // Track login time for attendance (non-blocking)
+  try {
+    if (userAuthShape.role === UserRole.DRIVER) {
+      await trackLogin(entityId, undefined, undefined);
+    } else if (userAuthShape.role === UserRole.STAFF || userAuthShape.role === UserRole.OFFICE_STAFF) {
+      // For staff, we need to find the staff record by email
+      const staff = await prisma.staff.findFirst({
+        where: { email: userAuthShape.email },
+        select: { id: true },
+      });
+      if (staff) {
+        await trackLogin(undefined, staff.id, undefined);
+      }
+    } else if (userAuthShape.role === UserRole.MANAGER) {
+      await trackLogin(undefined, undefined, entityId);
+    }
+  } catch (error) {
+    // Log error but don't fail login if attendance tracking fails
+    logger.error("Failed to track login time", {
+      error: error instanceof Error ? error.message : String(error),
+      userId: entityId,
+      role: userAuthShape.role,
+    });
+  }
 
   return {
     accessToken,
@@ -698,6 +736,7 @@ export async function forgotPassword(
       isActive: true,
       status: "ACTIVE",
       bannedGlobally: false,
+      blacklisted: false,
     },
     select: { id: true, email: true, firstName: true, lastName: true },
   });
@@ -813,13 +852,15 @@ export async function resetPassword(
         isActive: true,
         status: true,
         bannedGlobally: true,
+        blacklisted: true,
       },
     });
     if (
       !driver ||
       !driver.isActive ||
       driver.status !== "ACTIVE" ||
-      driver.bannedGlobally
+      driver.bannedGlobally ||
+      driver.blacklisted
     ) {
       throw new BadRequestError(ERROR_MESSAGES.DRIVER_NOT_FOUND);
     }
@@ -952,5 +993,181 @@ export async function getCurrentUser(userId: string): Promise<CurrentUserRespons
     role: user.role,
     isActive: user.isActive,
     ...(franchiseId && { franchiseId }),
+  };
+}
+
+/**
+ * Change password for authenticated user
+ * Supports User (admin, manager), Staff, and Driver
+ * Requires previous password verification
+ */
+export async function changePassword(
+  input: ChangePasswordDTO,
+  authenticatedUserId: string,
+  authenticatedUserRole: UserRole
+): Promise<ChangePasswordResponseDTO> {
+  // Verify that the provided id matches the authenticated user
+  if (input.id !== authenticatedUserId) {
+    throw new BadRequestError("You can only change your own password");
+  }
+
+  const hashedNewPassword = await bcrypt.hash(input.newPassword, 10);
+
+  // Handle based on user role
+  if (authenticatedUserRole === UserRole.ADMIN || authenticatedUserRole === UserRole.MANAGER) {
+    // User table
+    const user = await prisma.user.findUnique({
+      where: { id: input.id },
+      select: { id: true, password: true, email: true, fullName: true, isActive: true },
+    });
+
+    if (!user || !user.isActive) {
+      throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
+    }
+
+    // Verify previous password
+    const isPreviousPasswordValid = await bcrypt.compare(
+      input.previousPassword,
+      user.password
+    );
+
+    if (!isPreviousPasswordValid) {
+      throw new BadRequestError("Previous password is incorrect");
+    }
+
+    // Update password
+    await prisma.user.update({
+      where: { id: input.id },
+      data: { password: hashedNewPassword },
+    });
+
+    logger.info("Password changed successfully", {
+      userId: input.id,
+      email: user.email,
+      role: authenticatedUserRole,
+    });
+  } else if (authenticatedUserRole === UserRole.STAFF || authenticatedUserRole === UserRole.OFFICE_STAFF) {
+    // Staff table - the authenticatedUserId is the staffId
+    const staff = await prisma.staff.findUnique({
+      where: { id: input.id },
+      select: { id: true, password: true, email: true, name: true, isActive: true, status: true },
+    });
+
+    if (!staff || !staff.isActive || staff.status !== "ACTIVE") {
+      throw new NotFoundError(ERROR_MESSAGES.STAFF_NOT_FOUND);
+    }
+
+    // Verify the id matches (already checked at top, but double-check for safety)
+    if (staff.id !== input.id) {
+      throw new BadRequestError("You can only change your own password");
+    }
+
+    // Validate password exists and is hashed
+    if (!staff.password || staff.password.trim().length === 0) {
+      throw new BadRequestError(
+        "Password security issue detected. Please contact administrator to reset your password."
+      );
+    }
+
+    const isPasswordHashed = staff.password.startsWith("$2a$") || 
+                             staff.password.startsWith("$2b$") || 
+                             staff.password.startsWith("$2y$");
+    
+    if (!isPasswordHashed) {
+      throw new BadRequestError(
+        "Password security issue detected. Please contact administrator to reset your password."
+      );
+    }
+
+    // Verify previous password
+    const isPreviousPasswordValid = await bcrypt.compare(
+      input.previousPassword,
+      staff.password
+    );
+
+    if (!isPreviousPasswordValid) {
+      throw new BadRequestError("Previous password is incorrect");
+    }
+
+    // Update password
+    await prisma.staff.update({
+      where: { id: input.id },
+      data: { password: hashedNewPassword },
+    });
+
+    logger.info("Password changed successfully", {
+      staffId: input.id,
+      email: staff.email,
+      role: authenticatedUserRole,
+    });
+  } else if (authenticatedUserRole === UserRole.DRIVER) {
+    // Driver table - the authenticatedUserId is the driverId
+    const driver = await prisma.driver.findUnique({
+      where: { id: input.id },
+      select: {
+        id: true,
+        password: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        isActive: true,
+        status: true,
+        bannedGlobally: true,
+      },
+    });
+
+    if (!driver || !driver.isActive || driver.status !== "ACTIVE" || driver.bannedGlobally) {
+      throw new NotFoundError(ERROR_MESSAGES.DRIVER_NOT_FOUND);
+    }
+
+    // Verify the id matches (already checked at top, but double-check for safety)
+    if (driver.id !== input.id) {
+      throw new BadRequestError("You can only change your own password");
+    }
+
+    // Validate password exists and is hashed
+    if (!driver.password || driver.password.trim().length === 0) {
+      throw new BadRequestError(
+        "Password security issue detected. Please contact administrator to reset your password."
+      );
+    }
+
+    const isPasswordHashed = driver.password.startsWith("$2a$") || 
+                             driver.password.startsWith("$2b$") || 
+                             driver.password.startsWith("$2y$");
+    
+    if (!isPasswordHashed) {
+      throw new BadRequestError(
+        "Password security issue detected. Please contact administrator to reset your password."
+      );
+    }
+
+    // Verify previous password
+    const isPreviousPasswordValid = await bcrypt.compare(
+      input.previousPassword,
+      driver.password
+    );
+
+    if (!isPreviousPasswordValid) {
+      throw new BadRequestError("Previous password is incorrect");
+    }
+
+    // Update password
+    await prisma.driver.update({
+      where: { id: input.id },
+      data: { password: hashedNewPassword },
+    });
+
+    logger.info("Password changed successfully", {
+      driverId: input.id,
+      email: driver.email,
+      role: authenticatedUserRole,
+    });
+  } else {
+    throw new BadRequestError("Password change is not supported for this role");
+  }
+
+  return {
+    message: "Password changed successfully",
   };
 }

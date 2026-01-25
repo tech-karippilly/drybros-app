@@ -11,44 +11,29 @@ import { STORAGE_KEYS } from '@/lib/constants/auth';
 
 export function StaffManager() {
     const dispatch = useAppDispatch();
-    const { selectedStaff, isLoading, list } = useAppSelector((state) => state.staff);
-    const { activeTab } = useAppSelector((state) => state.auth);
+    const { selectedStaff } = useAppSelector((state) => state.staff);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
 
-    // Fetch staff list when component mounts or when staff menu is clicked
     useEffect(() => {
-        // Only fetch if staff tab is active
-        if (activeTab === 'staff') {
-            const loadStaff = async () => {
-                // Check if token exists before making API call
-                if (typeof window !== 'undefined') {
-                    const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-                    if (!token) {
-                        console.warn('No access token found. User may need to login.');
-                        return;
-                    }
+        const loadStaff = async () => {
+            if (typeof window !== 'undefined') {
+                const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+                if (!token) {
+                    console.warn('No access token found. User may need to login.');
+                    return;
                 }
-
-                try {
-                    // Fetch with current pagination settings
-                    // The axios interceptor will automatically add the Authorization header
-                    await dispatch(fetchStaffList({
-                        page: 1,
-                        limit: 10,
-                    })).unwrap();
-                } catch (error: any) {
-                    // Error is handled by the slice
-                    // If it's a 401 error, the interceptor will handle token refresh
-                    // If refresh fails, interceptor will redirect to login
-                    console.error('Failed to fetch staff list:', error);
-                }
-            };
-
-            // Always fetch when staff tab is clicked to ensure fresh data
-            loadStaff();
-        }
-    }, [dispatch, activeTab]);
+            }
+            try {
+                await dispatch(
+                    fetchStaffList({ page: 1, limit: 10 })
+                ).unwrap();
+            } catch (err) {
+                console.error('Failed to fetch staff list:', err);
+            }
+        };
+        loadStaff();
+    }, [dispatch]);
 
     const handleEdit = useCallback((staff: Staff) => {
         setEditingStaff(staff);

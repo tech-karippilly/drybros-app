@@ -247,3 +247,40 @@ export async function reassignDriverToTrip(tripId: string, payload: { driverId: 
     const response = await api.patch<{ data: TripResponse }>(`/trips/${tripId}/reassign-driver`, payload);
     return response.data.data;
 }
+
+/**
+ * Activity log entry for trip timeline
+ */
+export interface TripActivityLog {
+    id: string;
+    action: string;
+    entityType: string;
+    description: string;
+    metadata: any;
+    createdAt: Date | string;
+    user?: {
+        id: string;
+        fullName: string;
+        email: string;
+        role: string;
+    } | null;
+    driver?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        driverCode: string;
+    } | null;
+    staff?: {
+        id: string;
+        name: string;
+        email: string;
+    } | null;
+}
+
+/**
+ * Get activity logs for a specific trip
+ */
+export async function getTripLogs(tripId: string): Promise<TripActivityLog[]> {
+    const response = await api.get<{ data: TripActivityLog[] }>(`/trips/${tripId}/logs`);
+    return response.data.data;
+}

@@ -148,7 +148,7 @@ export async function getTripById(id: string) {
 export async function createTrip(data: {
   franchiseId: number;
   driverId: number;
-  customerId: number;
+  customerId: string;
   customerName: string;
   customerPhone: string;
   tripType: string;
@@ -183,7 +183,7 @@ export async function createTrip(data: {
 
 export async function createTripPhase1(data: {
   franchiseId: string;
-  customerId: number | null;
+  customerId: string | null;
   customerName: string;
   customerPhone: string;
   customerEmail?: string | null;
@@ -264,4 +264,82 @@ export async function getTripsByDriver(driverId: string) {
       Customer: true,
     },
   });
+}
+
+/**
+ * Get all assigned trips (trips that have a driver assigned)
+ * Includes trips with status: ASSIGNED, DRIVER_ACCEPTED, TRIP_STARTED, TRIP_PROGRESS, IN_PROGRESS, DRIVER_ON_THE_WAY
+ */
+export async function getAssignedTrips(franchiseId?: string) {
+  const whereClause: any = {
+    driverId: { not: null }, // Must have a driver assigned
+    status: {
+      in: [
+        "ASSIGNED",
+        "DRIVER_ACCEPTED",
+        "TRIP_STARTED",
+        "TRIP_PROGRESS",
+        "IN_PROGRESS",
+        "DRIVER_ON_THE_WAY",
+      ],
+    },
+  };
+
+  if (franchiseId) {
+    whereClause.franchiseId = franchiseId;
+  }
+
+  return prisma.trip.findMany({
+    where: whereClause,
+    orderBy: { createdAt: "desc" },
+    include: {
+      Franchise: true,
+      Driver: true,
+      Customer: true,
+    },
+  });
+}
+
+/**
+ * Get assigned trips with pagination
+ */
+export async function getAssignedTripsPaginated(
+  skip: number,
+  take: number,
+  franchiseId?: string
+) {
+  const whereClause: any = {
+    driverId: { not: null }, // Must have a driver assigned
+    status: {
+      in: [
+        "ASSIGNED",
+        "DRIVER_ACCEPTED",
+        "TRIP_STARTED",
+        "TRIP_PROGRESS",
+        "IN_PROGRESS",
+        "DRIVER_ON_THE_WAY",
+      ],
+    },
+  };
+
+  if (franchiseId) {
+    whereClause.franchiseId = franchiseId;
+  }
+
+  const [data, total] = await Promise.all([
+    prisma.trip.findMany({
+      where: whereClause,
+      skip,
+      take,
+      orderBy: { createdAt: "desc" },
+      include: {
+        Franchise: true,
+        Driver: true,
+        Customer: true,
+      },
+    }),
+    prisma.trip.count({ where: whereClause }),
+  ]);
+
+  return { data, total };
 }

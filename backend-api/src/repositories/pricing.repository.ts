@@ -2,6 +2,40 @@ import prisma from "../config/prismaClient";
 import { TripType } from "@prisma/client";
 
 /**
+ * Display-name aliases for each TripType (e.g. "Long Drop" for LONG_DROPOFF).
+ * Used to resolve trip type enum to TripTypeConfig when config name differs from enum.
+ */
+const TRIP_TYPE_CONFIG_NAME_ALIASES: Record<TripType, string[]> = {
+  CITY_ROUND: ["CITY_ROUND", "City Round", "city round"],
+  CITY_DROPOFF: ["CITY_DROPOFF", "City Drop", "City Dropoff", "city drop", "city dropoff"],
+  LONG_ROUND: ["LONG_ROUND", "Long Round", "long round"],
+  LONG_DROPOFF: ["LONG_DROPOFF", "Long Drop", "Long Dropoff", "long drop", "long dropoff"],
+};
+
+/**
+ * Get TripTypeConfig for pricing by TripType enum.
+ * Tries enum value first, then display-name aliases (e.g. "Long Drop" for LONG_DROPOFF).
+ * @returns TripTypeConfig or null if not found
+ */
+export async function getTripTypeConfigForPricing(tripType: TripType) {
+  const namesToTry = TRIP_TYPE_CONFIG_NAME_ALIASES[tripType] ?? [tripType];
+  for (const name of namesToTry) {
+    const config = await prisma.tripTypeConfig.findFirst({
+      where: {
+        name,
+        status: "ACTIVE",
+      },
+      include: {
+        DistanceScope: true,
+        TripPattern: true,
+      },
+    });
+    if (config) return config;
+  }
+  return null;
+}
+
+/**
  * Get TripTypeConfig by trip type name
  * @param tripTypeName - Trip type name (any string)
  * @returns TripTypeConfig or null if not found

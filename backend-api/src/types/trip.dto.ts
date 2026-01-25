@@ -43,3 +43,14 @@ export const reassignDriverSchema = z.object({
 });
 
 export type ReassignDriverDTO = z.infer<typeof reassignDriverSchema>;
+
+/**
+ * Zod schema for assigning a driver to a trip (POST /trips/assign-driver).
+ * Franchise is derived from the trip; only tripId and driverId are required.
+ */
+export const assignDriverSchema = z.object({
+  tripId: z.string().uuid("Trip ID must be a valid UUID"),
+  driverId: z.string().uuid("Driver ID must be a valid UUID"),
+});
+
+export type AssignDriverDTO = z.infer<typeof assignDriverSchema>;

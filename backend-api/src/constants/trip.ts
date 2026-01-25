@@ -65,3 +65,11 @@ export const REASSIGNABLE_TRIP_STATUSES = [
   "ASSIGNED",
   "DRIVER_ACCEPTED",
 ] as const;
+
+/** Trip history – late start detection */
+export const TRIP_HISTORY_LATE = {
+  EVENT_TYPE: "trip_started_late",
+  EVENT_NAME: "Started Late",
+  /** Description format: use {minutes} placeholder */
+  DESCRIPTION_FORMAT: "Trip started {minutes} minute(s) after scheduled time",
+} as const;

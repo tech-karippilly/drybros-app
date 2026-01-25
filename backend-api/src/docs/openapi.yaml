@@ -1134,6 +1134,94 @@ paths:
         "403":
           description: Forbidden - insufficient permissions (only ADMIN and OFFICE_STAFF can create drivers)
   
+  /drivers/available:
+    get:
+      summary: Get drivers for trip assignment (all franchise drivers)
+      description: |
+        Returns **all** drivers in the franchise (or all if no franchiseId):
+        - **ACTIVE status** – active drivers only
+        - **Not globally banned** – not banned from the system
+        - Includes both **AVAILABLE** and **ON_TRIP** drivers
+        
+        **Sort order (who appears first):**
+        1. **AVAILABLE** – drivers not on a trip (driverTripStatus = AVAILABLE)
+        2. **Day limit not finished** – remainingDailyLimit > 0 or null
+        3. **Performance category** – GREEN first, then YELLOW, then RED
+        4. **Performance score** – higher score first within same category
+        
+        **Franchise Filtering:**
+        - Use `franchiseId` query parameter to filter drivers by franchise (optional)
+        
+        **Use Cases:**
+        - Assigning trips: show all drivers, best options first (AVAILABLE + good performance + limit not reached)
+        - Driver selection for trip assignment workflow
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: franchiseId
+          in: query
+          required: false
+          description: Filter drivers by franchise ID (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: List of available drivers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    description: All drivers, sorted by AVAILABLE first, then day limit not finished, then performance (GREEN > YELLOW > RED), then score
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/Driver"
+                        - type: object
+                          properties:
+                            performance:
+                              $ref: "#/components/schemas/DriverPerformanceMetrics"
+                            remainingDailyLimit:
+                              type: number
+                              format: decimal
+                              description: Remaining daily limit (null if not initialized)
+                              example: 750.50
+              example:
+                data:
+                  - id: "550e8400-e29b-41d4-a716-446655440000"
+                    firstName: "John"
+                    lastName: "Doe"
+                    phone: "+1234567890"
+                    email: "john.doe@example.com"
+                    driverCode: "DRV-ABC123"
+                    status: "ACTIVE"
+                    driverTripStatus: "AVAILABLE"
+                    currentRating: 4.8
+                    remainingDailyLimit: 750.50
+                    performance:
+                      category: "GREEN"
+                      score: 85
+                      rating: 4.8
+                      complaintCount: 0
+                      totalTrips: 50
+                      completedTrips: 48
+                      rejectedTrips: 1
+                      completionRate: 96.0
+                      rejectionRate: 2.0
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  
   /drivers/available/green:
     get:
       summary: Get available drivers with GREEN performance
@@ -1989,6 +2077,118 @@ paths:
           description: Not authenticated (missing or invalid token)
         "404":
           description: Driver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /drivers/submit-cash-settlement:
+    post:
+      summary: Submit cash for settlement (specified amount)
+      description: |
+        Submit a specific amount of cash for settlement. This reduces the driver's cash in hand by the specified amount.
+        
+        **Use Case:**
+        - Driver collects cash from customers (via CASH or BOTH payment methods)
+        - Cash is automatically added to driver's cash in hand when payment is collected
+        - Driver can submit partial amounts for settlement (not just all cash)
+        - This endpoint allows submitting a specific amount while keeping remaining cash with the driver
+        
+        **Validation:**
+        - Driver must exist
+        - Settlement amount must be greater than zero
+        - Driver must have sufficient cash in hand (settlementAmount <= cashInHand)
+        
+        **Authorization:** ADMIN or OFFICE_STAFF only.
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitCashForSettlementRequest"
+            example:
+              driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+              settlementAmount: 500.50
+      responses:
+        "200":
+          description: Cash submitted for settlement successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      driverId:
+                        type: string
+                        format: uuid
+                        description: Driver ID
+                      driverName:
+                        type: string
+                        description: Driver full name
+                        example: "John Doe"
+                      message:
+                        type: string
+                        example: "Cash submitted for settlement successfully"
+                      previousCash:
+                        type: number
+                        format: decimal
+                        description: Cash in hand before settlement
+                        example: 750.50
+                      settlementAmount:
+                        type: number
+                        format: decimal
+                        description: Amount submitted for settlement
+                        example: 500.50
+                      remainingCash:
+                        type: number
+                        format: decimal
+                        description: Cash in hand after settlement
+                        example: 250.00
+              example:
+                data:
+                  driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+                  driverName: "John Doe"
+                  message: "Cash submitted for settlement successfully"
+                  previousCash: 750.50
+                  settlementAmount: 500.50
+                  remainingCash: 250.00
+        "400":
+          description: Bad request - invalid input or insufficient cash
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidAmount:
+                  summary: Invalid settlement amount
+                  value:
+                    error: "Settlement amount must be greater than zero"
+                insufficientCash:
+                  summary: Insufficient cash in hand
+                  value:
+                    error: "Insufficient cash in hand. Available: 250.00, Requested: 500.50"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - ADMIN or OFFICE_STAFF required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Driver not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
           content:
             application/json:
               schema:
@@ -2865,7 +3065,76 @@ paths:
         "400":
           description: User account is inactive
 
+  /auth/change-password:
+    post:
+      summary: Change password
+      description: |
+        Change password for the authenticated user. Requires previous password verification.
+        
+        **Security:**
+        - User can only change their own password (id must match authenticated user)
+        - Previous password must be verified
+        - New password must be at least 8 characters
+        - Supports User (ADMIN, MANAGER), Staff, and Driver roles
+        
+        **Note:** This endpoint is for authenticated users to change their password from the profile section.
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+            example:
+              id: "550e8400-e29b-41d4-a716-446655440000"
+              previousPassword: "oldPassword123"
+              newPassword: "newSecurePassword123"
+      responses:
+        "200":
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Password changed successfully"
+        "400":
+          description: Bad request (validation error, previous password incorrect, or id mismatch)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: User/Staff/Driver not found
+
   /customers:
+    get:
+      summary: List all customers
+      tags:
+        - Customers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Customer"
+        "401":
+          description: Not authenticated (missing or invalid token)
     post:
       summary: Create a customer
       tags:
@@ -2887,6 +3156,64 @@ paths:
                 $ref: "#/components/schemas/CustomerResponse"
         "401":
           description: Not authenticated (missing or invalid token)
+
+  /customers/{id}:
+    get:
+      summary: Get customer by ID
+      tags:
+        - Customers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Customer UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Customer not found
+
+  /customers/{id}/details:
+    get:
+      summary: Get customer details with history
+      description: |
+        Returns customer profile plus history stats:
+        - **tripsBooked**: Number of trips booked by this customer
+        - **complaintsRaised**: Number of complaints raised by this customer
+      tags:
+        - Customers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Customer UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Customer details with history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerDetailsResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Customer not found
 
   /trips:
     get:
@@ -3159,6 +3486,123 @@ paths:
         "401":
           description: Not authenticated (missing or invalid token)
 
+  /trips/assigned:
+    get:
+      summary: Get assigned trips
+      description: |
+        Get a list of trips that have a driver assigned. Includes trips with status:
+        - **ASSIGNED** - Driver has been assigned to the trip
+        - **DRIVER_ACCEPTED** - Driver has accepted the trip
+        - **TRIP_STARTED** - Trip has been started
+        - **TRIP_PROGRESS** - Trip is in progress
+        - **IN_PROGRESS** - Trip is in progress (legacy status)
+        - **DRIVER_ON_THE_WAY** - Driver is on the way to pickup
+        
+        Supports optional pagination and franchise filtering via query parameters.
+
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 10, max: 100)
+        - `franchiseId` (optional): Filter trips by franchise ID (UUID)
+
+        **Without pagination parameters:** Returns all assigned trips
+
+        **With pagination parameters:** Returns paginated results with metadata
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number (default: 1)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Number of items per page (default: 10, max: 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: franchiseId
+          in: query
+          required: false
+          description: Filter trips by franchise ID (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: List of assigned trips (paginated or all)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    description: Paginated response (when page/limit provided)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Trip"
+                      pagination:
+                        $ref: "#/components/schemas/PaginationMeta"
+                  - type: object
+                    description: All assigned trips (when no pagination params)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Trip"
+              example:
+                data:
+                  - id: "550e8400-e29b-41d4-a716-446655440000"
+                    franchiseId: "660e8400-e29b-41d4-a716-446655440001"
+                    driverId: "770e8400-e29b-41d4-a716-446655440002"
+                    customerId: "880e8400-e29b-41d4-a716-446655440003"
+                    customerName: "John Doe"
+                    customerPhone: "+1234567890"
+                    tripType: "CITY_ROUND"
+                    status: "ASSIGNED"
+                    pickupLocation: "123 Main St"
+                    dropLocation: "456 Oak Ave"
+                    scheduledAt: "2026-01-25T10:00:00Z"
+                    baseAmount: 500
+                    totalAmount: 500
+                    finalAmount: 500
+                    paymentStatus: "PENDING"
+                    createdAt: "2026-01-25T09:00:00Z"
+                    Driver:
+                      id: "770e8400-e29b-41d4-a716-446655440002"
+                      firstName: "Jane"
+                      lastName: "Smith"
+                      driverCode: "DRV-ABC123"
+                    Franchise:
+                      id: "660e8400-e29b-41d4-a716-446655440001"
+                      name: "Downtown Branch"
+                      code: "FRN-001"
+        "400":
+          description: Bad request - invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /trips/{id}:
     get:
       summary: Get trip by ID
@@ -3335,14 +3779,13 @@ paths:
 
   /trips/assign-driver:
     post:
-      summary: Assign driver to trip with franchise validation
+      summary: Assign driver to trip
       description: |
-        Assign a driver to a trip with explicit validation of trip ID, driver ID, and franchise ID.
+        Assign a driver to a trip. Only trip ID and driver ID are required; franchise is derived from the trip.
         
         This endpoint validates that:
-        - All three IDs (tripId, driverId, franchiseId) are provided and valid UUIDs
-        - The franchise ID matches the trip's franchise
-        - The driver belongs to the specified franchise
+        - tripId and driverId are provided and valid UUIDs
+        - The driver belongs to the trip's franchise
         - The trip is in a valid status for assignment (NOT_ASSIGNED, REQUESTED, or PENDING)
         - The driver is eligible (active, not banned, license valid, no active trips)
         
@@ -3362,7 +3805,6 @@ paths:
         
         **Use Cases:**
         - Admin/Office staff assigning trips to drivers
-        - Explicit franchise validation for cross-franchise operations
         - Bulk trip assignment operations
       tags:
         - Trips
@@ -3377,7 +3819,6 @@ paths:
             example:
               tripId: "550e8400-e29b-41d4-a716-446655440000"
               driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
-              franchiseId: "660e8400-e29b-41d4-a716-446655440001"
       responses:
         "200":
           description: Driver assigned to trip successfully
@@ -3424,10 +3865,6 @@ paths:
                   summary: Missing driver ID
                   value:
                     error: "Driver ID is required"
-                missingFranchiseId:
-                  summary: Missing franchise ID
-                  value:
-                    error: "Franchise ID is required"
                 invalidTripId:
                   summary: Invalid trip ID format
                   value:
@@ -3436,10 +3873,6 @@ paths:
                   summary: Invalid driver ID format
                   value:
                     error: "Invalid driver ID format. Expected UUID."
-                invalidFranchiseId:
-                  summary: Invalid franchise ID format
-                  value:
-                    error: "Invalid franchise ID format. Expected UUID."
                 tripNotFound:
                   summary: Trip not found
                   value:
@@ -3448,10 +3881,6 @@ paths:
                   summary: Driver not found
                   value:
                     error: "Driver not found"
-                franchiseMismatch:
-                  summary: Franchise ID mismatch
-                  value:
-                    error: "Franchise ID does not match the trip's franchise"
                 driverFranchiseMismatch:
                   summary: Driver belongs to different franchise
                   value:
@@ -3603,10 +4032,12 @@ paths:
     post:
       summary: Initiate trip start (Generate token and send OTP)
       description: |
-        Initiate the trip start process by providing trip details and images.
+        Initiate the trip start process by providing odometer reading and car images.
+        
+        **Trip ID** is taken from the URL path (`/trips/{id}/start-initiate`). Driver and franchise are derived from the trip; do not send them in the body.
         
         This endpoint:
-        - Validates trip, driver, and franchise IDs
+        - Validates trip exists and has a driver assigned
         - Generates a 4-digit OTP
         - Sends OTP to customer via email (if customer email is available)
         - Generates a secure JWT token for verification
@@ -3615,11 +4046,10 @@ paths:
         
         **Prerequisites:**
         - Trip must be in ASSIGNED or DRIVER_ACCEPTED status
-        - Trip must be assigned to the specified driver
-        - Franchise ID must match trip's franchise
+        - Trip must have a driver assigned
         
         **Flow:**
-        1. Driver calls this endpoint with trip details and images
+        1. Driver calls this endpoint with odometer and images (trip ID in URL)
         2. System generates OTP and sends to customer via email
         3. System returns token to driver
         4. Customer receives OTP via email and provides it to driver
@@ -3651,8 +4081,6 @@ paths:
             schema:
               $ref: "#/components/schemas/InitiateStartTripRequest"
             example:
-              driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
-              franchiseId: "660e8400-e29b-41d4-a716-446655440001"
               odometerValue: 12345.5
               odometerPic: "https://example.com/images/odometer.jpg"
               carFrontPic: "https://example.com/images/car-front.jpg"
@@ -3698,14 +4126,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
               examples:
-                missingDriverId:
-                  summary: Missing driver ID
-                  value:
-                    error: "driverId is required"
-                missingFranchiseId:
-                  summary: Missing franchise ID
-                  value:
-                    error: "franchiseId is required"
                 missingOdometerValue:
                   summary: Missing odometer value
                   value:
@@ -3714,18 +4134,12 @@ paths:
                   summary: Invalid trip status
                   value:
                     error: "Trip is not in a valid status for starting. Current status: COMPLETED"
-                franchiseMismatch:
-                  summary: Franchise mismatch
+                tripNoDriver:
+                  summary: Trip has no driver assigned
                   value:
-                    error: "Franchise ID does not match the trip's franchise"
+                    error: "Trip has no driver assigned"
         "401":
           description: Not authenticated (missing or invalid token)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden - trip not assigned to this driver
           content:
             application/json:
               schema:
@@ -3856,10 +4270,12 @@ paths:
     post:
       summary: Initiate trip end (Generate token and send OTP)
       description: |
-        Initiate the trip end process by providing trip details and odometer reading.
+        Initiate the trip end process by providing odometer reading and image.
+        
+        **Trip ID** is taken from the URL path (`/trips/{id}/end-initiate`). Driver and franchise are derived from the trip; do not send them in the body.
         
         This endpoint:
-        - Validates trip, driver, and franchise IDs
+        - Validates trip exists and has a driver assigned
         - Validates trip is in TRIP_STARTED/TRIP_PROGRESS/IN_PROGRESS status
         - Validates trip has been started and has start odometer reading
         - Generates a 4-digit OTP
@@ -3870,13 +4286,12 @@ paths:
         
         **Prerequisites:**
         - Trip must be in TRIP_STARTED, TRIP_PROGRESS, or IN_PROGRESS status
-        - Trip must be assigned to the specified driver
-        - Franchise ID must match trip's franchise
+        - Trip must have a driver assigned
         - Trip must have been started (startedAt must exist)
         - Trip must have start odometer reading
         
         **Flow:**
-        1. Driver calls this endpoint with trip details and odometer reading
+        1. Driver calls this endpoint with odometer and image (trip ID in URL)
         2. System generates OTP and sends to customer via email
         3. System returns token to driver
         4. Customer receives OTP via email and provides it to driver
@@ -3908,8 +4323,6 @@ paths:
             schema:
               $ref: "#/components/schemas/InitiateEndTripRequest"
             example:
-              driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
-              franchiseId: "660e8400-e29b-41d4-a716-446655440001"
               odometerValue: 12350.2
               odometerImage: "https://example.com/images/odometer-end.jpg"
       responses:
@@ -3953,14 +4366,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
               examples:
-                missingDriverId:
-                  summary: Missing driverId
-                  value:
-                    error: "driverId is required"
-                missingFranchiseId:
-                  summary: Missing franchiseId
-                  value:
-                    error: "franchiseId is required"
                 missingOdometerValue:
                   summary: Missing odometerValue
                   value:
@@ -3969,6 +4374,10 @@ paths:
                   summary: Missing odometerImage
                   value:
                     error: "odometerImage is required"
+                tripNoDriver:
+                  summary: Trip has no driver assigned
+                  value:
+                    error: "Trip has no driver assigned"
                 invalidStatus:
                   summary: Trip not in valid status
                   value:
@@ -3983,12 +4392,6 @@ paths:
                     error: "Start odometer reading is missing"
         "401":
           description: Not authenticated (missing or invalid token)
-        "403":
-          description: Forbidden - trip not assigned to this driver
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Trip not found
           content:
@@ -4440,10 +4843,12 @@ paths:
         
         **Returns:**
         - Trip summary (status, payment info, customer details)
+        - **Late detection:** When trip has `scheduledAt` and `startedAt` > `scheduledAt`, `startedLate` is true and `lateByMinutes` gives minutes late; a `trip_started_late` timeline event is included.
         - Chronological timeline of all events:
           - Trip Created
           - Request Accepted
           - Trip Started
+          - Started Late (when driver started after scheduled time)
           - Trip On Progress
           - Trip End Initiated
           - Trip Ended
@@ -4454,6 +4859,7 @@ paths:
         - `trip_created`: Trip was created
         - `request_accepted`: Driver accepted the trip request
         - `trip_started`: Trip started successfully
+        - `trip_started_late`: Driver started the trip after scheduled time (includes `lateByMinutes` in metadata)
         - `trip_on_progress`: Trip is in progress
         - `trip_end_initiated`: Trip end process initiated
         - `trip_ended`: Trip ended successfully
@@ -4524,6 +4930,12 @@ paths:
                         type: string
                         nullable: true
                         example: "456 Oak Ave, City"
+                      scheduledAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        description: Scheduled trip start time
+                        example: "2026-01-25T06:30:00Z"
                       startedAt:
                         type: string
                         format: date-time
@@ -4534,6 +4946,15 @@ paths:
                         format: date-time
                         nullable: true
                         example: "2024-01-20T17:00:00Z"
+                      startedLate:
+                        type: boolean
+                        description: True when trip was started after scheduled time
+                        example: true
+                      lateByMinutes:
+                        type: integer
+                        nullable: true
+                        description: Minutes late (startedAt - scheduledAt) when startedLate is true
+                        example: 7
                       timeline:
                         type: array
                         description: Chronological timeline of trip events
@@ -5174,8 +5595,11 @@ paths:
     patch:
       summary: Update complaint status
       description: |
-        Update the status of a complaint (OPEN, IN_PROGRESS, RESOLVED, CLOSED).
-        When resolving, you can optionally provide a resolution message.
+        Update the status of a complaint. Status values: **OPEN** (pending), **IN_PROGRESS** (on process), **RESOLVED**, **CLOSED**.
+        When **status** is **RESOLVED**, you must provide **action** (WARNING or FIRE) and **reason**.
+        - **WARNING**: Issue warning to driver/staff. If they already have 2+ warnings, they are auto-fired.
+        - **FIRE**: Terminate driver (status=TERMINATED, blacklisted=true) or staff (status=FIRED). Fired/blacklisted cannot login or register.
+        Resolved complaints include **resolutionAction** and **resolutionReason** in the response.
       tags:
         - Complaints
       security:
@@ -5224,6 +5648,7 @@ paths:
         - `limit` (optional): Number of items per page (default: 10, max: 100)
         - `driverId` (optional): Filter by driver ID
         - `staffId` (optional): Filter by staff ID
+        - `userId` (optional): Filter by user ID (for managers)
         - `startDate` (optional): Filter by start date (ISO 8601)
         - `endDate` (optional): Filter by end date (ISO 8601)
       tags:
@@ -5258,6 +5683,13 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: userId
+          in: query
+          required: false
+          description: Filter by user ID (for managers)
+          schema:
+            type: string
+            format: uuid
         - name: startDate
           in: query
           required: false
@@ -5287,11 +5719,67 @@ paths:
         "401":
           description: Not authenticated (missing or invalid token)
     post:
+      summary: Create attendance record
+      description: |
+        Create a new attendance record manually. This endpoint allows creating attendance records with all fields.
+        
+        **Note:** Exactly one of `driverId`, `staffId`, or `userId` must be provided.
+        - `driverId`: For drivers
+        - `staffId`: For staff members
+        - `userId`: For managers (User table)
+        
+        **Fields:**
+        - `date`: Date for the attendance record (required)
+        - `loginTime`: Time when user logged in (optional)
+        - `clockIn`: Time when user clocked in (optional)
+        - `clockOut`: Time when user clocked out (optional)
+        - `status`: Attendance status (PRESENT, ABSENT, LATE, HALF_DAY, ON_LEAVE) - defaults to PRESENT
+        - `notes`: Optional notes (max 500 characters)
+      tags:
+        - Attendance
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAttendanceRequest"
+      responses:
+        "201":
+          description: Attendance record created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Attendance record created successfully"
+                  data:
+                    $ref: "#/components/schemas/Attendance"
+        "400":
+          description: Bad request - validation error or attendance already exists for this date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Driver/Staff/User not found
+
+  /attendance/clock-in:
+    post:
       summary: Clock in
       description: |
-        Record clock in for a driver or staff member.
+        Record clock in for a driver, staff member, or manager.
         
-        **Note:** Either `driverId` or `staffId` must be provided, but not both.
+        **Note:** Exactly one of `driverId`, `staffId`, or `userId` must be provided.
+        - `driverId`: For drivers
+        - `staffId`: For staff members
+        - `userId`: For managers (User table)
+        
         You can only clock in once per day.
       tags:
         - Attendance
@@ -5329,9 +5817,13 @@ paths:
     post:
       summary: Clock out
       description: |
-        Record clock out for a driver or staff member.
+        Record clock out for a driver, staff member, or manager.
         
-        **Note:** Either `driverId` or `staffId` must be provided, but not both.
+        **Note:** Exactly one of `driverId`, `staffId`, or `userId` must be provided.
+        - `driverId`: For drivers
+        - `staffId`: For staff members
+        - `userId`: For managers (User table)
+        
         You must clock in before clocking out.
       tags:
         - Attendance
@@ -5368,6 +5860,7 @@ paths:
   /attendance/{id}:
     get:
       summary: Get attendance record by ID
+      description: Retrieve a single attendance record by its ID.
       tags:
         - Attendance
       security:
@@ -5376,6 +5869,7 @@ paths:
         - name: id
           in: path
           required: true
+          description: Attendance record ID (UUID)
           schema:
             type: string
             format: uuid
@@ -5389,6 +5883,91 @@ paths:
                 properties:
                   data:
                     $ref: "#/components/schemas/Attendance"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Attendance record not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Update attendance record
+      description: |
+        Update an existing attendance record. All fields are optional - only provide the fields you want to update.
+        
+        **Note:** You can update loginTime, clockIn, clockOut, status, and notes.
+      tags:
+        - Attendance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Attendance record ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAttendanceRequest"
+      responses:
+        "200":
+          description: Attendance record updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Attendance record updated successfully"
+                  data:
+                    $ref: "#/components/schemas/Attendance"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Attendance record not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete attendance record
+      description: Permanently delete an attendance record.
+      tags:
+        - Attendance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Attendance record ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Attendance record deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Attendance record deleted successfully"
         "401":
           description: Not authenticated (missing or invalid token)
         "404":
@@ -6029,6 +6608,23 @@ components:
         data:
           $ref: "#/components/schemas/Customer"
 
+    CustomerDetailsResponse:
+      type: object
+      description: Customer profile with history (trips booked, complaints raised)
+      properties:
+        data:
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/Customer"
+            - type: object
+              properties:
+                tripsBooked:
+                  type: integer
+                  description: Number of trips booked by this customer
+                complaintsRaised:
+                  type: integer
+                  description: Number of complaints raised by this customer
+
     CreateTripRequest:
       type: object
       properties:
@@ -6063,8 +6659,7 @@ components:
     AssignDriverToTripRequest:
       type: object
       description: |
-        Request body for assigning a driver to a trip with explicit franchise validation.
-        All three IDs must be provided and will be validated to ensure they match correctly.
+        Request body for assigning a driver to a trip. Franchise is derived from the trip; only tripId and driverId are required.
       properties:
         tripId:
           type: string
@@ -6076,15 +6671,9 @@ components:
           format: uuid
           description: Driver ID (UUID)
           example: "779a77f6-5704-4b00-8561-2892c58946a2"
-        franchiseId:
-          type: string
-          format: uuid
-          description: Franchise ID (UUID) - must match both trip's franchise and driver's franchise
-          example: "660e8400-e29b-41d4-a716-446655440001"
       required:
         - tripId
         - driverId
-        - franchiseId
 
     CreateTripPhase1Request:
       type: object
@@ -6479,19 +7068,9 @@ components:
     InitiateStartTripRequest:
       type: object
       description: |
-        Request body for initiating trip start.
-        This generates a token and sends OTP to customer.
+        Request body for initiating trip start. Trip ID comes from the URL path (/trips/{id}/start-initiate).
+        Driver and franchise are derived from the trip; do not send them in the body.
       properties:
-        driverId:
-          type: string
-          format: uuid
-          description: Driver ID (UUID)
-          example: "779a77f6-5704-4b00-8561-2892c58946a2"
-        franchiseId:
-          type: string
-          format: uuid
-          description: Franchise ID (UUID) - must match trip's franchise
-          example: "660e8400-e29b-41d4-a716-446655440001"
         odometerValue:
           type: number
           description: Odometer reading at trip start (in km)
@@ -6513,8 +7092,6 @@ components:
           description: URL to back car image
           example: "https://example.com/images/car-back.jpg"
       required:
-        - driverId
-        - franchiseId
         - odometerValue
         - odometerPic
         - carFrontPic
@@ -6538,22 +7115,33 @@ components:
         - token
         - otp
 
-    InitiateEndTripRequest:
+    SubmitCashForSettlementRequest:
       type: object
       description: |
-        Request body for initiating trip end.
-        This generates a token and sends OTP to customer.
+        Request body for submitting cash for settlement.
+        Allows drivers to submit a specific amount of cash to the office.
       properties:
         driverId:
           type: string
           format: uuid
           description: Driver ID (UUID)
           example: "779a77f6-5704-4b00-8561-2892c58946a2"
-        franchiseId:
-          type: string
-          format: uuid
-          description: Franchise ID (UUID) - must match trip's franchise
-          example: "660e8400-e29b-41d4-a716-446655440001"
+        settlementAmount:
+          type: number
+          format: decimal
+          description: Amount to submit for settlement (must be greater than zero and not exceed cash in hand)
+          example: 500.50
+          minimum: 0.01
+      required:
+        - driverId
+        - settlementAmount
+
+    InitiateEndTripRequest:
+      type: object
+      description: |
+        Request body for initiating trip end. Trip ID comes from the URL path (/trips/{id}/end-initiate).
+        Driver and franchise are derived from the trip; do not send them in the body.
+      properties:
         odometerValue:
           type: number
           description: Odometer reading at trip end (in km)
@@ -6565,8 +7153,6 @@ components:
           description: URL to odometer image at trip end
           example: "https://example.com/images/odometer-end.jpg"
       required:
-        - driverId
-        - franchiseId
         - odometerValue
         - odometerImage
 
@@ -7120,6 +7706,31 @@ components:
           type: string
           description: Success message
           example: "Password reset link has been sent to your email address."
+
+    ChangePasswordRequest:
+      type: object
+      required:
+        - id
+        - previousPassword
+        - newPassword
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: User/Staff/Driver ID (must match authenticated user)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        previousPassword:
+          type: string
+          format: password
+          description: Current password (for verification)
+          example: "oldPassword123"
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 100
+          description: New password (minimum 8 characters)
+          example: "newSecurePassword123"
 
     ResetPasswordRequest:
       type: object
@@ -7863,6 +8474,10 @@ components:
           format: uuid
           description: Staff ID (required if driverId not provided)
           example: "660e8400-e29b-41d4-a716-446655440001"
+        customerId:
+          type: string
+          format: uuid
+          description: Customer who raised the complaint (optional, for customer history)
         title:
           type: string
           minLength: 1
@@ -7892,7 +8507,17 @@ components:
           type: string
           maxLength: 500
           nullable: true
+          description: Optional summary of resolution
           example: "Issue resolved after discussion with driver"
+        action:
+          type: string
+          enum: [WARNING, FIRE]
+          description: Required when status is RESOLVED. WARNING = issue warning; 2+ warnings auto-fire. FIRE = terminate.
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Required when status is RESOLVED. Reason for the action taken.
 
     Complaint:
       type: object
@@ -7908,6 +8533,11 @@ components:
           type: string
           format: uuid
           nullable: true
+        customerId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Customer who raised the complaint
         title:
           type: string
         description:
@@ -7939,6 +8569,15 @@ components:
         resolution:
           type: string
           nullable: true
+        resolutionAction:
+          type: string
+          enum: [WARNING, FIRE]
+          nullable: true
+          description: Action taken when resolved (WARNING or FIRE)
+        resolutionReason:
+          type: string
+          nullable: true
+          description: Reason for the action when resolved
 
     PaginatedComplaintResponse:
       type: object
@@ -7957,13 +8596,18 @@ components:
         driverId:
           type: string
           format: uuid
-          description: Driver ID (required if staffId not provided)
+          description: Driver ID (exactly one of driverId, staffId, or userId must be provided)
           example: "550e8400-e29b-41d4-a716-446655440000"
         staffId:
           type: string
           format: uuid
-          description: Staff ID (required if driverId not provided)
+          description: Staff ID (exactly one of driverId, staffId, or userId must be provided)
           example: "660e8400-e29b-41d4-a716-446655440001"
+        userId:
+          type: string
+          format: uuid
+          description: User ID for managers (exactly one of driverId, staffId, or userId must be provided)
+          example: "770e8400-e29b-41d4-a716-446655440002"
         notes:
           type: string
           maxLength: 500
@@ -7977,18 +8621,113 @@ components:
         driverId:
           type: string
           format: uuid
-          description: Driver ID (required if staffId not provided)
+          description: Driver ID (exactly one of driverId, staffId, or userId must be provided)
           example: "550e8400-e29b-41d4-a716-446655440000"
         staffId:
           type: string
           format: uuid
-          description: Staff ID (required if driverId not provided)
+          description: Staff ID (exactly one of driverId, staffId, or userId must be provided)
           example: "660e8400-e29b-41d4-a716-446655440001"
+        userId:
+          type: string
+          format: uuid
+          description: User ID for managers (exactly one of driverId, staffId, or userId must be provided)
+          example: "770e8400-e29b-41d4-a716-446655440002"
         notes:
           type: string
           maxLength: 500
           nullable: true
           example: "Completed all tasks"
+
+    CreateAttendanceRequest:
+      type: object
+      required:
+        - date
+      properties:
+        driverId:
+          type: string
+          format: uuid
+          description: Driver ID (exactly one of driverId, staffId, or userId must be provided)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        staffId:
+          type: string
+          format: uuid
+          description: Staff ID (exactly one of driverId, staffId, or userId must be provided)
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        userId:
+          type: string
+          format: uuid
+          description: User ID for managers (exactly one of driverId, staffId, or userId must be provided)
+          example: "770e8400-e29b-41d4-a716-446655440002"
+        date:
+          type: string
+          format: date-time
+          description: Date for the attendance record
+          example: "2024-01-25T00:00:00Z"
+        loginTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: Time when user logged in
+          example: "2024-01-25T09:00:00Z"
+        clockIn:
+          type: string
+          format: date-time
+          nullable: true
+          description: Time when user clocked in
+          example: "2024-01-25T09:30:00Z"
+        clockOut:
+          type: string
+          format: date-time
+          nullable: true
+          description: Time when user clocked out
+          example: "2024-01-25T18:00:00Z"
+        status:
+          type: string
+          enum: [PRESENT, ABSENT, LATE, HALF_DAY, ON_LEAVE]
+          default: PRESENT
+          description: Attendance status
+          example: "PRESENT"
+        notes:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Optional notes
+          example: "Regular attendance"
+
+    UpdateAttendanceRequest:
+      type: object
+      required: []
+      properties:
+        loginTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: Time when user logged in
+          example: "2024-01-25T09:00:00Z"
+        clockIn:
+          type: string
+          format: date-time
+          nullable: true
+          description: Time when user clocked in
+          example: "2024-01-25T09:30:00Z"
+        clockOut:
+          type: string
+          format: date-time
+          nullable: true
+          description: Time when user clocked out
+          example: "2024-01-25T18:00:00Z"
+        status:
+          type: string
+          enum: [PRESENT, ABSENT, LATE, HALF_DAY, ON_LEAVE]
+          description: Attendance status
+          example: "PRESENT"
+        notes:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Optional notes
+          example: "Updated notes"
 
     Attendance:
       type: object
@@ -7996,37 +8735,57 @@ components:
         id:
           type: string
           format: uuid
+          description: Attendance record ID
         driverId:
           type: string
           format: uuid
           nullable: true
+          description: Driver ID (if attendance is for a driver)
         staffId:
           type: string
           format: uuid
           nullable: true
+          description: Staff ID (if attendance is for a staff member)
+        userId:
+          type: string
+          format: uuid
+          nullable: true
+          description: User ID (if attendance is for a manager)
         date:
           type: string
           format: date
+          description: Date of attendance
+        loginTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: Time when user logged in
         clockIn:
           type: string
           format: date-time
           nullable: true
+          description: Time when user clocked in
         clockOut:
           type: string
           format: date-time
           nullable: true
+          description: Time when user clocked out
         status:
           type: string
           enum: [PRESENT, ABSENT, LATE, HALF_DAY, ON_LEAVE]
+          description: Attendance status
         notes:
           type: string
           nullable: true
+          description: Optional notes
         createdAt:
           type: string
           format: date-time
+          description: Record creation timestamp
         updatedAt:
           type: string
           format: date-time
+          description: Record last update timestamp
 
     PaginatedAttendanceResponse:
       type: object
@@ -8654,6 +9413,23 @@ components:
           nullable: true
           description: Daily target amount for the driver
           example: 5000
+        cashInHand:
+          type: number
+          format: decimal
+          description: Cash amount currently in driver's hand
+          example: 0
+        incentive:
+          type: number
+          format: decimal
+          nullable: true
+          description: Incentive amount (e.g. daily/monthly)
+          example: 500.00
+        bonus:
+          type: number
+          format: decimal
+          nullable: true
+          description: Bonus amount
+          example: 1000.00
         currentRating:
           type: number
           format: float
@@ -8675,6 +9451,53 @@ components:
           format: date-time
           description: When the driver was last updated
           example: "2024-01-20T10:30:00Z"
+
+    DriverPerformanceMetrics:
+      type: object
+      description: Calculated performance metrics for a driver
+      properties:
+        category:
+          type: string
+          enum: [GREEN, YELLOW, RED]
+          description: Performance category
+          example: "GREEN"
+        score:
+          type: number
+          format: float
+          description: Performance score (0–100)
+          example: 85
+        rating:
+          type: number
+          format: float
+          nullable: true
+          description: Current driver rating
+          example: 4.8
+        complaintCount:
+          type: integer
+          description: Number of complaints
+          example: 0
+        totalTrips:
+          type: integer
+          description: Total trips in performance window
+          example: 50
+        completedTrips:
+          type: integer
+          description: Completed trips
+          example: 48
+        rejectedTrips:
+          type: integer
+          description: Trips rejected by driver
+          example: 1
+        completionRate:
+          type: number
+          format: float
+          description: Completion rate (percentage)
+          example: 96.0
+        rejectionRate:
+          type: number
+          format: float
+          description: Rejection rate (percentage)
+          example: 2.0
 
     CreateDriverResponse:
       type: object
@@ -8799,6 +9622,22 @@ components:
           enum: [ACTIVE, INACTIVE, BLOCKED, TERMINATED]
           description: Driver status
           example: "ACTIVE"
+        dailyTargetAmount:
+          type: integer
+          nullable: true
+          description: Daily target amount for the driver
+        incentive:
+          type: number
+          format: decimal
+          nullable: true
+          description: Incentive amount (e.g. daily/monthly)
+          example: 500.00
+        bonus:
+          type: number
+          format: decimal
+          nullable: true
+          description: Bonus amount
+          example: 1000.00
 
     UpdateDriverResponse:
       type: object

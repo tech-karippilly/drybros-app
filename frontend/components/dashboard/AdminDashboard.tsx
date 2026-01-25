@@ -1,204 +1,417 @@
 "use client";
 
-import React from 'react';
-import { KpiStatsGrid } from './KpiStats';
-import { RecentActivities } from './RecentActivities';
-import { PlaceholderScreen } from './PlaceholderScreen';
-import { SettingsScreen } from './SettingsScreen';
-import { FranchiseManager } from './franchise/FranchiseManager';
-import { StaffManager } from './staff/StaffManager';
-import { PenaltiesManager } from './penalties/PenaltiesManager';
-import { DriversManager} from './drivers/DriversManager';
-import { DailyLimitsManager } from './drivers/DailyLimitsManager';
-import { DriverPenaltiesManager } from './drivers/DriverPenaltiesManager';
-import { DriverEarningsConfigManager } from './drivers/DriverEarningsConfigManager';
-import { TripManager } from './trips/TripManager';
-import { ComplaintsManager } from './complaints/ComplaintsManager';
-import { AttendanceManager } from './attendance/AttendanceManager';
-import { LeaveManager } from './leave/LeaveManager';
-import { RatingsManager } from './ratings/RatingsManager';
-import { CustomersManager } from './customers/CustomersManager';
-import { useAppSelector } from '@/lib/hooks';
-import { DashboardLayout } from './DashboardLayout';
+import React, { useEffect, useState } from 'react';
 import {
-    Wallet,
-    ArrowRight,
+    TrendingUp,
+    TrendingDown,
+    AlertTriangle,
+    CheckCircle,
+    Clock,
+    DollarSign,
+    Users,
     Truck,
-    BarChart3,
-    Map,
-    MessageSquare,
-    CalendarCheck,
+    Store,
+    FileText,
+    Shield,
     Bell,
-    Settings,
-    UserCircle,
+    BarChart3,
+    MapPin,
+    Activity,
 } from 'lucide-react';
+import {
+    DashboardMetrics,
+    DashboardAnalytics,
+    AlertItem,
+    getAdminDashboardMetrics,
+    getAdminDashboardAnalytics,
+    getAdminDashboardAlerts,
+} from '@/lib/features/dashboard/dashboardApi';
+import { DASHBOARD_METRICS_LABELS, ALERT_SEVERITY_COLORS, CHART_COLORS } from '@/lib/constants/dashboardMetrics';
+import { cn } from '@/lib/utils';
+
+interface MetricCardProps {
+    label: string;
+    value: string | number;
+    trend?: number;
+    trendType?: 'up' | 'down';
+    icon?: React.ReactNode;
+}
+
+function MetricCard({ label, value, trend, trendType, icon }: MetricCardProps) {
+    return (
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all">
+            <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                    {icon && <div className="text-[#0d59f2]">{icon}</div>}
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[#49659c] dark:text-gray-400">
+                        {label}
+                    </p>
+                </div>
+                {trend !== undefined && trendType && (
+                    <div
+                        className={cn(
+                            'flex items-center gap-1 text-xs font-bold px-2 py-1 rounded',
+                            trendType === 'up'
+                                ? 'text-green-600 bg-green-50 dark:bg-green-900/20'
+                                : 'text-red-600 bg-red-50 dark:bg-red-900/20'
+                        )}
+                    >
+                        {trendType === 'up' ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                        {Math.abs(trend)}%
+                    </div>
+                )}
+            </div>
+            <h3 className="text-3xl font-bold text-[#0d121c] dark:text-white">{value}</h3>
+        </div>
+    );
+}
+
+function AlertCard({ alert }: { alert: AlertItem }) {
+    const severityColor = ALERT_SEVERITY_COLORS[alert.severity] || ALERT_SEVERITY_COLORS.low;
+    
+    return (
+        <div className={cn('p-4 rounded-lg border', severityColor)}>
+            <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                    <h4 className="font-semibold text-sm mb-1">{alert.title}</h4>
+                    <p className="text-xs opacity-80">{alert.description}</p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function RevenueChart({ data }: { data: DashboardAnalytics['revenueTrend'] }) {
+    const maxRevenue = Math.max(...data.map((d) => d.revenue));
+    
+    return (
+        <div className="h-[250px] w-full relative">
+            <svg width="100%" height="100%" className="overflow-visible">
+                <defs>
+                    <linearGradient id="revenueGradient" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor={CHART_COLORS.PRIMARY} stopOpacity="0.2" />
+                        <stop offset="100%" stopColor={CHART_COLORS.PRIMARY} stopOpacity="0" />
+                    </linearGradient>
+                </defs>
+                <path
+                    d={`M 0 ${250 - (data[0].revenue / maxRevenue) * 200} ${data
+                        .map(
+                            (d, i) =>
+                                `L ${(i / (data.length - 1)) * 100}% ${250 - (d.revenue / maxRevenue) * 200}`
+                        )
+                        .join(' ')} L 100% ${250 - (data[data.length - 1].revenue / maxRevenue) * 200} L 100% 250 L 0 250 Z`}
+                    fill="url(#revenueGradient)"
+                />
+                <path
+                    d={`M 0 ${250 - (data[0].revenue / maxRevenue) * 200} ${data
+                        .map(
+                            (d, i) =>
+                                `L ${(i / (data.length - 1)) * 100}% ${250 - (d.revenue / maxRevenue) * 200}`
+                        )
+                        .join(' ')}`}
+                    stroke={CHART_COLORS.PRIMARY}
+                    strokeWidth="3"
+                    fill="none"
+                    strokeLinecap="round"
+                />
+            </svg>
+        </div>
+    );
+}
 
 export function AdminDashboard() {
-    const { activeTab } = useAppSelector((state) => state.auth);
+    const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+    const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
+    const [alerts, setAlerts] = useState<AlertItem[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const renderContent = () => {
-        switch (activeTab) {
-            case 'home':
-                return (
-                    <div className="animate-in fade-in duration-500">
-                        {/* Header Section */}
-                        <div className="mb-8">
-                            <h2 className="text-2xl font-bold text-[#0d121c] dark:text-white">Dashboard Overview</h2>
-                            <p className="text-[#49659c] dark:text-gray-400">Welcome back. Here&apos;s what&apos;s happening today.</p>
-                        </div>
+    useEffect(() => {
+        let cancelled = false;
 
-                        {/* KPI Stats Row */}
-                        <KpiStatsGrid />
+        (async () => {
+            try {
+                setLoading(true);
+                const [metricsData, analyticsData, alertsData] = await Promise.all([
+                    getAdminDashboardMetrics(),
+                    getAdminDashboardAnalytics(),
+                    getAdminDashboardAlerts(),
+                ]);
 
-                        {/* Main Grid Section */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            {/* Left: Charts */}
-                            <div className="lg:col-span-2 flex flex-col gap-8">
-                                {/* Trip Trends Chart */}
-                                <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                                    <div className="flex items-center justify-between mb-6">
-                                        <div>
-                                            <h4 className="text-lg font-bold dark:text-white">Trip Trends</h4>
-                                            <p className="text-sm text-[#49659c] dark:text-gray-400">Weekly performance metrics</p>
-                                        </div>
-                                        <select className="text-xs font-semibold border-gray-200 dark:border-gray-800 rounded bg-transparent dark:text-white px-2 py-1 outline-none">
-                                            <option>Last 7 Days</option>
-                                            <option>Last 30 Days</option>
-                                        </select>
-                                    </div>
-                                    <div className="h-[220px] w-full mt-4">
-                                        <svg fill="none" height="100%" preserveAspectRatio="none" viewBox="0 0 500 150" width="100%" xmlns="http://www.w3.org/2000/svg">
-                                            <path d="M0 120C20 120 40 40 60 40C80 40 100 80 120 80C140 80 160 30 180 30C200 30 220 100 240 100C260 100 280 50 300 50C320 50 340 110 360 110C380 110 400 130 420 130C440 130 460 20 480 20C500 20 500 20 500 20V150H0V120Z" fill="url(#chartGradient)"></path>
-                                            <path d="M0 120C20 120 40 40 60 40C80 40 100 80 120 80C140 80 160 30 180 30C200 30 220 100 240 100C260 100 280 50 300 50C320 50 340 110 360 110C380 110 400 130 420 130C440 130 460 20 480 20" stroke="#0d59f2" strokeLinecap="round" strokeWidth="3"></path>
-                                            <defs>
-                                                <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
-                                                    <stop offset="0%" stopColor="#0d59f2" stopOpacity="0.1"></stop>
-                                                    <stop offset="100%" stopColor="#0d59f2" stopOpacity="0"></stop>
-                                                </linearGradient>
-                                            </defs>
-                                        </svg>
-                                        <div className="flex justify-between mt-4">
-                                            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                                                <span key={day} className="text-[11px] font-bold text-[#49659c] uppercase">{day}</span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
+                if (!cancelled) {
+                    setMetrics(metricsData);
+                    setAnalytics(analyticsData);
+                    setAlerts(alertsData);
+                }
+            } catch (error) {
+                console.error('Failed to load dashboard data:', error);
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
 
-                                {/* Revenue Over Time Chart */}
-                                <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                                    <div className="flex items-center justify-between mb-6">
-                                        <div>
-                                            <h4 className="text-lg font-bold dark:text-white">Revenue Over Time</h4>
-                                            <p className="text-sm text-[#49659c] dark:text-gray-400">Monthly financial summary</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-2xl font-bold dark:text-white">$125,000</p>
-                                            <p className="text-[11px] text-[#e73908] font-bold">-2.1% from last month</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-6 items-end gap-4 h-[180px] px-2">
-                                        {['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN'].map((m, i) => {
-                                            const heights = ['h-[40%]', 'h-[60%]', 'h-[85%]', 'h-[55%]', 'h-[70%]', 'h-[90%]'];
-                                            const isActive = m === 'MAR';
-                                            return (
-                                                <div key={m} className={`relative group flex flex-col items-center w-full`}>
-                                                    <div className={`w-full ${heights[i]} rounded-t-lg transition-all duration-300 cursor-pointer ${isActive ? 'bg-[#0d59f2] shadow-lg shadow-blue-500/20' : 'bg-[#0d59f2]/10 hover:bg-[#0d59f2]/30'}`} />
-                                                    <p className="text-center mt-3 text-[11px] font-bold text-[#49659c]">{m}</p>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
-                            {/* Right Column */}
-                            <div className="flex flex-col gap-8">
-                                <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden flex flex-col">
-                                    <div className="p-6 flex-1">
-                                        <div className="flex items-center gap-2 text-[#0d59f2] mb-4">
-                                            <Wallet size={16} />
-                                            <p className="text-xs font-bold uppercase tracking-widest text-[#0d59f2]">Financial Overview</p>
-                                        </div>
-                                        <h4 className="text-xl font-bold mb-2 dark:text-white">Monthly Payout Summary</h4>
-                                        <p className="text-sm text-[#49659c] dark:text-gray-400 mb-6">Total pending and processed payouts for March 2024.</p>
+    if (loading || !metrics || !analytics) {
+        return (
+            <div className="animate-in fade-in duration-500">
+                <div className="mb-8">
+                    <h2 className="text-2xl font-bold text-[#0d121c] dark:text-white">Admin Dashboard</h2>
+                    <p className="text-[#49659c] dark:text-gray-400">Loading dashboard metrics...</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                        <div key={i} className="h-32 bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse" />
+                    ))}
+                </div>
+            </div>
+        );
+    }
 
-                                        <div className="space-y-4 mb-6">
-                                            <div className="flex justify-between items-center py-3 border-b border-gray-50 dark:border-gray-800">
-                                                <span className="text-sm text-gray-600 dark:text-gray-400">Processed</span>
-                                                <span className="text-sm font-bold text-green-600">$42,500.00</span>
-                                            </div>
-                                            <div className="flex justify-between items-center py-3 border-b border-gray-50 dark:border-gray-800">
-                                                <span className="text-sm text-gray-600 dark:text-gray-400">Pending</span>
-                                                <span className="text-sm font-bold text-amber-500">$12,480.00</span>
-                                            </div>
-                                            <div className="flex justify-between items-center py-3">
-                                                <span className="text-sm font-bold dark:text-white">Total Disbursed</span>
-                                                <span className="text-sm font-bold dark:text-white">$54,980.00</span>
-                                            </div>
-                                        </div>
-
-                                        <button className="w-full py-2.5 bg-[#0d59f2] text-white rounded-lg text-sm font-bold hover:bg-[#0d59f2]/90 transition-all flex items-center justify-center gap-2 group shadow-lg shadow-blue-500/20 active:scale-[0.98]">
-                                            <span>View Detailed Report</span>
-                                            <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
-                                        </button>
-                                    </div>
-                                    <div className="h-24 bg-[#0d59f2]/5 dark:bg-[#0d59f2]/10 relative overflow-hidden">
-                                        <div
-                                            className="absolute inset-0 opacity-20"
-                                            style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #0d59f2 1px, transparent 0)', backgroundSize: '20px 20px' }}
-                                        ></div>
-                                    </div>
-                                </div>
-                                <RecentActivities />
-                            </div>
-                        </div>
-                    </div>
-                );
-            case 'franchises':
-                return <FranchiseManager />;
-            case 'staff':
-                return <StaffManager />;
-            case 'drivers':
-                return <DriversManager />;
-            case 'driver-daily-limits':
-                return <DailyLimitsManager />;
-            case 'driver-penalties':
-                return <DriverPenaltiesManager />;
-            case 'driver-earnings-config':
-                return <DriverEarningsConfigManager />;
-            case 'reports':
-                return <PlaceholderScreen icon={BarChart3} title="Business Analytics" description="Generate detailed reports on revenue, operational efficiency, and customer satisfaction metrics." />;
-            case 'payroll':
-                return <PenaltiesManager />;
-            case 'trips':
-            case 'all-trips':
-            case 'trip-types':
-            case 'trip-booking':
-            case 'unassigned-trips':
-                return <TripManager />;
-            case 'complaints':
-                return <ComplaintsManager />;
-            case 'attendance':
-                return <AttendanceManager />;
-            case 'leave':
-                return <LeaveManager />;
-            case 'ratings':
-                return <RatingsManager />;
-            case 'customer':
-                return <CustomersManager />;
-            case 'notifications':
-                return <PlaceholderScreen icon={Bell} title="System Notifications" description="Stay updated with real-time alerts regarding system status, order updates, and administrative tasks." />;
-            case 'settings':
-                return <SettingsScreen />;
-            default:
-                return null;
-        }
-    };
+    const formatCurrency = (amount: number) => `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+    const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
     return (
-        <DashboardLayout>
-            {renderContent()}
-        </DashboardLayout>
+        <div className="animate-in fade-in duration-500 space-y-8">
+            {/* Header */}
+            <div>
+                <h2 className="text-2xl font-bold text-[#0d121c] dark:text-white">Admin Dashboard</h2>
+                <p className="text-[#49659c] dark:text-gray-400">Business health, compliance, growth, and risks</p>
+            </div>
+
+            {/* Key Metrics */}
+            <div>
+                <h3 className="text-lg font-semibold text-[#0d121c] dark:text-white mb-4">Key Metrics</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <MetricCard
+                        label={DASHBOARD_METRICS_LABELS.TRIPS_TODAY}
+                        value={metrics.tripsToday}
+                        icon={<Truck size={20} />}
+                    />
+                    <MetricCard
+                        label={DASHBOARD_METRICS_LABELS.TOTAL_REVENUE}
+                        value={formatCurrency(metrics.totalRevenue)}
+                        icon={<DollarSign size={20} />}
+                    />
+                    <MetricCard
+                        label={DASHBOARD_METRICS_LABELS.ACTIVE_DRIVERS}
+                        value={metrics.activeDrivers}
+                        icon={<Users size={20} />}
+                    />
+                    <MetricCard
+                        label={DASHBOARD_METRICS_LABELS.ACTIVE_FRANCHISES}
+                        value={metrics.activeFranchises}
+                        icon={<Store size={20} />}
+                    />
+                    <MetricCard
+                        label={DASHBOARD_METRICS_LABELS.TOTAL_CUSTOMERS}
+                        value={metrics.totalCustomers}
+                        icon={<Users size={20} />}
+                    />
+                    <MetricCard
+                        label={DASHBOARD_METRICS_LABELS.CANCELLATION_RATE}
+                        value={formatPercent(metrics.cancellationRate)}
+                        icon={<TrendingDown size={20} />}
+                    />
+                    <MetricCard
+                        label={DASHBOARD_METRICS_LABELS.COMPLAINTS_COUNT}
+                        value={metrics.complaintsCount}
+                        icon={<FileText size={20} />}
+                    />
+                    <MetricCard
+                        label={DASHBOARD_METRICS_LABELS.PENALTIES_ISSUED}
+                        value={metrics.penaltiesIssued}
+                        icon={<Shield size={20} />}
+                    />
+                </div>
+            </div>
+
+            {/* Analytics & Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Revenue Trend */}
+                <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h4 className="text-lg font-bold dark:text-white">Revenue Trend</h4>
+                            <p className="text-sm text-[#49659c] dark:text-gray-400">Last 30 days</p>
+                        </div>
+                        <BarChart3 size={24} className="text-[#0d59f2]" />
+                    </div>
+                    <RevenueChart data={analytics.revenueTrend} />
+                </div>
+
+                {/* Trips by Type */}
+                <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h4 className="text-lg font-bold dark:text-white">Trips by Type</h4>
+                            <p className="text-sm text-[#49659c] dark:text-gray-400">Distribution</p>
+                        </div>
+                        <MapPin size={24} className="text-[#0d59f2]" />
+                    </div>
+                    <div className="space-y-4">
+                        {analytics.tripTypeDistribution.map((item, idx) => (
+                            <div key={idx}>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-medium dark:text-white">{item.type}</span>
+                                    <span className="text-sm text-[#49659c] dark:text-gray-400">
+                                        {item.count} trips
+                                    </span>
+                                </div>
+                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                    <div
+                                        className="bg-[#0d59f2] h-2 rounded-full"
+                                        style={{
+                                            width: `${(item.count / analytics.tripTypeDistribution.reduce((sum, t) => sum + t.count, 0)) * 100}%`,
+                                        }}
+                                    />
+                                </div>
+                                <p className="text-xs text-[#49659c] dark:text-gray-400 mt-1">
+                                    {formatCurrency(item.revenue)}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Trips by City/Branch */}
+                <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h4 className="text-lg font-bold dark:text-white">Trips by City / Branch</h4>
+                            <p className="text-sm text-[#49659c] dark:text-gray-400">Geographic distribution</p>
+                        </div>
+                        <MapPin size={24} className="text-[#0d59f2]" />
+                    </div>
+                    <div className="space-y-3">
+                        {analytics.cityBranchDistribution.map((item, idx) => (
+                            <div
+                                key={idx}
+                                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                            >
+                                <div>
+                                    <p className="font-medium text-sm dark:text-white">{item.branch}</p>
+                                    <p className="text-xs text-[#49659c] dark:text-gray-400">{item.city}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-semibold text-sm dark:text-white">{item.trips}</p>
+                                    <p className="text-xs text-[#49659c] dark:text-gray-400">
+                                        {formatCurrency(item.revenue)}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Peak Booking Hours */}
+                <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h4 className="text-lg font-bold dark:text-white">Peak Booking Hours</h4>
+                            <p className="text-sm text-[#49659c] dark:text-gray-400">Today's pattern</p>
+                        </div>
+                        <Clock size={24} className="text-[#0d59f2]" />
+                    </div>
+                    <div className="grid grid-cols-6 gap-2">
+                        {analytics.peakBookingHours.map((item) => {
+                            const maxBookings = Math.max(...analytics.peakBookingHours.map((h) => h.bookings));
+                            return (
+                                <div key={item.hour} className="flex flex-col items-center">
+                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-t-lg relative" style={{ height: '120px' }}>
+                                        <div
+                                            className="absolute bottom-0 w-full bg-[#0d59f2] rounded-t-lg transition-all"
+                                            style={{
+                                                height: `${(item.bookings / maxBookings) * 100}%`,
+                                            }}
+                                        />
+                                    </div>
+                                    <p className="text-xs font-medium mt-2 dark:text-white">{item.hour}:00</p>
+                                    <p className="text-xs text-[#49659c] dark:text-gray-400">{item.bookings}</p>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            {/* Alerts & Exceptions */}
+            <div>
+                <h3 className="text-lg font-semibold text-[#0d121c] dark:text-white mb-4 flex items-center gap-2">
+                    <Bell size={20} />
+                    Alerts & Exceptions
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {alerts.map((alert) => (
+                        <AlertCard key={alert.id} alert={alert} />
+                    ))}
+                </div>
+            </div>
+
+            {/* Operations Overview */}
+            <div>
+                <h3 className="text-lg font-semibold text-[#0d121c] dark:text-white mb-4">Operations Overview</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <div className="flex items-center gap-3 mb-2">
+                            <Activity size={20} className="text-[#0d59f2]" />
+                            <p className="text-sm font-semibold text-[#49659c] dark:text-gray-400">Ongoing Trips</p>
+                        </div>
+                        <p className="text-2xl font-bold dark:text-white">{metrics.ongoingTrips}</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <div className="flex items-center gap-3 mb-2">
+                            <CheckCircle size={20} className="text-green-600" />
+                            <p className="text-sm font-semibold text-[#49659c] dark:text-gray-400">Completed Trips</p>
+                        </div>
+                        <p className="text-2xl font-bold dark:text-white">{metrics.completedTrips}</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <div className="flex items-center gap-3 mb-2">
+                            <AlertTriangle size={20} className="text-red-600" />
+                            <p className="text-sm font-semibold text-[#49659c] dark:text-gray-400">Cancelled Trips</p>
+                        </div>
+                        <p className="text-2xl font-bold dark:text-white">{metrics.cancelledTrips}</p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <div className="flex items-center gap-3 mb-2">
+                            <DollarSign size={20} className="text-amber-600" />
+                            <p className="text-sm font-semibold text-[#49659c] dark:text-gray-400">Failed Payments</p>
+                        </div>
+                        <p className="text-2xl font-bold dark:text-white">0</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* User & System Control */}
+            <div>
+                <h3 className="text-lg font-semibold text-[#0d121c] dark:text-white mb-4">User & System Control</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <MetricCard
+                        label="New Driver Registrations"
+                        value={metrics.pendingDriverRegistrations}
+                        icon={<Users size={20} />}
+                    />
+                    <MetricCard
+                        label="New Franchise Requests"
+                        value={metrics.pendingFranchiseRequests}
+                        icon={<Store size={20} />}
+                    />
+                    <MetricCard
+                        label="Staff Activity Logs"
+                        value="Active"
+                        icon={<Activity size={20} />}
+                    />
+                    <MetricCard
+                        label="System Health"
+                        value="99.9%"
+                        icon={<CheckCircle size={20} />}
+                    />
+                </div>
+            </div>
+        </div>
     );
 }

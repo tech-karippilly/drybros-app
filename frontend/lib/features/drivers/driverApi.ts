@@ -21,6 +21,7 @@ const DRIVER_ENDPOINTS = {
     PERFORMANCE: (id: string) => `/drivers/${id}/performance`,
     PAGINATED: '/drivers/paginated',
     DAILY_LIMIT: (id: string) => `/drivers/${id}/daily-limit`,
+    SUBMIT_CASH_SETTLEMENT: '/drivers/submit-cash-settlement',
 } as const;
 
 // Request DTOs (matching backend)
@@ -125,6 +126,7 @@ export interface DriverResponse {
     bannedGlobally: boolean;
     dailyTargetAmount: number | null;
     currentRating: number | null;
+    cashInHand?: number | string; // Cash amount in driver's hand
     isActive: boolean;
     createdBy: string | null;
     createdAt: Date | string;
@@ -497,6 +499,34 @@ export async function getDriverSettlement(
 ): Promise<DriverSettlementResponse> {
     const response = await api.get<{ data: DriverSettlementResponse }>(
         `/drivers/${driverId}/settlement?year=${year}&month=${month}`
+    );
+    return response.data.data;
+}
+
+/** Cash Settlement APIs */
+export interface SubmitCashForSettlementRequest {
+    driverId: string;
+    settlementAmount: number;
+}
+
+export interface SubmitCashForSettlementResponse {
+    driverId: string;
+    driverName: string;
+    message: string;
+    previousCash: number;
+    settlementAmount: number;
+    remainingCash: number;
+}
+
+/**
+ * Submit cash for settlement (reduce cash in hand by specified amount)
+ */
+export async function submitCashForSettlement(
+    data: SubmitCashForSettlementRequest
+): Promise<SubmitCashForSettlementResponse> {
+    const response = await api.post<{ data: SubmitCashForSettlementResponse }>(
+        DRIVER_ENDPOINTS.SUBMIT_CASH_SETTLEMENT,
+        data
     );
     return response.data.data;
 }

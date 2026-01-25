@@ -7,6 +7,7 @@ import {
   refreshToken,
   logout,
   getCurrentUser,
+  changePassword,
 } from "../services/auth.service";
 import { authMiddleware } from "../middlewares/auth";
 
@@ -102,6 +103,26 @@ export async function getCurrentUserHandler(
     }
     const result = await getCurrentUser(req.user.userId);
     res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function changePasswordHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    const result = await changePassword(
+      req.body,
+      req.user.userId,
+      req.user.role
+    );
+    res.json({ message: result.message });
   } catch (err) {
     next(err);
   }

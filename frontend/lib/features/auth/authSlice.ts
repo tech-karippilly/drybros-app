@@ -89,9 +89,13 @@ const authSlice = createSlice({
         },
         setFranchiseList: (state, action: PayloadAction<Franchise[]>) => {
             state.franchiseList = action.payload;
-            // If no franchise is selected, select the first one
-            if (!state.selectedFranchise && action.payload.length > 0) {
+            // Always set the first franchise as active when franchises are fetched
+            // This replaces any dummy franchise that might be selected
+            if (action.payload.length > 0) {
                 state.selectedFranchise = action.payload[0];
+            } else {
+                // Clear selected franchise if no franchises exist
+                state.selectedFranchise = null;
             }
         },
         setActiveTab: (state, action: PayloadAction<string>) => {

@@ -194,6 +194,28 @@ export async function updateStaffStatus(
   });
 }
 
+/** Increment warning count (complaint resolved with WARNING). 2+ warnings trigger auto-fire. */
+export async function incrementStaffWarningCount(id: string): Promise<Staff> {
+  return prisma.staff.update({
+    where: { id },
+    data: { warningCount: { increment: 1 } },
+  });
+}
+
+/** Find fired staff by phone or email (for registration block). */
+export async function findFiredStaffByPhoneOrEmail(
+  phone: string,
+  email: string
+): Promise<{ id: string } | null> {
+  return prisma.staff.findFirst({
+    where: {
+      status: "FIRED",
+      OR: [{ phone }, { email }],
+    },
+    select: { id: true },
+  });
+}
+
 export async function deleteStaff(id: string): Promise<Staff> {
   return prisma.staff.delete({
     where: { id },

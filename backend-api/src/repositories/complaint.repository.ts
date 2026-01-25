@@ -1,10 +1,11 @@
 // src/repositories/complaint.repository.ts
 import prisma from "../config/prismaClient";
-import { Complaint, ComplaintStatus } from "@prisma/client";
+import { Complaint, ComplaintStatus, ComplaintResolutionAction } from "@prisma/client";
 
 export async function createComplaint(data: {
   driverId?: string;
   staffId?: string;
+  customerId?: string | null;
   title: string;
   description: string;
   reportedBy?: string | null;
@@ -14,6 +15,7 @@ export async function createComplaint(data: {
     data: {
       driverId: data.driverId || null,
       staffId: data.staffId || null,
+      customerId: data.customerId ?? null,
       title: data.title,
       description: data.description,
       reportedBy: data.reportedBy || null,
@@ -144,24 +146,26 @@ export async function updateComplaintStatus(
   id: string,
   status: ComplaintStatus,
   resolvedBy?: string | null,
-  resolution?: string | null
+  resolution?: string | null,
+  resolutionAction?: ComplaintResolutionAction | null,
+  resolutionReason?: string | null
 ): Promise<Complaint> {
-  const updateData: any = {
+  const updateData: Record<string, unknown> = {
     status,
     updatedAt: new Date(),
   };
 
   if (status === "RESOLVED" || status === "CLOSED") {
     updateData.resolvedAt = new Date();
-    updateData.resolvedBy = resolvedBy || null;
-    if (resolution) {
-      updateData.resolution = resolution;
-    }
+    updateData.resolvedBy = resolvedBy ?? null;
+    if (resolution != null) updateData.resolution = resolution;
+    if (resolutionAction != null) updateData.resolutionAction = resolutionAction;
+    if (resolutionReason != null) updateData.resolutionReason = resolutionReason;
   }
 
   return prisma.complaint.update({
     where: { id },
-    data: updateData,
+    data: updateData as any,
   });
 }
 

@@ -5,6 +5,7 @@ import { LeaveRequest, LeaveRequestStatus, LeaveType } from "@prisma/client";
 export async function createLeaveRequest(data: {
   driverId?: string;
   staffId?: string;
+  userId?: string;
   startDate: Date;
   endDate: Date;
   reason: string;
@@ -15,6 +16,7 @@ export async function createLeaveRequest(data: {
     data: {
       driverId: data.driverId || null,
       staffId: data.staffId || null,
+      userId: data.userId || null,
       startDate: data.startDate,
       endDate: data.endDate,
       reason: data.reason,
@@ -43,6 +45,14 @@ export async function getLeaveRequestById(id: string) {
           email: true,
         },
       },
+      User: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          role: true,
+        },
+      },
     },
   });
 }
@@ -53,6 +63,7 @@ export async function getLeaveRequestsPaginated(
   filters?: {
     driverId?: string;
     staffId?: string;
+    userId?: string;
     status?: LeaveRequestStatus;
     startDate?: Date;
     endDate?: Date;
@@ -66,6 +77,10 @@ export async function getLeaveRequestsPaginated(
   
   if (filters?.staffId) {
     whereClause.staffId = filters.staffId;
+  }
+  
+  if (filters?.userId) {
+    whereClause.userId = filters.userId;
   }
   
   if (filters?.status) {
@@ -108,6 +123,14 @@ export async function getLeaveRequestsPaginated(
             email: true,
           },
         },
+        User: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            role: true,
+          },
+        },
       },
     }),
     prisma.leaveRequest.count({ where: whereClause }),
@@ -119,6 +142,7 @@ export async function getLeaveRequestsPaginated(
 export async function getAllLeaveRequests(filters?: {
   driverId?: string;
   staffId?: string;
+  userId?: string;
   status?: LeaveRequestStatus;
   startDate?: Date;
   endDate?: Date;
@@ -131,6 +155,10 @@ export async function getAllLeaveRequests(filters?: {
   
   if (filters?.staffId) {
     whereClause.staffId = filters.staffId;
+  }
+  
+  if (filters?.userId) {
+    whereClause.userId = filters.userId;
   }
   
   if (filters?.status) {
@@ -168,6 +196,14 @@ export async function getAllLeaveRequests(filters?: {
           id: true,
           name: true,
           email: true,
+        },
+      },
+      User: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          role: true,
         },
       },
     },

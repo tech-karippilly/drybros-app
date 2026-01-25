@@ -6,6 +6,9 @@ import {
   listAttendances,
   listAttendancesPaginated,
   getAttendance,
+  createAttendanceRecord,
+  updateAttendanceRecord,
+  deleteAttendanceRecord,
 } from "../services/attendance.service";
 
 export async function clockInHandler(
@@ -49,6 +52,7 @@ export async function getAttendancesHandler(
       const filters: any = {};
       if (validatedQuery?.driverId) filters.driverId = validatedQuery.driverId;
       if (validatedQuery?.staffId) filters.staffId = validatedQuery.staffId;
+      if (validatedQuery?.userId) filters.userId = validatedQuery.userId;
       if (validatedQuery?.startDate) filters.startDate = new Date(validatedQuery.startDate);
       if (validatedQuery?.endDate) filters.endDate = new Date(validatedQuery.endDate);
       const data = await listAttendances(filters);
@@ -68,6 +72,47 @@ export async function getAttendanceByIdHandler(
     const id = req.params.id;
     const attendance = await getAttendance(id);
     res.json({ data: attendance });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createAttendanceHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const result = await createAttendanceRecord(req.body);
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateAttendanceHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const id = req.params.id;
+    const result = await updateAttendanceRecord(id, req.body);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteAttendanceHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const id = req.params.id;
+    const result = await deleteAttendanceRecord(id);
+    res.json(result);
   } catch (err) {
     next(err);
   }

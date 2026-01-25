@@ -2,6 +2,7 @@
 import bcrypt from "bcryptjs";
 import prisma from "../config/prismaClient";
 import { ConflictError, NotFoundError, BadRequestError } from "../utils/errors";
+import { ERROR_MESSAGES } from "../constants/errors";
 import logger from "../config/logger";
 import {
   CreateStaffDTO,
@@ -27,6 +28,7 @@ import {
   deleteStaff as repoDeleteStaff,
   getStaffHistory as repoGetStaffHistory,
   createStaffHistory as repoCreateStaffHistory,
+  findFiredStaffByPhoneOrEmail,
 } from "../repositories/staff.repository";
 import { sendStaffWelcomeEmail } from "./email.service";
 import { emailConfig } from "../config/emailConfig";
@@ -137,6 +139,12 @@ export async function createStaff(
   input: CreateStaffDTO,
   changedBy?: string
 ): Promise<CreateStaffResponseDTO> {
+  // Fired staff cannot be re-registered
+  const fired = await findFiredStaffByPhoneOrEmail(input.phone, input.email);
+  if (fired) {
+    throw new BadRequestError(ERROR_MESSAGES.STAFF_FIRED);
+  }
+
   // Optimize: Check email and phone existence in parallel
   const [existingEmail, existingPhone] = await Promise.all([
     getStaffByEmail(input.email),
@@ -144,11 +152,11 @@ export async function createStaff(
   ]);
 
   if (existingEmail) {
-    throw new ConflictError("Email already in use");
+    throw new ConflictError(ERROR_MESSAGES.EMAIL_ALREADY_EXISTS);
   }
 
   if (existingPhone) {
-    throw new ConflictError("Phone number already in use");
+    throw new ConflictError(ERROR_MESSAGES.PHONE_ALREADY_EXISTS);
   }
 
   // Hash password

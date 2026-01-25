@@ -7,3 +7,7 @@ export * from './ui';
 export * from './penalties';
 export * from './trips';
 export * from './roles';
+export * from './routes';
+export * from './dashboardMetrics';
+export * from './holidays';
+export * from './complaints';

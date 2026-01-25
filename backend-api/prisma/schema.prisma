@@ -8,17 +8,18 @@ datasource db {
 }
 
 model Customer {
-  id          Int       @id @default(autoincrement())
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   fullName    String
-  phone       String    @unique
+  phone       String      @unique
   email       String?
   city        String?
   notes       String?
-  franchiseId String    @db.Uuid
-  createdAt   DateTime  @default(now())
+  franchiseId String      @db.Uuid
+  createdAt   DateTime    @default(now())
   updatedAt   DateTime
-  Franchise   Franchise @relation(fields: [franchiseId], references: [id])
+  Franchise   Franchise   @relation(fields: [franchiseId], references: [id])
   Trip        Trip[]
+  Complaints  Complaint[]
 }
 
 model DistanceScope {
@@ -61,10 +62,14 @@ model Driver {
   status                   DriverStatus     @default(ACTIVE)
   driverTripStatus         DriverTripStatus @default(AVAILABLE)
   complaintCount           Int              @default(0)
+  warningCount             Int              @default(0) // Complaints resolved with WARNING; 2+ triggers auto-fire
+  blacklisted              Boolean          @default(false) // Fired due to complaint; cannot register or login
   bannedGlobally           Boolean          @default(false)
   dailyTargetAmount        Int?
   remainingDailyLimit      Decimal?         @db.Decimal(10, 2) // Remaining daily limit (reduces as trips complete)
   cashInHand               Decimal          @default(0) @db.Decimal(10, 2) // Cash amount in driver's hand
+  incentive                Decimal?         @db.Decimal(10, 2) // Incentive amount (e.g. daily/monthly)
+  bonus                    Decimal?         @db.Decimal(10, 2) // Bonus amount
   currentRating            Float?
   isActive                 Boolean          @default(true)
   createdBy                String?          @db.Uuid // User ID who created this driver
@@ -131,6 +136,7 @@ model Staff {
   previousExperienceCert   Boolean        @default(false)
   email                    String         @unique
   status                   StaffStatus    @default(ACTIVE)
+  warningCount             Int            @default(0) // Complaints resolved with WARNING; 2+ triggers auto-fire
   suspendedUntil           DateTime?
   joinDate                 DateTime       @default(now())
   relieveDate              DateTime?
@@ -164,7 +170,7 @@ model StaffHistory {
 model Trip {
   franchiseId          String         @db.Uuid
   driverId             String?        @db.Uuid
-  customerId           Int?
+  customerId           String?   @db.Uuid
   customerName         String
   customerPhone        String
   tripType             TripType
@@ -276,6 +282,8 @@ model User {
   Trip           Trip[]
   ActivityLogs   ActivityLog[]
   DriverPenalty  DriverPenalty[]
+  Attendances    Attendance[]
+  LeaveRequests  LeaveRequest[]
 
   @@index([lockedUntil])
   @@index([franchiseId])
@@ -313,6 +321,7 @@ model Complaint {
   id          String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   driverId    String?           @db.Uuid
   staffId     String?           @db.Uuid
+  customerId  String?           @db.Uuid // Customer who raised the complaint
   title       String
   description String
   reportedBy  String?           @db.Uuid // User ID who reported the complaint
@@ -320,14 +329,18 @@ model Complaint {
   severity    ComplaintSeverity @default(MEDIUM)
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
-  resolvedAt  DateTime?
-  resolvedBy  String?           @db.Uuid // User ID who resolved the complaint
-  resolution  String?
-  Driver      Driver?           @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  resolvedAt       DateTime?
+  resolvedBy       String?                    @db.Uuid // User ID who resolved the complaint
+  resolution       String?
+  resolutionAction ComplaintResolutionAction? // WARNING or FIRE when resolved
+  resolutionReason String?                    // Reason for the action taken
+  Driver           Driver?                    @relation(fields: [driverId], references: [id], onDelete: Cascade)
   Staff       Staff?            @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  Customer    Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   @@index([driverId])
   @@index([staffId])
+  @@index([customerId])
   @@index([status])
   @@index([createdAt])
 }
@@ -336,27 +349,33 @@ model Attendance {
   id        String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   driverId  String?          @db.Uuid
   staffId   String?          @db.Uuid
+  userId    String?          @db.Uuid // For managers (User table)
   date      DateTime         @db.Date
-  clockIn   DateTime?
-  clockOut  DateTime?
+  loginTime DateTime?        // Time when user logged in
+  clockIn   DateTime?        // Time when user clocked in
+  clockOut  DateTime?        // Time when user clocked out
   status    AttendanceStatus @default(PRESENT)
   notes     String?
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
   Driver    Driver?          @relation(fields: [driverId], references: [id], onDelete: Cascade)
   Staff     Staff?           @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  User      User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([driverId, date])
   @@unique([staffId, date])
+  @@unique([userId, date])
   @@index([date])
   @@index([driverId, date])
   @@index([staffId, date])
+  @@index([userId, date])
 }
 
 model LeaveRequest {
   id              String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   driverId        String?            @db.Uuid
   staffId         String?            @db.Uuid
+  userId          String?            @db.Uuid // For managers (User table)
   startDate       DateTime           @db.Date
   endDate         DateTime           @db.Date
   reason          String
@@ -370,9 +389,11 @@ model LeaveRequest {
   updatedAt       DateTime           @updatedAt
   Driver          Driver?            @relation(fields: [driverId], references: [id], onDelete: Cascade)
   Staff           Staff?             @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  User            User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([driverId])
   @@index([staffId])
+  @@index([userId])
   @@index([status])
   @@index([startDate])
 }
@@ -499,6 +520,11 @@ enum ComplaintSeverity {
   MEDIUM
   HIGH
   CRITICAL
+}
+
+enum ComplaintResolutionAction {
+  WARNING // Issued warning; 2+ warnings auto-fire
+  FIRE    // Fired; cannot login or register
 }
 
 enum AttendanceStatus {

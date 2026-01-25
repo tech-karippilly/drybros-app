@@ -27,3 +27,50 @@ export function validatePassword(password: string): { isValid: boolean; message:
     return { isValid: true, message: "" };
 }
 
+/**
+ * Formats car type for display
+ * Handles both JSON string format {"gearType":"MANUAL","category":"NORMAL"} and object format
+ */
+export function formatCarType(carType: string | null | undefined): string {
+    if (!carType) return 'Not specified';
+    
+    try {
+        // Try to parse as JSON if it's a string
+        let parsed: { gearType?: string; category?: string } | string = carType;
+        if (typeof carType === 'string' && carType.trim().startsWith('{')) {
+            parsed = JSON.parse(carType);
+        }
+        
+        // If it's an object, format it
+        if (typeof parsed === 'object' && parsed !== null) {
+            const gearType = parsed.gearType || '';
+            const category = parsed.category || '';
+            
+            // Format gear type (MANUAL -> Manual, AUTOMATIC -> Automatic)
+            const formattedGearType = gearType 
+                ? gearType.charAt(0) + gearType.slice(1).toLowerCase()
+                : '';
+            
+            // Format category (NORMAL -> Normal, PREMIUM -> Premium, LUXURY -> Luxury)
+            const formattedCategory = category
+                ? category.charAt(0) + category.slice(1).toLowerCase()
+                : '';
+            
+            // Combine them
+            if (formattedGearType && formattedCategory) {
+                return `${formattedGearType} - ${formattedCategory}`;
+            } else if (formattedGearType) {
+                return formattedGearType;
+            } else if (formattedCategory) {
+                return formattedCategory;
+            }
+        }
+        
+        // If it's already a simple string, return as is
+        return carType;
+    } catch (error) {
+        // If parsing fails, return the original string
+        return carType;
+    }
+}
+

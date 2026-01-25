@@ -16,8 +16,9 @@ import {
   listUnassignedTripsPaginated,
   getAvailableDriversForTrip,
   assignDriverToTrip,
-  assignDriverToTripWithFranchise,
   getDriverAssignedTrips,
+  getAssignedTrips,
+  getAssignedTripsPaginated,
   initiateStartTrip,
   verifyAndStartTrip,
   initiateEndTrip,
@@ -97,6 +98,41 @@ export async function getUnassignedTripsHandler(
     } else {
       // Return all unassigned trips if no pagination params
       const data = await listUnassignedTrips();
+      res.json({ data });
+    }
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Get all assigned trips (trips that have a driver assigned)
+ * Supports optional pagination and franchise filtering
+ */
+export async function getAssignedTripsHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const franchiseId = req.query.franchiseId as string | undefined;
+    
+    // Check if pagination parameters are provided
+    if (req.query.page || req.query.limit) {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 10, 100); // Max 100 per page
+      
+      if (page < 1 || limit < 1) {
+        return res.status(400).json({
+          error: "Page and limit must be positive numbers",
+        });
+      }
+
+      const result = await getAssignedTripsPaginated({ page, limit }, franchiseId);
+      res.json(result);
+    } else {
+      // Return all assigned trips if no pagination params
+      const data = await getAssignedTrips(franchiseId);
       res.json({ data });
     }
   } catch (err) {
@@ -324,7 +360,9 @@ export async function getMyAssignedTripsHandler(
 }
 
 /**
- * Initiate trip start - generates token and sends OTP to customer
+ * Initiate trip start - generates token and sends OTP to customer.
+ * Trip ID from URL only; driverId and franchiseId are derived from the trip.
+ * Body: odometerValue, odometerPic, carFrontPic, carBackPic only.
  */
 export async function initiateStartTripHandler(
   req: Request,
@@ -332,9 +370,7 @@ export async function initiateStartTripHandler(
   next: NextFunction
 ) {
   try {
-    const id = validateAndGetUUID(req.params.id, "Trip ID");
-    const driverId = validateAndGetUUID(req.body.driverId, "Driver ID");
-    const franchiseId = validateAndGetUUID(req.body.franchiseId, "Franchise ID");
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
     const { odometerValue, odometerPic, carFrontPic, carBackPic } = req.body;
 
     if (odometerValue === undefined || odometerValue === null) {
@@ -362,9 +398,7 @@ export async function initiateStartTripHandler(
     }
 
     const result = await initiateStartTrip({
-      tripId: id,
-      driverId,
-      franchiseId,
+      tripId,
       odometerValue: parseFloat(odometerValue),
       odometerPic,
       carFrontPic,
@@ -437,10 +471,10 @@ export async function assignDriverToTripWithFranchiseHandler(
   try {
     const tripId = validateAndGetUUID(req.body.tripId, "Trip ID");
     const driverId = validateAndGetUUID(req.body.driverId, "Driver ID");
-    const franchiseId = validateAndGetUUID(req.body.franchiseId, "Franchise ID");
     const userId = req.user?.userId; // Get from auth middleware if available
 
-    const trip = await assignDriverToTripWithFranchise(tripId, driverId, franchiseId, userId);
+    // Franchise is derived from the trip inside assignDriverToTrip
+    const trip = await assignDriverToTrip(tripId, driverId, userId);
     res.json({ data: trip });
   } catch (err) {
     next(err);
@@ -448,7 +482,9 @@ export async function assignDriverToTripWithFranchiseHandler(
 }
 
 /**
- * Initiate trip end - generates OTP and sends to customer
+ * Initiate trip end - generates OTP and sends to customer.
+ * Trip ID from URL only; driverId and franchiseId are derived from the trip.
+ * Body: odometerValue, odometerImage only.
  */
 export async function initiateEndTripHandler(
   req: Request,
@@ -457,19 +493,7 @@ export async function initiateEndTripHandler(
 ) {
   try {
     const tripId = validateAndGetUUID(req.params.id, "Trip ID");
-    const { driverId, franchiseId, odometerValue, odometerImage } = req.body;
-
-    if (!driverId) {
-      return res.status(400).json({
-        error: "driverId is required",
-      });
-    }
-
-    if (!franchiseId) {
-      return res.status(400).json({
-        error: "franchiseId is required",
-      });
-    }
+    const { odometerValue, odometerImage } = req.body;
 
     if (odometerValue === undefined || odometerValue === null) {
       return res.status(400).json({
@@ -485,8 +509,6 @@ export async function initiateEndTripHandler(
 
     const result = await initiateEndTrip({
       tripId,
-      driverId,
-      franchiseId,
       odometerValue: parseFloat(odometerValue),
       odometerImage,
     });
@@ -618,6 +640,24 @@ export async function getTripHistoryHandler(
 
     const result = await getTripHistory(tripId, driverId);
     res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Get trip activity logs (for admin/staff view)
+ */
+export async function getTripLogsHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
+    const { getActivityLogsByTripId } = await import("../repositories/activity.repository");
+    const activityLogs = await getActivityLogsByTripId(tripId);
+    res.json({ data: activityLogs });
   } catch (err) {
     next(err);
   }

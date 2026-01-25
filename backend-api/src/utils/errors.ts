@@ -37,3 +37,10 @@ export class TooManyRequestsError extends AppError {
     this.name = "TooManyRequestsError";
   }
 }
+
+export class ForbiddenError extends AppError {
+  constructor(message: string = "Forbidden") {
+    super(message, 403);
+    this.name = "ForbiddenError";
+  }
+}

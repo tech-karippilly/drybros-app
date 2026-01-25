@@ -304,3 +304,80 @@ export async function getAvailableGreenDrivers(
   // Sort by performance score (higher is better)
   return greenDrivers.sort((a, b) => b.performance.score - a.performance.score);
 }
+
+/** Performance category sort order: GREEN first, then YELLOW, then RED */
+const PERFORMANCE_CATEGORY_ORDER: Record<DriverPerformanceCategory, number> = {
+  [DRIVER_PERFORMANCE_CATEGORIES.GREEN]: 1,
+  [DRIVER_PERFORMANCE_CATEGORIES.YELLOW]: 2,
+  [DRIVER_PERFORMANCE_CATEGORIES.RED]: 3,
+};
+
+function isDayLimitNotFinished(driver: { remainingDailyLimit: number | null }): boolean {
+  return driver.remainingDailyLimit === null || driver.remainingDailyLimit > 0;
+}
+
+function isAvailable(driver: { driverTripStatus: string | null }): boolean {
+  return driver.driverTripStatus === "AVAILABLE";
+}
+
+/**
+ * Get drivers for trip assignment (all franchise drivers, best options first)
+ * Returns ALL drivers who are:
+ * - ACTIVE status
+ * - Not globally banned
+ * (No filter on driverTripStatus – includes both AVAILABLE and ON_TRIP)
+ *
+ * Sorted by (priority order):
+ * 1. AVAILABLE first (driverTripStatus = AVAILABLE), then ON_TRIP
+ * 2. Day limit not finished first (remainingDailyLimit > 0 or null)
+ * 3. Performance category (GREEN > YELLOW > RED)
+ * 4. Performance score (descending)
+ */
+export async function getAvailableDrivers(
+  franchiseId?: string
+): Promise<DriverWithPerformance[]> {
+  const whereClause: any = {
+    isActive: true,
+    status: "ACTIVE",
+    bannedGlobally: false,
+  };
+
+  if (franchiseId) {
+    whereClause.franchiseId = franchiseId;
+  }
+
+  const performanceWindowDate = new Date(
+    Date.now() - PERFORMANCE_CALCULATION_CONFIG.PERFORMANCE_WINDOW_DAYS * 24 * 60 * 60 * 1000
+  );
+
+  const drivers = await prisma.driver.findMany({
+    where: whereClause,
+    include: {
+      Trip: {
+        where: {
+          createdAt: { gte: performanceWindowDate },
+        },
+      },
+    },
+  });
+
+  const driversWithPerformance = await Promise.all(
+    drivers.map(async (driver) => {
+      const performance = await calculateDriverPerformance(driver.id);
+      return { ...driver, performance };
+    })
+  );
+
+  return driversWithPerformance.sort((a, b) => {
+    const aAvail = isAvailable(a);
+    const bAvail = isAvailable(b);
+    if (aAvail !== bAvail) return aAvail ? -1 : 1;
+    const aLimitOk = isDayLimitNotFinished(a);
+    const bLimitOk = isDayLimitNotFinished(b);
+    if (aLimitOk !== bLimitOk) return aLimitOk ? -1 : 1;
+    const catA = PERFORMANCE_CATEGORY_ORDER[a.performance.category] ?? 99;
+    const catB = PERFORMANCE_CATEGORY_ORDER[b.performance.category] ?? 99;
+    if (catA !== catB) return catA - catB;
+    return b.performance.score - a.performance.score;
+  });
+}

@@ -1,6 +1,7 @@
 import { TripType } from "@prisma/client";
 import {
   getTripTypeConfigByType,
+  getTripTypeConfigForPricing,
   getAllTripTypeConfigs,
   getTripTypeConfigById,
   createTripTypeConfig as repoCreateTripTypeConfig,
@@ -60,8 +61,8 @@ export async function calculateTripPrice(
     throw err;
   }
 
-  // Try to get pricing config from database
-  let config = await getTripTypeConfigByType(tripType);
+  // Try to get pricing config from database (by enum + display-name aliases e.g. "Long Drop")
+  let config = await getTripTypeConfigForPricing(tripType);
   let useDatabaseConfig = false;
 
   // If no database config, use default constants
@@ -165,8 +166,44 @@ export async function calculateTripPrice(
       }
       break;
 
-    case "LONG_DROPOFF":
-      // Slab-based pricing
+    case "LONG_DROPOFF": {
+      // Duration-based: basePrice + extraPerHour for time > baseDuration (hours).
+      // Used when config has basePrice, baseDuration, extraPerHour and no distance slabs.
+      const hasSlabs =
+        config?.distanceSlabs &&
+        Array.isArray(config.distanceSlabs) &&
+        (config.distanceSlabs as DistanceSlab[]).length > 0;
+      const hasDurationBased =
+        config &&
+        config.basePrice != null &&
+        config.baseDuration != null &&
+        config.extraPerHour != null &&
+        !hasSlabs;
+
+      if (hasDurationBased) {
+        if (duration === undefined) {
+          const err: any = new Error(
+            "Duration is required for duration-based Long Drop pricing. Provide duration in hours."
+          );
+          err.statusCode = 400;
+          throw err;
+        }
+        // baseDuration is in hours; duration is in hours
+        basePrice = config.basePrice;
+        breakdown.base = basePrice;
+        const baseDurationHours = config.baseDuration;
+        const extraPerHour = config.extraPerHour;
+
+        if (duration > baseDurationHours) {
+          const extraHours = duration - baseDurationHours;
+          const durationExtra = extraHours * extraPerHour;
+          breakdown.durationExtra = durationExtra;
+          extraCharges += durationExtra;
+        }
+        break;
+      }
+
+      // Slab-based pricing (config slabs or defaults)
       if (distance === undefined || distance <= 0) {
         const err: any = new Error(PRICING_ERROR_MESSAGES.MISSING_DISTANCE_FOR_DROPOFF);
         err.statusCode = 400;
@@ -176,15 +213,12 @@ export async function calculateTripPrice(
       let slabPrice = 0;
       let slabs: DistanceSlab[] = [];
 
-      if (config?.distanceSlabs) {
-        // Use database slabs
-        slabs = config.distanceSlabs as DistanceSlab[];
+      if (hasSlabs) {
+        slabs = config!.distanceSlabs as DistanceSlab[];
       } else {
-        // Use default slabs
         slabs = DEFAULT_PRICING_RULES.LONG_DROPOFF.DEFAULT_SLABS;
       }
 
-      // Find the appropriate slab
       for (const slab of slabs) {
         if (distance > slab.from && distance <= slab.to) {
           slabPrice = slab.price;
@@ -195,7 +229,6 @@ export async function calculateTripPrice(
         }
       }
 
-      // If distance exceeds all slabs, use the last slab's price
       if (slabPrice === 0 && slabs.length > 0) {
         const lastSlab = slabs[slabs.length - 1];
         if (distance > lastSlab.to) {
@@ -206,13 +239,13 @@ export async function calculateTripPrice(
         }
       }
 
-      // Add extra per km if configured
       if (config?.extraPerKm && distance > 0) {
         const distanceExtra = distance * config.extraPerKm;
         breakdown.distanceExtra = distanceExtra;
         extraCharges += distanceExtra;
       }
       break;
+    }
 
     default:
       const err: any = new Error(PRICING_ERROR_MESSAGES.INVALID_TRIP_TYPE);

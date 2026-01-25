@@ -37,6 +37,7 @@ export async function getLeaveRequestsHandler(
       const filters: any = {};
       if (validatedQuery?.driverId) filters.driverId = validatedQuery.driverId;
       if (validatedQuery?.staffId) filters.staffId = validatedQuery.staffId;
+      if (validatedQuery?.userId) filters.userId = validatedQuery.userId;
       if (validatedQuery?.status) filters.status = validatedQuery.status;
       if (validatedQuery?.startDate) filters.startDate = new Date(validatedQuery.startDate);
       if (validatedQuery?.endDate) filters.endDate = new Date(validatedQuery.endDate);
@@ -70,7 +71,11 @@ export async function updateLeaveRequestStatusHandler(
   try {
     const id = req.params.id;
     const approvedBy = req.user?.userId;
-    const result = await updateLeaveRequestStatus(id, req.body, approvedBy);
+    const approverRole = req.user?.role;
+    if (!approverRole) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    const result = await updateLeaveRequestStatus(id, req.body, approvedBy, approverRole);
     res.json(result);
   } catch (err) {
     next(err);

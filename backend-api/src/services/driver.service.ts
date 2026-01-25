@@ -12,6 +12,7 @@ import {
   updateDriverStatus as repoUpdateDriverStatus,
   softDeleteDriver as repoSoftDeleteDriver,
   getDriversPaginated,
+  findBlacklistedDriverByPhoneOrEmail,
 } from "../repositories/driver.repository";
 import { getFranchiseById } from "../repositories/franchise.repository";
 import { CreateDriverDTO, CreateDriverResponseDTO, DriverResponseDTO, DriverLoginDTO, DriverLoginResponseDTO, UpdateDriverDTO, UpdateDriverResponseDTO, UpdateDriverStatusDTO, UpdateDriverStatusResponseDTO, PaginationQueryDTO, PaginatedDriverResponseDTO } from "../types/driver.dto";
@@ -29,6 +30,7 @@ import {
   sortDriversByPerformance,
   calculateDriverPerformance,
   getAvailableGreenDrivers,
+  getAvailableDrivers,
   DriverWithPerformance,
   DriverPerformanceMetrics,
 } from "./driver-performance.service";
@@ -133,6 +135,9 @@ function mapDriverToResponse(driver: any): DriverResponseDTO {
     complaintCount: driver.complaintCount,
     bannedGlobally: driver.bannedGlobally,
     dailyTargetAmount: driver.dailyTargetAmount,
+    cashInHand: Number(driver.cashInHand) || 0,
+    incentive: driver.incentive != null ? Number(driver.incentive) : null,
+    bonus: driver.bonus != null ? Number(driver.bonus) : null,
     currentRating: driver.currentRating,
     isActive: driver.isActive ?? true, // Default to true if not set
     createdBy: driver.createdBy,
@@ -255,16 +260,22 @@ export async function createDriver(
   //   throw new NotFoundError(`Franchise with ID ${input.franchiseId} not found`);
   // }
 
+  // Blacklisted drivers (fired due to complaint) cannot register
+  const blacklisted = await findBlacklistedDriverByPhoneOrEmail(input.phone, input.email);
+  if (blacklisted) {
+    throw new BadRequestError(ERROR_MESSAGES.DRIVER_BLACKLISTED);
+  }
+
   // Check if phone already exists
   const existingPhone = await getDriverByPhone(input.phone);
   if (existingPhone) {
-    throw new ConflictError("Phone number already in use");
+    throw new ConflictError(ERROR_MESSAGES.PHONE_ALREADY_EXISTS);
   }
 
   // Check if email already exists
   const existingEmail = await getDriverByEmail(input.email);
   if (existingEmail) {
-    throw new ConflictError("Email already in use");
+    throw new ConflictError(ERROR_MESSAGES.EMAIL_ALREADY_EXISTS);
   }
 
   // Generate unique driver code
@@ -496,6 +507,9 @@ export async function updateDriver(
   if (input.carTypes !== undefined) updateData.carTypes = JSON.stringify(input.carTypes);
   if (input.franchiseId !== undefined) updateData.franchiseId = input.franchiseId;
   if (input.status !== undefined) updateData.status = input.status;
+  if (input.dailyTargetAmount !== undefined) updateData.dailyTargetAmount = input.dailyTargetAmount;
+  if (input.incentive !== undefined) updateData.incentive = input.incentive;
+  if (input.bonus !== undefined) updateData.bonus = input.bonus;
 
   // Hash password if being updated
   if (input.password) {
@@ -633,6 +647,20 @@ export async function getAvailableGreenDriversList(
   franchiseId?: string
 ): Promise<(DriverResponseDTO & { performance: DriverPerformanceMetrics })[]> {
   const drivers = await getAvailableGreenDrivers(franchiseId);
+  return drivers.map((driver) => ({
+    ...mapDriverToResponse(driver),
+    performance: driver.performance,
+  }));
+}
+
+/**
+ * Get drivers for trip assignment (all franchise drivers, best first)
+ * Returns all ACTIVE drivers. Sorted by: AVAILABLE first, then day limit not finished, then performance (GREEN > YELLOW > RED), then score.
+ */
+export async function getAvailableDriversList(
+  franchiseId?: string
+): Promise<(DriverResponseDTO & { performance: DriverPerformanceMetrics })[]> {
+  const drivers = await getAvailableDrivers(franchiseId);
   return drivers.map((driver) => ({
     ...mapDriverToResponse(driver),
     performance: driver.performance,

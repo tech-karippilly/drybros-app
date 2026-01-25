@@ -8,6 +8,7 @@ import { LeaveType, LeaveRequestStatus } from "@prisma/client";
 export const createLeaveRequestSchema = z.object({
   driverId: z.string().uuid("Driver ID must be a valid UUID").optional(),
   staffId: z.string().uuid("Staff ID must be a valid UUID").optional(),
+  userId: z.string().uuid("User ID must be a valid UUID").optional(),
   startDate: z.union([
     z.string().datetime("Invalid date format").transform((val) => new Date(val)),
     z.date(),
@@ -19,10 +20,13 @@ export const createLeaveRequestSchema = z.object({
   reason: z.string().min(1, "Reason is required").max(500, "Reason must be less than 500 characters").trim(),
   leaveType: z.enum(["SICK_LEAVE", "CASUAL_LEAVE", "EARNED_LEAVE", "EMERGENCY_LEAVE", "OTHER"]),
 }).refine(
-  (data) => (data.driverId && !data.staffId) || (!data.driverId && data.staffId),
+  (data) => {
+    const count = [data.driverId, data.staffId, data.userId].filter(Boolean).length;
+    return count === 1;
+  },
   {
-    message: "Either driverId or staffId must be provided, but not both",
-    path: ["driverId", "staffId"],
+    message: "Exactly one of driverId, staffId, or userId must be provided",
+    path: ["driverId", "staffId", "userId"],
   }
 ).refine(
   (data) => data.endDate >= data.startDate,
@@ -40,7 +44,19 @@ export type CreateLeaveRequestDTO = z.infer<typeof createLeaveRequestSchema>;
 export const updateLeaveRequestStatusSchema = z.object({
   status: z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]),
   rejectionReason: z.string().max(500, "Rejection reason must be less than 500 characters").optional().nullable(),
-});
+}).refine(
+  (data) => {
+    // If status is REJECTED, rejectionReason should be provided
+    if (data.status === "REJECTED" && !data.rejectionReason) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: "Rejection reason is required when status is REJECTED",
+    path: ["rejectionReason"],
+  }
+);
 
 export type UpdateLeaveRequestStatusDTO = z.infer<typeof updateLeaveRequestStatusSchema>;
 
@@ -51,6 +67,7 @@ export interface LeaveRequestResponseDTO {
   id: string;
   driverId: string | null;
   staffId: string | null;
+  userId: string | null;
   startDate: Date;
   endDate: Date;
   reason: string;
@@ -72,6 +89,7 @@ export const leaveRequestPaginationQuerySchema = z.object({
   limit: z.string().optional().default("10").transform((val) => parseInt(val, 10)).pipe(z.number().int().positive().max(100)),
   driverId: z.string().uuid("Driver ID must be a valid UUID").optional(),
   staffId: z.string().uuid("Staff ID must be a valid UUID").optional(),
+  userId: z.string().uuid("User ID must be a valid UUID").optional(),
   status: z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]).optional(),
   startDate: z.string().datetime("Invalid start date format").optional(),
   endDate: z.string().datetime("Invalid end date format").optional(),

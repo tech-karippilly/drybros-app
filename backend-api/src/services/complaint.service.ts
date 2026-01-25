@@ -7,8 +7,16 @@ import {
   updateComplaintStatus as repoUpdateComplaintStatus,
   incrementDriverComplaintCount,
 } from "../repositories/complaint.repository";
-import { getDriverById } from "../repositories/driver.repository";
-import { getStaffById } from "../repositories/staff.repository";
+import {
+  getDriverById,
+  fireDriver as repoFireDriver,
+  incrementDriverWarningCount as repoIncrementDriverWarningCount,
+} from "../repositories/driver.repository";
+import {
+  getStaffById,
+  updateStaffStatus as repoUpdateStaffStatus,
+  incrementStaffWarningCount as repoIncrementStaffWarningCount,
+} from "../repositories/staff.repository";
 import {
   CreateComplaintDTO,
   ComplaintResponseDTO,
@@ -17,7 +25,7 @@ import {
   PaginatedComplaintResponseDTO,
 } from "../types/complaint.dto";
 import { NotFoundError, BadRequestError } from "../utils/errors";
-import { COMPLAINT_ERROR_MESSAGES } from "../constants/complaint";
+import { COMPLAINT_ERROR_MESSAGES, COMPLAINT_WARNING_THRESHOLD } from "../constants/complaint";
 import logger from "../config/logger";
 import { logActivity } from "./activity.service";
 import { ActivityAction, ActivityEntityType } from "@prisma/client";
@@ -27,6 +35,7 @@ function mapComplaintToResponse(complaint: any): ComplaintResponseDTO {
     id: complaint.id,
     driverId: complaint.driverId,
     staffId: complaint.staffId,
+    customerId: complaint.customerId ?? null,
     title: complaint.title,
     description: complaint.description,
     reportedBy: complaint.reportedBy,
@@ -37,6 +46,8 @@ function mapComplaintToResponse(complaint: any): ComplaintResponseDTO {
     resolvedAt: complaint.resolvedAt,
     resolvedBy: complaint.resolvedBy,
     resolution: complaint.resolution,
+    resolutionAction: complaint.resolutionAction ?? null,
+    resolutionReason: complaint.resolutionReason ?? null,
   };
 }
 
@@ -67,6 +78,7 @@ export async function createComplaint(
   const complaint = await repoCreateComplaint({
     driverId: input.driverId,
     staffId: input.staffId,
+    customerId: input.customerId ?? null,
     title: input.title,
     description: input.description,
     reportedBy: reportedBy || null,
@@ -177,33 +189,120 @@ export async function updateComplaintStatus(
     throw new NotFoundError(COMPLAINT_ERROR_MESSAGES.COMPLAINT_NOT_FOUND);
   }
 
+  let resolutionAction: "WARNING" | "FIRE" | undefined;
+  let resolutionReason: string | undefined;
+  let resolution: string | null = input.resolution ?? null;
+
+  if (input.status === "RESOLVED") {
+    if (!input.action || !input.reason) {
+      throw new BadRequestError(COMPLAINT_ERROR_MESSAGES.RESOLVE_REQUIRES_ACTION);
+    }
+    if (!complaint.driverId && !complaint.staffId) {
+      throw new BadRequestError(
+        "Complaint has no driver or staff; resolution action cannot be applied."
+      );
+    }
+
+    let action: "WARNING" | "FIRE" = input.action;
+    const reason = input.reason;
+
+    if (action === "WARNING") {
+      const warningCount = complaint.driverId
+        ? (await getDriverById(complaint.driverId))?.warningCount ?? 0
+        : (await getStaffById(complaint.staffId!))?.warningCount ?? 0;
+      if (warningCount >= COMPLAINT_WARNING_THRESHOLD - 1) {
+        action = "FIRE";
+        resolutionReason = `${reason} (auto-fired: ${COMPLAINT_WARNING_THRESHOLD}+ warnings)`;
+      } else {
+        resolutionAction = "WARNING";
+        resolutionReason = reason;
+      }
+    } else {
+      resolutionAction = "FIRE";
+      resolutionReason = reason;
+    }
+
+    if (action === "FIRE") {
+      if (complaint.driverId) {
+        const driver = await getDriverById(complaint.driverId);
+        if (driver && !driver.blacklisted && driver.status !== "TERMINATED") {
+          await repoFireDriver(complaint.driverId);
+          logger.info("Driver fired due to complaint", {
+            driverId: complaint.driverId,
+            complaintId: id,
+          });
+        }
+      }
+      if (complaint.staffId) {
+        const staff = await getStaffById(complaint.staffId);
+        if (staff && staff.status !== "FIRED") {
+          await repoUpdateStaffStatus(complaint.staffId, "FIRED");
+          logger.info("Staff fired due to complaint", {
+            staffId: complaint.staffId,
+            complaintId: id,
+          });
+        }
+      }
+      if (action === "FIRE" && !resolutionAction) {
+        resolutionAction = "FIRE";
+        resolutionReason = resolutionReason ?? reason;
+      }
+    } else {
+      if (complaint.driverId) {
+        const driver = await getDriverById(complaint.driverId);
+        if (driver && !driver.blacklisted && driver.status !== "TERMINATED") {
+          await repoIncrementDriverWarningCount(complaint.driverId);
+        }
+      }
+      if (complaint.staffId) {
+        const staff = await getStaffById(complaint.staffId);
+        if (staff && staff.status !== "FIRED") {
+          await repoIncrementStaffWarningCount(complaint.staffId);
+        }
+      }
+    }
+  }
+
   const updated = await repoUpdateComplaintStatus(
     id,
     input.status,
-    resolvedBy || null,
-    input.resolution || null
+    resolvedBy ?? null,
+    resolution,
+    resolutionAction ?? null,
+    resolutionReason ?? null
   );
 
   logger.info("Complaint status updated", {
     complaintId: id,
     newStatus: input.status,
+    resolutionAction: resolutionAction ?? undefined,
   });
 
-  // Log activity (non-blocking)
+  const franchiseId: string | null = complaint.driverId
+    ? (await getDriverById(complaint.driverId))?.franchiseId ?? null
+    : (await getStaffById(complaint.staffId!))?.franchiseId ?? null;
+
   logActivity({
-    action: input.status === "RESOLVED" ? ActivityAction.COMPLAINT_RESOLVED : ActivityAction.COMPLAINT_STATUS_CHANGED,
+    action:
+      input.status === "RESOLVED"
+        ? ActivityAction.COMPLAINT_RESOLVED
+        : ActivityAction.COMPLAINT_STATUS_CHANGED,
     entityType: ActivityEntityType.COMPLAINT,
     entityId: id,
-    franchiseId: complaint.driverId ? (await getDriverById(complaint.driverId))?.franchiseId : (await getStaffById(complaint.staffId!))?.franchiseId || null,
-    driverId: complaint.driverId || null,
-    staffId: complaint.staffId || null,
-    userId: resolvedBy || null,
-    description: `Complaint status changed to ${input.status}${input.resolution ? ` - ${input.resolution}` : ""}`,
+    franchiseId: franchiseId ?? null,
+    driverId: complaint.driverId ?? null,
+    staffId: complaint.staffId ?? null,
+    userId: resolvedBy ?? null,
+    description: `Complaint status changed to ${input.status}${
+      resolutionReason ? ` - ${resolutionReason}` : ""
+    }`,
     metadata: {
       complaintId: id,
       oldStatus: complaint.status,
       newStatus: input.status,
-      resolution: input.resolution,
+      resolution,
+      resolutionAction: resolutionAction ?? undefined,
+      resolutionReason: resolutionReason ?? undefined,
     },
   }).catch((err) => {
     logger.error("Failed to log complaint status change activity", { error: err });

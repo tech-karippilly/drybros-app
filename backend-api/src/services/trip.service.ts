@@ -8,6 +8,8 @@ import {
   getTripsPaginated,
   getUnassignedTripsPaginated,
   getTripsByDriver,
+  getAssignedTrips as repoGetAssignedTrips,
+  getAssignedTripsPaginated as repoGetAssignedTripsPaginated,
   type TripFilters,
 } from "../repositories/trip.repository";
 import { getActivityLogsByTripId } from "../repositories/activity.repository";
@@ -31,6 +33,7 @@ import {
   RESCHEDULABLE_TRIP_STATUSES,
   CANCELLABLE_TRIP_STATUSES,
   REASSIGNABLE_TRIP_STATUSES,
+  TRIP_HISTORY_LATE,
 } from "../constants/trip";
 import { calculateTripPrice } from "./pricing.service";
 import {
@@ -52,7 +55,7 @@ import {
 interface CreateTripInput {
   franchiseId: number;
   driverId: number;
-  customerId: number;
+  customerId: string;
   tripType: string;
   pickupLocation: string;
   dropLocation?: string | null;
@@ -169,6 +172,45 @@ export async function getTrip(id: string) {
  */
 export async function getDriverAssignedTrips(driverId: string) {
   return getTripsByDriver(driverId);
+}
+
+/**
+ * Get all assigned trips (trips that have a driver assigned)
+ * Supports optional franchise filtering
+ */
+export async function getAssignedTrips(
+  franchiseId?: string
+): Promise<any[]> {
+  return repoGetAssignedTrips(franchiseId);
+}
+
+/**
+ * Get assigned trips with pagination
+ */
+export async function getAssignedTripsPaginated(
+  pagination: PaginationQuery,
+  franchiseId?: string
+): Promise<PaginatedTripsResponse> {
+  const { page, limit } = pagination;
+  const skip = (page - 1) * limit;
+
+  const { data, total } = await repoGetAssignedTripsPaginated(skip, limit, franchiseId);
+
+  const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+  const hasNext = page < totalPages;
+  const hasPrev = page > 1;
+
+  return {
+    data,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNext,
+      hasPrev,
+    },
+  };
 }
 
 export async function getAvailableDriversForTrip(tripId: string) {
@@ -866,12 +908,11 @@ export async function startTripWithOtp(
 }
 
 /**
- * Initiate trip start - generates OTP, token, and sends OTP to customer
+ * Initiate trip start - generates OTP, token, and sends OTP to customer.
+ * Trip ID comes from URL; driverId and franchiseId are derived from the trip.
  */
 interface InitiateStartTripInput {
   tripId: string;
-  driverId: string;
-  franchiseId: string;
   odometerValue: number;
   odometerPic: string;
   carFrontPic: string;
@@ -879,7 +920,7 @@ interface InitiateStartTripInput {
 }
 
 export async function initiateStartTrip(input: InitiateStartTripInput) {
-  const { tripId, driverId, franchiseId, odometerValue, odometerPic, carFrontPic, carBackPic } = input;
+  const { tripId, odometerValue, odometerPic, carFrontPic, carBackPic } = input;
   
   // Validate trip exists
   const trip = await repoGetTripById(tripId);
@@ -889,17 +930,12 @@ export async function initiateStartTrip(input: InitiateStartTripInput) {
     throw err;
   }
 
-  // Validate franchise matches
-  if (trip.franchiseId !== franchiseId) {
-    const err: any = new Error("Franchise ID does not match the trip's franchise");
-    err.statusCode = 400;
-    throw err;
-  }
+  const driverId = trip.driverId;
+  const franchiseId = trip.franchiseId;
 
-  // Validate driver matches
-  if (trip.driverId !== driverId) {
-    const err: any = new Error("This trip is not assigned to this driver");
-    err.statusCode = 403;
+  if (!driverId) {
+    const err: any = new Error("Trip has no driver assigned");
+    err.statusCode = 400;
     throw err;
   }
 
@@ -1086,18 +1122,17 @@ export async function verifyAndStartTrip(input: VerifyStartTripInput) {
 }
 
 /**
- * Initiate trip end - generates OTP, token, and sends OTP to customer
+ * Initiate trip end - generates OTP, token, and sends OTP to customer.
+ * Trip ID comes from URL; driverId and franchiseId are derived from the trip.
  */
 interface InitiateEndTripInput {
   tripId: string;
-  driverId: string;
-  franchiseId: string;
   odometerValue: number;
   odometerImage: string;
 }
 
 export async function initiateEndTrip(input: InitiateEndTripInput) {
-  const { tripId, driverId, franchiseId, odometerValue, odometerImage } = input;
+  const { tripId, odometerValue, odometerImage } = input;
   
   // Validate trip exists
   const trip = await repoGetTripById(tripId);
@@ -1107,17 +1142,12 @@ export async function initiateEndTrip(input: InitiateEndTripInput) {
     throw err;
   }
 
-  // Validate franchise matches
-  if (trip.franchiseId !== franchiseId) {
-    const err: any = new Error("Franchise ID does not match the trip's franchise");
-    err.statusCode = 400;
-    throw err;
-  }
+  const driverId = trip.driverId;
+  const franchiseId = trip.franchiseId;
 
-  // Validate driver matches
-  if (trip.driverId !== driverId) {
-    const err: any = new Error("This trip is not assigned to this driver");
-    err.statusCode = 403;
+  if (!driverId) {
+    const err: any = new Error("Trip has no driver assigned");
+    err.statusCode = 400;
     throw err;
   }
 
@@ -1669,6 +1699,8 @@ export async function getTripHistory(tripId: string, driverId: string) {
 
   // Build timeline from activity logs and trip data
   const timeline: any[] = [];
+  let startedLate = false;
+  let lateByMinutes: number | null = null;
 
   // Map activity actions to user-friendly event names
   const eventMap: Record<string, string> = {
@@ -1752,6 +1784,19 @@ export async function getTripHistory(tripId: string, driverId: string) {
         timestamp: trip.startedAt,
       });
     }
+
+    // Late start detection: startedAt > scheduledAt
+    if (trip.scheduledAt && trip.startedAt.getTime() > trip.scheduledAt.getTime()) {
+      startedLate = true;
+      lateByMinutes = Math.round((trip.startedAt.getTime() - trip.scheduledAt.getTime()) / (1000 * 60));
+      timeline.push({
+        eventType: TRIP_HISTORY_LATE.EVENT_TYPE,
+        eventName: TRIP_HISTORY_LATE.EVENT_NAME,
+        description: TRIP_HISTORY_LATE.DESCRIPTION_FORMAT.replace("{minutes}", String(lateByMinutes)),
+        timestamp: trip.startedAt,
+        metadata: { startedLate: true, lateByMinutes },
+      });
+    }
   }
 
   // Trip on progress - after end-verify but before payment
@@ -1827,8 +1872,11 @@ export async function getTripHistory(tripId: string, driverId: string) {
     customerName: trip.customerName,
     pickupAddress: trip.pickupAddress || trip.pickupLocation,
     dropAddress: trip.dropAddress || trip.dropLocation,
+    scheduledAt: trip.scheduledAt,
     startedAt: trip.startedAt,
     endedAt: trip.endedAt,
+    startedLate,
+    lateByMinutes,
     timeline,
   };
 }

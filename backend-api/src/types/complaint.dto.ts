@@ -1,33 +1,54 @@
 // src/types/complaint.dto.ts
 import { z } from "zod";
-import { ComplaintStatus, ComplaintSeverity } from "@prisma/client";
+import { ComplaintStatus, ComplaintSeverity, ComplaintResolutionAction } from "@prisma/client";
+
+/** Treat empty string as undefined so optional UUID fields can be omitted via "" */
+const optionalUuid = (msg: string) =>
+  z.preprocess(
+    (val) => (val === "" || val === null || val === undefined ? undefined : val),
+    z.string().uuid(msg).optional()
+  );
 
 /**
  * Zod schema for creating a complaint
  */
-export const createComplaintSchema = z.object({
-  driverId: z.string().uuid("Driver ID must be a valid UUID").optional(),
-  staffId: z.string().uuid("Staff ID must be a valid UUID").optional(),
-  title: z.string().min(1, "Title is required").max(200, "Title must be less than 200 characters").trim(),
-  description: z.string().min(1, "Description is required").max(1000, "Description must be less than 1000 characters").trim(),
-  severity: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional().default("MEDIUM"),
-}).refine(
-  (data) => (data.driverId && !data.staffId) || (!data.driverId && data.staffId),
-  {
-    message: "Either driverId or staffId must be provided, but not both",
-    path: ["driverId", "staffId"],
-  }
-);
+export const createComplaintSchema = z
+  .object({
+    driverId: optionalUuid("Driver ID must be a valid UUID"),
+    staffId: optionalUuid("Staff ID must be a valid UUID"),
+    customerId: optionalUuid("Customer ID must be a valid UUID"),
+    title: z.string().min(1, "Title is required").max(200, "Title must be less than 200 characters").trim(),
+    description: z.string().min(1, "Description is required").max(1000, "Description must be less than 1000 characters").trim(),
+    severity: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional().default("MEDIUM"),
+  })
+  .refine(
+    (data) => (data.driverId && !data.staffId) || (!data.driverId && data.staffId),
+    {
+      message: "Either driverId or staffId must be provided, but not both",
+      path: ["driverId", "staffId"],
+    }
+  );
 
 export type CreateComplaintDTO = z.infer<typeof createComplaintSchema>;
 
 /**
- * Zod schema for updating complaint status
+ * Zod schema for updating complaint status.
+ * When status is RESOLVED: action (WARNING | FIRE) and reason are required.
  */
-export const updateComplaintStatusSchema = z.object({
-  status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]),
-  resolution: z.string().max(500, "Resolution must be less than 500 characters").optional().nullable(),
-});
+export const updateComplaintStatusSchema = z
+  .object({
+    status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]),
+    resolution: z.string().max(500, "Resolution must be less than 500 characters").optional().nullable(),
+    action: z.enum(["WARNING", "FIRE"]).optional(),
+    reason: z.string().min(1, "Reason is required when resolving").max(500).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.status !== "RESOLVED") return true;
+      return !!(data.action && data.reason);
+    },
+    { message: "When status is RESOLVED, action (WARNING or FIRE) and reason are required", path: ["action"] }
+  );
 
 export type UpdateComplaintStatusDTO = z.infer<typeof updateComplaintStatusSchema>;
 
@@ -38,6 +59,7 @@ export interface ComplaintResponseDTO {
   id: string;
   driverId: string | null;
   staffId: string | null;
+  customerId: string | null;
   title: string;
   description: string;
   reportedBy: string | null;
@@ -48,6 +70,8 @@ export interface ComplaintResponseDTO {
   resolvedAt: Date | null;
   resolvedBy: string | null;
   resolution: string | null;
+  resolutionAction: ComplaintResolutionAction | null;
+  resolutionReason: string | null;
 }
 
 /**

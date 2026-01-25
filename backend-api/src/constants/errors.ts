@@ -10,6 +10,8 @@ export const ERROR_MESSAGES = {
   EMAIL_NOT_FOUND: "Email address not found in our system",
   ACCOUNT_INACTIVE: "Account is inactive. Please contact support.",
   ACCOUNT_LOCKED: "Account is temporarily locked due to multiple failed login attempts",
+  PREVIOUS_PASSWORD_INCORRECT: "Previous password is incorrect",
+  PASSWORD_CHANGE_NOT_ALLOWED: "You can only change your own password",
   
   // User errors
   USER_NOT_FOUND: "User not found",
@@ -19,9 +21,11 @@ export const ERROR_MESSAGES = {
   
   // Driver errors
   DRIVER_NOT_FOUND: "Driver not found",
+  DRIVER_BLACKLISTED: "This driver is blacklisted (fired due to complaint) and cannot register or login",
 
   // Staff errors
   STAFF_NOT_FOUND: "Staff not found",
+  STAFF_FIRED: "This staff member was fired and cannot be re-registered",
   
   // Franchise errors
   FRANCHISE_NOT_FOUND: "Franchise not found",

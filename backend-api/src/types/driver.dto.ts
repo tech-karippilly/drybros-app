@@ -94,6 +94,9 @@ export interface DriverResponseDTO {
   complaintCount: number;
   bannedGlobally: boolean;
   dailyTargetAmount: number | null;
+  cashInHand: number;
+  incentive: number | null;
+  bonus: number | null;
   currentRating: number | null;
   isActive: boolean;
   createdBy: string | null; // User UUID who created this driver
@@ -161,6 +164,9 @@ export const updateDriverSchema = z.object({
   carTypes: z.array(carTypeEnum).min(1, "At least one car type is required").optional(),
   franchiseId: z.string().uuid("Franchise ID must be a valid UUID").optional(),
   status: z.enum(["ACTIVE", "INACTIVE", "BLOCKED", "TERMINATED"]).optional(),
+  dailyTargetAmount: z.number().int().positive().optional().nullable(),
+  incentive: z.number().nonnegative("Incentive must be non-negative").optional().nullable(),
+  bonus: z.number().nonnegative("Bonus must be non-negative").optional().nullable(),
 }).refine((data) => Object.keys(data).length > 0, {
   message: "At least one field must be provided for update",
 });
@@ -223,4 +229,26 @@ export interface PaginatedDriverResponseDTO {
 // Driver with Performance Response DTO (performance is required)
 export interface DriverWithPerformanceResponseDTO extends DriverResponseDTO {
   performance: DriverPerformanceMetricsDTO; // Required (not optional)
+}
+
+// Submit Cash for Settlement Schema
+export const submitCashForSettlementSchema = z.object({
+  driverId: z.string().uuid("Driver ID must be a valid UUID"),
+  settlementAmount: z
+    .number()
+    .positive("Settlement amount must be greater than zero")
+    .refine((val) => val > 0, {
+      message: "Settlement amount must be greater than zero",
+    }),
+});
+
+export type SubmitCashForSettlementDTO = z.infer<typeof submitCashForSettlementSchema>;
+
+export interface SubmitCashForSettlementResponseDTO {
+  driverId: string;
+  driverName: string;
+  message: string;
+  previousCash: number;
+  settlementAmount: number;
+  remainingCash: number;
 }

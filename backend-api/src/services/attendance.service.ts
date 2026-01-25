@@ -6,28 +6,35 @@ import {
   getAttendancesPaginated,
   getAllAttendances,
   upsertAttendance,
+  updateAttendance,
+  deleteAttendance,
 } from "../repositories/attendance.repository";
 import { getDriverById } from "../repositories/driver.repository";
 import { getStaffById } from "../repositories/staff.repository";
+import prisma from "../config/prismaClient";
 import {
   ClockInDTO,
   ClockOutDTO,
   AttendanceResponseDTO,
   AttendancePaginationQueryDTO,
   PaginatedAttendanceResponseDTO,
+  CreateAttendanceDTO,
+  UpdateAttendanceDTO,
 } from "../types/attendance.dto";
 import { NotFoundError, BadRequestError } from "../utils/errors";
 import { ATTENDANCE_ERROR_MESSAGES } from "../constants/attendance";
 import logger from "../config/logger";
 import { logActivity } from "./activity.service";
-import { ActivityAction, ActivityEntityType } from "@prisma/client";
+import { ActivityAction, ActivityEntityType, UserRole } from "@prisma/client";
 
 function mapAttendanceToResponse(attendance: any): AttendanceResponseDTO {
   return {
     id: attendance.id,
     driverId: attendance.driverId,
     staffId: attendance.staffId,
+    userId: attendance.userId,
     date: attendance.date,
+    loginTime: attendance.loginTime,
     clockIn: attendance.clockIn,
     clockOut: attendance.clockOut,
     status: attendance.status,
@@ -37,26 +44,98 @@ function mapAttendanceToResponse(attendance: any): AttendanceResponseDTO {
   };
 }
 
-export async function clockIn(
-  input: ClockInDTO
-): Promise<{ message: string; data: AttendanceResponseDTO }> {
-  if (!input.driverId && !input.staffId) {
+/**
+ * Track login time for staff, manager, or driver
+ */
+export async function trackLogin(
+  driverId?: string,
+  staffId?: string,
+  userId?: string
+): Promise<void> {
+  if (!driverId && !staffId && !userId) {
     throw new BadRequestError(ATTENDANCE_ERROR_MESSAGES.INVALID_ATTENDANCE_TYPE);
   }
 
-  // Verify driver or staff exists
-  if (input.driverId) {
-    const driver = await getDriverById(input.driverId);
+  // Verify entity exists
+  if (driverId) {
+    const driver = await getDriverById(driverId);
     if (!driver) {
       throw new NotFoundError(ATTENDANCE_ERROR_MESSAGES.DRIVER_NOT_FOUND);
     }
-  }
-
-  if (input.staffId) {
-    const staff = await getStaffById(input.staffId);
+  } else if (staffId) {
+    const staff = await getStaffById(staffId);
     if (!staff) {
       throw new NotFoundError(ATTENDANCE_ERROR_MESSAGES.STAFF_NOT_FOUND);
     }
+  } else if (userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, franchiseId: true },
+    });
+    if (!user) {
+      throw new NotFoundError("User not found");
+    }
+    // Only track login for MANAGER role
+    if (user.role !== UserRole.MANAGER) {
+      return; // Don't track login for other user roles
+    }
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Upsert attendance record with login time
+  await upsertAttendance({
+    driverId,
+    staffId,
+    userId,
+    date: today,
+    loginTime: new Date(),
+  });
+
+  logger.info("Login time recorded", {
+    driverId,
+    staffId,
+    userId,
+  });
+}
+
+export async function clockIn(
+  input: ClockInDTO
+): Promise<{ message: string; data: AttendanceResponseDTO }> {
+  const { id, notes } = input;
+
+  // Check if ID belongs to driver, staff, or user (manager) - check all in parallel
+  const [driver, staff, user] = await Promise.all([
+    getDriverById(id),
+    getStaffById(id),
+    prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true, franchiseId: true },
+    }),
+  ]);
+
+  // Determine entity type
+  let driverId: string | undefined;
+  let staffId: string | undefined;
+  let userId: string | undefined;
+  let entityType: "driver" | "staff" | "manager" | null = null;
+
+  if (driver) {
+    driverId = id;
+    entityType = "driver";
+  } else if (staff) {
+    staffId = id;
+    entityType = "staff";
+  } else if (user) {
+    // Only allow MANAGER role for clock-in
+    if (user.role !== UserRole.MANAGER) {
+      throw new BadRequestError("Only managers can clock in. Drivers and staff should use their respective IDs.");
+    }
+    userId = id;
+    entityType = "manager";
+  } else {
+    throw new NotFoundError("ID not found in drivers, staff, or managers");
   }
 
   const today = new Date();
@@ -65,8 +144,9 @@ export async function clockIn(
   // Check if already clocked in today
   const existing = await getAttendanceByDateAndPerson(
     today,
-    input.driverId,
-    input.staffId
+    driverId,
+    staffId,
+    userId
   );
 
   if (existing && existing.clockIn) {
@@ -74,52 +154,67 @@ export async function clockIn(
   }
 
   const attendance = await upsertAttendance({
-    driverId: input.driverId,
-    staffId: input.staffId,
+    driverId,
+    staffId,
+    userId,
     date: today,
     clockIn: new Date(),
     clockOut: null,
     status: "PRESENT",
-    notes: input.notes || null,
+    notes: notes || null,
   });
 
   logger.info("Clock in recorded", {
     attendanceId: attendance.id,
-    driverId: input.driverId,
-    staffId: input.staffId,
+    entityType,
+    id,
   });
 
   // Log activity (non-blocking)
-  if (input.driverId) {
-    const driver = await getDriverById(input.driverId);
+  if (driverId) {
     logActivity({
       action: ActivityAction.DRIVER_CLOCK_IN,
       entityType: ActivityEntityType.ATTENDANCE,
       entityId: attendance.id,
       franchiseId: driver?.franchiseId,
-      driverId: input.driverId,
+      driverId: driverId,
       description: `Driver clocked in`,
       metadata: {
         attendanceId: attendance.id,
         date: attendance.date,
-        notes: input.notes,
+        notes: notes,
       },
     }).catch((err) => {
       logger.error("Failed to log clock in activity", { error: err });
     });
-  } else if (input.staffId) {
-    const staff = await getStaffById(input.staffId);
+  } else if (staffId) {
     logActivity({
       action: ActivityAction.STAFF_CLOCK_IN,
       entityType: ActivityEntityType.ATTENDANCE,
       entityId: attendance.id,
       franchiseId: staff?.franchiseId,
-      staffId: input.staffId,
+      staffId: staffId,
       description: `Staff clocked in`,
       metadata: {
         attendanceId: attendance.id,
         date: attendance.date,
-        notes: input.notes,
+        notes: notes,
+      },
+    }).catch((err) => {
+      logger.error("Failed to log clock in activity", { error: err });
+    });
+  } else if (userId && user) {
+    logActivity({
+      action: ActivityAction.ATTENDANCE_RECORDED,
+      entityType: ActivityEntityType.ATTENDANCE,
+      entityId: attendance.id,
+      franchiseId: user.franchiseId || undefined,
+      userId: userId,
+      description: `Manager clocked in`,
+      metadata: {
+        attendanceId: attendance.id,
+        date: attendance.date,
+        notes: notes,
       },
     }).catch((err) => {
       logger.error("Failed to log clock in activity", { error: err });
@@ -135,23 +230,39 @@ export async function clockIn(
 export async function clockOut(
   input: ClockOutDTO
 ): Promise<{ message: string; data: AttendanceResponseDTO }> {
-  if (!input.driverId && !input.staffId) {
-    throw new BadRequestError(ATTENDANCE_ERROR_MESSAGES.INVALID_ATTENDANCE_TYPE);
-  }
+  const { id, notes } = input;
 
-  // Verify driver or staff exists
-  if (input.driverId) {
-    const driver = await getDriverById(input.driverId);
-    if (!driver) {
-      throw new NotFoundError(ATTENDANCE_ERROR_MESSAGES.DRIVER_NOT_FOUND);
-    }
-  }
+  // Check if ID belongs to driver, staff, or user (manager) - check all in parallel
+  const [driver, staff, user] = await Promise.all([
+    getDriverById(id),
+    getStaffById(id),
+    prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true, franchiseId: true },
+    }),
+  ]);
 
-  if (input.staffId) {
-    const staff = await getStaffById(input.staffId);
-    if (!staff) {
-      throw new NotFoundError(ATTENDANCE_ERROR_MESSAGES.STAFF_NOT_FOUND);
+  // Determine entity type
+  let driverId: string | undefined;
+  let staffId: string | undefined;
+  let userId: string | undefined;
+  let entityType: "driver" | "staff" | "manager" | null = null;
+
+  if (driver) {
+    driverId = id;
+    entityType = "driver";
+  } else if (staff) {
+    staffId = id;
+    entityType = "staff";
+  } else if (user) {
+    // Only allow MANAGER role for clock-out
+    if (user.role !== UserRole.MANAGER) {
+      throw new BadRequestError("Only managers can clock out. Drivers and staff should use their respective IDs.");
     }
+    userId = id;
+    entityType = "manager";
+  } else {
+    throw new NotFoundError("ID not found in drivers, staff, or managers");
   }
 
   const today = new Date();
@@ -160,8 +271,9 @@ export async function clockOut(
   // Check if clocked in
   const existing = await getAttendanceByDateAndPerson(
     today,
-    input.driverId,
-    input.staffId
+    driverId,
+    staffId,
+    userId
   );
 
   if (!existing || !existing.clockIn) {
@@ -173,56 +285,74 @@ export async function clockOut(
   }
 
   const attendance = await upsertAttendance({
-    driverId: input.driverId,
-    staffId: input.staffId,
+    driverId,
+    staffId,
+    userId,
     date: today,
+    loginTime: existing.loginTime,
     clockIn: existing.clockIn,
     clockOut: new Date(),
     status: existing.status,
-    notes: input.notes || existing.notes,
+    notes: notes || existing.notes,
   });
 
   logger.info("Clock out recorded", {
     attendanceId: attendance.id,
-    driverId: input.driverId,
-    staffId: input.staffId,
+    entityType,
+    id,
   });
 
   // Log activity (non-blocking)
-  if (input.driverId) {
-    const driver = await getDriverById(input.driverId);
+  if (driverId) {
     logActivity({
       action: ActivityAction.DRIVER_CLOCK_OUT,
       entityType: ActivityEntityType.ATTENDANCE,
       entityId: attendance.id,
       franchiseId: driver?.franchiseId,
-      driverId: input.driverId,
+      driverId: driverId,
       description: `Driver clocked out`,
       metadata: {
         attendanceId: attendance.id,
         date: attendance.date,
         clockIn: attendance.clockIn,
         clockOut: attendance.clockOut,
-        notes: input.notes,
+        notes: notes,
       },
     }).catch((err) => {
       logger.error("Failed to log clock out activity", { error: err });
     });
-  } else if (input.staffId) {
-    const staff = await getStaffById(input.staffId);
+  } else if (staffId) {
     logActivity({
       action: ActivityAction.STAFF_CLOCK_OUT,
       entityType: ActivityEntityType.ATTENDANCE,
       entityId: attendance.id,
       franchiseId: staff?.franchiseId,
-      staffId: input.staffId,
+      staffId: staffId,
       description: `Staff clocked out`,
       metadata: {
         attendanceId: attendance.id,
         date: attendance.date,
         clockIn: attendance.clockIn,
         clockOut: attendance.clockOut,
-        notes: input.notes,
+        notes: notes,
+      },
+    }).catch((err) => {
+      logger.error("Failed to log clock out activity", { error: err });
+    });
+  } else if (userId && user) {
+    logActivity({
+      action: ActivityAction.ATTENDANCE_RECORDED,
+      entityType: ActivityEntityType.ATTENDANCE,
+      entityId: attendance.id,
+      franchiseId: user.franchiseId || undefined,
+      userId: userId,
+      description: `Manager clocked out`,
+      metadata: {
+        attendanceId: attendance.id,
+        date: attendance.date,
+        clockIn: attendance.clockIn,
+        clockOut: attendance.clockOut,
+        notes: notes,
       },
     }).catch((err) => {
       logger.error("Failed to log clock out activity", { error: err });
@@ -236,7 +366,7 @@ export async function clockOut(
 }
 
 export async function listAttendances(
-  filters?: { driverId?: string; staffId?: string; startDate?: Date; endDate?: Date }
+  filters?: { driverId?: string; staffId?: string; userId?: string; startDate?: Date; endDate?: Date }
 ): Promise<AttendanceResponseDTO[]> {
   const attendances = await getAllAttendances(filters);
   return attendances.map(mapAttendanceToResponse);
@@ -245,12 +375,13 @@ export async function listAttendances(
 export async function listAttendancesPaginated(
   pagination: AttendancePaginationQueryDTO
 ): Promise<PaginatedAttendanceResponseDTO> {
-  const { page, limit, driverId, staffId, startDate, endDate } = pagination;
+  const { page, limit, driverId, staffId, userId, startDate, endDate } = pagination;
   const skip = (page - 1) * limit;
 
   const filters: any = {};
   if (driverId) filters.driverId = driverId;
   if (staffId) filters.staffId = staffId;
+  if (userId) filters.userId = userId;
   if (startDate) filters.startDate = new Date(startDate);
   if (endDate) filters.endDate = new Date(endDate);
 
@@ -279,4 +410,138 @@ export async function getAttendance(id: string): Promise<AttendanceResponseDTO> 
     throw new NotFoundError(ATTENDANCE_ERROR_MESSAGES.ATTENDANCE_NOT_FOUND);
   }
   return mapAttendanceToResponse(attendance);
+}
+
+/**
+ * Create a new attendance record
+ */
+export async function createAttendanceRecord(
+  input: CreateAttendanceDTO
+): Promise<{ message: string; data: AttendanceResponseDTO }> {
+  if (!input.driverId && !input.staffId && !input.userId) {
+    throw new BadRequestError(ATTENDANCE_ERROR_MESSAGES.INVALID_ATTENDANCE_TYPE);
+  }
+
+  // Verify entity exists
+  if (input.driverId) {
+    const driver = await getDriverById(input.driverId);
+    if (!driver) {
+      throw new NotFoundError(ATTENDANCE_ERROR_MESSAGES.DRIVER_NOT_FOUND);
+    }
+  } else if (input.staffId) {
+    const staff = await getStaffById(input.staffId);
+    if (!staff) {
+      throw new NotFoundError(ATTENDANCE_ERROR_MESSAGES.STAFF_NOT_FOUND);
+    }
+  } else if (input.userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: input.userId },
+      select: { id: true, role: true },
+    });
+    if (!user) {
+      throw new NotFoundError("User not found");
+    }
+  }
+
+  const date = typeof input.date === "string" ? new Date(input.date) : input.date;
+  date.setHours(0, 0, 0, 0);
+
+  // Check if attendance already exists for this date
+  const existing = await getAttendanceByDateAndPerson(
+    date,
+    input.driverId,
+    input.staffId,
+    input.userId
+  );
+
+  if (existing) {
+    throw new BadRequestError("Attendance record already exists for this date");
+  }
+
+  const attendance = await createAttendance({
+    driverId: input.driverId,
+    staffId: input.staffId,
+    userId: input.userId,
+    date,
+    loginTime: input.loginTime ? new Date(input.loginTime) : null,
+    clockIn: input.clockIn ? new Date(input.clockIn) : null,
+    clockOut: input.clockOut ? new Date(input.clockOut) : null,
+    status: input.status || "PRESENT",
+    notes: input.notes || null,
+  });
+
+  logger.info("Attendance record created", {
+    attendanceId: attendance.id,
+    driverId: input.driverId,
+    staffId: input.staffId,
+    userId: input.userId,
+  });
+
+  return {
+    message: "Attendance record created successfully",
+    data: mapAttendanceToResponse(attendance),
+  };
+}
+
+/**
+ * Update an existing attendance record
+ */
+export async function updateAttendanceRecord(
+  id: string,
+  input: UpdateAttendanceDTO
+): Promise<{ message: string; data: AttendanceResponseDTO }> {
+  const existing = await getAttendanceById(id);
+  if (!existing) {
+    throw new NotFoundError(ATTENDANCE_ERROR_MESSAGES.ATTENDANCE_NOT_FOUND);
+  }
+
+  const updateData: any = {};
+  if (input.loginTime !== undefined) {
+    updateData.loginTime = input.loginTime ? new Date(input.loginTime) : null;
+  }
+  if (input.clockIn !== undefined) {
+    updateData.clockIn = input.clockIn ? new Date(input.clockIn) : null;
+  }
+  if (input.clockOut !== undefined) {
+    updateData.clockOut = input.clockOut ? new Date(input.clockOut) : null;
+  }
+  if (input.status !== undefined) {
+    updateData.status = input.status;
+  }
+  if (input.notes !== undefined) {
+    updateData.notes = input.notes;
+  }
+
+  const attendance = await updateAttendance(id, updateData);
+
+  logger.info("Attendance record updated", {
+    attendanceId: id,
+  });
+
+  return {
+    message: "Attendance record updated successfully",
+    data: mapAttendanceToResponse(attendance),
+  };
+}
+
+/**
+ * Delete an attendance record
+ */
+export async function deleteAttendanceRecord(
+  id: string
+): Promise<{ message: string }> {
+  const existing = await getAttendanceById(id);
+  if (!existing) {
+    throw new NotFoundError(ATTENDANCE_ERROR_MESSAGES.ATTENDANCE_NOT_FOUND);
+  }
+
+  await deleteAttendance(id);
+
+  logger.info("Attendance record deleted", {
+    attendanceId: id,
+  });
+
+  return {
+    message: "Attendance record deleted successfully",
+  };
 }

@@ -14,7 +14,8 @@ import {
 import { PerformanceBadge } from '@/components/ui/PerformanceBadge';
 import { AvailableDriver } from '@/lib/types/driver';
 import { RESCHEDULABLE_TRIP_STATUSES, CANCELLABLE_TRIP_STATUSES, REASSIGNABLE_TRIP_STATUSES } from '@/lib/constants/trips';
-import { cn } from '@/lib/utils';
+import { cn, formatCarType } from '@/lib/utils';
+import { TripLog } from './TripLog';
 
 interface TripDetailsScreenProps {
     tripId: string;
@@ -634,7 +635,7 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
                                             Car Type
                                         </p>
                                         <p className="text-sm font-bold text-[#0d121c] dark:text-white">
-                                            {trip.carType}
+                                            {formatCarType(trip.carType)}
                                         </p>
                                     </div>
                                 )}
@@ -910,6 +911,9 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Trip Activity Log */}
+                        <TripLog tripId={tripId} />
                     </div>
                 ) : null}
             </div>

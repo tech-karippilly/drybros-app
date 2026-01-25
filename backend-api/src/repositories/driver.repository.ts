@@ -1,6 +1,6 @@
 // src/repositories/driver.repository.ts
 import prisma from "../config/prismaClient";
-import { Driver } from "@prisma/client";
+import { Driver, DriverStatus } from "@prisma/client";
 import {
   getDriverEarningsConfigByDriver,
   getDriverEarningsConfigByFranchise,
@@ -133,6 +133,9 @@ export async function updateDriver(
     previousExp?: boolean;
     carTypes?: string; // JSON string
     status?: string;
+    dailyTargetAmount?: number | null;
+    incentive?: number | null;
+    bonus?: number | null;
   }
 ): Promise<Driver> {
   // Filter out undefined values to only update provided fields (optimization)
@@ -157,6 +160,36 @@ export async function updateDriverStatus(
   return prisma.driver.update({
     where: { id },
     data: { status },
+  });
+}
+
+/** Fire driver (complaint resolution): TERMINATED + blacklisted. Cannot login or register. */
+export async function fireDriver(id: string): Promise<Driver> {
+  return prisma.driver.update({
+    where: { id },
+    data: { status: DriverStatus.TERMINATED, blacklisted: true },
+  });
+}
+
+/** Increment warning count (complaint resolved with WARNING). 2+ warnings trigger auto-fire. */
+export async function incrementDriverWarningCount(id: string): Promise<Driver> {
+  return prisma.driver.update({
+    where: { id },
+    data: { warningCount: { increment: 1 } },
+  });
+}
+
+/** Find blacklisted driver by phone or email (for registration block). */
+export async function findBlacklistedDriverByPhoneOrEmail(
+  phone: string,
+  email: string
+): Promise<{ id: string } | null> {
+  return prisma.driver.findFirst({
+    where: {
+      blacklisted: true,
+      OR: [{ phone }, { email }],
+    },
+    select: { id: true },
   });
 }
 
@@ -364,6 +397,37 @@ export async function resetCashInHand(driverId: string) {
   return prisma.driver.update({
     where: { id: driverId },
     data: { cashInHand: 0 },
+  });
+}
+
+/**
+ * Submit cash for settlement (reduce cash in hand by specified amount)
+ */
+export async function submitCashForSettlement(driverId: string, settlementAmount: number) {
+  const driver = await prisma.driver.findUnique({ 
+    where: { id: driverId },
+    select: { id: true, cashInHand: true },
+  });
+  
+  if (!driver) {
+    throw new Error("Driver not found");
+  }
+
+  const currentCash = Number(driver.cashInHand) || 0;
+  
+  if (settlementAmount > currentCash) {
+    throw new Error(`Insufficient cash in hand. Available: ${currentCash}, Requested: ${settlementAmount}`);
+  }
+
+  if (settlementAmount <= 0) {
+    throw new Error("Settlement amount must be greater than zero");
+  }
+
+  const newCash = currentCash - settlementAmount;
+
+  return prisma.driver.update({
+    where: { id: driverId },
+    data: { cashInHand: newCash },
   });
 }
 

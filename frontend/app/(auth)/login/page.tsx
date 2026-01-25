@@ -11,12 +11,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { useAppDispatch, useAppSelector } from '@/lib/hooks';
-import { setCredentials } from '@/lib/features/auth/authSlice';
+import { setCredentials, setFranchiseList } from '@/lib/features/auth/authSlice';
 import { AUTH_ROUTES, STORAGE_KEYS } from '@/lib/constants/auth';
-import { mapBackendRoleToFrontend } from '@/lib/constants/roles';
+import { mapBackendRoleToFrontend, USER_ROLES } from '@/lib/constants/roles';
 import { login } from '@/lib/features/auth/authApi';
 import { getAuthTokens } from '@/lib/utils/auth';
 import { resetRefreshTokenExpired } from '@/lib/utils/tokenRefresh';
+import { fetchFranchises } from '@/lib/features/franchise/franchiseSlice';
 
 export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
@@ -103,6 +104,18 @@ export default function LoginPage() {
                 accessToken: response.accessToken,
                 refreshToken: response.refreshToken,
             }));
+
+            // If admin, fetch franchises and set first one as active
+            if (user.role === USER_ROLES.ADMIN) {
+                try {
+                    const franchises = await dispatch(fetchFranchises()).unwrap();
+                    // Sync franchises to auth slice (even if empty, to clear dummy data)
+                    dispatch(setFranchiseList(franchises));
+                } catch (franchiseError) {
+                    // If franchise fetch fails, continue anyway (non-blocking)
+                    console.warn('Failed to fetch franchises on login:', franchiseError);
+                }
+            }
 
             toast({
                 title: "Success",

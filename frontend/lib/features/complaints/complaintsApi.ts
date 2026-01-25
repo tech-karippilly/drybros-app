@@ -1,35 +1,46 @@
 /**
  * Complaints API – GET/POST /complaints, PATCH /complaints/:id/status
+ * Resolve flow: status=RESOLVED requires action (WARNING|FIRE) and reason.
  */
 import api from '../../axios';
+
+export type ComplaintStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+export type ComplaintResolutionAction = 'WARNING' | 'FIRE';
 
 export interface ComplaintResponse {
   id: string;
   driverId: string | null;
   staffId: string | null;
+  customerId: string | null;
   title: string;
   description: string;
   reportedBy: string | null;
-  status: string;
+  status: ComplaintStatus;
   severity: string;
   createdAt: string;
   updatedAt: string;
   resolvedAt: string | null;
   resolvedBy: string | null;
   resolution: string | null;
+  resolutionAction: ComplaintResolutionAction | null;
+  resolutionReason: string | null;
 }
 
 export interface CreateComplaintRequest {
   driverId?: string;
   staffId?: string;
+  customerId?: string;
   title: string;
   description: string;
   severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 }
 
+/** When status is RESOLVED, action and reason are required. */
 export interface UpdateComplaintStatusRequest {
-  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+  status: ComplaintStatus;
   resolution?: string | null;
+  action?: ComplaintResolutionAction;
+  reason?: string;
 }
 
 export interface PaginatedComplaintsResponse {

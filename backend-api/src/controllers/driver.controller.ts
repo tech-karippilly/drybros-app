@@ -1,9 +1,10 @@
 // src/controllers/driver.controller.ts
 import { Request, Response, NextFunction } from "express";
-import { listDrivers, listDriversPaginated, getDriver, getDriverWithPerformance, getAvailableGreenDriversList, getDriversByFranchises, createDriver, loginDriver, updateDriver, updateDriverStatus, softDeleteDriver } from "../services/driver.service";
+import { listDrivers, listDriversPaginated, getDriver, getDriverWithPerformance, getAvailableGreenDriversList, getAvailableDriversList, getDriversByFranchises, createDriver, loginDriver, updateDriver, updateDriverStatus, softDeleteDriver } from "../services/driver.service";
 import { calculateDriverPerformance } from "../services/driver-performance.service";
 import { DriverLoginDTO, UpdateDriverDTO, UpdateDriverStatusDTO } from "../types/driver.dto";
-import { submitCashToCompany, getDriverDailyLimit } from "../services/driverCash.service";
+import { submitCashToCompany, submitCashForSettlement, getDriverDailyLimit } from "../services/driverCash.service";
+import { SubmitCashForSettlementDTO } from "../types/driver.dto";
 
 export async function getDrivers(
   req: Request,
@@ -159,6 +160,24 @@ export async function getAvailableGreenDriversHandler(
   }
 }
 
+/**
+ * Get drivers for trip assignment (all franchise drivers, best first)
+ * Returns all ACTIVE drivers. Sorted by: AVAILABLE first, then day limit not finished, then performance (GREEN > YELLOW > RED), then score.
+ */
+export async function getAvailableDriversHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const franchiseId = req.query.franchiseId as string | undefined;
+    const drivers = await getAvailableDriversList(franchiseId);
+    res.json({ data: drivers });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function getDriversByFranchisesHandler(
   req: Request,
   res: Response,
@@ -229,6 +248,23 @@ export async function getDriverDailyLimitHandler(
   try {
     const { id } = req.params;
     const result = await getDriverDailyLimit(id);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Submit cash for settlement (reduce cash in hand by specified amount)
+ */
+export async function submitCashForSettlementHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { driverId, settlementAmount } = req.body as SubmitCashForSettlementDTO;
+    const result = await submitCashForSettlement(driverId, settlementAmount);
     res.json({ data: result });
   } catch (err) {
     next(err);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     getAttendances,
     clockIn,
@@ -10,8 +10,10 @@ import {
     type ClockOutRequest,
     type PaginatedAttendanceResponse,
 } from '@/lib/features/attendance/attendanceApi';
-import { Plus, Search, Loader2, AlertCircle, LogIn, LogOut, X } from 'lucide-react';
+import { Search, Loader2, AlertCircle, LogIn, LogOut, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AttendanceCalendar } from '@/components/ui/AttendanceCalendar';
+import { format } from 'date-fns';
 
 function isPaginated(r: AttendanceResponse[] | PaginatedAttendanceResponse): r is PaginatedAttendanceResponse {
     return typeof r === 'object' && 'pagination' in r && Array.isArray((r as PaginatedAttendanceResponse).data);
@@ -51,6 +53,16 @@ export function AttendanceManager() {
             (a.driverId || '').toLowerCase().includes(search.toLowerCase()) ||
             (a.staffId || '').toLowerCase().includes(search.toLowerCase())
     );
+
+    // Create a Set of dates with attendance for the calendar
+    const attendanceDates = useMemo(() => {
+        const dateSet = new Set<string>();
+        list.forEach((attendance) => {
+            const dateStr = format(new Date(attendance.date), 'yyyy-MM-dd');
+            dateSet.add(dateStr);
+        });
+        return dateSet;
+    }, [list]);
 
     const handleClockIn = async (body: ClockInRequest) => {
         try {
@@ -120,6 +132,15 @@ export function AttendanceManager() {
                 />
             </div>
 
+            {/* Calendar Section - Full Width */}
+            <div className="w-full">
+                <AttendanceCalendar
+                    attendanceDates={attendanceDates}
+                    showHolidays={true}
+                />
+            </div>
+
+            {/* Attendance Table Section */}
             <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
                 {loading ? (
                     <div className="flex items-center justify-center py-16">

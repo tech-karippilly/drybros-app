@@ -5,15 +5,25 @@ import { Attendance, AttendanceStatus } from "@prisma/client";
 export async function createAttendance(data: {
   driverId?: string;
   staffId?: string;
+  userId?: string;
   date: Date;
+  loginTime?: Date | null;
+  clockIn?: Date | null;
+  clockOut?: Date | null;
   status?: AttendanceStatus;
+  notes?: string | null;
 }): Promise<Attendance> {
   return prisma.attendance.create({
     data: {
       driverId: data.driverId || null,
       staffId: data.staffId || null,
+      userId: data.userId || null,
       date: data.date,
+      loginTime: data.loginTime || null,
+      clockIn: data.clockIn || null,
+      clockOut: data.clockOut || null,
       status: data.status || "PRESENT",
+      notes: data.notes || null,
     },
   });
 }
@@ -37,6 +47,14 @@ export async function getAttendanceById(id: string) {
           email: true,
         },
       },
+      User: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          role: true,
+        },
+      },
     },
   });
 }
@@ -44,7 +62,8 @@ export async function getAttendanceById(id: string) {
 export async function getAttendanceByDateAndPerson(
   date: Date,
   driverId?: string,
-  staffId?: string
+  staffId?: string,
+  userId?: string
 ) {
   const startOfDay = new Date(date);
   startOfDay.setHours(0, 0, 0, 0);
@@ -63,6 +82,8 @@ export async function getAttendanceByDateAndPerson(
     whereClause.driverId = driverId;
   } else if (staffId) {
     whereClause.staffId = staffId;
+  } else if (userId) {
+    whereClause.userId = userId;
   }
 
   return prisma.attendance.findFirst({
@@ -76,6 +97,7 @@ export async function getAttendancesPaginated(
   filters?: {
     driverId?: string;
     staffId?: string;
+    userId?: string;
     startDate?: Date;
     endDate?: Date;
   }
@@ -88,6 +110,10 @@ export async function getAttendancesPaginated(
   
   if (filters?.staffId) {
     whereClause.staffId = filters.staffId;
+  }
+  
+  if (filters?.userId) {
+    whereClause.userId = filters.userId;
   }
   
   if (filters?.startDate || filters?.endDate) {
@@ -122,6 +148,14 @@ export async function getAttendancesPaginated(
             email: true,
           },
         },
+        User: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            role: true,
+          },
+        },
       },
     }),
     prisma.attendance.count({ where: whereClause }),
@@ -133,6 +167,7 @@ export async function getAttendancesPaginated(
 export async function getAllAttendances(filters?: {
   driverId?: string;
   staffId?: string;
+  userId?: string;
   startDate?: Date;
   endDate?: Date;
 }) {
@@ -144,6 +179,10 @@ export async function getAllAttendances(filters?: {
   
   if (filters?.staffId) {
     whereClause.staffId = filters.staffId;
+  }
+  
+  if (filters?.userId) {
+    whereClause.userId = filters.userId;
   }
   
   if (filters?.startDate || filters?.endDate) {
@@ -175,6 +214,14 @@ export async function getAllAttendances(filters?: {
           email: true,
         },
       },
+      User: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          role: true,
+        },
+      },
     },
   });
 }
@@ -182,6 +229,7 @@ export async function getAllAttendances(filters?: {
 export async function updateAttendance(
   id: string,
   data: {
+    loginTime?: Date | null;
     clockIn?: Date | null;
     clockOut?: Date | null;
     status?: AttendanceStatus;
@@ -200,39 +248,88 @@ export async function updateAttendance(
 export async function upsertAttendance(data: {
   driverId?: string;
   staffId?: string;
+  userId?: string;
   date: Date;
+  loginTime?: Date | null;
   clockIn?: Date | null;
   clockOut?: Date | null;
   status?: AttendanceStatus;
   notes?: string | null;
 }): Promise<Attendance> {
-  const whereClause: any = {
-    date: data.date,
-  };
+  // Normalize date to start of day for comparison
+  const normalizedDate = new Date(data.date);
+  normalizedDate.setHours(0, 0, 0, 0);
 
+  // Build where clause based on unique constraints
+  let whereClause: any;
   if (data.driverId) {
-    whereClause.driverId = data.driverId;
+    whereClause = {
+      driverId_date: {
+        driverId: data.driverId,
+        date: normalizedDate,
+      },
+    };
   } else if (data.staffId) {
-    whereClause.staffId = data.staffId;
+    whereClause = {
+      staffId_date: {
+        staffId: data.staffId,
+        date: normalizedDate,
+      },
+    };
+  } else if (data.userId) {
+    whereClause = {
+      userId_date: {
+        userId: data.userId,
+        date: normalizedDate,
+      },
+    };
+  } else {
+    throw new Error("Either driverId, staffId, or userId must be provided");
   }
 
-  return prisma.attendance.upsert({
-    where: whereClause,
-    update: {
-      clockIn: data.clockIn,
-      clockOut: data.clockOut,
-      status: data.status,
-      notes: data.notes,
+  // Check if record exists
+  const existing = await getAttendanceByDateAndPerson(
+    normalizedDate,
+    data.driverId,
+    data.staffId,
+    data.userId
+  );
+
+  if (existing) {
+    // Update existing record
+    const updateData: any = {
       updatedAt: new Date(),
-    },
-    create: {
-      driverId: data.driverId || null,
-      staffId: data.staffId || null,
-      date: data.date,
-      clockIn: data.clockIn,
-      clockOut: data.clockOut,
-      status: data.status || "PRESENT",
-      notes: data.notes,
-    },
+    };
+    if (data.loginTime !== undefined) updateData.loginTime = data.loginTime;
+    if (data.clockIn !== undefined) updateData.clockIn = data.clockIn;
+    if (data.clockOut !== undefined) updateData.clockOut = data.clockOut;
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.notes !== undefined) updateData.notes = data.notes;
+
+    return prisma.attendance.update({
+      where: { id: existing.id },
+      data: updateData,
+    });
+  } else {
+    // Create new record
+    return prisma.attendance.create({
+      data: {
+        driverId: data.driverId || null,
+        staffId: data.staffId || null,
+        userId: data.userId || null,
+        date: normalizedDate,
+        loginTime: data.loginTime || null,
+        clockIn: data.clockIn || null,
+        clockOut: data.clockOut || null,
+        status: data.status || "PRESENT",
+        notes: data.notes || null,
+      },
+    });
+  }
+}
+
+export async function deleteAttendance(id: string): Promise<Attendance> {
+  return prisma.attendance.delete({
+    where: { id },
   });
 }

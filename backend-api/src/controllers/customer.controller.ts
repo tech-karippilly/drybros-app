@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import {
   listCustomers,
   getCustomer,
+  getCustomerDetails,
   createCustomer,
 } from "../services/customer.service";
 
@@ -24,9 +25,27 @@ export async function getCustomerById(
   next: NextFunction
 ) {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id as string;
     const customer = await getCustomer(id);
     res.json({ data: customer });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /customers/:id/details
+ * Customer details with history: profile + trips booked count + complaints raised count.
+ */
+export async function getCustomerDetailsHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const id = req.params.id as string;
+    const data = await getCustomerDetails(id);
+    res.json({ data });
   } catch (err) {
     next(err);
   }

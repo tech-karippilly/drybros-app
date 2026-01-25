@@ -208,3 +208,27 @@ export interface CurrentUserResponseDTO {
   isActive: boolean;
   franchiseId?: string;
 }
+
+/**
+ * Zod schema for change password
+ */
+export const changePasswordSchema = z.object({
+  id: z.string().uuid("ID must be a valid UUID"),
+  previousPassword: z.string().min(1, "Previous password is required"),
+  newPassword: z
+    .string()
+    .min(8, "New password must be at least 8 characters")
+    .max(100, "New password must be less than 100 characters"),
+});
+
+/**
+ * DTO for change password (inferred from Zod schema)
+ */
+export type ChangePasswordDTO = z.infer<typeof changePasswordSchema>;
+
+/**
+ * DTO for change password response
+ */
+export interface ChangePasswordResponseDTO {
+  message: string;
+}

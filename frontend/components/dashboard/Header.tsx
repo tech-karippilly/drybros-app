@@ -1,17 +1,22 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Search, Bell, Settings, ChevronDown, Building2, Check, Loader2 } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '@/lib/hooks';
-import { setSelectedFranchise, setFranchiseList, setActiveTab } from '@/lib/features/auth/authSlice';
+import { setSelectedFranchise, setFranchiseList } from '@/lib/features/auth/authSlice';
+import { DASHBOARD_ROUTES } from '@/lib/constants/routes';
 import { getFranchiseList, FranchiseResponse } from '@/lib/features/franchise/franchiseApi';
 import { Franchise } from '@/lib/types/franchise';
 import { USER_ROLES } from '@/lib/constants/roles';
 import { cn } from '@/lib/utils';
+import { fetchFranchises } from '@/lib/features/franchise/franchiseSlice';
 
 export function Header() {
-    const { franchiseList, selectedFranchise, activeTab, user } = useAppSelector((state) => state.auth);
+    const { franchiseList, selectedFranchise, user } = useAppSelector((state) => state.auth);
     const dispatch = useAppDispatch();
+    const pathname = usePathname();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoadingFranchises, setIsLoadingFranchises] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -33,42 +38,19 @@ export function Header() {
             // Check if franchiseList is empty or contains dummy data (dummy data has _id starting with 'fran_')
             const hasDummyData = franchiseList.length > 0 && franchiseList.some(f => f._id.startsWith('fran_'));
             if (franchiseList.length === 0 || hasDummyData) {
-                fetchFranchises();
+                loadFranchises();
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.role]);
 
-    const fetchFranchises = async () => {
+    const loadFranchises = async () => {
         try {
             setIsLoadingFranchises(true);
-            const franchises = await getFranchiseList();
-            
-            // Map API response to Franchise type
-            const mappedFranchises: Franchise[] = franchises.map((franchise: FranchiseResponse) => ({
-                _id: franchise.id,
-                code: franchise.code,
-                name: franchise.name,
-                address: franchise.address || '',
-                location: franchise.region || franchise.city || '',
-                email: '', // Not in API response
-                phone: franchise.phone || '',
-                staffCount: 0, // Not in API response
-                driverCount: 0, // Not in API response
-                image: franchise.storeImage || undefined,
-                description: undefined,
-                inchargeName: franchise.inchargeName || '',
-                staff: [],
-                drivers: [],
-                status: franchise.isActive ? 'active' : 'blocked',
-            }));
-
-            dispatch(setFranchiseList(mappedFranchises));
-            
-            // Auto-select first franchise if none selected
-            if (!selectedFranchise && mappedFranchises.length > 0) {
-                dispatch(setSelectedFranchise(mappedFranchises[0]));
-            }
+            // Use the franchise slice's fetchFranchises to ensure consistency
+            const franchises = await dispatch(fetchFranchises()).unwrap();
+            // Sync franchises to auth slice (even if empty, to clear dummy data)
+            dispatch(setFranchiseList(franchises));
         } catch (error) {
             console.error('Failed to fetch franchises:', error);
         } finally {
@@ -95,7 +77,7 @@ export function Header() {
                         <button
                             onClick={() => {
                                 if (!isOpen && franchiseList.length === 0) {
-                                    fetchFranchises();
+                                    loadFranchises();
                                 }
                                 setIsOpen(!isOpen);
                             }}
@@ -119,7 +101,7 @@ export function Header() {
                                 <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
                                     <p className="text-[10px] uppercase font-bold text-[#49659c] tracking-wider">Select Franchise</p>
                                     <button
-                                        onClick={fetchFranchises}
+                                        onClick={loadFranchises}
                                         className="text-xs text-[#0d59f2] hover:underline"
                                         title="Refresh"
                                     >
@@ -135,7 +117,7 @@ export function Header() {
                                         <div className="px-4 py-8 text-center">
                                             <p className="text-sm text-[#49659c]">No franchises found</p>
                                             <button
-                                                onClick={fetchFranchises}
+                                                onClick={loadFranchises}
                                                 className="mt-2 text-xs text-[#0d59f2] hover:underline"
                                             >
                                                 Try again
@@ -176,30 +158,30 @@ export function Header() {
                     </div>
                 )}
 
-                <button
-                    onClick={() => dispatch(setActiveTab('notifications'))}
+                <Link
+                    href={DASHBOARD_ROUTES.NOTIFICATIONS}
                     className={cn(
-                        "relative p-2 transition-all rounded-full group",
-                        activeTab === 'notifications'
-                            ? "bg-[#0d59f2]/10 text-[#0d59f2]"
-                            : "text-[#49659c] hover:bg-gray-100 dark:hover:bg-gray-800"
+                        'relative rounded-full p-2 transition-all group',
+                        pathname === DASHBOARD_ROUTES.NOTIFICATIONS
+                            ? 'bg-[#0d59f2]/10 text-[#0d59f2]'
+                            : 'text-[#49659c] hover:bg-gray-100 dark:hover:bg-gray-800'
                     )}
                 >
-                    <Bell size={20} className="group-hover:rotate-12 transition-transform" />
-                    <span className="absolute top-1.5 right-1.5 size-2 bg-red-500 rounded-full border-2 border-white dark:border-[#101622]"></span>
-                </button>
+                    <Bell size={20} className="transition-transform group-hover:rotate-12" />
+                    <span className="absolute right-1.5 top-1.5 size-2 rounded-full border-2 border-white bg-red-500 dark:border-[#101622]" />
+                </Link>
 
-                <button
-                    onClick={() => dispatch(setActiveTab('settings'))}
+                <Link
+                    href={DASHBOARD_ROUTES.SETTINGS}
                     className={cn(
-                        "p-2 transition-all rounded-full group",
-                        activeTab === 'settings'
-                            ? "bg-[#0d59f2]/10 text-[#0d59f2]"
-                            : "text-[#49659c] hover:bg-gray-100 dark:hover:bg-gray-800"
+                        'rounded-full p-2 transition-all group',
+                        pathname === DASHBOARD_ROUTES.SETTINGS
+                            ? 'bg-[#0d59f2]/10 text-[#0d59f2]'
+                            : 'text-[#49659c] hover:bg-gray-100 dark:hover:bg-gray-800'
                     )}
                 >
-                    <Settings size={20} className="group-hover:rotate-90 transition-transform duration-500" />
-                </button>
+                    <Settings size={20} className="duration-500 transition-transform group-hover:rotate-90" />
+                </Link>
             </div>
         </header>
     );

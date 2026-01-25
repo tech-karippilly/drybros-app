@@ -4,9 +4,10 @@ export const ATTENDANCE_ERROR_MESSAGES = {
   ATTENDANCE_NOT_FOUND: "Attendance record not found",
   DRIVER_NOT_FOUND: "Driver not found",
   STAFF_NOT_FOUND: "Staff not found",
+  USER_NOT_FOUND: "User not found",
   ALREADY_CLOCKED_IN: "Already clocked in for today",
   NOT_CLOCKED_IN: "Must clock in before clocking out",
-  INVALID_ATTENDANCE_TYPE: "Either driverId or staffId must be provided, but not both",
+  INVALID_ATTENDANCE_TYPE: "ID not found in drivers, staff, or managers",
 } as const;
 
 export const ATTENDANCE_STATUS = {

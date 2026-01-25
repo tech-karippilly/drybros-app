@@ -8,6 +8,7 @@ import { logout } from '@/lib/features/auth/authSlice';
 import { handleLogout } from '@/lib/utils/auth';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
+import { ProfileSettings } from './ProfileSettings';
 
 export function SettingsScreen() {
     const { user } = useAppSelector((state) => state.auth);
@@ -44,57 +45,11 @@ export function SettingsScreen() {
     return (
         <div className="flex-1 p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="max-w-4xl mx-auto">
-                <div className="mb-8">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="p-3 rounded-xl bg-[#0d59f2]/10 text-[#0d59f2]">
-                            <Settings size={24} />
-                        </div>
-                        <div>
-                            <Text variant="h2" className="border-none font-black tracking-tight dark:text-white">
-                                Account Settings
-                            </Text>
-                            <Text variant="muted" className="text-sm">
-                                Manage your account preferences and security settings
-                            </Text>
-                        </div>
-                    </div>
-                </div>
+                <ProfileSettings />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                    {settingsSections.map((section, index) => (
-                        <div
-                            key={index}
-                            className="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 hover:border-[#0d59f2]/30 dark:hover:border-[#0d59f2]/30 transition-all cursor-pointer group"
-                        >
-                            <div className="flex items-start gap-4">
-                                <div className="p-3 rounded-xl bg-[#0d59f2]/10 text-[#0d59f2] group-hover:bg-[#0d59f2]/20 transition-colors">
-                                    <section.icon size={20} />
-                                </div>
-                                <div className="flex-1">
-                                    <Text variant="subheading" className="border-none mb-1 font-semibold dark:text-white">
-                                        {section.title}
-                                    </Text>
-                                    <Text variant="small" className="text-[#49659c] dark:text-gray-400 mb-3">
-                                        {section.description}
-                                    </Text>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="text-xs"
-                                        onClick={() => {
-                                            // Placeholder for future implementation
-                                            console.log(`Navigate to ${section.title}`);
-                                        }}
-                                    >
-                                        {section.action}
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+          
 
-                <div className="p-6 rounded-2xl bg-white dark:bg-gray-900 border border-red-200 dark:border-red-800/50">
+                <div className="p-6 rounded-2xl bg-white  mt-5 dark:bg-gray-900 border border-red-200 dark:border-red-800/50">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">

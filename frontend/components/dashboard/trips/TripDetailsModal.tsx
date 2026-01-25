@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Loader2, AlertCircle, MapPin, User, Calendar, Clock, DollarSign, CreditCard, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { getTripById, TripResponse } from '@/lib/features/trip/tripApi';
-import { cn } from '@/lib/utils';
+import { cn, formatCarType } from '@/lib/utils';
 
 interface TripDetailsModalProps {
     tripId: string;
@@ -274,7 +274,7 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
                                                 Car Type
                                             </p>
                                             <p className="text-sm font-bold text-[#0d121c] dark:text-white">
-                                                {trip.carType}
+                                                {formatCarType(trip.carType)}
                                             </p>
                                         </div>
                                     )}

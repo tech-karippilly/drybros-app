@@ -8,6 +8,7 @@ import {
   createAttendanceHandler,
   updateAttendanceHandler,
   deleteAttendanceHandler,
+  updateAttendanceStatusHandler,
 } from "../controllers/attendance.controller";
 import { authMiddleware } from "../middlewares/auth";
 import { validate, validateQuery, validateParams } from "../middlewares/validation";
@@ -17,6 +18,7 @@ import {
   attendancePaginationQuerySchema,
   createAttendanceSchema,
   updateAttendanceSchema,
+  updateAttendanceStatusSchema,
 } from "../types/attendance.dto";
 import { z } from "zod";
 
@@ -57,6 +59,14 @@ router.delete(
   "/:id",
   validateParams(z.object({ id: z.string().uuid("Invalid attendance ID format") })),
   deleteAttendanceHandler
+);
+
+// PATCH /attendance/:id/status - Update attendance status with description
+router.patch(
+  "/:id/status",
+  validateParams(z.object({ id: z.string().uuid("Invalid attendance ID format") })),
+  validate(updateAttendanceStatusSchema),
+  updateAttendanceStatusHandler
 );
 
 export default router;

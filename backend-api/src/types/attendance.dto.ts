@@ -94,6 +94,16 @@ export const updateAttendanceSchema = z.object({
 
 export type UpdateAttendanceDTO = z.infer<typeof updateAttendanceSchema>;
 
+/**
+ * Update attendance status schema
+ */
+export const updateAttendanceStatusSchema = z.object({
+  status: z.nativeEnum(AttendanceStatus),
+  description: z.string().max(500, "Description must be less than 500 characters").optional().nullable(),
+});
+
+export type UpdateAttendanceStatusDTO = z.infer<typeof updateAttendanceStatusSchema>;
+
 export interface PaginatedAttendanceResponseDTO {
   data: AttendanceResponseDTO[];
   pagination: {

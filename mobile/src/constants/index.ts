@@ -7,3 +7,5 @@ export * from './typography';
 export * from './permissions';
 export * from './app';
 export * from './images';
+export * from './routes';
+export * from './tabBar';

@@ -7,3 +7,8 @@ export * from './DeviceInfoScreen';
 export * from './SplashScreen';
 export * from './LoginScreen';
 export * from './ForgotPasswordScreen';
+export * from './HomeScreen';
+export * from './TripScreen';
+export * from './LeaveScreen';
+export * from './AlertsScreen';
+export * from './ProfileScreen';

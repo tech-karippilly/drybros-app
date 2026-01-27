@@ -3,12 +3,23 @@ import { z } from "zod";
 import { LeaveType, LeaveRequestStatus } from "@prisma/client";
 
 /**
+ * Helper to transform empty strings to undefined and validate UUID
+ */
+const optionalUuidField = z.preprocess(
+  (val) => {
+    if (val === "" || val === null) return undefined;
+    return val;
+  },
+  z.string().uuid().optional()
+);
+
+/**
  * Zod schema for creating a leave request
  */
 export const createLeaveRequestSchema = z.object({
-  driverId: z.string().uuid("Driver ID must be a valid UUID").optional(),
-  staffId: z.string().uuid("Staff ID must be a valid UUID").optional(),
-  userId: z.string().uuid("User ID must be a valid UUID").optional(),
+  driverId: optionalUuidField,
+  staffId: optionalUuidField,
+  userId: optionalUuidField,
   startDate: z.union([
     z.string().datetime("Invalid date format").transform((val) => new Date(val)),
     z.date(),
@@ -39,11 +50,22 @@ export const createLeaveRequestSchema = z.object({
 export type CreateLeaveRequestDTO = z.infer<typeof createLeaveRequestSchema>;
 
 /**
+ * Helper to transform empty strings to null for rejectionReason
+ */
+const optionalRejectionReason = z.preprocess(
+  (val) => {
+    if (val === "" || val === undefined) return null;
+    return val;
+  },
+  z.string().max(500, "Rejection reason must be less than 500 characters").nullable()
+);
+
+/**
  * Zod schema for updating leave request status
  */
 export const updateLeaveRequestStatusSchema = z.object({
   status: z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]),
-  rejectionReason: z.string().max(500, "Rejection reason must be less than 500 characters").optional().nullable(),
+  rejectionReason: optionalRejectionReason,
 }).refine(
   (data) => {
     // If status is REJECTED, rejectionReason should be provided

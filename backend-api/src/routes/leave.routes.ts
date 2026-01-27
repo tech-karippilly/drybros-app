@@ -29,9 +29,17 @@ router.get(
 // POST /leave-requests
 router.post("/", validate(createLeaveRequestSchema), createLeaveRequestHandler);
 
-// PATCH /leave-requests/:id/status
+// PATCH /leave-requests/:id/status (specific endpoint for status updates)
 router.patch(
   "/:id/status",
+  validateParams(z.object({ id: z.string().uuid("Invalid leave request ID format") })),
+  validate(updateLeaveRequestStatusSchema),
+  updateLeaveRequestStatusHandler
+);
+
+// PATCH /leave-requests/:id (alternative endpoint for status updates - more RESTful)
+router.patch(
+  "/:id",
   validateParams(z.object({ id: z.string().uuid("Invalid leave request ID format") })),
   validate(updateLeaveRequestStatusSchema),
   updateLeaveRequestStatusHandler

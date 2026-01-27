@@ -1,11 +1,15 @@
+import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, ActivityIndicator, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ToastProvider } from './src/contexts';
 import { COLORS } from './src/constants';
 import { loadFonts } from './src/utils/fonts';
-import { DeviceInfoScreen, SplashScreen, LoginScreen, ForgotPasswordScreen } from './src/screens';
+import { SplashScreen, LoginScreen, ForgotPasswordScreen } from './src/screens';
+import { MainTabNavigator } from './src/navigation';
 
 const LoadingScreen = () => {
   const insets = useSafeAreaInsets();
@@ -83,18 +87,23 @@ export default function App() {
     );
   }
 
-  // Show main app after login
+  // Show main app after login (tab bar: Home, Trip, Leave, Alerts, Profile)
   return (
-    <SafeAreaProvider>
-      <ToastProvider>
-        <StatusBar style="auto" />
-        <DeviceInfoScreen />
-      </ToastProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={styles.flex1}>
+      <SafeAreaProvider>
+        <ToastProvider>
+          <NavigationContainer>
+            <StatusBar style="auto" />
+            <MainTabNavigator />
+          </NavigationContainer>
+        </ToastProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  flex1: { flex: 1 },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',

@@ -15,7 +15,8 @@ import {
     Settings,
     CalendarOff,
     Star,
-    Wallet
+    Wallet,
+    ClipboardList
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 import { DASHBOARD_ROUTES, APP_ROUTES } from './routes';
@@ -63,6 +64,7 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
             submenu: [
                 { icon: CalendarCheck, label: 'Attendance', id: 'attendance', href: DASHBOARD_ROUTES.ATTENDANCE },
                 { icon: CalendarOff, label: 'Leave', id: 'leave', href: DASHBOARD_ROUTES.LEAVE },
+                { icon: ClipboardList, label: 'Leave Requests', id: 'leave-requests', href: DASHBOARD_ROUTES.LEAVE_REQUESTS },
             ],
         },
         { icon: Star, label: 'Ratings', id: 'ratings', href: DASHBOARD_ROUTES.RATINGS },
@@ -101,6 +103,7 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
             submenu: [
                 { icon: CalendarCheck, label: 'Attendance', id: 'attendance', href: DASHBOARD_ROUTES.ATTENDANCE },
                 { icon: CalendarOff, label: 'Leave', id: 'leave', href: DASHBOARD_ROUTES.LEAVE },
+                { icon: ClipboardList, label: 'Leave Requests', id: 'leave-requests', href: DASHBOARD_ROUTES.LEAVE_REQUESTS },
             ],
         },
         { icon: Star, label: 'Ratings', id: 'ratings', href: DASHBOARD_ROUTES.RATINGS },

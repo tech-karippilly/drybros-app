@@ -5977,6 +5977,59 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /attendance/{id}/status:
+    patch:
+      summary: Update attendance status
+      description: |
+        Update the status of an attendance record with an optional description.
+        
+        This endpoint is specifically designed for updating attendance status and allows you to provide a description explaining the status change.
+      tags:
+        - Attendance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Attendance record ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAttendanceStatusRequest"
+      responses:
+        "200":
+          description: Attendance status updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Attendance status updated successfully"
+                  data:
+                    $ref: "#/components/schemas/Attendance"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Attendance record not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /leave-requests:
     get:
       summary: List leave requests
@@ -8728,6 +8781,23 @@ components:
           nullable: true
           description: Optional notes
           example: "Updated notes"
+
+    UpdateAttendanceStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [PRESENT, ABSENT, LATE, HALF_DAY, ON_LEAVE]
+          description: Attendance status
+          example: "PRESENT"
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Optional description explaining the status change (max 500 characters)
+          example: "Employee arrived late due to traffic"
 
     Attendance:
       type: object

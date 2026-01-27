@@ -20,6 +20,7 @@ import {
   PaginatedAttendanceResponseDTO,
   CreateAttendanceDTO,
   UpdateAttendanceDTO,
+  UpdateAttendanceStatusDTO,
 } from "../types/attendance.dto";
 import { NotFoundError, BadRequestError } from "../utils/errors";
 import { ATTENDANCE_ERROR_MESSAGES } from "../constants/attendance";
@@ -543,5 +544,70 @@ export async function deleteAttendanceRecord(
 
   return {
     message: "Attendance record deleted successfully",
+  };
+}
+
+/**
+ * Update attendance status with description
+ */
+export async function updateAttendanceStatus(
+  id: string,
+  input: UpdateAttendanceStatusDTO,
+  updatedBy?: string
+): Promise<{ message: string; data: AttendanceResponseDTO }> {
+  const existing = await getAttendanceById(id);
+  if (!existing) {
+    throw new NotFoundError(ATTENDANCE_ERROR_MESSAGES.ATTENDANCE_NOT_FOUND);
+  }
+
+  const attendance = await updateAttendance(id, {
+    status: input.status,
+    notes: input.description || existing.notes,
+  });
+
+  logger.info("Attendance status updated", {
+    attendanceId: id,
+    newStatus: input.status,
+    updatedBy,
+  });
+
+  // Log activity (non-blocking)
+  let franchiseId: string | undefined;
+  if (existing.driverId) {
+    const driver = await getDriverById(existing.driverId);
+    franchiseId = driver?.franchiseId;
+  } else if (existing.staffId) {
+    const staff = await getStaffById(existing.staffId);
+    franchiseId = staff?.franchiseId;
+  } else if (existing.userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: existing.userId },
+      select: { franchiseId: true },
+    });
+    franchiseId = user?.franchiseId || undefined;
+  }
+
+  logActivity({
+    action: ActivityAction.ATTENDANCE_RECORDED,
+    entityType: ActivityEntityType.ATTENDANCE,
+    entityId: id,
+    franchiseId: franchiseId || null,
+    driverId: existing.driverId || null,
+    staffId: existing.staffId || null,
+    userId: existing.userId || updatedBy || null,
+    description: `Attendance status updated to ${input.status}${input.description ? ` - ${input.description}` : ""}`,
+    metadata: {
+      attendanceId: id,
+      oldStatus: existing.status,
+      newStatus: input.status,
+      description: input.description,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log attendance status update activity", { error: err });
+  });
+
+  return {
+    message: "Attendance status updated successfully",
+    data: mapAttendanceToResponse(attendance),
   };
 }

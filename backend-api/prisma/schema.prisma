@@ -82,6 +82,8 @@ model Driver {
   DriverRatings            DriverRating[]
   ActivityLogs             ActivityLog[]
   DriverPenalties          DriverPenalty[]
+  DriverDailyMetrics       DriverDailyMetrics[]
+  TripStatusHistories      TripStatusHistory[]
 }
 
 model Franchise {
@@ -217,6 +219,7 @@ model Trip {
   Franchise            Franchise      @relation(fields: [franchiseId], references: [id])
   DriverRatings        DriverRating[]
   ActivityLogs         ActivityLog[]
+  TripStatusHistories  TripStatusHistory[]
 }
 
 model TripPattern {
@@ -284,6 +287,7 @@ model User {
   DriverPenalty  DriverPenalty[]
   Attendances    Attendance[]
   LeaveRequests  LeaveRequest[]
+  TripStatusHistories TripStatusHistory[]
 
   @@index([lockedUntil])
   @@index([franchiseId])
@@ -701,4 +705,74 @@ model DriverPenalty {
   @@index([penaltyId])
   @@index([appliedAt])
   @@index([violationDate])
+}
+
+// Driver Daily Metrics - Historical daily snapshots of driver performance
+model DriverDailyMetrics {
+  id                    String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  driverId              String   @db.Uuid
+  date                  DateTime @db.Date // Date for which metrics are recorded
+  
+  // Trip metrics
+  numberOfTrips         Int      @default(0)
+  numberOfComplaints    Int      @default(0)
+  distanceTraveled      Decimal  @default(0) @db.Decimal(10, 2) // in km
+  
+  // Rating metrics
+  tripAverageRating     Float?   // Average rating for trips on this date
+  overallRating         Float?   // Overall driver rating at end of day
+  
+  // Financial metrics
+  dailyLimit            Decimal? @db.Decimal(10, 2)
+  remainingLimit        Decimal? @db.Decimal(10, 2)
+  incentive             Decimal? @db.Decimal(10, 2)
+  bonus                 Decimal? @db.Decimal(10, 2)
+  cashInHand            Decimal  @default(0) @db.Decimal(10, 2)
+  cashSubmittedOnDate   Decimal  @default(0) @db.Decimal(10, 2) // Cash submitted to branch on this date
+  
+  // Metadata
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  Driver                Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([driverId, date]) // One record per driver per day
+  @@index([driverId, date])
+  @@index([date])
+}
+
+// Trip Status History - Complete lifecycle tracking for trips
+enum TripEventType {
+  ARRIVED_ON_LOCATION
+  TRIP_INITIATED
+  TRIP_STARTED
+  TRIP_LOCATION_REACHED
+  TRIP_DESTINATION_REACHED
+  TRIP_END_INITIATED
+  TRIP_ENDED
+  TRIP_AMOUNT_COLLECTED
+  PAYMENT_COLLECTED
+  PAYMENT_SUBMITTED_TO_BRANCH
+  STATUS_CHANGED
+}
+
+model TripStatusHistory {
+  id            String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tripId        String        @db.Uuid
+  driverId      String?       @db.Uuid
+  eventType     TripEventType
+  status        TripStatus?   // Trip status at time of event
+  description   String?       // Additional details
+  metadata      Json?         // Additional data (location, amount, coordinates, etc.)
+  occurredAt    DateTime      @default(now())
+  createdBy     String?       @db.Uuid // User/driver who triggered the event
+  
+  Trip          Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  Driver        Driver?       @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  User          User?         @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([tripId, occurredAt])
+  @@index([driverId, occurredAt])
+  @@index([eventType, occurredAt])
+  @@index([occurredAt])
 }

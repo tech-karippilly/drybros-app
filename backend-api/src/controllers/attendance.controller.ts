@@ -9,6 +9,7 @@ import {
   createAttendanceRecord,
   updateAttendanceRecord,
   deleteAttendanceRecord,
+  updateAttendanceStatus,
 } from "../services/attendance.service";
 
 export async function clockInHandler(
@@ -112,6 +113,21 @@ export async function deleteAttendanceHandler(
   try {
     const id = req.params.id;
     const result = await deleteAttendanceRecord(id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateAttendanceStatusHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const id = req.params.id;
+    const updatedBy = req.user?.userId;
+    const result = await updateAttendanceStatus(id, req.body, updatedBy);
     res.json(result);
   } catch (err) {
     next(err);

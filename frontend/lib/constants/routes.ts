@@ -16,6 +16,7 @@ export const DASHBOARD_ROUTES = {
     COMPLAINTS: '/dashboard/complaints',
     ATTENDANCE: '/dashboard/attendance',
     LEAVE: '/dashboard/leave',
+    LEAVE_REQUESTS: '/dashboard/leave-requests',
     RATINGS: '/dashboard/ratings',
     CUSTOMERS: '/dashboard/customers',
     NOTIFICATIONS: '/dashboard/notifications',

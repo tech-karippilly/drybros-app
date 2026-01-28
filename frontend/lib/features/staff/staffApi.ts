@@ -67,6 +67,21 @@ export interface PaginationQuery {
 }
 
 // Response DTOs (matching backend)
+export interface StaffFranchise {
+    id: string;
+    code: string;
+    name: string;
+}
+
+export interface StaffStatistics {
+    totalCustomers: number;
+    totalTripsAssigned: number;
+    totalWorkingDays: number;
+    totalLeaves: number;
+    totalComplaints: number;
+    totalWarnings: number;
+}
+
 export interface StaffResponse {
     id: string;
     name: string;
@@ -90,6 +105,11 @@ export interface StaffResponse {
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
+    /**
+     * Optional enriched fields returned by detail endpoint (/staff/:id)
+     */
+    franchise?: StaffFranchise;
+    statistics?: StaffStatistics;
 }
 
 export interface CreateStaffResponse {

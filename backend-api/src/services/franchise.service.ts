@@ -38,6 +38,7 @@ function mapFranchiseToResponse(franchise: any): FranchiseResponseDTO {
     region: franchise.region,
     address: franchise.address,
     phone: franchise.phone,
+    email: franchise.email ?? null,
     inchargeName: franchise.inchargeName,
     storeImage: franchise.storeImage,
     legalDocumentsCollected: franchise.legalDocumentsCollected,
@@ -82,12 +83,119 @@ export async function listFranchisesPaginated(
   };
 }
 
-export async function getFranchise(id: string): Promise<FranchiseResponseDTO> {
+/**
+ * Franchise details response including statistics and personnel
+ */
+export interface FranchiseDetailsResponseDTO extends FranchiseResponseDTO {
+  statistics: {
+    totalStaff: number;
+    totalDrivers: number;
+    totalTrips: number;
+    totalComplaints: number;
+    totalRevenue: number;
+  };
+  staff: Array<{
+    id: string;
+    name: string;
+    phone: string;
+    email: string;
+    joinDate: Date;
+    status: string;
+    isActive: boolean;
+  }>;
+  drivers: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email: string;
+    driverCode: string;
+    status: string;
+    currentRating: number | null;
+    isActive: boolean;
+  }>;
+}
+
+export async function getFranchise(id: string): Promise<FranchiseDetailsResponseDTO> {
   const franchise = await getFranchiseById(id);
   if (!franchise) {
     throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
   }
-  return mapFranchiseToResponse(franchise);
+
+  const franchiseId = franchise.id;
+
+  const [
+    totalStaffCount,
+    totalDriversCount,
+    totalTripsCount,
+    totalComplaintsCount,
+    totalRevenueResult,
+    staffList,
+    driversList,
+  ] = await Promise.all([
+    prisma.staff.count({
+      where: { franchiseId, isActive: true },
+    }),
+    prisma.driver.count({
+      where: { franchiseId, isActive: true },
+    }),
+    prisma.trip.count({
+      where: { franchiseId },
+    }),
+    prisma.complaint.count({
+      where: {
+        OR: [
+          { Driver: { franchiseId } },
+          { Staff: { franchiseId } },
+        ],
+      },
+    }),
+    prisma.trip.aggregate({
+      where: { franchiseId },
+      _sum: { finalAmount: true },
+    }),
+    prisma.staff.findMany({
+      where: { franchiseId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        joinDate: true,
+        status: true,
+        isActive: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.driver.findMany({
+      where: { franchiseId, isActive: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        email: true,
+        driverCode: true,
+        status: true,
+        currentRating: true,
+        isActive: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  return {
+    ...mapFranchiseToResponse(franchise),
+    statistics: {
+      totalStaff: totalStaffCount,
+      totalDrivers: totalDriversCount,
+      totalTrips: totalTripsCount,
+      totalComplaints: totalComplaintsCount,
+      totalRevenue: totalRevenueResult._sum.finalAmount ?? 0,
+    },
+    staff: staffList,
+    drivers: driversList,
+  };
 }
 
 /**
@@ -125,7 +233,8 @@ export async function createFranchise(
         region: input.region,
         address: input.address,
         phone: input.phone,
-        inchargeName: input.inchargeName,
+        email: input.franchiseEmail || null,
+        inchargeName: input.managerName,
         storeImage: input.storeImage || null,
         legalDocumentsCollected: input.legalDocumentsCollected ?? false,
       },
@@ -134,7 +243,7 @@ export async function createFranchise(
     // Create manager user
     const managerUser = await tx.user.create({
       data: {
-        fullName: input.inchargeName,
+        fullName: input.managerName,
         email: input.managerEmail,
         phone: input.managerPhone,
         password: hashedPassword,
@@ -149,7 +258,7 @@ export async function createFranchise(
   // Send welcome email to manager (non-blocking)
   sendManagerWelcomeEmail({
     to: input.managerEmail,
-    managerName: input.inchargeName,
+    managerName: input.managerName,
     franchiseName: input.name,
     email: input.managerEmail,
     password: result.plainPassword,
@@ -194,9 +303,9 @@ export async function createFranchise(
     entityId: result.franchise.id,
     franchiseId: result.franchise.id,
     userId: result.managerUser.id,
-    description: `Manager ${input.inchargeName} added to franchise ${result.franchise.name}`,
+    description: `Manager ${input.managerName} added to franchise ${result.franchise.name}`,
     metadata: {
-      managerName: input.inchargeName,
+      managerName: input.managerName,
       managerEmail: input.managerEmail,
       franchiseName: result.franchise.name,
     },

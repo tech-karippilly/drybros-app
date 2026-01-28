@@ -15,7 +15,16 @@ const FRANCHISE_ENDPOINTS = {
     BASE: '/franchises',
     BY_ID: (id: string) => `/franchises/${id}`,
     PERSONNEL: (id: string) => `/franchises/${id}/personnel`,
+    STATUS: (id: string) => `/franchises/${id}/status`,
 } as const;
+
+/** Franchise status values (must match backend enum) */
+export const FRANCHISE_STATUS = {
+    ACTIVE: 'ACTIVE',
+    BLOCKED: 'BLOCKED',
+    TEMPORARILY_CLOSED: 'TEMPORARILY_CLOSED',
+} as const;
+export type FranchiseStatus = (typeof FRANCHISE_STATUS)[keyof typeof FRANCHISE_STATUS];
 
 // Request DTOs (matching backend)
 export interface CreateFranchiseRequest {
@@ -42,6 +51,7 @@ export interface FranchiseResponse {
     inchargeName: string | null;
     storeImage: string | null;
     legalDocumentsCollected: boolean;
+    status?: string;
     isActive: boolean;
     createdAt: Date | string;
     updatedAt: Date | string;
@@ -51,11 +61,68 @@ export interface FranchiseListResponse {
     data: FranchiseResponse[];
 }
 
+/** Statistics returned with franchise detail (GET /franchises/:id) */
+export interface FranchiseStatistics {
+    totalStaff: number;
+    totalDrivers: number;
+    totalTrips: number;
+    totalComplaints: number;
+    totalRevenue: number;
+}
+
+/** Staff member in franchise detail response */
+export interface FranchiseDetailStaff {
+    id: string;
+    name: string;
+    phone: string;
+    email: string;
+    joinDate: string;
+    status: string;
+    isActive: boolean;
+}
+
+/** Driver in franchise detail response */
+export interface FranchiseDetailDriver {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email: string;
+    driverCode: string;
+    status: string;
+    currentRating: number;
+    isActive: boolean;
+}
+
+/** Full franchise detail (GET /franchises/:id) */
+export interface FranchiseDetailData extends FranchiseResponse {
+    statistics: FranchiseStatistics;
+    staff: FranchiseDetailStaff[];
+    drivers: FranchiseDetailDriver[];
+}
+
 export interface FranchiseDetailResponse {
-    data: FranchiseResponse;
+    data: FranchiseDetailData;
 }
 
 export interface CreateFranchiseResponse {
+    message: string;
+    data: FranchiseResponse;
+}
+
+/** Update franchise request (PUT /franchises/:id) - all fields optional */
+export interface UpdateFranchiseRequest {
+    name?: string;
+    region?: string;
+    address?: string;
+    phone?: string;
+    managerName?: string;
+    franchiseEmail?: string;
+    storeImage?: string | null;
+    legalDocumentsCollected?: boolean;
+}
+
+export interface UpdateFranchiseResponse {
     message: string;
     data: FranchiseResponse;
 }
@@ -69,9 +136,9 @@ export async function getFranchiseList(): Promise<FranchiseResponse[]> {
 }
 
 /**
- * Get franchise by ID
+ * Get franchise by ID (full detail: statistics, staff, drivers)
  */
-export async function getFranchiseById(id: string): Promise<FranchiseResponse> {
+export async function getFranchiseById(id: string): Promise<FranchiseDetailData> {
     const response = await api.get<FranchiseDetailResponse>(FRANCHISE_ENDPOINTS.BY_ID(id));
     return response.data.data;
 }
@@ -90,6 +157,14 @@ export async function getFranchiseByCode(code: string): Promise<FranchiseRespons
  */
 export async function createFranchise(data: CreateFranchiseRequest): Promise<CreateFranchiseResponse> {
     const response = await api.post<CreateFranchiseResponse>(FRANCHISE_ENDPOINTS.BASE, data);
+    return response.data;
+}
+
+/**
+ * Update franchise (PUT /franchises/:id)
+ */
+export async function updateFranchise(id: string, data: UpdateFranchiseRequest): Promise<UpdateFranchiseResponse> {
+    const response = await api.put<UpdateFranchiseResponse>(FRANCHISE_ENDPOINTS.BY_ID(id), data);
     return response.data;
 }
 
@@ -117,4 +192,36 @@ export interface FranchisePersonnelResponse {
 export async function getFranchisePersonnel(franchiseId: string): Promise<FranchisePersonnelResponse['data']> {
     const response = await api.get<FranchisePersonnelResponse>(FRANCHISE_ENDPOINTS.PERSONNEL(franchiseId));
     return response.data.data;
+}
+
+export interface UpdateFranchiseStatusRequest {
+    status: FranchiseStatus;
+}
+
+export interface UpdateFranchiseStatusResponse {
+    message: string;
+    data: FranchiseResponse;
+}
+
+/**
+ * Update franchise status (ACTIVE, BLOCKED, TEMPORARILY_CLOSED)
+ */
+export async function updateFranchiseStatus(
+    id: string,
+    body: UpdateFranchiseStatusRequest
+): Promise<UpdateFranchiseStatusResponse> {
+    const response = await api.patch<UpdateFranchiseStatusResponse>(FRANCHISE_ENDPOINTS.STATUS(id), body);
+    return response.data;
+}
+
+export interface DeleteFranchiseResponse {
+    message: string;
+}
+
+/**
+ * Soft delete a franchise (ADMIN only)
+ */
+export async function deleteFranchise(id: string): Promise<DeleteFranchiseResponse> {
+    const response = await api.delete<DeleteFranchiseResponse>(FRANCHISE_ENDPOINTS.BY_ID(id));
+    return response.data;
 }

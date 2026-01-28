@@ -11,3 +11,5 @@ export * from './routes';
 export * from './dashboardMetrics';
 export * from './holidays';
 export * from './complaints';
+export * from './franchise';
+export * from './staff';

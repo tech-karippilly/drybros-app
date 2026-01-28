@@ -5,7 +5,9 @@
 export const DASHBOARD_ROUTES = {
     HOME: '/dashboard',
     FRANCHISES: '/dashboard/franchises',
+    FRANCHISES_ONBOARDING: '/dashboard/franchises/onboarding',
     STAFF: '/dashboard/staff',
+    STAFF_ONBOARDING: '/dashboard/staff/onboarding',
     DRIVERS: '/dashboard/drivers',
     DRIVER_EARNINGS_CONFIG: '/dashboard/driver-earnings-config',
     REPORTS: '/dashboard/reports',

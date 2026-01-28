@@ -143,6 +143,25 @@ export interface StaffResponseDTO {
 }
 
 /**
+ * Staff details response (GET /staff/:id) - includes statistics, no franchiseId/createdAt/updatedAt, trimmed franchise
+ */
+export interface StaffDetailsResponseDTO extends Omit<StaffResponseDTO, "franchiseId" | "createdAt" | "updatedAt" | "franchise"> {
+  franchise?: {
+    id: string;
+    code: string;
+    name: string;
+  } | null;
+  statistics: {
+    totalCustomers: number;
+    totalTripsAssigned: number;
+    totalWorkingDays: number;
+    totalLeaves: number;
+    totalComplaints: number;
+    totalWarnings: number;
+  };
+}
+
+/**
  * DTO for create staff response
  */
 export interface CreateStaffResponseDTO {

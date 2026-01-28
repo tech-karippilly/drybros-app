@@ -35,11 +35,12 @@ export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
     const [isSuspendOpen, setIsSuspendOpen] = React.useState(false);
 
     const stats = useMemo(() => {
-        if (!selectedStaff) return [];
+        if (!selectedStaff?.statistics) return [];
+        const s = selectedStaff.statistics;
         return [
-            { label: 'Customers Attended', value: selectedStaff.customersAttended, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-            { label: 'Leaves Taken', value: selectedStaff.leaveTaken, icon: Calendar, color: 'text-amber-600', bg: 'bg-amber-50' },
-            { label: 'Current Status', value: selectedStaff.attendanceStatus, icon: Clock, color: 'text-green-600', bg: 'bg-green-50' },
+            { label: 'Total Customers', value: s.totalCustomers, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'Trips Assigned', value: s.totalTripsAssigned, icon: Briefcase, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+            { label: 'Total Leaves', value: s.totalLeaves, icon: Calendar, color: 'text-amber-600', bg: 'bg-amber-50' },
         ];
     }, [selectedStaff]);
 
@@ -84,7 +85,11 @@ export function StaffDetails({ onEditClick }: { onEditClick: () => void }) {
                                 {selectedStaff.name.charAt(0)}
                             </div>
                             <h3 className="text-2xl font-black text-[#0d121c] dark:text-white">{selectedStaff.name}</h3>
-                            <p className="text-[#49659c] font-bold uppercase tracking-widest text-[10px] mt-1">{selectedStaff.franchises_code}</p>
+                            <p className="text-[#49659c] font-bold uppercase tracking-widest text-[10px] mt-1">
+                                {selectedStaff.franchise
+                                    ? `${selectedStaff.franchise.name} (${selectedStaff.franchise.code})`
+                                    : selectedStaff.franchises_code}
+                            </p>
 
                             <div className="w-full mt-8 pt-8 border-t border-gray-50 dark:border-gray-800 space-y-4 text-left">
                                 <div className="flex items-center gap-3">

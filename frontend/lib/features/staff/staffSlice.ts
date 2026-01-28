@@ -24,6 +24,8 @@ const initialState: StaffState = {
 
 // Helper function to map backend StaffResponse to frontend Staff
 const mapBackendStaffToFrontend = (backendStaff: staffApi.StaffResponse): Staff => {
+    const statistics = backendStaff.statistics;
+
     return {
         id: backendStaff.id,
         _id: backendStaff.id, // Legacy support
@@ -56,6 +58,26 @@ const mapBackendStaffToFrontend = (backendStaff: staffApi.StaffResponse): Staff 
         isActive: backendStaff.isActive,
         createdAt: backendStaff.createdAt,
         updatedAt: backendStaff.updatedAt,
+        franchise: backendStaff.franchise
+            ? {
+                  id: backendStaff.franchise.id,
+                  code: backendStaff.franchise.code,
+                  name: backendStaff.franchise.name,
+              }
+            : undefined,
+        statistics: statistics
+            ? {
+                  totalCustomers: statistics.totalCustomers,
+                  totalTripsAssigned: statistics.totalTripsAssigned,
+                  totalWorkingDays: statistics.totalWorkingDays,
+                  totalLeaves: statistics.totalLeaves,
+                  totalComplaints: statistics.totalComplaints,
+                  totalWarnings: statistics.totalWarnings,
+              }
+            : undefined,
+        // Backward compatible synthetic stats for older UI pieces
+        customersAttended: statistics?.totalCustomers,
+        leaveTaken: statistics?.totalLeaves,
     };
 };
 

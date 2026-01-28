@@ -23,14 +23,20 @@ export const createFranchiseSchema = z.object({
     .trim(),
   phone: z
     .string()
-    .min(10, "Contact number must be at least 10 characters")
-    .max(20, "Contact number must be less than 20 characters")
+    .min(10, "Franchise phone is required")
+    .max(20, "Franchise phone must be less than 20 characters")
     .regex(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/, "Invalid phone number format")
     .trim(),
-  inchargeName: z
+  franchiseEmail: z
     .string()
-    .min(1, "Incharge name is required")
-    .max(100, "Incharge name must be less than 100 characters")
+    .email("Invalid franchise email format")
+    .max(255, "Franchise email must be less than 255 characters")
+    .toLowerCase()
+    .trim(),
+  managerName: z
+    .string()
+    .min(1, "Manager name is required")
+    .max(100, "Manager name must be less than 100 characters")
     .trim(),
   managerEmail: z
     .string()
@@ -72,6 +78,7 @@ export interface FranchiseResponseDTO {
   region: string | null;
   address: string | null;
   phone: string | null;
+  email: string | null;
   inchargeName: string | null;
   storeImage: string | null;
   legalDocumentsCollected: boolean;
@@ -110,10 +117,17 @@ export const updateFranchiseSchema = z.object({
     .regex(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/, "Invalid phone number format")
     .trim()
     .optional(),
-  inchargeName: z
+  managerName: z
     .string()
-    .min(1, "Incharge name is required")
-    .max(100, "Incharge name must be less than 100 characters")
+    .min(1, "Manager name is required")
+    .max(100, "Manager name must be less than 100 characters")
+    .trim()
+    .optional(),
+  franchiseEmail: z
+    .string()
+    .email("Invalid franchise email format")
+    .max(255, "Franchise email must be less than 255 characters")
+    .toLowerCase()
     .trim()
     .optional(),
   storeImage: z

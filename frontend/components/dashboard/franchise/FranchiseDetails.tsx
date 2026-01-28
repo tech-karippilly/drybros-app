@@ -1,257 +1,641 @@
 "use client";
 
-import React from 'react';
-import { useAppSelector, useAppDispatch } from '@/lib/hooks';
-import { setSelectedFranchise, toggleFranchiseStatus, deleteFranchise } from '@/lib/features/franchise/franchiseSlice';
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAppSelector, useAppDispatch } from "@/lib/hooks";
+import { setSelectedFranchise } from "@/lib/features/franchise/franchiseSlice";
 import {
-    ArrowLeft,
+    getFranchiseById,
+    updateFranchiseStatus,
+    deleteFranchise,
+    FRANCHISE_STATUS,
+    type FranchiseDetailData,
+    type FranchiseStatus,
+} from "@/lib/features/franchise/franchiseApi";
+import { FRANCHISE_STRINGS } from "@/lib/constants/franchise";
+import {
+    ChevronLeft,
     Edit2,
-    Trash2,
+    MapPin,
+    Phone,
+    Mail,
+    Truck,
+    TrendingUp,
+    Wallet,
+    ShieldCheck,
+    MoreVertical,
     Ban,
     CheckCircle,
-    Mail,
-    Phone,
-    MapPin,
-    User,
-    Users,
-    Truck
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+    Trash2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Modal } from "@/components/ui/modal";
+
+const STATUS_OPTIONS: { value: FranchiseStatus; label: string }[] = [
+    { value: FRANCHISE_STATUS.ACTIVE, label: FRANCHISE_STRINGS.SET_ACTIVE },
+    { value: FRANCHISE_STATUS.BLOCKED, label: FRANCHISE_STRINGS.SET_BLOCKED },
+    { value: FRANCHISE_STATUS.TEMPORARILY_CLOSED, label: FRANCHISE_STRINGS.SET_TEMPORARILY_CLOSED },
+];
 
 export function FranchiseDetails() {
+    const router = useRouter();
     const { selectedFranchise } = useAppSelector((state) => state.franchise);
     const dispatch = useAppDispatch();
+    const [detail, setDetail] = useState<FranchiseDetailData | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+    const [confirmStatusModal, setConfirmStatusModal] = useState<FranchiseStatus | null>(null);
+    const [confirmDeleteModal, setConfirmDeleteModal] = useState(false);
+    const [actionLoading, setActionLoading] = useState(false);
+    const [actionError, setActionError] = useState<string | null>(null);
+
+    const franchiseId = selectedFranchise?._id ?? null;
+
+    useEffect(() => {
+        if (!franchiseId) {
+            setDetail(null);
+            setLoading(false);
+            return;
+        }
+        let cancelled = false;
+        setLoading(true);
+        setError(null);
+        getFranchiseById(franchiseId)
+            .then((data) => {
+                if (!cancelled) setDetail(data);
+            })
+            .catch((err) => {
+                if (!cancelled) {
+                    const msg =
+                        err?.response?.data?.error ||
+                        err?.response?.data?.message ||
+                        err?.message ||
+                        "Failed to load franchise details";
+                    setError(msg);
+                }
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [franchiseId]);
+
+    const handleBack = () => {
+        dispatch(setSelectedFranchise(null));
+    };
+
+    const fetchDetail = () => {
+        if (!franchiseId) return;
+        getFranchiseById(franchiseId).then(setDetail).catch(() => {});
+    };
+
+    const handleConfirmChangeStatus = async () => {
+        if (!franchiseId || !confirmStatusModal) return;
+        setActionLoading(true);
+        setActionError(null);
+        try {
+            await updateFranchiseStatus(franchiseId, { status: confirmStatusModal });
+            setConfirmStatusModal(null);
+            setStatusDropdownOpen(false);
+            fetchDetail();
+        } catch (err: unknown) {
+            const msg =
+                (err as { response?: { data?: { message?: string }; status?: number } })?.response?.data?.message ||
+                (err as Error)?.message ||
+                "Failed to update status";
+            setActionError(msg);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!franchiseId) return;
+        setActionLoading(true);
+        setActionError(null);
+        try {
+            await deleteFranchise(franchiseId);
+            setConfirmDeleteModal(false);
+            dispatch(setSelectedFranchise(null));
+        } catch (err: unknown) {
+            const msg =
+                (err as { response?: { data?: { message?: string }; status?: number } })?.response?.data?.message ||
+                (err as Error)?.message ||
+                "Failed to delete franchise";
+            setActionError(msg);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const openStatusConfirm = (status: FranchiseStatus) => {
+        setConfirmStatusModal(status);
+        setStatusDropdownOpen(false);
+    };
 
     if (!selectedFranchise) return null;
 
+    if (loading) {
+        return (
+            <div className="flex flex-col gap-8 animate-in fade-in duration-300">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-8 py-4 bg-white dark:bg-slate-900/50 sticky top-0 z-10">
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={handleBack}
+                            className="text-slate-400 hover:text-theme-blue flex items-center gap-1 transition-colors"
+                        >
+                            <ChevronLeft className="size-5" />
+                            <span className="text-sm font-medium">{FRANCHISE_STRINGS.BACK_TO_FRANCHISES}</span>
+                        </button>
+                    </div>
+                </div>
+                <div className="p-8 flex items-center justify-center min-h-[400px]">
+                    <div className="text-slate-500 dark:text-slate-400 text-sm font-medium">Loading franchise details…</div>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col gap-8 animate-in fade-in duration-300">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-8 py-4 bg-white dark:bg-slate-900/50 sticky top-0 z-10">
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={handleBack}
+                            className="text-slate-400 hover:text-theme-blue flex items-center gap-1 transition-colors"
+                        >
+                            <ChevronLeft className="size-5" />
+                            <span className="text-sm font-medium">{FRANCHISE_STRINGS.BACK_TO_FRANCHISES}</span>
+                        </button>
+                    </div>
+                </div>
+                <div className="p-8 flex items-center justify-center min-h-[400px]">
+                    <div className="text-red-500 dark:text-red-400 text-sm font-medium">{error}</div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!detail) return null;
+
+    const stats = detail.statistics;
+    const activeSince = detail.createdAt
+        ? new Date(detail.createdAt).toLocaleDateString("en-GB", { month: "long", year: "numeric" })
+        : "";
+    const reliability =
+        stats.totalTrips > 0
+            ? Math.max(0, ((stats.totalTrips - stats.totalComplaints) / stats.totalTrips) * 100).toFixed(1)
+            : "100";
+    const currencySymbol = FRANCHISE_STRINGS.CURRENCY_SYMBOL;
+    const revenueFormatted =
+        stats.totalRevenue >= 1_000_000
+            ? `${currencySymbol}${(stats.totalRevenue / 1_000_000).toFixed(2)}M`
+            : stats.totalRevenue >= 1_000
+              ? `${currencySymbol}${(stats.totalRevenue / 1_000).toFixed(2)}K`
+              : `${currencySymbol}${stats.totalRevenue}`;
+    const managerEmail = detail.staff?.[0]?.email ?? "";
+    const onlineDrivers = detail.drivers?.filter((d) => d.status === "ACTIVE" && d.isActive).length ?? 0;
+
     return (
         <div className="flex flex-col gap-8 animate-in slide-in-from-right duration-500">
-            {/* Top Bar with back button and actions */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Header */}
+            <header className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-8 py-4 bg-white dark:bg-slate-900/50 sticky top-0 z-10">
                 <div className="flex items-center gap-4">
                     <button
-                        onClick={() => dispatch(setSelectedFranchise(null))}
-                        className="p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-[#49659c] hover:text-[#0d121c] dark:hover:text-white transition-all shadow-sm"
+                        onClick={handleBack}
+                        className="text-slate-400 hover:text-theme-blue flex items-center gap-1 transition-colors"
                     >
-                        <ArrowLeft size={20} />
+                        <ChevronLeft className="size-5" />
+                        <span className="text-sm font-medium">{FRANCHISE_STRINGS.BACK_TO_FRANCHISES}</span>
                     </button>
-                    <div>
-                        <div className="flex items-center gap-3">
-                            <h2 className="text-2xl font-bold text-[#0d121c] dark:text-white">{selectedFranchise.name}</h2>
-                            <span className={cn(
-                                "px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider",
-                                selectedFranchise.status === 'active' ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                            )}>
-                                {selectedFranchise.status}
+                    <div className="h-4 w-px bg-slate-200 dark:bg-slate-800" />
+                    <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                        {FRANCHISE_STRINGS.PAGE_TITLE_DETAIL}
+                    </h2>
+                </div>
+                <div className="flex items-center gap-2">
+                    {/* Change status dropdown */}
+                    <div className="relative">
+                        <button
+                            type="button"
+                            onClick={() => setStatusDropdownOpen((o) => !o)}
+                            className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all border border-slate-200 dark:border-slate-700"
+                        >
+                            {FRANCHISE_STRINGS.CHANGE_STATUS}
+                            <MoreVertical className="size-4" />
+                        </button>
+                        {statusDropdownOpen && (
+                            <>
+                                <div
+                                    className="fixed inset-0 z-10"
+                                    aria-hidden
+                                    onClick={() => setStatusDropdownOpen(false)}
+                                />
+                                <div className="absolute right-0 top-full mt-1 z-20 min-w-[180px] py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+                                    {STATUS_OPTIONS.map((opt) => (
+                                        <button
+                                            key={opt.value}
+                                            type="button"
+                                            onClick={() => openStatusConfirm(opt.value)}
+                                            className={cn(
+                                                "w-full px-4 py-2.5 text-left text-sm font-medium flex items-center gap-2 transition-colors",
+                                                detail?.status === opt.value
+                                                    ? "bg-theme-blue/10 text-theme-blue dark:bg-theme-blue/20"
+                                                    : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            )}
+                                        >
+                                            {opt.value === FRANCHISE_STATUS.ACTIVE && (
+                                                <CheckCircle className="size-4" />
+                                            )}
+                                            {opt.value === FRANCHISE_STATUS.BLOCKED && <Ban className="size-4" />}
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setConfirmDeleteModal(true)}
+                        className="bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all"
+                    >
+                        <Trash2 className="size-4" />
+                        {FRANCHISE_STRINGS.DELETE_FRANCHISE}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => franchiseId && router.push(`/dashboard/franchises/${franchiseId}/edit`)}
+                        className="bg-theme-blue/10 text-theme-blue hover:bg-theme-blue/20 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all"
+                    >
+                        <Edit2 className="size-4" />
+                        {FRANCHISE_STRINGS.EDIT_FRANCHISE}
+                    </button>
+                </div>
+            </header>
+
+            <div className="p-8 flex flex-col gap-8">
+                {/* Top grid: Profile card + Map | Manager card */}
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                    <div className="xl:col-span-2 bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col lg:flex-row">
+                        <div className="p-8 flex-1">
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="size-16 rounded-xl bg-theme-blue/10 flex items-center justify-center">
+                                    <MapPin className="size-10 text-theme-blue" />
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl font-black text-slate-900 dark:text-white">{detail.name}</h1>
+                                    <p className="text-slate-500 dark:text-slate-400 font-medium">
+                                        {FRANCHISE_STRINGS.ACTIVE_SINCE} {activeSince}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                        {FRANCHISE_STRINGS.ADDRESS}
+                                    </span>
+                                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                                        {detail.address || "—"}
+                                    </p>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                        {FRANCHISE_STRINGS.CONTACT_PHONE}
+                                    </span>
+                                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                                        {detail.phone || "—"}
+                                    </p>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                        {FRANCHISE_STRINGS.EMAIL_ADDRESS}
+                                    </span>
+                                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                                        {managerEmail || "—"}
+                                    </p>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                        {FRANCHISE_STRINGS.OPERATING_HOURS}
+                                    </span>
+                                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                                        {FRANCHISE_STRINGS.SERVICE_COVERAGE_24_7}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="lg:w-1/3 min-h-[250px] bg-slate-100 dark:bg-slate-800/50 relative group flex items-center justify-center">
+                            <div className="absolute inset-0 bg-theme-blue/10 group-hover:bg-transparent transition-colors" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="bg-theme-blue p-2 rounded-full shadow-lg ring-4 ring-theme-blue/20">
+                                    <MapPin className="size-6 text-white" />
+                                </div>
+                            </div>
+                            <div className="absolute bottom-4 right-4 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase shadow-lg text-slate-700 dark:text-slate-300">
+                                {FRANCHISE_STRINGS.INTERACTIVE_MAP}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Manager card */}
+                    <div className="bg-white dark:bg-slate-900/50 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="font-bold text-lg text-slate-900 dark:text-white">
+                                    {FRANCHISE_STRINGS.MANAGER_DETAILS}
+                                </h3>
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">
+                                    {detail.status ?? (detail.isActive ? FRANCHISE_STRINGS.STATUS_ACTIVE : "INACTIVE")}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="size-16 rounded-full bg-slate-300 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold text-xl">
+                                    {(detail.inchargeName || "M").charAt(0)}
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                                        {detail.inchargeName || "—"}
+                                    </h4>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        {FRANCHISE_STRINGS.FRANCHISE_MANAGER_ROLE}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3 text-sm">
+                                    <Phone className="size-4 text-slate-400" />
+                                    <span className="font-medium text-slate-900 dark:text-white">
+                                        {detail.phone || "—"}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-3 text-sm">
+                                    <Mail className="size-4 text-slate-400" />
+                                    <span className="font-medium text-slate-900 dark:text-white">
+                                        {managerEmail || "—"}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <button className="w-full mt-6 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 py-2.5 rounded-lg text-xs font-bold transition-all text-slate-700 dark:text-slate-300">
+                            {FRANCHISE_STRINGS.CONTACT_MANAGER}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Stats row */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-theme-blue p-8 rounded-xl shadow-lg relative overflow-hidden group">
+                        <Truck className="absolute -right-4 -bottom-4 size-24 text-white/10" />
+                        <p className="text-white/70 text-sm font-bold uppercase tracking-widest mb-1">
+                            {FRANCHISE_STRINGS.TOTAL_TRIPS}
+                        </p>
+                        <h3 className="text-4xl font-black text-white">{stats.totalTrips.toLocaleString()}</h3>
+                        <div className="mt-4 flex items-center gap-2 text-white/80 text-xs font-medium">
+                            <TrendingUp className="size-4" />
+                            <span>{FRANCHISE_STRINGS.FROM_LAST_MONTH}</span>
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-900/50 p-8 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
+                        <Wallet className="absolute -right-4 -bottom-4 size-24 text-theme-blue/5" />
+                        <p className="text-slate-500 dark:text-slate-400 text-sm font-bold uppercase tracking-widest mb-1">
+                            {FRANCHISE_STRINGS.TOTAL_REVENUE}
+                        </p>
+                        <h3 className="text-4xl font-black text-slate-900 dark:text-white">{revenueFormatted}</h3>
+                        <div className="mt-4 flex items-center gap-2 text-emerald-500 text-xs font-bold">
+                            <span>{FRANCHISE_STRINGS.HIGH_PERFORMING_BRANCH}</span>
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-900/50 p-8 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
+                        <ShieldCheck className="absolute -right-4 -bottom-4 size-24 text-theme-blue/5" />
+                        <p className="text-slate-500 dark:text-slate-400 text-sm font-bold uppercase tracking-widest mb-1">
+                            {FRANCHISE_STRINGS.RELIABILITY_SCORE}
+                        </p>
+                        <h3 className="text-4xl font-black text-slate-900 dark:text-white">{reliability}%</h3>
+                        <div className="mt-4 w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div
+                                className="bg-emerald-500 h-full transition-all"
+                                style={{ width: `${reliability}%` }}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Staff & Drivers tables */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div className="bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+                        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                            <h3 className="font-bold text-lg text-slate-900 dark:text-white">
+                                {FRANCHISE_STRINGS.ADMINISTRATIVE_STAFF}
+                            </h3>
+                            <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold text-slate-500 uppercase">
+                                {stats.totalStaff} {FRANCHISE_STRINGS.MEMBERS}
                             </span>
                         </div>
-                        <p className="text-[#49659c] dark:text-gray-400 text-sm">{selectedFranchise.code}</p>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => dispatch(toggleFranchiseStatus(selectedFranchise._id))}
-                        className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all",
-                            selectedFranchise.status === 'active'
-                                ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                                : "bg-green-100 text-green-700 hover:bg-green-200"
-                        )}
-                    >
-                        {selectedFranchise.status === 'active' ? <Ban size={18} /> : <CheckCircle size={18} />}
-                        <span>{selectedFranchise.status === 'active' ? 'Block' : 'Unblock'}</span>
-                    </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">
-                        <Edit2 size={18} />
-                        <span>Edit</span>
-                    </button>
-                    <button
-                        onClick={() => {
-                            if (confirm('Are you sure you want to delete this franchise?')) {
-                                dispatch(deleteFranchise(selectedFranchise._id));
-                                dispatch(setSelectedFranchise(null));
-                            }
-                        }}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm font-bold hover:bg-red-200 transition-all"
-                    >
-                        <Trash2 size={18} />
-                        <span>Delete</span>
-                    </button>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left: Basic Info and Images */}
-                <div className="lg:col-span-2 flex flex-col gap-8">
-                    {/* Main Image and Desc */}
-                    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm">
-                        <div className="h-64 w-full bg-gray-100 dark:bg-gray-800 relative">
-                            {selectedFranchise.image ? (
-                                <div className="absolute inset-0 bg-[#0d59f2]/10 flex items-center justify-center text-[#0d59f2] text-lg font-bold">
-                                    [ Franchise Image Placeholder ]
-                                </div>
-                            ) : (
-                                <div className="absolute inset-0 flex items-center justify-center text-[#49659c]">
-                                    No Image Provided
-                                </div>
-                            )}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 dark:bg-slate-800/30">
+                                    <tr>
+                                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                            {FRANCHISE_STRINGS.TABLE_NAME}
+                                        </th>
+                                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                            {FRANCHISE_STRINGS.TABLE_ROLE}
+                                        </th>
+                                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                            {FRANCHISE_STRINGS.TABLE_CONTACT}
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                    {detail.staff?.map((member) => (
+                                        <tr
+                                            key={member.id}
+                                            className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors"
+                                        >
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="size-8 rounded-full bg-slate-300 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-sm">
+                                                        {(member.name || "?").charAt(0)}
+                                                    </div>
+                                                    <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                                                        {member.name || "—"}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+                                                {FRANCHISE_STRINGS.ROLE_STAFF}
+                                            </td>
+                                            <td className="px-6 py-4 text-xs font-medium text-theme-blue">
+                                                {member.email || "—"}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
-                        <div className="p-8">
-                            <h3 className="text-xl font-bold text-[#0d121c] dark:text-white mb-4">About this Franchise</h3>
-                            <p className="text-[#49659c] dark:text-gray-400 leading-relaxed">
-                                {selectedFranchise.description || "No description provided for this franchise location."}
-                            </p>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8 pt-8 border-t border-gray-50 dark:border-gray-800">
-                                <div className="flex gap-4">
-                                    <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-[#0d59f2]">
-                                        <MapPin size={24} />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-[#49659c] uppercase tracking-wider">Address</p>
-                                        <p className="text-sm font-semibold dark:text-gray-200 mt-1">{selectedFranchise.address}</p>
-                                        <p className="text-sm text-[#49659c]">{selectedFranchise.location}</p>
-                                    </div>
-                                </div>
-                                <div className="flex gap-4">
-                                    <div className="p-3 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-600">
-                                        <User size={24} />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-[#49659c] uppercase tracking-wider">Incharge Name</p>
-                                        <p className="text-sm font-semibold dark:text-gray-200 mt-1">{selectedFranchise.inchargeName}</p>
-                                    </div>
-                                </div>
-                                <div className="flex gap-4">
-                                    <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-purple-600">
-                                        <Mail size={24} />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-[#49659c] uppercase tracking-wider">Email Contact</p>
-                                        <p className="text-sm font-semibold dark:text-gray-200 mt-1">{selectedFranchise.email}</p>
-                                    </div>
-                                </div>
-                                <div className="flex gap-4">
-                                    <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-amber-600">
-                                        <Phone size={24} />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-[#49659c] uppercase tracking-wider">Phone Number</p>
-                                        <p className="text-sm font-semibold dark:text-gray-200 mt-1">{selectedFranchise.phone}</p>
-                                    </div>
-                                </div>
-                            </div>
+                        <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+                            <button className="text-theme-blue text-xs font-bold hover:underline">
+                                {FRANCHISE_STRINGS.VIEW_ALL_STAFF}
+                            </button>
                         </div>
                     </div>
 
-                    {/* Team Section */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* Staff List */}
-                        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm">
-                            <div className="px-6 py-4 border-b border-gray-50 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
-                                <div className="flex items-center gap-2">
-                                    <Users size={18} className="text-[#0d59f2]" />
-                                    <h4 className="font-bold text-[#0d121c] dark:text-white">Staff Team</h4>
-                                </div>
-                                <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{selectedFranchise.staff.length} Members</span>
-                            </div>
-                            <div className="p-6 flex flex-col gap-4 max-h-[300px] overflow-y-auto">
-                                {selectedFranchise.staff.map(member => (
-                                    <div key={member._id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800 transition-hover hover:scale-[1.02]">
-                                        <div className="flex items-center gap-3">
-                                            <div className="size-8 rounded-full bg-[#0d59f2]/10 flex items-center justify-center text-[#0d59f2] font-bold text-xs">
-                                                {member.name.charAt(0)}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-bold dark:text-white">{member.name}</p>
-                                                <p className="text-[10px] text-[#49659c] font-medium uppercase tracking-wider">{member.role}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                                {selectedFranchise.staff.length === 0 && <p className="text-center text-xs text-[#49659c] py-4">No staff assigned yet.</p>}
+                    <div className="bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+                        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                            <h3 className="font-bold text-lg text-slate-900 dark:text-white">
+                                {FRANCHISE_STRINGS.ACTIVE_DRIVERS}
+                            </h3>
+                            <div className="flex gap-2">
+                                <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">
+                                    {onlineDrivers} {FRANCHISE_STRINGS.ONLINE}
+                                </span>
+                                <span className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 text-[10px] font-bold">
+                                    {stats.totalDrivers} {FRANCHISE_STRINGS.TOTAL}
+                                </span>
                             </div>
                         </div>
-
-                        {/* Drivers List */}
-                        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm">
-                            <div className="px-6 py-4 border-b border-gray-50 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
-                                <div className="flex items-center gap-2">
-                                    <Truck size={18} className="text-green-600" />
-                                    <h4 className="font-bold text-[#0d121c] dark:text-white">Fleet Drivers</h4>
-                                </div>
-                                <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded">{selectedFranchise.drivers.length} Drivers</span>
-                            </div>
-                            <div className="p-6 flex flex-col gap-4 max-h-[300px] overflow-y-auto">
-                                {selectedFranchise.drivers.map(driver => (
-                                    <div key={driver._id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800 transition-hover hover:scale-[1.02]">
-                                        <div className="flex items-center gap-3">
-                                            <div className="size-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold text-xs">
-                                                {driver.name.charAt(0)}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-bold dark:text-white">{driver.name}</p>
-                                                <p className="text-[10px] text-[#49659c] font-medium uppercase tracking-wider">Driver</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                                {selectedFranchise.drivers.length === 0 && <p className="text-center text-xs text-[#49659c] py-4">No drivers assigned yet.</p>}
-                            </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 dark:bg-slate-800/30">
+                                    <tr>
+                                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                            {FRANCHISE_STRINGS.TABLE_DRIVER}
+                                        </th>
+                                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                            {FRANCHISE_STRINGS.TABLE_STATUS}
+                                        </th>
+                                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                            {FRANCHISE_STRINGS.TABLE_CONTACT}
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                    {detail.drivers?.map((driver) => {
+                                        const fullName = [driver.firstName, driver.lastName].filter(Boolean).join(" ") || "—";
+                                        const statusLabel =
+                                            driver.status === "ACTIVE"
+                                                ? FRANCHISE_STRINGS.STATUS_AVAILABLE
+                                                : FRANCHISE_STRINGS.STATUS_OFFLINE;
+                                        return (
+                                            <tr
+                                                key={driver.id}
+                                                className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors"
+                                            >
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="size-8 rounded-full bg-slate-300 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-sm">
+                                                            {fullName.charAt(0)}
+                                                        </div>
+                                                        <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                                                            {fullName}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span
+                                                        className={cn(
+                                                            "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium",
+                                                            driver.status === "ACTIVE" && driver.isActive
+                                                                ? "bg-emerald-500/10 text-emerald-500"
+                                                                : "bg-slate-100 dark:bg-slate-800 text-slate-400"
+                                                        )}
+                                                    >
+                                                        {driver.status === "ACTIVE" && driver.isActive && (
+                                                            <span className="size-1.5 rounded-full bg-emerald-500" />
+                                                        )}
+                                                        {statusLabel}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-xs font-medium text-theme-blue">
+                                                    {driver.email || driver.phone || "—"}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
-                    </div>
-                </div>
-
-                {/* Right: Quick Stats/Activity */}
-                <div className="flex flex-col gap-8">
-                    <div className="bg-[#0d121c] dark:bg-black rounded-2xl p-8 text-white shadow-xl shadow-[#0d59f2]/10 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-8 opacity-10 transition-opacity group-hover:opacity-20">
-                            <Store size={120} />
-                        </div>
-                        <h4 className="text-blue-400 text-xs font-black uppercase tracking-[0.2em] mb-2">Performance Summary</h4>
-                        <p className="text-2xl font-bold mb-8">Active Operations</p>
-
-                        <div className="space-y-6">
-                            <div className="flex justify-between items-center py-4 border-b border-white/10">
-                                <span className="text-gray-400 text-sm">Total Orders</span>
-                                <span className="text-xl font-bold">1,284</span>
-                            </div>
-                            <div className="flex justify-between items-center py-4 border-b border-white/10">
-                                <span className="text-gray-400 text-sm">Revenue</span>
-                                <span className="text-xl font-bold text-green-400">$12,450.00</span>
-                            </div>
-                            <div className="flex justify-between items-center py-4">
-                                <span className="text-gray-400 text-sm">Reliability</span>
-                                <span className="text-xl font-bold text-blue-400">98.2%</span>
-                            </div>
+                        <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+                            <button className="text-theme-blue text-xs font-bold hover:underline">
+                                {FRANCHISE_STRINGS.VIEW_ALL_DRIVERS}
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Confirm change status modal */}
+            <Modal
+                isOpen={confirmStatusModal !== null}
+                onClose={() => {
+                    if (!actionLoading) setConfirmStatusModal(null);
+                }}
+                title={FRANCHISE_STRINGS.CHANGE_STATUS}
+                description={FRANCHISE_STRINGS.CONFIRM_CHANGE_STATUS}
+            >
+                <div className="flex flex-col gap-4">
+                    {actionError && (
+                        <p className="text-sm text-red-500 dark:text-red-400">{actionError}</p>
+                    )}
+                    <div className="flex gap-2 justify-end">
+                        <button
+                            type="button"
+                            onClick={() => setConfirmStatusModal(null)}
+                            disabled={actionLoading}
+                            className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                        >
+                            {FRANCHISE_STRINGS.BTN_CANCEL}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleConfirmChangeStatus}
+                            disabled={actionLoading}
+                            className="px-4 py-2 rounded-lg text-sm font-bold bg-theme-blue text-white hover:bg-theme-blue/90 disabled:opacity-50"
+                        >
+                            {actionLoading ? FRANCHISE_STRINGS.BTN_UPDATING : FRANCHISE_STRINGS.BTN_CONFIRM}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Confirm delete modal */}
+            <Modal
+                isOpen={confirmDeleteModal}
+                onClose={() => {
+                    if (!actionLoading) setConfirmDeleteModal(false);
+                }}
+                title={FRANCHISE_STRINGS.DELETE_FRANCHISE}
+                description={FRANCHISE_STRINGS.CONFIRM_DELETE_FRANCHISE}
+            >
+                <div className="flex flex-col gap-4">
+                    {actionError && (
+                        <p className="text-sm text-red-500 dark:text-red-400">{actionError}</p>
+                    )}
+                    <div className="flex gap-2 justify-end">
+                        <button
+                            type="button"
+                            onClick={() => setConfirmDeleteModal(false)}
+                            disabled={actionLoading}
+                            className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                        >
+                            {FRANCHISE_STRINGS.BTN_CANCEL}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleConfirmDelete}
+                            disabled={actionLoading}
+                            className="px-4 py-2 rounded-lg text-sm font-bold bg-red-500 text-white hover:bg-red-600 disabled:opacity-50"
+                        >
+                            {actionLoading ? FRANCHISE_STRINGS.BTN_DELETING : FRANCHISE_STRINGS.BTN_DELETE}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
-}
-
-function Store({ size, className }: { size: number, className?: string }) {
-    return (
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width={size}
-            height={size}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={className}
-        >
-            <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7" />
-            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-            <path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4" />
-            <path d="M2 7h20" />
-            <path d="M22 7v3a2 2 0 0 1-2 2v0a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 10V7" />
-        </svg>
-    )
 }

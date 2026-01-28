@@ -93,8 +93,9 @@ model Franchise {
   city                    String // Keep for backward compatibility
   region                  String? // New field
   address                 String? // Physical address
-  phone                   String? // Contact number
-  inchargeName            String? // Incharge name
+  phone                   String? // Franchise contact number
+  email                   String? // Franchise contact email
+  inchargeName            String? // Manager name (stored for backward compatibility)
   storeImage              String? // Store image URL (optional)
   legalDocumentsCollected Boolean         @default(false) // Legal documents collected flag
   status                  FranchiseStatus @default(ACTIVE) // Franchise status

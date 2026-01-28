@@ -30,6 +30,19 @@ export interface Staff {
     updatedAt?: Date | string;
 
     // Performance/Stats (optional, may not come from backend)
+    franchise?: {
+        id: string;
+        code: string;
+        name: string;
+    };
+    statistics?: {
+        totalCustomers: number;
+        totalTripsAssigned: number;
+        totalWorkingDays: number;
+        totalLeaves: number;
+        totalComplaints: number;
+        totalWarnings: number;
+    };
     customersAttended?: number;
     leaveTaken?: number;
     attendanceStatus?: 'present' | 'absent' | 'on-leave';

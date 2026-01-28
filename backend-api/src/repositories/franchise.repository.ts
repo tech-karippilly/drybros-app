@@ -112,7 +112,8 @@ export async function updateFranchise(
     region?: string;
     address?: string;
     phone?: string;
-    inchargeName?: string;
+    franchiseEmail?: string;
+    managerName?: string;
     storeImage?: string | null;
     legalDocumentsCollected?: boolean;
   }
@@ -126,7 +127,8 @@ export async function updateFranchise(
   }
   if (data.address !== undefined) updateData.address = data.address;
   if (data.phone !== undefined) updateData.phone = data.phone;
-  if (data.inchargeName !== undefined) updateData.inchargeName = data.inchargeName;
+  if (data.franchiseEmail !== undefined) updateData.email = data.franchiseEmail;
+  if (data.managerName !== undefined) updateData.inchargeName = data.managerName;
   if (data.storeImage !== undefined) updateData.storeImage = data.storeImage;
   if (data.legalDocumentsCollected !== undefined) updateData.legalDocumentsCollected = data.legalDocumentsCollected;
 

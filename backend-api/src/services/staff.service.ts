@@ -8,6 +8,7 @@ import {
   CreateStaffDTO,
   CreateStaffResponseDTO,
   StaffResponseDTO,
+  StaffDetailsResponseDTO,
   UpdateStaffDTO,
   UpdateStaffStatusDTO,
   StaffStatusResponseDTO,
@@ -122,14 +123,69 @@ export async function listStaffPaginated(
 }
 
 /**
- * Get staff by ID
+ * Get staff by ID with statistics (details response: no franchiseId/createdAt/updatedAt, trimmed franchise)
  */
-export async function getStaff(id: string): Promise<StaffResponseDTO> {
+export async function getStaff(id: string): Promise<StaffDetailsResponseDTO> {
   const staff = await getStaffById(id);
   if (!staff) {
     throw new NotFoundError("Staff not found");
   }
-  return mapStaffToResponse(staff);
+
+  const franchiseId = staff.franchiseId;
+
+  const [
+    totalCustomers,
+    totalTripsAssigned,
+    totalWorkingDays,
+    totalLeaves,
+    totalComplaints,
+  ] = await Promise.all([
+    prisma.customer.count({ where: { franchiseId } }),
+    prisma.trip.count({ where: { franchiseId } }),
+    prisma.attendance.count({ where: { staffId: id } }),
+    prisma.leaveRequest.count({ where: { staffId: id, status: "APPROVED" } }),
+    prisma.complaint.count({ where: { staffId: id } }),
+  ]);
+
+  const monthlySalary =
+    typeof staff.monthlySalary === "string"
+      ? parseFloat(staff.monthlySalary)
+      : typeof staff.monthlySalary === "number"
+      ? staff.monthlySalary
+      : Number(staff.monthlySalary);
+
+  return {
+    id: staff.id,
+    name: staff.name,
+    email: staff.email,
+    phone: staff.phone,
+    monthlySalary,
+    address: staff.address,
+    emergencyContact: staff.emergencyContact,
+    emergencyContactRelation: staff.emergencyContactRelation,
+    govtId: staff.govtId,
+    addressProof: staff.addressProof,
+    certificates: staff.certificates,
+    previousExperienceCert: staff.previousExperienceCert,
+    profilePic: staff.profilePic,
+    status: staff.status,
+    suspendedUntil: staff.suspendedUntil,
+    joinDate: staff.joinDate,
+    relieveDate: staff.relieveDate,
+    relieveReason: staff.relieveReason as RelieveReason | null,
+    isActive: staff.isActive,
+    franchise: staff.Franchise
+      ? { id: staff.Franchise.id, code: staff.Franchise.code, name: staff.Franchise.name }
+      : null,
+    statistics: {
+      totalCustomers,
+      totalTripsAssigned,
+      totalWorkingDays,
+      totalLeaves,
+      totalComplaints,
+      totalWarnings: staff.warningCount,
+    },
+  };
 }
 
 /**

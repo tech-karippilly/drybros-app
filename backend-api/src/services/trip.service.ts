@@ -161,7 +161,121 @@ export async function getTrip(id: string) {
     throw err;
   }
 
-  return trip;
+  const franchiseId = trip.franchiseId;
+
+  // Fetch all statistics in parallel for better performance
+  const [
+    totalStaffCount,
+    totalDriversCount,
+    totalTripsCount,
+    totalComplaintsCount,
+    totalRevenue,
+    driversList,
+    staffList,
+  ] = await Promise.all([
+    // Total staff count
+    prisma.staff.count({
+      where: {
+        franchiseId,
+        isActive: true,
+      },
+    }),
+    // Total drivers count
+    prisma.driver.count({
+      where: {
+        franchiseId,
+        isActive: true,
+      },
+    }),
+    // Total trips count
+    prisma.trip.count({
+      where: {
+        franchiseId,
+      },
+    }),
+    // Total complaints count (complaints related to drivers or staff in this franchise)
+    prisma.complaint.count({
+      where: {
+        OR: [
+          {
+            Driver: {
+              franchiseId,
+            },
+          },
+          {
+            Staff: {
+              franchiseId,
+            },
+          },
+        ],
+      },
+    }),
+    // Total revenue (sum of finalAmount from all trips in this franchise)
+    prisma.trip.aggregate({
+      where: {
+        franchiseId,
+      },
+      _sum: {
+        finalAmount: true,
+      },
+    }),
+    // Driver details list
+    prisma.driver.findMany({
+      where: {
+        franchiseId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        email: true,
+        driverCode: true,
+        status: true,
+        currentRating: true,
+        isActive: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    }),
+    // Staff details list
+    prisma.staff.findMany({
+      where: {
+        franchiseId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        monthlySalary: true,
+        status: true,
+        isActive: true,
+        createdAt: true,
+        joinDate: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    }),
+  ]);
+
+  return {
+    ...trip,
+    statistics: {
+      totalStaff: totalStaffCount,
+      totalDrivers: totalDriversCount,
+      totalTrips: totalTripsCount,
+      totalComplaints: totalComplaintsCount,
+      totalRevenue: totalRevenue._sum.finalAmount || 0,
+    },
+    drivers: driversList,
+    staff: staffList,
+  };
 }
 
 /**

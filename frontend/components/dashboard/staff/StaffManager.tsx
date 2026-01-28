@@ -49,13 +49,9 @@ export function StaffManager() {
     if (selectedStaff && !isCreateOpen) {
         return <StaffDetails onEditClick={() => handleEdit(selectedStaff)} />;
     }
-
     return (
         <div className="relative">
-            <StaffList
-                onCreateClick={() => setIsCreateOpen(true)}
-                onEditClick={handleEdit}
-            />
+            <StaffList onEditClick={handleEdit} />
 
             {isCreateOpen && (
                 <CreateStaffForm

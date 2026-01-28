@@ -215,6 +215,7 @@ const styles = StyleSheet.create({
       shadowRadius: 12,
     }),
     ...(Platform.OS === 'android' && { elevation: 8 }),
+    
   },
   bar: {
     width: '100%',

@@ -1,5 +1,6 @@
 // src/index.ts
 import express from "express";
+import http from "http";
 
 // Routes
 import healthRoutes from "./routes/health.routes";
@@ -20,6 +21,7 @@ import ratingRoutes from "./routes/rating.routes";
 import activityRoutes from "./routes/activity.routes";
 import penaltyRoutes from "./routes/penalty.routes";
 import earningsConfigRoutes from "./routes/earningsConfig.routes";
+import dashboardRoutes from "./routes/dashboard.routes";
 
 import cors from "cors";
 import path from "path";
@@ -28,6 +30,7 @@ import YAML from "yamljs";
 import config from "./config/appConfig";
 import logger from "./config/logger";
 import { requestLogger } from "./middlewares/requestLogger";
+import { socketService } from "./services/socket.service";
 
 const app = express();
 
@@ -175,6 +178,7 @@ app.use("/ratings", ratingRoutes);
 app.use("/activities", activityRoutes);
 app.use("/penalties", penaltyRoutes);
 app.use("/config", earningsConfigRoutes);
+app.use("/dashboard", dashboardRoutes);
 
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Drybros backend root 🚗" });
@@ -191,19 +195,27 @@ app.use((req, res) => {
   });
 });
 
-app.listen(port, () => {
+// Create HTTP server
+const httpServer = http.createServer(app);
+
+// Initialize Socket.IO
+socketService.initialize(httpServer);
+
+// Start server
+httpServer.listen(port, () => {
   logger.info("Server started", {
     port,
     environment: config.nodeEnv,
     appName: config.appName,
   });
 
-  if (config.nodeEnv === "development") {
+  if (config.nodeEnv === "DEVELOPMENT") {
     logger.info("Server endpoints", {
       baseUrl: `http://localhost:${port}`,
       health: `http://localhost:${port}/health`,
       version: `http://localhost:${port}/version`,
       docs: `http://localhost:${port}/api-docs`,
+      socket: `Socket.IO enabled on port ${port}`,
     });
     logger.info("CORS configuration", {
       frontendUrls: config.frontendUrls,

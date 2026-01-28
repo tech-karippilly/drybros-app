@@ -1,11 +1,19 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
   TouchableOpacity,
   Platform,
+  Animated,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Text } from '../typography';
@@ -27,6 +35,41 @@ const ROUTE_TO_KEY: Record<string, TabRouteKey> = {
   [TAB_ROUTES.PROFILE]: 'PROFILE',
 };
 
+function AnimatedTabItem({
+  isActive,
+  children,
+  style,
+}: {
+  isActive: boolean;
+  children: React.ReactNode;
+  style: object;
+}) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(isActive ? 1 : TAB_BAR.INACTIVE_OPACITY)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: isActive ? 1 : 0.96,
+        useNativeDriver: true,
+        speed: 24,
+        bounciness: 8,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: isActive ? 1 : TAB_BAR.INACTIVE_OPACITY,
+        duration: TAB_BAR.ANIMATION_DURATION,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [isActive, scaleAnim, opacityAnim]);
+
+  return (
+    <Animated.View style={[style, { transform: [{ scale: scaleAnim }], opacity: opacityAnim }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
 export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, normalizeHeight(12));
@@ -40,6 +83,8 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
   const activeGap = normalizeWidth(TAB_BAR.ACTIVE_GAP);
   const activeRadius = normalizeWidth(TAB_BAR.ACTIVE_BORDER_RADIUS);
   const iconSize = normalizeWidth(24);
+  const activeIconSize = normalizeWidth(26); // Larger icon for active tab
+  const activeLabelSize = normalizeFont(14); // Larger label for active tab
 
   return (
     <View
@@ -51,14 +96,17 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
         },
       ]}
     >
-      <View
+      <BlurView
+        intensity={4}
+        tint="dark"
         style={[
           styles.bar,
           {
             height: barHeight,
             padding: barPadding,
             borderRadius: barRadius,
-            backgroundColor: 'transparent',
+            backgroundColor: COLORS.tabBarBackground,
+            overflow: 'hidden',
           },
         ]}
       >
@@ -71,6 +119,10 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
             const { options } = descriptors[route.key];
 
             const onPress = () => {
+              LayoutAnimation.configureNext({
+                ...LayoutAnimation.Presets.easeInEaseOut,
+                duration: TAB_BAR.ANIMATION_DURATION,
+              });
               const event = navigation.emit({
                 type: 'tabPress',
                 target: route.key,
@@ -89,49 +141,65 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
             };
 
             return (
-              <TouchableOpacity
+              <AnimatedTabItem
                 key={route.key}
-                accessibilityRole="button"
-                accessibilityState={{ selected: Boolean(isActive) }}
-                accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
-                onPress={onPress}
-                onLongPress={onLongPress}
-                activeOpacity={0.7}
+                isActive={isActive}
                 style={[
                   styles.tab,
                   {
-                    flex: 1,
+                    flex: isActive ? 3 : 1,
                     height: activeHeight,
                     paddingVertical: activePaddingV,
-                    paddingHorizontal: isActive ? activePaddingH : normalizeWidth(12),
+                    paddingHorizontal: isActive ? activePaddingH : normalizeWidth(8),
                     borderRadius: activeRadius,
                     backgroundColor: isActive ? TAB_BAR.ACTIVE_BACKGROUND : 'transparent',
-                    opacity: isActive ? 1 : TAB_BAR.INACTIVE_OPACITY,
                   },
                 ]}
               >
-                <View style={[styles.tabContent, isActive && { marginRight: activeGap }]}>
-                  <MaterialCommunityIcons
-                    name={iconName as keyof typeof MaterialCommunityIcons.glyphMap}
-                    size={iconSize}
-                    color={COLORS.white}
-                  />
-                </View>
-                {isActive && (
-                  <Text
-                    variant="caption"
-                    weight="medium"
-                    style={[styles.label, { color: COLORS.white, fontSize: normalizeFont(12) }]}
-                    numberOfLines={1}
-                  >
-                    {label}
-                  </Text>
-                )}
-              </TouchableOpacity>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: Boolean(isActive) }}
+                  accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
+                  onPress={onPress}
+                  onLongPress={onLongPress}
+                  activeOpacity={0.7}
+                  style={styles.tabTouchable}
+                >
+                  {isActive ? (
+                    // Active tab: Show icon + label
+                    <>
+                      <View style={[styles.tabContent, { marginRight: activeGap }]}>
+                        <MaterialCommunityIcons
+                          name={iconName as keyof typeof MaterialCommunityIcons.glyphMap}
+                          size={activeIconSize}
+                          color={COLORS.white}
+                        />
+                      </View>
+                      <Text
+                        variant="caption"
+                        weight="medium"
+                        style={[styles.label, { color: COLORS.white, fontSize: activeLabelSize }]}
+                        numberOfLines={1}
+                      >
+                        {label}
+                      </Text>
+                    </>
+                  ) : (
+                    // Inactive tab: Show only icon
+                    <View style={styles.tabContent}>
+                      <MaterialCommunityIcons
+                        name={iconName as keyof typeof MaterialCommunityIcons.glyphMap}
+                        size={iconSize}
+                        color={COLORS.white}
+                      />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </AnimatedTabItem>
             );
           })}
         </View>
-      </View>
+      </BlurView>
     </View>
   );
 }
@@ -160,8 +228,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    width: '100%',
   },
   tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 0,
+    flexShrink: 1,
+  },
+  tabTouchable: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -169,6 +246,7 @@ const styles = StyleSheet.create({
   tabContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   label: {
     color: COLORS.white,

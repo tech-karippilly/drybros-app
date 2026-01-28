@@ -20,6 +20,9 @@ import {
 } from '@/lib/features/dashboard/dashboardApi';
 import { StaffAttendanceClock } from './StaffAttendanceClock';
 import { cn } from '@/lib/utils';
+import { useAppSelector } from '@/lib/hooks';
+import { WelcomeMessage } from './WelcomeMessage';
+import { AttendanceCard } from './AttendanceCard';
 
 function StatCard({ label, value, icon, color = 'text-[#0d59f2]' }: { label: string; value: string | number; icon: React.ReactNode; color?: string }) {
     return (
@@ -36,6 +39,7 @@ function StatCard({ label, value, icon, color = 'text-[#0d59f2]' }: { label: str
 }
 
 export function StaffDashboard() {
+    const { refreshTrigger } = useAppSelector((state) => state.auth);
     const [data, setData] = useState<StaffDashboardData | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -59,7 +63,7 @@ export function StaffDashboard() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [refreshTrigger]);
 
     if (loading || !data) {
         return (
@@ -74,15 +78,14 @@ export function StaffDashboard() {
 
     return (
         <div className="animate-in fade-in duration-500 space-y-8">
-            {/* Header */}
-            <div>
-                <h2 className="text-2xl font-bold text-[#0d121c] dark:text-white">Staff Dashboard</h2>
-                <p className="text-[#49659c] dark:text-gray-400">Task handling, support, and coordination</p>
-            </div>
-
-            {/* Attendance Clock */}
-            <div>
-                <StaffAttendanceClock />
+            {/* Welcome Message and Attendance Card */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                    <WelcomeMessage />
+                </div>
+                <div className="lg:col-span-1">
+                    <AttendanceCard />
+                </div>
             </div>
 
             {/* Task Overview */}

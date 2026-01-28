@@ -7,6 +7,7 @@
 import api from '../../axios';
 import { getTripCount, getTripsPaginated } from '../trip/tripApi';
 import { getDriversPaginated } from '../drivers/driverApi';
+import { getStaffList } from '../staff/staffApi';
 import { getTodayYYYYMMDD, KPI_ACTIVE_TRIP_STATUSES, KPI_CANCELED_TRIP_STATUSES } from '../../constants/kpi';
 
 // Dashboard Metrics Response Types
@@ -24,6 +25,12 @@ export interface DashboardMetrics {
     activeDrivers: number;
     inactiveDrivers: number;
     driversOnDuty: number;
+    totalDrivers: number;
+    driversOnLeave: number;
+    
+    // Staff Metrics
+    totalStaff: number;
+    staffOnLeave: number;
     
     // Franchise Metrics
     activeFranchises: number;
@@ -112,6 +119,10 @@ export interface ManagerDashboardData {
         activeDriversOnDuty: number;
         pendingTripAssignments: number;
         complaintsAssigned: number;
+        totalStaff: number;
+        totalDrivers: number;
+        staffOnLeave: number;
+        driversOnLeave: number;
     };
     ongoingTrips: any[];
     tripsWaitingForDriver: any[];
@@ -137,6 +148,10 @@ export interface StaffDashboardData {
         openComplaints: number;
         escalatedIssues: number;
         followUpsPending: number;
+    };
+    driverMetrics: {
+        totalDrivers: number;
+        driversOnLeave: number;
     };
     tripSupport: {
         manualIntervention: number;
@@ -208,6 +223,10 @@ function generateDummyMetrics(): DashboardMetrics {
         activeDrivers: 85,
         inactiveDrivers: 12,
         driversOnDuty: 62,
+        totalDrivers: 97,
+        driversOnLeave: 5,
+        totalStaff: 45,
+        staffOnLeave: 3,
         activeFranchises: 8,
         totalBranches: 12,
         totalCustomers: 1250,
@@ -344,6 +363,7 @@ export async function getAdminDashboardMetrics(): Promise<DashboardMetrics> {
             cancelledTrips,
             driversRes,
             todayTripsRes,
+            staffRes,
         ] = await Promise.all([
             getTripCount({ dateFrom: today, dateTo: today }),
             getTripCount({ dateFrom: weekAgo.toISOString().split('T')[0], dateTo: today }),
@@ -353,6 +373,7 @@ export async function getAdminDashboardMetrics(): Promise<DashboardMetrics> {
             getTripCount({ statuses: [...KPI_CANCELED_TRIP_STATUSES] }),
             getDriversPaginated({ page: 1, limit: 1 }),
             getTripsPaginated({ page: 1, limit: 500, dateFrom: today, dateTo: today }),
+            getStaffList({ page: 1, limit: 1 }),
         ]);
 
         const revenueToday = todayTripsRes.data.reduce(
@@ -369,6 +390,39 @@ export async function getAdminDashboardMetrics(): Promise<DashboardMetrics> {
         const activeDrivers = Math.floor(totalDrivers * 0.85); // Estimate
         const inactiveDrivers = totalDrivers - activeDrivers;
 
+        // Get staff counts
+        const totalStaff = 'pagination' in staffRes ? staffRes.pagination.total : Array.isArray(staffRes) ? staffRes.length : 0;
+        
+        // Fetch full lists to calculate leave counts (with error handling)
+        let staffOnLeave = 0;
+        let driversOnLeave = 0;
+        
+        try {
+            const [allStaffRes, allDriversRes] = await Promise.all([
+                getStaffList({ page: 1, limit: 1000 }),
+                getDriversPaginated({ page: 1, limit: 1000 }),
+            ]);
+
+            // Calculate staff on leave (check attendanceStatus === 'on-leave')
+            const allStaff = 'pagination' in allStaffRes ? allStaffRes.data : Array.isArray(allStaffRes) ? allStaffRes : [];
+            staffOnLeave = allStaff.filter((staff: any) => 
+                staff.attendanceStatus === 'on-leave' || 
+                (staff as any).leaveStatus === 'on-leave' ||
+                (staff as any).isOnLeave === true
+            ).length;
+
+            // Calculate drivers on leave (check status or leave-related fields)
+            const allDrivers = allDriversRes.data || [];
+            driversOnLeave = allDrivers.filter((driver: any) => 
+                driver.leaveStatus === 'on-leave' ||
+                driver.isOnLeave === true ||
+                (driver.status === 'INACTIVE' && (driver as any).leaveReason)
+            ).length;
+        } catch (error) {
+            console.warn('Failed to fetch leave data, using defaults:', error);
+            // Default values will remain 0
+        }
+
         return {
             tripsToday,
             tripsThisWeek,
@@ -380,6 +434,10 @@ export async function getAdminDashboardMetrics(): Promise<DashboardMetrics> {
             activeDrivers,
             inactiveDrivers,
             driversOnDuty: Math.floor(activeDrivers * 0.75), // Estimate
+            totalDrivers,
+            driversOnLeave,
+            totalStaff,
+            staffOnLeave,
             activeFranchises: 8, // Would need franchise API
             totalBranches: 12, // Would need franchise API
             totalCustomers: 1250, // Would need customer API
@@ -439,11 +497,12 @@ export async function getAdminDashboardAlerts(): Promise<AlertItem[]> {
 export async function getManagerDashboardData(franchiseId?: string): Promise<ManagerDashboardData> {
     try {
         const today = getTodayYYYYMMDD();
-        const [tripsToday, todayTripsRes, driversRes, unassignedTrips] = await Promise.all([
+        const [tripsToday, todayTripsRes, driversRes, unassignedTrips, staffRes] = await Promise.all([
             getTripCount({ dateFrom: today, dateTo: today, franchiseId }),
             getTripsPaginated({ page: 1, limit: 500, dateFrom: today, dateTo: today, franchiseId }),
             getDriversPaginated({ page: 1, limit: 1, franchiseId }),
             getTripsPaginated({ page: 1, limit: 100, status: 'NOT_ASSIGNED', franchiseId }),
+            getStaffList({ page: 1, limit: 1 }),
         ]);
 
         const revenueToday = todayTripsRes.data.reduce(
@@ -459,13 +518,50 @@ export async function getManagerDashboardData(franchiseId?: string): Promise<Man
             .filter((t) => (t.finalAmount ?? t.totalAmount ?? 0) > 5000)
             .slice(0, 10);
 
+        // Get staff and driver counts
+        const totalDrivers = driversRes.pagination.total;
+        const totalStaff = 'pagination' in staffRes ? staffRes.pagination.total : Array.isArray(staffRes) ? staffRes.length : 0;
+        
+        // Fetch full lists to calculate leave counts (with error handling)
+        let staffOnLeave = 0;
+        let driversOnLeave = 0;
+        
+        try {
+            const [allStaffRes, allDriversRes] = await Promise.all([
+                getStaffList({ page: 1, limit: 1000 }),
+                getDriversPaginated({ page: 1, limit: 1000, franchiseId }),
+            ]);
+
+            // Calculate staff on leave
+            const allStaff = 'pagination' in allStaffRes ? allStaffRes.data : Array.isArray(allStaffRes) ? allStaffRes : [];
+            staffOnLeave = allStaff.filter((staff: any) => 
+                staff.attendanceStatus === 'on-leave' || 
+                (staff as any).leaveStatus === 'on-leave' ||
+                (staff as any).isOnLeave === true
+            ).length;
+
+            // Calculate drivers on leave
+            const allDrivers = allDriversRes.data || [];
+            driversOnLeave = allDrivers.filter((driver: any) => 
+                driver.leaveStatus === 'on-leave' ||
+                driver.isOnLeave === true ||
+                (driver.status === 'INACTIVE' && (driver as any).leaveReason)
+            ).length;
+        } catch (error) {
+            console.warn('Failed to fetch leave data for manager dashboard, using defaults:', error);
+        }
+
         return {
             metrics: {
                 tripsToday,
                 revenueToday,
-                activeDriversOnDuty: Math.floor(driversRes.pagination.total * 0.75),
+                activeDriversOnDuty: Math.floor(totalDrivers * 0.75),
                 pendingTripAssignments: unassignedTrips.pagination.total,
                 complaintsAssigned: 5, // Would need complaint API
+                totalStaff,
+                totalDrivers,
+                staffOnLeave,
+                driversOnLeave,
             },
             ongoingTrips: ongoingTrips.slice(0, 10),
             tripsWaitingForDriver: tripsWaitingForDriver.slice(0, 10),

@@ -19,6 +19,7 @@ import {
 import { NotFoundError } from "../utils/errors";
 import { ACTIVITY_ERROR_MESSAGES } from "../constants/activity";
 import logger from "../config/logger";
+import { socketService } from "./socket.service";
 
 /**
  * Create an activity log entry
@@ -26,7 +27,23 @@ import logger from "../config/logger";
  */
 export async function logActivity(data: CreateActivityLogData): Promise<void> {
   try {
-    await repoCreateActivityLog(data);
+    const activityLog = await repoCreateActivityLog(data);
+    
+    // Emit socket event for the new activity log
+    socketService.emitActivityLog({
+      id: activityLog.id,
+      action: activityLog.action,
+      entityType: activityLog.entityType,
+      entityId: activityLog.entityId || undefined,
+      franchiseId: activityLog.franchiseId || undefined,
+      driverId: activityLog.driverId || undefined,
+      staffId: activityLog.staffId || undefined,
+      tripId: activityLog.tripId || undefined,
+      userId: activityLog.userId || undefined,
+      description: activityLog.description,
+      metadata: activityLog.metadata || undefined,
+      createdAt: activityLog.createdAt,
+    });
   } catch (error) {
     // Log error but don't throw - activity logging should not break main functionality
     logger.error("Failed to create activity log", {

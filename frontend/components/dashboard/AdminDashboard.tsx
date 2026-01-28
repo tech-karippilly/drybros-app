@@ -1,23 +1,19 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import {
-    TrendingUp,
-    TrendingDown,
+    Building2,
+    Route,
+    DollarSign,
+    Car,
+    Star,
+    Calendar,
+    Plus,
     AlertTriangle,
     CheckCircle,
-    Clock,
-    DollarSign,
-    Users,
-    Truck,
-    Store,
-    FileText,
-    Shield,
-    Bell,
-    BarChart3,
-    MapPin,
-    Activity,
-} from 'lucide-react';
+    Building,
+} from "lucide-react";
 import {
     DashboardMetrics,
     DashboardAnalytics,
@@ -25,102 +21,155 @@ import {
     getAdminDashboardMetrics,
     getAdminDashboardAnalytics,
     getAdminDashboardAlerts,
-} from '@/lib/features/dashboard/dashboardApi';
-import { DASHBOARD_METRICS_LABELS, ALERT_SEVERITY_COLORS, CHART_COLORS } from '@/lib/constants/dashboardMetrics';
-import { cn } from '@/lib/utils';
+} from "@/lib/features/dashboard/dashboardApi";
+import { ADMIN_DASHBOARD_STRINGS } from "@/lib/constants/dashboardMetrics";
+import { cn } from "@/lib/utils";
+import { useAppSelector } from "@/lib/hooks";
+import { DASHBOARD_ROUTES } from "@/lib/constants/routes";
 
-interface MetricCardProps {
+/** Primary color from Dybros Super Admin design */
+const PRIMARY = "#137fec";
+
+interface StatCardProps {
     label: string;
     value: string | number;
-    trend?: number;
-    trendType?: 'up' | 'down';
-    icon?: React.ReactNode;
+    trend?: string;
+    trendPositive?: boolean;
+    icon: React.ReactNode;
+    iconBgClass: string;
+    barClass: string;
 }
 
-function MetricCard({ label, value, trend, trendType, icon }: MetricCardProps) {
+function StatCard({
+    label,
+    value,
+    trend,
+    trendPositive = true,
+    icon,
+    iconBgClass,
+    barClass,
+}: StatCardProps) {
     return (
-        <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all">
-            <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                    {icon && <div className="text-[#0d59f2]">{icon}</div>}
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[#49659c] dark:text-gray-400">
-                        {label}
-                    </p>
+        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-6 dark:border-[#324d67] dark:bg-[#111a22] flex flex-col gap-1">
+            <div className="mb-2 flex items-start justify-between">
+                <div
+                    className={cn(
+                        "flex h-10 w-10 items-center justify-center rounded-lg",
+                        iconBgClass
+                    )}
+                >
+                    {icon}
                 </div>
-                {trend !== undefined && trendType && (
-                    <div
+                {trend != null && (
+                    <span
                         className={cn(
-                            'flex items-center gap-1 text-xs font-bold px-2 py-1 rounded',
-                            trendType === 'up'
-                                ? 'text-green-600 bg-green-50 dark:bg-green-900/20'
-                                : 'text-red-600 bg-red-50 dark:bg-red-900/20'
+                            "rounded-md px-2 py-1 text-xs font-bold",
+                            trendPositive
+                                ? "bg-green-500/10 text-green-500"
+                                : "bg-slate-500/10 text-slate-500"
                         )}
                     >
-                        {trendType === 'up' ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                        {Math.abs(trend)}%
-                    </div>
+                        {trend}
+                    </span>
                 )}
             </div>
-            <h3 className="text-3xl font-bold text-[#0d121c] dark:text-white">{value}</h3>
+            <p className="text-sm font-medium text-slate-500 dark:text-[#92adc9]">
+                {label}
+            </p>
+            <p className="text-2xl font-bold tracking-tight">{value}</p>
+            <div
+                className={cn(
+                    "absolute bottom-0 left-0 h-1 w-full",
+                    barClass
+                )}
+            />
         </div>
     );
 }
 
-function AlertCard({ alert }: { alert: AlertItem }) {
-    const severityColor = ALERT_SEVERITY_COLORS[alert.severity] || ALERT_SEVERITY_COLORS.low;
-    
+interface EventItemProps {
+    icon: React.ReactNode;
+    iconBg: string;
+    title: string;
+    description: string;
+    timeAgo: string;
+}
+
+function EventItem({
+    icon,
+    iconBg,
+    title,
+    description,
+    timeAgo,
+}: EventItemProps) {
     return (
-        <div className={cn('p-4 rounded-lg border', severityColor)}>
-            <div className="flex items-start gap-3">
-                <AlertTriangle size={20} className="mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                    <h4 className="font-semibold text-sm mb-1">{alert.title}</h4>
-                    <p className="text-xs opacity-80">{alert.description}</p>
-                </div>
+        <div className="relative pl-8">
+            <div
+                className={cn(
+                    "absolute left-0 top-1 flex h-6 w-6 items-center justify-center rounded-full text-white ring-4 ring-white dark:ring-[#111a22]",
+                    iconBg
+                )}
+            >
+                {icon}
             </div>
+            <p className="text-xs font-bold leading-tight">{title}</p>
+            <p className="text-[11px] text-slate-500 dark:text-[#92adc9]">
+                {description}
+            </p>
+            <p className="mt-1 text-[10px] text-slate-400">{timeAgo}</p>
         </div>
     );
 }
 
-function RevenueChart({ data }: { data: DashboardAnalytics['revenueTrend'] }) {
-    const maxRevenue = Math.max(...data.map((d) => d.revenue));
-    
+function RevenueChartSvg({ data }: { data: DashboardAnalytics["revenueTrend"] }) {
+    const maxR = Math.max(...data.map((d) => d.revenue), 1);
+    const pts = data.map((d, i) => {
+        const x = (i / (data.length - 1 || 1)) * 800;
+        const y = 200 - (d.revenue / maxR) * 160;
+        return { x, y };
+    });
+    const pathLine = pts.length
+        ? `M ${pts[0].x} ${pts[0].y} ${pts
+              .slice(1)
+              .map((p) => `L ${p.x} ${p.y}`)
+              .join(" ")}`
+        : "";
+    const pathFill =
+        pts.length > 0
+            ? `${pathLine} L 800 200 L 0 200 Z`
+            : "";
+
     return (
-        <div className="h-[250px] w-full relative">
-            <svg width="100%" height="100%" className="overflow-visible">
-                <defs>
-                    <linearGradient id="revenueGradient" x1="0" x2="0" y1="0" y2="1">
-                        <stop offset="0%" stopColor={CHART_COLORS.PRIMARY} stopOpacity="0.2" />
-                        <stop offset="100%" stopColor={CHART_COLORS.PRIMARY} stopOpacity="0" />
-                    </linearGradient>
-                </defs>
-                <path
-                    d={`M 0 ${250 - (data[0].revenue / maxRevenue) * 200} ${data
-                        .map(
-                            (d, i) =>
-                                `L ${(i / (data.length - 1)) * 100}% ${250 - (d.revenue / maxRevenue) * 200}`
-                        )
-                        .join(' ')} L 100% ${250 - (data[data.length - 1].revenue / maxRevenue) * 200} L 100% 250 L 0 250 Z`}
-                    fill="url(#revenueGradient)"
-                />
-                <path
-                    d={`M 0 ${250 - (data[0].revenue / maxRevenue) * 200} ${data
-                        .map(
-                            (d, i) =>
-                                `L ${(i / (data.length - 1)) * 100}% ${250 - (d.revenue / maxRevenue) * 200}`
-                        )
-                        .join(' ')}`}
-                    stroke={CHART_COLORS.PRIMARY}
-                    strokeWidth="3"
-                    fill="none"
-                    strokeLinecap="round"
-                />
-            </svg>
-        </div>
+        <svg
+            className="h-full w-full"
+            preserveAspectRatio="none"
+            viewBox="0 0 800 200"
+        >
+            <defs>
+                <linearGradient
+                    id="adminChartGradient"
+                    x1="0"
+                    x2="0"
+                    y1="0"
+                    y2="1"
+                >
+                    <stop offset="0%" stopColor={PRIMARY} stopOpacity="0.2" />
+                    <stop offset="100%" stopColor={PRIMARY} stopOpacity="0" />
+                </linearGradient>
+            </defs>
+            <path d={pathFill} fill="url(#adminChartGradient)" />
+            <path
+                d={pathLine}
+                fill="none"
+                stroke={PRIMARY}
+                strokeWidth="3"
+            />
+        </svg>
     );
 }
 
 export function AdminDashboard() {
+    const { refreshTrigger } = useAppSelector((state) => state.auth);
     const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
     const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
     const [alerts, setAlerts] = useState<AlertItem[]>([]);
@@ -128,288 +177,405 @@ export function AdminDashboard() {
 
     useEffect(() => {
         let cancelled = false;
-
         (async () => {
             try {
                 setLoading(true);
-                const [metricsData, analyticsData, alertsData] = await Promise.all([
+                const [m, a, al] = await Promise.all([
                     getAdminDashboardMetrics(),
                     getAdminDashboardAnalytics(),
                     getAdminDashboardAlerts(),
                 ]);
-
                 if (!cancelled) {
-                    setMetrics(metricsData);
-                    setAnalytics(analyticsData);
-                    setAlerts(alertsData);
+                    setMetrics(m);
+                    setAnalytics(a);
+                    setAlerts(al);
                 }
-            } catch (error) {
-                console.error('Failed to load dashboard data:', error);
+            } catch (e) {
+                console.error("Failed to load dashboard data:", e);
             } finally {
                 if (!cancelled) setLoading(false);
             }
         })();
-
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [refreshTrigger]);
+
+    const formatCurrency = (amount: number) =>
+        `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
     if (loading || !metrics || !analytics) {
         return (
             <div className="animate-in fade-in duration-500">
                 <div className="mb-8">
-                    <h2 className="text-2xl font-bold text-[#0d121c] dark:text-white">Admin Dashboard</h2>
-                    <p className="text-[#49659c] dark:text-gray-400">Loading dashboard metrics...</p>
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                        {ADMIN_DASHBOARD_STRINGS.PAGE_TITLE}
+                    </h2>
+                    <p className="text-slate-500 dark:text-[#92adc9]">
+                        {ADMIN_DASHBOARD_STRINGS.LOADING_MESSAGE}
+                    </p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                        <div key={i} className="h-32 bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse" />
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+                    {[1, 2, 3, 4].map((i) => (
+                        <div
+                            key={i}
+                            className="h-32 animate-pulse rounded-xl bg-slate-100 dark:bg-[#233648]"
+                        />
                     ))}
                 </div>
             </div>
         );
     }
 
-    const formatCurrency = (amount: number) => `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
-    const formatPercent = (value: number) => `${value.toFixed(1)}%`;
+    const totalRevenueDisplay =
+        analytics.revenueTrend.length > 0
+            ? formatCurrency(
+                  analytics.revenueTrend.reduce((s, d) => s + d.revenue, 0)
+              )
+            : formatCurrency(metrics.totalRevenue);
+    const topBranches = analytics.cityBranchDistribution
+        .slice(0, 3)
+        .map((b) => ({
+            initials: b.branch.slice(0, 2).toUpperCase(),
+            name: `${b.branch} – ${b.city}`,
+            trips: b.trips,
+            revenue: formatCurrency(b.revenue),
+            csat: "4.9",
+            status:
+                b.revenue > 600000
+                    ? ADMIN_DASHBOARD_STRINGS.STATUS_EXCELLENT
+                    : b.revenue > 400000
+                      ? ADMIN_DASHBOARD_STRINGS.STATUS_HIGH
+                      : ADMIN_DASHBOARD_STRINGS.STATUS_STEADY,
+        }));
+
+    const timeAgoLabels = [
+        "12 mins ago",
+        "45 mins ago",
+        "2 hours ago",
+        "5 hours ago",
+    ];
+    const eventItemsFromAlerts = alerts.slice(0, 4).map((a, i) => ({
+        icon:
+            a.severity === "high" ? (
+                <AlertTriangle className="h-3.5 w-3.5" />
+            ) : a.severity === "medium" ? (
+                <AlertTriangle className="h-3.5 w-3.5" />
+            ) : (
+                <CheckCircle className="h-3.5 w-3.5" />
+            ),
+        iconBg:
+            a.severity === "high"
+                ? "bg-orange-500"
+                : a.severity === "medium"
+                  ? "bg-amber-500"
+                  : "bg-green-500",
+        title: a.title,
+        description: a.description,
+        timeAgo: timeAgoLabels[i % 4],
+    }));
+    const eventItems =
+        eventItemsFromAlerts.length > 0
+            ? eventItemsFromAlerts
+            : [
+                  {
+                      icon: <Building className="h-3.5 w-3.5" />,
+                      iconBg: "bg-[#137fec]",
+                      title: "System ready",
+                      description:
+                          "Dashboard loaded. No critical events.",
+                      timeAgo: "Just now",
+                  },
+              ];
 
     return (
-        <div className="animate-in fade-in duration-500 space-y-8">
-            {/* Header */}
-            <div>
-                <h2 className="text-2xl font-bold text-[#0d121c] dark:text-white">Admin Dashboard</h2>
-                <p className="text-[#49659c] dark:text-gray-400">Business health, compliance, growth, and risks</p>
-            </div>
-
-            {/* Key Metrics */}
-            <div>
-                <h3 className="text-lg font-semibold text-[#0d121c] dark:text-white mb-4">Key Metrics</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <MetricCard
-                        label={DASHBOARD_METRICS_LABELS.TRIPS_TODAY}
-                        value={metrics.tripsToday}
-                        icon={<Truck size={20} />}
-                    />
-                    <MetricCard
-                        label={DASHBOARD_METRICS_LABELS.TOTAL_REVENUE}
-                        value={formatCurrency(metrics.totalRevenue)}
-                        icon={<DollarSign size={20} />}
-                    />
-                    <MetricCard
-                        label={DASHBOARD_METRICS_LABELS.ACTIVE_DRIVERS}
-                        value={metrics.activeDrivers}
-                        icon={<Users size={20} />}
-                    />
-                    <MetricCard
-                        label={DASHBOARD_METRICS_LABELS.ACTIVE_FRANCHISES}
-                        value={metrics.activeFranchises}
-                        icon={<Store size={20} />}
-                    />
-                    <MetricCard
-                        label={DASHBOARD_METRICS_LABELS.TOTAL_CUSTOMERS}
-                        value={metrics.totalCustomers}
-                        icon={<Users size={20} />}
-                    />
-                    <MetricCard
-                        label={DASHBOARD_METRICS_LABELS.CANCELLATION_RATE}
-                        value={formatPercent(metrics.cancellationRate)}
-                        icon={<TrendingDown size={20} />}
-                    />
-                    <MetricCard
-                        label={DASHBOARD_METRICS_LABELS.COMPLAINTS_COUNT}
-                        value={metrics.complaintsCount}
-                        icon={<FileText size={20} />}
-                    />
-                    <MetricCard
-                        label={DASHBOARD_METRICS_LABELS.PENALTIES_ISSUED}
-                        value={metrics.penaltiesIssued}
-                        icon={<Shield size={20} />}
-                    />
+        <div className="animate-in fade-in duration-500">
+            {/* Page Header */}
+            <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+                <div>
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                        {ADMIN_DASHBOARD_STRINGS.PAGE_TITLE}
+                    </h2>
+                    <p className="text-slate-500 dark:text-[#92adc9]">
+                        {ADMIN_DASHBOARD_STRINGS.PAGE_SUBTITLE}
+                    </p>
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        type="button"
+                        className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold transition-colors hover:bg-slate-50 dark:border-transparent dark:bg-[#233648] dark:hover:bg-[#233648]/80"
+                    >
+                        <Calendar className="h-5 w-5" />
+                        {ADMIN_DASHBOARD_STRINGS.FILTER_LAST_30_DAYS}
+                    </button>
+                    <Link
+                        href={DASHBOARD_ROUTES.FRANCHISES}
+                        className="flex items-center gap-2 rounded-lg bg-[#137fec] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#137fec]/20 transition-transform active:scale-95"
+                    >
+                        <Plus className="h-5 w-5" />
+                        {ADMIN_DASHBOARD_STRINGS.BTN_NEW_FRANCHISE}
+                    </Link>
                 </div>
             </div>
 
-            {/* Analytics & Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Revenue Trend */}
-                <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <h4 className="text-lg font-bold dark:text-white">Revenue Trend</h4>
-                            <p className="text-sm text-[#49659c] dark:text-gray-400">Last 30 days</p>
-                        </div>
-                        <BarChart3 size={24} className="text-[#0d59f2]" />
-                    </div>
-                    <RevenueChart data={analytics.revenueTrend} />
-                </div>
+            {/* Stats Grid */}
+            <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+                <StatCard
+                    label={ADMIN_DASHBOARD_STRINGS.STAT_TOTAL_FRANCHISES}
+                    value={metrics.activeFranchises ?? metrics.totalBranches}
+                    trend="+2%"
+                    trendPositive
+                    icon={<Building2 className="h-5 w-5 text-[#137fec]" />}
+                    iconBgClass="bg-[#137fec]/10"
+                    barClass="bg-[#137fec]/20"
+                />
+                <StatCard
+                    label={ADMIN_DASHBOARD_STRINGS.STAT_ACTIVE_TRIPS}
+                    value={metrics.ongoingTrips}
+                    trend="+15%"
+                    trendPositive
+                    icon={<Route className="h-5 w-5 text-orange-500" />}
+                    iconBgClass="bg-orange-500/10"
+                    barClass="bg-orange-500/20"
+                />
+                <StatCard
+                    label={ADMIN_DASHBOARD_STRINGS.STAT_DAILY_REVENUE}
+                    value={formatCurrency(metrics.revenueToday)}
+                    trend="+8%"
+                    trendPositive
+                    icon={<DollarSign className="h-5 w-5 text-green-500" />}
+                    iconBgClass="bg-green-500/10"
+                    barClass="bg-green-500/20"
+                />
+                <StatCard
+                    label={ADMIN_DASHBOARD_STRINGS.STAT_ACTIVE_DRIVERS}
+                    value={metrics.activeDrivers}
+                    trend={ADMIN_DASHBOARD_STRINGS.TREND_FLAT}
+                    trendPositive={false}
+                    icon={<Car className="h-5 w-5 text-purple-500" />}
+                    iconBgClass="bg-purple-500/10"
+                    barClass="bg-purple-500/20"
+                />
+            </div>
 
-                {/* Trips by Type */}
-                <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <h4 className="text-lg font-bold dark:text-white">Trips by Type</h4>
-                            <p className="text-sm text-[#49659c] dark:text-gray-400">Distribution</p>
-                        </div>
-                        <MapPin size={24} className="text-[#0d59f2]" />
-                    </div>
-                    <div className="space-y-4">
-                        {analytics.tripTypeDistribution.map((item, idx) => (
-                            <div key={idx}>
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm font-medium dark:text-white">{item.type}</span>
-                                    <span className="text-sm text-[#49659c] dark:text-gray-400">
-                                        {item.count} trips
-                                    </span>
-                                </div>
-                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                    <div
-                                        className="bg-[#0d59f2] h-2 rounded-full"
-                                        style={{
-                                            width: `${(item.count / analytics.tripTypeDistribution.reduce((sum, t) => sum + t.count, 0)) * 100}%`,
-                                        }}
-                                    />
-                                </div>
-                                <p className="text-xs text-[#49659c] dark:text-gray-400 mt-1">
-                                    {formatCurrency(item.revenue)}
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+                {/* Chart + Table */}
+                <div className="flex flex-col gap-6 lg:col-span-2">
+                    {/* Global Revenue Analytics */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-[#324d67] dark:bg-[#111a22]">
+                        <div className="mb-8 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                                    {ADMIN_DASHBOARD_STRINGS.CHART_TITLE}
+                                </h3>
+                                <p className="text-sm text-slate-500 dark:text-[#92adc9]">
+                                    {ADMIN_DASHBOARD_STRINGS.CHART_SUBTITLE}
                                 </p>
                             </div>
-                        ))}
+                            <div className="text-right">
+                                <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                                    {totalRevenueDisplay}
+                                </p>
+                                <p className="text-xs font-medium text-green-500">
+                                    {ADMIN_DASHBOARD_STRINGS.CHART_VS_LAST_MONTH}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="relative h-64">
+                            <RevenueChartSvg data={analytics.revenueTrend} />
+                            <div className="flex justify-between px-2 pt-4">
+                                {["MAY 01", "MAY 08", "MAY 15", "MAY 22", "MAY 31"].map(
+                                    (l) => (
+                                        <span
+                                            key={l}
+                                            className="text-[10px] font-bold text-slate-400"
+                                        >
+                                            {l}
+                                        </span>
+                                    )
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Top Performing Franchises */}
+                    <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-[#324d67] bg-white dark:bg-[#111a22]">
+                        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-[#324d67]">
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                                {ADMIN_DASHBOARD_STRINGS.TABLE_TOP_FRANCHISES}
+                            </h3>
+                            <Link
+                                href={DASHBOARD_ROUTES.FRANCHISES}
+                                className="text-xs font-bold text-[#137fec] hover:underline"
+                            >
+                                {ADMIN_DASHBOARD_STRINGS.TABLE_VIEW_ALL}
+                            </Link>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 dark:bg-[#1a2835]">
+                                    <tr>
+                                        <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#92adc9]">
+                                            {ADMIN_DASHBOARD_STRINGS.TABLE_HEAD_FRANCHISE}
+                                        </th>
+                                        <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#92adc9]">
+                                            {ADMIN_DASHBOARD_STRINGS.TABLE_HEAD_ACTIVE_TRIPS}
+                                        </th>
+                                        <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#92adc9]">
+                                            {ADMIN_DASHBOARD_STRINGS.TABLE_HEAD_REVENUE}
+                                        </th>
+                                        <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#92adc9]">
+                                            {ADMIN_DASHBOARD_STRINGS.TABLE_HEAD_CSAT}
+                                        </th>
+                                        <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-[#92adc9]">
+                                            {ADMIN_DASHBOARD_STRINGS.TABLE_HEAD_STATUS}
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-[#324d67]">
+                                    {topBranches.map((row) => (
+                                        <tr
+                                            key={row.name}
+                                            className="transition-colors hover:bg-slate-50 dark:hover:bg-[#1a2835]/50"
+                                        >
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-200 font-bold text-xs dark:bg-[#233648] text-slate-900 dark:text-white">
+                                                        {row.initials}
+                                                    </div>
+                                                    <span className="text-sm font-bold leading-none">
+                                                        {row.name}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm">
+                                                {row.trips}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm font-bold">
+                                                {row.revenue}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-1 text-yellow-500">
+                                                    <Star className="h-4 w-4 fill-current" />
+                                                    <span className="text-sm font-bold">
+                                                        {row.csat}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span
+                                                    className={cn(
+                                                        "rounded px-2 py-0.5 text-[10px] font-bold uppercase",
+                                                        row.status ===
+                                                            ADMIN_DASHBOARD_STRINGS.STATUS_EXCELLENT
+                                                            ? "bg-green-500/10 text-green-500"
+                                                            : row.status ===
+                                                                ADMIN_DASHBOARD_STRINGS.STATUS_HIGH
+                                                              ? "bg-green-500/10 text-green-500"
+                                                              : "bg-blue-500/10 text-blue-500"
+                                                    )}
+                                                >
+                                                    {row.status}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
-                {/* Trips by City/Branch */}
-                <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <h4 className="text-lg font-bold dark:text-white">Trips by City / Branch</h4>
-                            <p className="text-sm text-[#49659c] dark:text-gray-400">Geographic distribution</p>
-                        </div>
-                        <MapPin size={24} className="text-[#0d59f2]" />
-                    </div>
-                    <div className="space-y-3">
-                        {analytics.cityBranchDistribution.map((item, idx) => (
-                            <div
-                                key={idx}
-                                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                            >
-                                <div>
-                                    <p className="font-medium text-sm dark:text-white">{item.branch}</p>
-                                    <p className="text-xs text-[#49659c] dark:text-gray-400">{item.city}</p>
+                {/* Right: System Monitor + Critical Events */}
+                <div className="flex flex-col gap-6">
+                    {/* System Monitor */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-[#324d67] dark:bg-[#111a22]">
+                        <h3 className="mb-4 text-sm font-bold uppercase tracking-widest text-slate-500 dark:text-[#92adc9]">
+                            {ADMIN_DASHBOARD_STRINGS.SYSTEM_MONITOR_TITLE}
+                        </h3>
+                        <div className="space-y-4">
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex justify-between text-xs">
+                                    <span className="font-medium">
+                                        {ADMIN_DASHBOARD_STRINGS.SYSTEM_CORE_API}
+                                    </span>
+                                    <span className="font-bold text-green-500">
+                                        24ms
+                                    </span>
                                 </div>
-                                <div className="text-right">
-                                    <p className="font-semibold text-sm dark:text-white">{item.trips}</p>
-                                    <p className="text-xs text-[#49659c] dark:text-gray-400">
-                                        {formatCurrency(item.revenue)}
-                                    </p>
+                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-[#233648]">
+                                    <div
+                                        className="h-full bg-green-500"
+                                        style={{ width: "15%" }}
+                                    />
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Peak Booking Hours */}
-                <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <h4 className="text-lg font-bold dark:text-white">Peak Booking Hours</h4>
-                            <p className="text-sm text-[#49659c] dark:text-gray-400">Today's pattern</p>
-                        </div>
-                        <Clock size={24} className="text-[#0d59f2]" />
-                    </div>
-                    <div className="grid grid-cols-6 gap-2">
-                        {analytics.peakBookingHours.map((item) => {
-                            const maxBookings = Math.max(...analytics.peakBookingHours.map((h) => h.bookings));
-                            return (
-                                <div key={item.hour} className="flex flex-col items-center">
-                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-t-lg relative" style={{ height: '120px' }}>
-                                        <div
-                                            className="absolute bottom-0 w-full bg-[#0d59f2] rounded-t-lg transition-all"
-                                            style={{
-                                                height: `${(item.bookings / maxBookings) * 100}%`,
-                                            }}
-                                        />
-                                    </div>
-                                    <p className="text-xs font-medium mt-2 dark:text-white">{item.hour}:00</p>
-                                    <p className="text-xs text-[#49659c] dark:text-gray-400">{item.bookings}</p>
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex justify-between text-xs">
+                                    <span className="font-medium">
+                                        {ADMIN_DASHBOARD_STRINGS.SYSTEM_SERVER_LOAD}
+                                    </span>
+                                    <span className="font-bold text-[#137fec]">
+                                        42%
+                                    </span>
                                 </div>
-                            );
-                        })}
+                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-[#233648]">
+                                    <div
+                                        className="h-full bg-[#137fec]"
+                                        style={{ width: "42%" }}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex justify-between text-xs">
+                                    <span className="font-medium">
+                                        {ADMIN_DASHBOARD_STRINGS.SYSTEM_MEMORY}
+                                    </span>
+                                    <span className="font-bold text-orange-500">
+                                        68%
+                                    </span>
+                                </div>
+                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-[#233648]">
+                                    <div
+                                        className="h-full bg-orange-500"
+                                        style={{ width: "68%" }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-6 border-t border-slate-100 pt-4 dark:border-[#324d67]">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="h-2 w-2 rounded-full bg-green-500" />
+                                    <span className="text-xs font-bold">
+                                        AWS East-1
+                                    </span>
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-400">
+                                    {ADMIN_DASHBOARD_STRINGS.SYSTEM_AWS_UPTIME}
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            {/* Alerts & Exceptions */}
-            <div>
-                <h3 className="text-lg font-semibold text-[#0d121c] dark:text-white mb-4 flex items-center gap-2">
-                    <Bell size={20} />
-                    Alerts & Exceptions
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {alerts.map((alert) => (
-                        <AlertCard key={alert.id} alert={alert} />
-                    ))}
-                </div>
-            </div>
-
-            {/* Operations Overview */}
-            <div>
-                <h3 className="text-lg font-semibold text-[#0d121c] dark:text-white mb-4">Operations Overview</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                        <div className="flex items-center gap-3 mb-2">
-                            <Activity size={20} className="text-[#0d59f2]" />
-                            <p className="text-sm font-semibold text-[#49659c] dark:text-gray-400">Ongoing Trips</p>
+                    {/* Critical Events */}
+                    <div className="flex-1 rounded-xl border border-slate-200 bg-white p-6 dark:border-[#324d67] dark:bg-[#111a22]">
+                        <h3 className="mb-6 text-sm font-bold uppercase tracking-widest text-slate-500 dark:text-[#92adc9]">
+                            {ADMIN_DASHBOARD_STRINGS.CRITICAL_EVENTS_TITLE}
+                        </h3>
+                        <div className="relative space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100 dark:before:bg-[#233648]">
+                            {eventItems.map((ev, idx) => (
+                                <EventItem
+                                    key={idx}
+                                    icon={ev.icon}
+                                    iconBg={ev.iconBg}
+                                    title={ev.title}
+                                    description={ev.description}
+                                    timeAgo={ev.timeAgo}
+                                />
+                            ))}
                         </div>
-                        <p className="text-2xl font-bold dark:text-white">{metrics.ongoingTrips}</p>
                     </div>
-                    <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                        <div className="flex items-center gap-3 mb-2">
-                            <CheckCircle size={20} className="text-green-600" />
-                            <p className="text-sm font-semibold text-[#49659c] dark:text-gray-400">Completed Trips</p>
-                        </div>
-                        <p className="text-2xl font-bold dark:text-white">{metrics.completedTrips}</p>
-                    </div>
-                    <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                        <div className="flex items-center gap-3 mb-2">
-                            <AlertTriangle size={20} className="text-red-600" />
-                            <p className="text-sm font-semibold text-[#49659c] dark:text-gray-400">Cancelled Trips</p>
-                        </div>
-                        <p className="text-2xl font-bold dark:text-white">{metrics.cancelledTrips}</p>
-                    </div>
-                    <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                        <div className="flex items-center gap-3 mb-2">
-                            <DollarSign size={20} className="text-amber-600" />
-                            <p className="text-sm font-semibold text-[#49659c] dark:text-gray-400">Failed Payments</p>
-                        </div>
-                        <p className="text-2xl font-bold dark:text-white">0</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* User & System Control */}
-            <div>
-                <h3 className="text-lg font-semibold text-[#0d121c] dark:text-white mb-4">User & System Control</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <MetricCard
-                        label="New Driver Registrations"
-                        value={metrics.pendingDriverRegistrations}
-                        icon={<Users size={20} />}
-                    />
-                    <MetricCard
-                        label="New Franchise Requests"
-                        value={metrics.pendingFranchiseRequests}
-                        icon={<Store size={20} />}
-                    />
-                    <MetricCard
-                        label="Staff Activity Logs"
-                        value="Active"
-                        icon={<Activity size={20} />}
-                    />
-                    <MetricCard
-                        label="System Health"
-                        value="99.9%"
-                        icon={<CheckCircle size={20} />}
-                    />
                 </div>
             </div>
         </div>

@@ -16,6 +16,7 @@ const getInitialState = (): AuthState => {
             activeTab: 'home',
             franchiseList: DUMMY_FRANCHISES,
             selectedFranchise: DUMMY_FRANCHISES[0],
+            refreshTrigger: 0,
         };
     }
 
@@ -36,6 +37,7 @@ const getInitialState = (): AuthState => {
         activeTab: 'home',
         franchiseList: DUMMY_FRANCHISES,
         selectedFranchise: DUMMY_FRANCHISES[0],
+        refreshTrigger: 0,
     };
 };
 
@@ -106,8 +108,12 @@ const authSlice = createSlice({
                 localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, action.payload);
             }
         },
+        triggerDashboardRefresh: (state) => {
+            // Update refreshTrigger timestamp to trigger dashboard data refresh
+            state.refreshTrigger = Date.now();
+        },
     },
 });
 
-export const { setCredentials, logout, setLoading, setSelectedFranchise, setFranchiseList, setActiveTab } = authSlice.actions;
+export const { setCredentials, logout, setLoading, setSelectedFranchise, setFranchiseList, setActiveTab, triggerDashboardRefresh } = authSlice.actions;
 export default authSlice.reducer;

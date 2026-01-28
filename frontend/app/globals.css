@@ -51,3 +51,15 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Dybros Super Admin–style scrollbar for dashboard */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #111a22;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #233648;
+  border-radius: 10px;
+}

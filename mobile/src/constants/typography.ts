@@ -11,6 +11,7 @@ export const FONT_FAMILY = {
   light: 'Poppins-Light',
   thin: 'Poppins-Thin',
   satoshiBold: 'Satoshi-Bold',
+  satoshiVariable: 'Satoshi-Variable',
 } as const;
 
 export const FONT_SIZES = {

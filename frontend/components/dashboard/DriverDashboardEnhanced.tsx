@@ -21,6 +21,8 @@ import {
 } from '@/lib/features/dashboard/dashboardApi';
 import { useAppSelector } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
+import { WelcomeMessage } from './WelcomeMessage';
+import { AttendanceCard } from './AttendanceCard';
 
 function StatCard({ label, value, icon, color = 'text-[#0d59f2]' }: { label: string; value: string | number; icon: React.ReactNode; color?: string }) {
     return (
@@ -37,7 +39,7 @@ function StatCard({ label, value, icon, color = 'text-[#0d59f2]' }: { label: str
 }
 
 export function DriverDashboardEnhanced() {
-    const { user } = useAppSelector((state) => state.auth);
+    const { user, refreshTrigger } = useAppSelector((state) => state.auth);
     const [data, setData] = useState<DriverDashboardData | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -63,7 +65,7 @@ export function DriverDashboardEnhanced() {
         return () => {
             cancelled = true;
         };
-    }, [user?._id]);
+    }, [user?._id, refreshTrigger]);
 
     if (loading || !data) {
         return (
@@ -80,10 +82,14 @@ export function DriverDashboardEnhanced() {
 
     return (
         <div className="animate-in fade-in duration-500 space-y-8">
-            {/* Header */}
-            <div>
-                <h2 className="text-2xl font-bold text-[#0d121c] dark:text-white">Driver Portal</h2>
-                <p className="text-[#49659c] dark:text-gray-400">Trips, earnings, and compliance</p>
+            {/* Welcome Message and Attendance Card */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                    <WelcomeMessage />
+                </div>
+                <div className="lg:col-span-1">
+                    <AttendanceCard />
+                </div>
             </div>
 
             {/* Trip Info */}

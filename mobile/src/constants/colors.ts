@@ -54,6 +54,9 @@ export const COLORS = {
   overlay: 'rgba(0, 0, 0, 0.5)',
   overlayLight: 'rgba(0, 0, 0, 0.3)',
 
+  // Tab bar
+  tabBarBackground: '#090C20EB', // Dark blue with transparency
+
   // Transparent
   transparent: 'transparent',
 } as const;

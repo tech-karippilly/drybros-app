@@ -21,4 +21,5 @@ export interface AuthState {
     activeTab: string;
     franchiseList: Franchise[];
     selectedFranchise: Franchise | null;
+    refreshTrigger: number; // Timestamp to trigger dashboard refresh
 }

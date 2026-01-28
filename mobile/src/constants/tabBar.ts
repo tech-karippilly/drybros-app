@@ -16,13 +16,16 @@ export const TAB_BAR = {
   /** Active tab pill */
   ACTIVE_BACKGROUND: '#DE4A48',
   ACTIVE_BORDER_RADIUS: 46,
-  ACTIVE_HEIGHT: 48,
-  ACTIVE_PADDING_VERTICAL: 12,
-  ACTIVE_PADDING_HORIZONTAL: 20,
-  ACTIVE_GAP: 14,
+  ACTIVE_HEIGHT: 52, // Increased from 48
+  ACTIVE_PADDING_VERTICAL: 14, // Vertical padding (top/bottom)
+  ACTIVE_PADDING_HORIZONTAL: 24, // Increased horizontal padding (left/right) for active tabs
+  ACTIVE_GAP: 8, // Gap between icon and label
 
   /** Inactive tab icon/text */
   INACTIVE_OPACITY: 0.7,
+
+  /** Tab switch animation (ms) */
+  ANIMATION_DURATION: 200,
 } as const;
 
 /** Bottom padding for tab screens so content is not covered by floating tab bar */

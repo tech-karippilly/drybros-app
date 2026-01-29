@@ -16,15 +16,15 @@ export interface AttendanceResponse {
   updatedAt: string;
 }
 
+/** Request body for clock-in. Backend expects `id` (driver, staff, or user UUID). */
 export interface ClockInRequest {
-  driverId?: string;
-  staffId?: string;
+  id: string;
   notes?: string | null;
 }
 
+/** Request body for clock-out. Backend expects `id` (driver, staff, or user UUID). */
 export interface ClockOutRequest {
-  driverId?: string;
-  staffId?: string;
+  id: string;
   notes?: string | null;
 }
 
@@ -38,6 +38,7 @@ export async function getAttendances(params?: {
   limit?: number;
   driverId?: string;
   staffId?: string;
+  userId?: string;
   startDate?: string;
   endDate?: string;
 }): Promise<AttendanceResponse[] | PaginatedAttendanceResponse> {
@@ -46,6 +47,7 @@ export async function getAttendances(params?: {
   if (params?.limit != null) search.set('limit', String(params.limit));
   if (params?.driverId) search.set('driverId', params.driverId);
   if (params?.staffId) search.set('staffId', params.staffId);
+  if (params?.userId) search.set('userId', params.userId);
   if (params?.startDate) search.set('startDate', params.startDate);
   if (params?.endDate) search.set('endDate', params.endDate);
   const url = search.toString() ? `/attendance?${search.toString()}` : '/attendance';

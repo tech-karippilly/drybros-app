@@ -8,8 +8,16 @@ import {
     CreateFranchiseRequest,
 } from './franchiseApi';
 
-// Helper function to map backend FranchiseResponse to frontend Franchise
-const mapBackendFranchiseToFrontend = (backendFranchise: FranchiseResponse): Franchise => {
+/** Derive frontend status from backend status (source of truth) or isActive fallback */
+function mapFranchiseStatus(backendFranchise: FranchiseResponse): 'active' | 'blocked' {
+    const s = (backendFranchise.status ?? '').toUpperCase();
+    if (s === 'ACTIVE') return 'active';
+    if (s === 'BLOCKED' || s === 'TEMPORARILY_CLOSED') return 'blocked';
+    return backendFranchise.isActive ? 'active' : 'blocked';
+}
+
+/** Map backend franchise response to frontend Franchise (exported for use after status update, etc.) */
+export const mapBackendFranchiseToFrontend = (backendFranchise: FranchiseResponse): Franchise => {
     return {
         _id: backendFranchise.id,
         code: backendFranchise.code,
@@ -25,7 +33,7 @@ const mapBackendFranchiseToFrontend = (backendFranchise: FranchiseResponse): Fra
         inchargeName: backendFranchise.inchargeName || '',
         staff: [], // Will need to fetch from staff API
         drivers: [], // Will need to fetch from driver API
-        status: backendFranchise.isActive ? 'active' : 'blocked',
+        status: mapFranchiseStatus(backendFranchise),
     };
 };
 

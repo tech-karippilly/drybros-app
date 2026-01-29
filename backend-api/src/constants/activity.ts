@@ -60,3 +60,6 @@ export const ACTIVITY_ENTITY_TYPES = {
 export const ACTIVITY_ERROR_MESSAGES = {
   ACTIVITY_NOT_FOUND: "Activity log not found",
 } as const;
+
+/** SSE activity stream poll interval (ms) for real-time delivery of e.g. clock-in logs */
+export const ACTIVITY_STREAM_POLL_MS = 1000;

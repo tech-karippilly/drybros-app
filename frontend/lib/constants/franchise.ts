@@ -18,6 +18,7 @@ export const FRANCHISE_STRINGS = {
     CONTACT_MANAGER: 'Contact Manager',
 
     /** Section labels */
+    LABEL_STATUS: 'Status',
     ADDRESS: 'Address',
     CONTACT_PHONE: 'Contact Phone',
     EMAIL_ADDRESS: 'Email Address',
@@ -92,6 +93,10 @@ export const FRANCHISE_STRINGS = {
 
     /** Currency (franchise revenue is in INR) */
     CURRENCY_SYMBOL: '₹',
+
+    /** Loading / error */
+    LOADING_FRANCHISES: 'Loading franchises...',
+    FAILED_TO_LOAD_FRANCHISES: 'Failed to load franchises. Please try again.',
 
     /** Empty / not available */
     NO_FRANCHISES_FOUND: 'No franchises found',

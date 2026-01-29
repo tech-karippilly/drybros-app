@@ -198,6 +198,7 @@ export function ManagerDashboard() {
                 setAttendanceLoading(true);
                 const today = new Date().toISOString().split('T')[0];
                 const attendances = await getAttendances({
+                    userId: user?._id ?? undefined,
                     startDate: today,
                     endDate: today,
                 });
@@ -221,7 +222,7 @@ export function ManagerDashboard() {
         return () => {
             cancelled = true;
         };
-    }, [refreshTrigger]);
+    }, [refreshTrigger, user?._id]);
 
     // Update shift timer based on clock in time
     useEffect(() => {
@@ -316,6 +317,7 @@ export function ManagerDashboard() {
         try {
             const today = new Date().toISOString().split('T')[0];
             const attendances = await getAttendances({
+                userId: user?._id ?? undefined,
                 startDate: today,
                 endDate: today,
             });
@@ -343,10 +345,19 @@ export function ManagerDashboard() {
             });
             return;
         }
+        const loggedUserId = user?._id;
+        if (!loggedUserId) {
+            toast({
+                title: "Clock In Failed",
+                description: "You must be logged in to clock in.",
+                variant: "error",
+            });
+            return;
+        }
 
         try {
             setClockingIn(true);
-            await clockIn({ notes: null });
+            await clockIn({ id: loggedUserId, notes: null });
             await refreshAttendance();
             
             toast({
@@ -375,10 +386,19 @@ export function ManagerDashboard() {
             });
             return;
         }
+        const loggedUserId = user?._id;
+        if (!loggedUserId) {
+            toast({
+                title: "Clock Out Failed",
+                description: "You must be logged in to clock out.",
+                variant: "error",
+            });
+            return;
+        }
 
         try {
             setClockingOut(true);
-            await clockOut({ notes: null });
+            await clockOut({ id: loggedUserId, notes: null });
             await refreshAttendance();
             
             toast({

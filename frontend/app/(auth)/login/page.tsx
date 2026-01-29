@@ -10,9 +10,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
+import { Modal } from '@/components/ui/modal';
 import { useAppDispatch, useAppSelector } from '@/lib/hooks';
 import { setCredentials, setFranchiseList } from '@/lib/features/auth/authSlice';
-import { AUTH_ROUTES, STORAGE_KEYS } from '@/lib/constants/auth';
+import { AUTH_ROUTES, STORAGE_KEYS, FRANCHISE_TEMPORARILY_CLOSED_TITLE, FRANCHISE_TEMPORARILY_CLOSED_MESSAGE } from '@/lib/constants/auth';
 import { mapBackendRoleToFrontend, USER_ROLES } from '@/lib/constants/roles';
 import { login } from '@/lib/features/auth/authApi';
 import { getAuthTokens } from '@/lib/utils/auth';
@@ -24,6 +25,7 @@ export default function LoginPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+    const [showFranchiseTemporarilyClosedModal, setShowFranchiseTemporarilyClosedModal] = useState(false);
     const router = useRouter();
     const { toast } = useToast();
     const dispatch = useAppDispatch();
@@ -123,10 +125,14 @@ export default function LoginPage() {
                 variant: "success",
             });
 
-            // Redirect to dashboard after success (use replace to prevent back navigation)
-            setTimeout(() => {
-                router.replace(AUTH_ROUTES.DASHBOARD);
-            }, 1000);
+            // Show franchise temporarily closed modal if applicable, then redirect
+            if (response.franchiseTemporarilyClosed) {
+                setShowFranchiseTemporarilyClosedModal(true);
+            } else {
+                setTimeout(() => {
+                    router.replace(AUTH_ROUTES.DASHBOARD);
+                }, 1000);
+            }
         } catch (err: any) {
             // Handle API errors
             const errorMessage =
@@ -139,7 +145,13 @@ export default function LoginPage() {
         }
     };
 
+    const handleCloseFranchiseTemporarilyClosedModal = () => {
+        setShowFranchiseTemporarilyClosedModal(false);
+        router.replace(AUTH_ROUTES.DASHBOARD);
+    };
+
     return (
+        <>
         <div className="space-y-6">
             <div className="space-y-2 text-center">
                 <Text variant="h3">Welcome Back</Text>
@@ -211,5 +223,21 @@ export default function LoginPage() {
                 </Button>
             </form>
         </div>
+
+        <Modal
+            isOpen={showFranchiseTemporarilyClosedModal}
+            onClose={handleCloseFranchiseTemporarilyClosedModal}
+            title={FRANCHISE_TEMPORARILY_CLOSED_TITLE}
+            description={FRANCHISE_TEMPORARILY_CLOSED_MESSAGE}
+        >
+            <Button
+                onClick={handleCloseFranchiseTemporarilyClosedModal}
+                className="w-full mt-4"
+                size="lg"
+            >
+                OK
+            </Button>
+        </Modal>
+        </>
     );
 }

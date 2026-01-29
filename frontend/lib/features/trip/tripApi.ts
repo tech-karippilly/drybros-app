@@ -10,6 +10,8 @@ export const TRIP_ENDPOINTS = {
     BASE: '/trips',
     PHASE1: '/trips/phase1',
     BY_ID: (id: string | number) => `/trips/${id}`,
+    /** POST /trips/:id/assign-driver - Assign a driver to a trip */
+    ASSIGN_DRIVER: (tripId: string) => `/trips/${tripId}/assign-driver`,
 } as const;
 
 // Request DTOs (matching backend)
@@ -209,10 +211,14 @@ export async function getAvailableDriversForTrip(tripId: string): Promise<any[]>
 }
 
 /**
- * Assign driver to trip
+ * Assign driver to trip (POST /trips/:id/assign-driver).
+ * Uses the trips API to assign the given driver to the trip.
  */
 export async function assignDriverToTrip(tripId: string, driverId: string): Promise<TripResponse> {
-    const response = await api.post<{ data: TripResponse }>(`/trips/${tripId}/assign-driver`, { driverId });
+    const response = await api.post<{ data: TripResponse }>(
+        TRIP_ENDPOINTS.ASSIGN_DRIVER(tripId),
+        { driverId }
+    );
     return response.data.data;
 }
 

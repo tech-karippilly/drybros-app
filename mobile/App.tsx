@@ -88,11 +88,23 @@ export default function App() {
   }
 
   // Show main app after login (tab bar: Home, Trip, Leave, Alerts, Profile)
+  const navTheme = {
+    dark: false,
+    colors: {
+      primary: COLORS.primary,
+      background: COLORS.background,
+      card: COLORS.background,
+      text: COLORS.textPrimary,
+      border: COLORS.border,
+      notification: COLORS.primary,
+    },
+  };
+
   return (
-    <GestureHandlerRootView style={styles.flex1}>
+    <GestureHandlerRootView style={[styles.flex1, styles.appBackground]}>
       <SafeAreaProvider>
         <ToastProvider>
-          <NavigationContainer>
+          <NavigationContainer theme={navTheme}>
             <StatusBar style="auto" />
             <MainTabNavigator />
           </NavigationContainer>
@@ -104,6 +116,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   flex1: { flex: 1 },
+  appBackground: { backgroundColor: COLORS.background },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',

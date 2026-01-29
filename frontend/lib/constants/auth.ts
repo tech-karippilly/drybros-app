@@ -19,6 +19,10 @@ export const AUTH_API_ENDPOINTS = {
 
 export const REFRESH_TOKEN_EXPIRED_ERROR = 'REFRESH_TOKEN_EXPIRED' as const;
 
+/** Shown in modal when user's franchise is temporarily closed (after login) */
+export const FRANCHISE_TEMPORARILY_CLOSED_MESSAGE = 'Your franchise is temporarily closed. Please contact support for more information.';
+export const FRANCHISE_TEMPORARILY_CLOSED_TITLE = 'Franchise Temporarily Closed';
+
 export const AUTH_ROUTES = {
     LOGIN: '/login',
     REGISTER: '/register',

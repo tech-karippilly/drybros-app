@@ -5775,11 +5775,7 @@ paths:
       description: |
         Record clock in for a driver, staff member, or manager.
         
-        **Note:** Exactly one of `driverId`, `staffId`, or `userId` must be provided.
-        - `driverId`: For drivers
-        - `staffId`: For staff members
-        - `userId`: For managers (User table)
-        
+        Provide `id` (UUID) — the driver, staff, or manager ID. No note is required.
         You can only clock in once per day.
       tags:
         - Attendance
@@ -8644,28 +8640,14 @@ components:
 
     ClockInRequest:
       type: object
-      required: []
+      required:
+        - id
       properties:
-        driverId:
+        id:
           type: string
           format: uuid
-          description: Driver ID (exactly one of driverId, staffId, or userId must be provided)
+          description: Driver, staff, or manager ID (UUID)
           example: "550e8400-e29b-41d4-a716-446655440000"
-        staffId:
-          type: string
-          format: uuid
-          description: Staff ID (exactly one of driverId, staffId, or userId must be provided)
-          example: "660e8400-e29b-41d4-a716-446655440001"
-        userId:
-          type: string
-          format: uuid
-          description: User ID for managers (exactly one of driverId, staffId, or userId must be provided)
-          example: "770e8400-e29b-41d4-a716-446655440002"
-        notes:
-          type: string
-          maxLength: 500
-          nullable: true
-          example: "On time"
 
     ClockOutRequest:
       type: object

@@ -23,7 +23,7 @@ import {
   UpdateAttendanceStatusDTO,
 } from "../types/attendance.dto";
 import { NotFoundError, BadRequestError } from "../utils/errors";
-import { ATTENDANCE_ERROR_MESSAGES } from "../constants/attendance";
+import { ATTENDANCE_ERROR_MESSAGES, ATTENDANCE_ACTIVITY_DESCRIPTIONS } from "../constants/attendance";
 import logger from "../config/logger";
 import { logActivity } from "./activity.service";
 import { ActivityAction, ActivityEntityType, UserRole } from "@prisma/client";
@@ -104,7 +104,7 @@ export async function trackLogin(
 export async function clockIn(
   input: ClockInDTO
 ): Promise<{ message: string; data: AttendanceResponseDTO }> {
-  const { id, notes } = input;
+  const { id } = input;
 
   // Check if ID belongs to driver, staff, or user (manager) - check all in parallel
   const [driver, staff, user] = await Promise.all([
@@ -112,7 +112,7 @@ export async function clockIn(
     getStaffById(id),
     prisma.user.findUnique({
       where: { id },
-      select: { id: true, role: true, franchiseId: true },
+      select: { id: true, role: true, franchiseId: true, fullName: true },
     }),
   ]);
 
@@ -154,6 +154,16 @@ export async function clockIn(
     throw new BadRequestError(ATTENDANCE_ERROR_MESSAGES.ALREADY_CLOCKED_IN);
   }
 
+  const personName = driver
+    ? [driver.firstName, driver.lastName].filter(Boolean).join(" ").trim() || "Driver"
+    : staff
+      ? staff.name || "Staff"
+      : user
+        ? user.fullName || "Manager"
+        : "Unknown";
+
+  const clockInDescription = `${personName}${ATTENDANCE_ACTIVITY_DESCRIPTIONS.CLOCK_IN_SUFFIX}`;
+
   const attendance = await upsertAttendance({
     driverId,
     staffId,
@@ -162,7 +172,7 @@ export async function clockIn(
     clockIn: new Date(),
     clockOut: null,
     status: "PRESENT",
-    notes: notes || null,
+    notes: null,
   });
 
   logger.info("Clock in recorded", {
@@ -171,7 +181,12 @@ export async function clockIn(
     id,
   });
 
-  // Log activity (non-blocking)
+  // Log activity (non-blocking); description includes person name for real-time activity logs
+  const activityMetadata = {
+    attendanceId: attendance.id,
+    date: attendance.date,
+    personName,
+  };
   if (driverId) {
     logActivity({
       action: ActivityAction.DRIVER_CLOCK_IN,
@@ -179,12 +194,8 @@ export async function clockIn(
       entityId: attendance.id,
       franchiseId: driver?.franchiseId,
       driverId: driverId,
-      description: `Driver clocked in`,
-      metadata: {
-        attendanceId: attendance.id,
-        date: attendance.date,
-        notes: notes,
-      },
+      description: clockInDescription,
+      metadata: activityMetadata,
     }).catch((err) => {
       logger.error("Failed to log clock in activity", { error: err });
     });
@@ -195,12 +206,8 @@ export async function clockIn(
       entityId: attendance.id,
       franchiseId: staff?.franchiseId,
       staffId: staffId,
-      description: `Staff clocked in`,
-      metadata: {
-        attendanceId: attendance.id,
-        date: attendance.date,
-        notes: notes,
-      },
+      description: clockInDescription,
+      metadata: activityMetadata,
     }).catch((err) => {
       logger.error("Failed to log clock in activity", { error: err });
     });
@@ -211,12 +218,8 @@ export async function clockIn(
       entityId: attendance.id,
       franchiseId: user.franchiseId || undefined,
       userId: userId,
-      description: `Manager clocked in`,
-      metadata: {
-        attendanceId: attendance.id,
-        date: attendance.date,
-        notes: notes,
-      },
+      description: clockInDescription,
+      metadata: activityMetadata,
     }).catch((err) => {
       logger.error("Failed to log clock in activity", { error: err });
     });

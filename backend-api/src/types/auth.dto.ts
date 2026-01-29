@@ -124,6 +124,7 @@ export type RefreshTokenDTO = z.infer<typeof refreshTokenSchema>;
 /**
  * DTO for auth response (login only)
  * franchiseId is included when role is manager | staff | driver (from User, Staff, or Driver)
+ * franchiseTemporarilyClosed is true when the user's franchise status is TEMPORARILY_CLOSED (client shows modal)
  */
 export interface AuthResponseDTO {
   accessToken: string;
@@ -136,6 +137,8 @@ export interface AuthResponseDTO {
     role: string;
     franchiseId?: string;
   };
+  /** When true, client should show a modal that the franchise is temporarily closed */
+  franchiseTemporarilyClosed?: boolean;
 }
 
 /**

@@ -269,7 +269,16 @@ export function UnassignedTripsList({ onViewTrip }: UnassignedTripsListProps) {
                                         paginatedTrips.map((trip) => (
                                             <React.Fragment key={trip.id}>
                                             <tr
-                                                className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors group"
+                                                role="button"
+                                                tabIndex={0}
+                                                onClick={() => onViewTrip?.(trip.id)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                        e.preventDefault();
+                                                        onViewTrip?.(trip.id);
+                                                    }
+                                                }}
+                                                className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors group cursor-pointer"
                                             >
                                                 <td className="px-6 py-4">
                                                     <span className="text-xs font-bold px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded">
@@ -353,9 +362,10 @@ export function UnassignedTripsList({ onViewTrip }: UnassignedTripsListProps) {
                                                         {trip.status}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4">
+                                                <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                                                     <div className="flex items-center gap-2">
                                                         <button
+                                                            type="button"
                                                             onClick={() => onViewTrip?.(trip.id)}
                                                             className="p-2 text-[#49659c] hover:text-[#0d59f2] hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
                                                             title="View Details"
@@ -363,7 +373,11 @@ export function UnassignedTripsList({ onViewTrip }: UnassignedTripsListProps) {
                                                             <Eye size={18} />
                                                         </button>
                                                         <button
-                                                            onClick={() => handleViewDrivers(trip.id)}
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleViewDrivers(trip.id);
+                                                            }}
                                                             className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-medium transition-all"
                                                             title="Assign Driver"
                                                         >

@@ -73,6 +73,56 @@ export const TRIPS_STRINGS = {
     PREVIOUS_STEP: 'Previous',
 } as const;
 
+/** Book a Trip page – UI strings matching Dybros Dispatch design */
+export const BOOKING_STRINGS = {
+    BREADCRUMB_DASHBOARD: 'Dashboard',
+    BREADCRUMB_TRIPS: 'Trips',
+    BREADCRUMB_BOOK: 'Book a Trip',
+    PAGE_TITLE: 'Book a Trip',
+    PAGE_SUBTITLE: 'Enter trip details to assign a driver and vehicle.',
+    SAVE_AS_DRAFT: 'Save as Draft',
+    CUSTOMER_INFO: 'Customer Information',
+    CUSTOMER_FULL_NAME: 'Customer Full Name',
+    CUSTOMER_FULL_NAME_PLACEHOLDER: 'John Doe',
+    PHONE_NUMBER: 'Phone Number',
+    PHONE_PLACEHOLDER: '+1 (555) 000-0000',
+    EMAIL_ADDRESS: 'Email Address',
+    EMAIL_PLACEHOLDER: 'john.doe@example.com',
+    CAR_DETAILS: 'Car Details',
+    CAR_MODEL_NAME: 'Car Model / Name',
+    CAR_MODEL_PLACEHOLDER: 'e.g. Mercedes-Benz S-Class',
+    TRANSMISSION_TYPE: 'Transmission Type',
+    TRANSMISSION_AUTOMATIC: 'Automatic',
+    TRANSMISSION_MANUAL: 'Manual',
+    VEHICLE_CATEGORY: 'Vehicle Category',
+    VEHICLE_NORMAL: 'Normal',
+    VEHICLE_PREMIUM: 'Premium',
+    TRIP_LOGISTICS: 'Trip Logistics',
+    LOCATION: 'Location',
+    LOCATION_PLACEHOLDER_PICKUP: 'Search for pickup location...',
+    LOCATION_PLACEHOLDER_DESTINATION: 'Search for destination location...',
+    PICKUP_ADDRESS: 'Pickup Address',
+    PICKUP_ADDRESS_PLACEHOLDER: 'Enter pickup address',
+    DESTINATION_ADDRESS: 'Destination Address',
+    DESTINATION_ADDRESS_PLACEHOLDER: 'Enter destination address',
+    NOTE_SPECIAL_INSTRUCTIONS: 'Note (special instructions)',
+    NOTE_PICKUP_PLACEHOLDER: 'e.g. Building, entrance, gate code',
+    NOTE_DESTINATION_PLACEHOLDER: 'e.g. Drop at reception, call on arrival',
+    MAP_PREVIEW: 'Map Preview',
+    OPERATIONAL_DETAILS: 'Operational Details',
+    FRANCHISE_OFFICE: 'Franchise Office',
+    TRIP_TYPE: 'Trip Type',
+    SCHEDULED_DATE: 'Scheduled Date',
+    SCHEDULED_TIME: 'Scheduled Time',
+    DETAILS_RECONFIRMED: 'Details Reconfirmed with Customer',
+    CANCEL: 'Cancel',
+    BOOK_TRIP_NOW: 'Book Trip Now',
+    CREATING: 'Creating...',
+    SELECT_FRANCHISE: 'Select franchise',
+    SELECT_TRIP_TYPE: 'Select trip type',
+    LOADING_FRANCHISES: 'Loading franchises...',
+} as const;
+
 /** Statuses that allow reschedule */
 export const RESCHEDULABLE_TRIP_STATUSES = ['PENDING', 'NOT_ASSIGNED', 'REQUESTED', 'ASSIGNED', 'DRIVER_ACCEPTED'] as const;
 
@@ -81,3 +131,31 @@ export const CANCELLABLE_TRIP_STATUSES = ['PENDING', 'NOT_ASSIGNED', 'REQUESTED'
 
 /** Statuses that allow reassign (has driver, not started) */
 export const REASSIGNABLE_TRIP_STATUSES = ['ASSIGNED', 'DRIVER_ACCEPTED'] as const;
+
+/** Assign Driver screen (after booking) – Dybros Dispatch style */
+export const ASSIGN_DRIVER_STRINGS = {
+    PAGE_TITLE: 'Assign Driver',
+    PAGE_SUBTITLE: 'Select a driver for the upcoming scheduled trip.',
+    TRIP_DETAILS: 'Trip Details',
+    PICKUP: 'Pickup',
+    DESTINATION: 'Destination',
+    DATE: 'Date',
+    TIME: 'Time',
+    QUICK_ACTIONS: 'Quick Actions',
+    CURRENT_TRIP_MANIFEST: 'Current Trip Manifest',
+    FULL_ROUTE_MAP: 'Full Route Map',
+    TRIP_LOGS: 'Trip Logs',
+    SEARCH_PLACEHOLDER: 'Search driver by name...',
+    DISTANCE_CLOSEST: 'Distance: Closest',
+    RATING_ANY: 'Rating: Any',
+    AVAILABLE_DRIVERS: 'Available Drivers',
+    ASSIGN_TO_TRIP: 'Assign to Trip',
+    ASSIGNING: 'Assigning...',
+    SCHEDULED: 'Scheduled',
+    TRIP_ID: 'Trip ID',
+    BACK_TO_BOOKING: 'Back to Booking',
+    SKIP_FOR_NOW: 'Skip for Now',
+    NO_DRIVERS: 'No available drivers for this trip.',
+    LOADING_TRIP: 'Loading trip details...',
+    LOADING_DRIVERS: 'Loading available drivers...',
+} as const;

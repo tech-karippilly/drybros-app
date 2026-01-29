@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useAppSelector, useAppDispatch } from "@/lib/hooks";
-import { setSelectedFranchise } from "@/lib/features/franchise/franchiseSlice";
+import { setSelectedFranchise, fetchFranchises } from "@/lib/features/franchise/franchiseSlice";
 import { FRANCHISE_STRINGS } from "@/lib/constants/franchise";
 import { DASHBOARD_ROUTES } from "@/lib/constants/routes";
 import {
@@ -41,7 +41,7 @@ function getAvatarColor(index: number): string {
 }
 
 export function FranchiseList() {
-    const { list } = useAppSelector((state) => state.franchise);
+    const { list, isLoading, error } = useAppSelector((state) => state.franchise);
     const dispatch = useAppDispatch();
 
     const [searchTerm, setSearchTerm] = useState("");
@@ -102,6 +102,55 @@ export function FranchiseList() {
         "%s",
         String(showingStart)
     ).replace("%s", String(showingEnd)).replace("%s", String(filteredList.length));
+
+    if (isLoading && list.length === 0) {
+        return (
+            <div className="flex flex-col gap-8 animate-in fade-in duration-500">
+                <div className="mb-8">
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                        {FRANCHISE_STRINGS.PAGE_TITLE_OVERVIEW}
+                    </h2>
+                    <p className="text-slate-500 dark:text-[#92adc9] mt-0.5">
+                        {FRANCHISE_STRINGS.PAGE_SUBTITLE_OVERVIEW}
+                    </p>
+                </div>
+                <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-[#111a22] rounded-xl border border-slate-200 dark:border-[#324d67]">
+                    <div className="size-10 border-2 border-theme-blue border-t-transparent rounded-full animate-spin mb-4" />
+                    <p className="text-sm text-slate-500 dark:text-[#92adc9]">
+                        {FRANCHISE_STRINGS.LOADING_FRANCHISES}
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error && list.length === 0) {
+        return (
+            <div className="flex flex-col gap-8 animate-in fade-in duration-500">
+                <div className="mb-8">
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                        {FRANCHISE_STRINGS.PAGE_TITLE_OVERVIEW}
+                    </h2>
+                    <p className="text-slate-500 dark:text-[#92adc9] mt-0.5">
+                        {FRANCHISE_STRINGS.PAGE_SUBTITLE_OVERVIEW}
+                    </p>
+                </div>
+                <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-[#111a22] rounded-xl border border-slate-200 dark:border-[#324d67]">
+                    <p className="text-sm text-red-500 dark:text-red-400 font-medium mb-2">
+                        {FRANCHISE_STRINGS.FAILED_TO_LOAD_FRANCHISES}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-[#92adc9] mb-4">{error}</p>
+                    <button
+                        type="button"
+                        onClick={() => dispatch(fetchFranchises())}
+                        className="px-4 py-2 bg-theme-blue text-white rounded-lg text-sm font-semibold hover:bg-theme-blue/90 transition-colors"
+                    >
+                        Try again
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col gap-8 animate-in fade-in duration-500">

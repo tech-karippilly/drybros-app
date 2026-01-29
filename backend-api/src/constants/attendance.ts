@@ -17,3 +17,8 @@ export const ATTENDANCE_STATUS = {
   HALF_DAY: "HALF_DAY",
   ON_LEAVE: "ON_LEAVE",
 } as const;
+
+/** Format for clock-in activity description: "{personName} clocked in" */
+export const ATTENDANCE_ACTIVITY_DESCRIPTIONS = {
+  CLOCK_IN_SUFFIX: " clocked in",
+} as const;

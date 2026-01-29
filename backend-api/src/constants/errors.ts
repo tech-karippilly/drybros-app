@@ -30,6 +30,7 @@ export const ERROR_MESSAGES = {
   // Franchise errors
   FRANCHISE_NOT_FOUND: "Franchise not found",
   FRANCHISE_CODE_ALREADY_EXISTS: "Franchise code already exists",
+  FRANCHISE_BLOCKED: "Your franchise has been blocked. Please contact support.",
   
   // Role errors
   ROLE_NOT_FOUND: "Role not found",

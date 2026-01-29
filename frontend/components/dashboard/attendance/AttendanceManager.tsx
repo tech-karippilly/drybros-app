@@ -237,7 +237,8 @@ function ClockInOutModal({
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!driverId && !staffId) {
+        const id = driverId.trim() || staffId.trim();
+        if (!id) {
             alert('Provide either driver ID or staff ID.');
             return;
         }
@@ -246,8 +247,7 @@ function ClockInOutModal({
             return;
         }
         onSubmit({
-            driverId: driverId || undefined,
-            staffId: staffId || undefined,
+            id,
             notes: notes.trim() || undefined,
         });
     };

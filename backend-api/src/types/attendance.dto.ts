@@ -3,11 +3,11 @@ import { z } from "zod";
 import { AttendanceStatus } from "@prisma/client";
 
 /**
- * Zod schema for clock in
+ * Zod schema for clock in.
+ * Only id is required; notes are not used for clock-in.
  */
 export const clockInSchema = z.object({
   id: z.string().uuid("ID must be a valid UUID"),
-  notes: z.string().max(500, "Notes must be less than 500 characters").optional().nullable(),
 });
 
 export type ClockInDTO = z.infer<typeof clockInSchema>;
@@ -49,8 +49,15 @@ export const attendancePaginationQuerySchema = z.object({
   driverId: z.string().uuid("Driver ID must be a valid UUID").optional(),
   staffId: z.string().uuid("Staff ID must be a valid UUID").optional(),
   userId: z.string().uuid("User ID must be a valid UUID").optional(),
-  startDate: z.string().datetime("Invalid start date format").optional(),
-  endDate: z.string().datetime("Invalid end date format").optional(),
+  /** Accepts date-only (YYYY-MM-DD) or full ISO datetime. */
+  startDate: z
+    .string()
+    .refine((s) => /^\d{4}-\d{2}-\d{2}(T.*)?$/i.test(s), "Invalid start date format (use YYYY-MM-DD or ISO datetime)")
+    .optional(),
+  endDate: z
+    .string()
+    .refine((s) => /^\d{4}-\d{2}-\d{2}(T.*)?$/i.test(s), "Invalid end date format (use YYYY-MM-DD or ISO datetime)")
+    .optional(),
 });
 
 export type AttendancePaginationQueryDTO = z.infer<typeof attendancePaginationQuerySchema>;

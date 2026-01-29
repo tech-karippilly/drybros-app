@@ -7,6 +7,7 @@ import {
 } from "../services/activity.service";
 import { UserRole } from "@prisma/client";
 import prisma from "../config/prismaClient";
+import { ACTIVITY_STREAM_POLL_MS } from "../constants/activity";
 
 /**
  * Get activity logs with role-based filtering
@@ -151,7 +152,7 @@ export async function getActivityLogsStreamHandler(
     // Send initial connection message
     res.write(`data: ${JSON.stringify({ type: "connected", message: "Activity log stream connected" })}\n\n`);
 
-    // Poll for new activities every 2 seconds
+    // Poll for new activities (e.g. "Person name clocked in") for real-time delivery
     let lastActivityId: string | null = null;
     const pollInterval = setInterval(async () => {
       try {
@@ -186,7 +187,7 @@ export async function getActivityLogsStreamHandler(
       } catch (error) {
         res.write(`data: ${JSON.stringify({ type: "error", message: "Failed to fetch activities" })}\n\n`);
       }
-    }, 2000); // Poll every 2 seconds
+    }, ACTIVITY_STREAM_POLL_MS);
 
     // Clean up on client disconnect
     req.on("close", () => {

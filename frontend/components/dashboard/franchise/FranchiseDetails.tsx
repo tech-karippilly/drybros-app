@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAppSelector, useAppDispatch } from "@/lib/hooks";
-import { setSelectedFranchise } from "@/lib/features/franchise/franchiseSlice";
+import { setSelectedFranchise, updateFranchise, mapBackendFranchiseToFrontend } from "@/lib/features/franchise/franchiseSlice";
 import {
     getFranchiseById,
     updateFranchiseStatus,
@@ -97,7 +97,10 @@ export function FranchiseDetails() {
         setActionLoading(true);
         setActionError(null);
         try {
-            await updateFranchiseStatus(franchiseId, { status: confirmStatusModal });
+            const res = await updateFranchiseStatus(franchiseId, { status: confirmStatusModal });
+            const mapped = mapBackendFranchiseToFrontend(res.data);
+            dispatch(updateFranchise(mapped));
+            dispatch(setSelectedFranchise(mapped));
             setConfirmStatusModal(null);
             setStatusDropdownOpen(false);
             fetchDetail();
@@ -200,6 +203,22 @@ export function FranchiseDetails() {
     const managerEmail = detail.staff?.[0]?.email ?? "";
     const onlineDrivers = detail.drivers?.filter((d) => d.status === "ACTIVE" && d.isActive).length ?? 0;
 
+    const franchiseStatus = detail.status ?? (detail.isActive ? FRANCHISE_STATUS.ACTIVE : "INACTIVE");
+    const statusDisplayLabel =
+        franchiseStatus === FRANCHISE_STATUS.ACTIVE
+            ? FRANCHISE_STRINGS.STATUS_ACTIVE
+            : franchiseStatus === FRANCHISE_STATUS.BLOCKED
+              ? FRANCHISE_STRINGS.STATUS_BLOCKED
+              : franchiseStatus === FRANCHISE_STATUS.TEMPORARILY_CLOSED
+                ? FRANCHISE_STRINGS.STATUS_TEMPORARILY_CLOSED
+                : FRANCHISE_STRINGS.STATUS_INACTIVE;
+    const statusBadgeClass =
+        franchiseStatus === FRANCHISE_STATUS.ACTIVE
+            ? "bg-emerald-500/10 text-emerald-500"
+            : franchiseStatus === FRANCHISE_STATUS.BLOCKED
+              ? "bg-red-500/10 text-red-500"
+              : "bg-amber-500/10 text-amber-500";
+
     return (
         <div className="flex flex-col gap-8 animate-in slide-in-from-right duration-500">
             {/* Header */}
@@ -297,6 +316,19 @@ export function FranchiseDetails() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
                                 <div className="flex flex-col gap-1">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                        {FRANCHISE_STRINGS.LABEL_STATUS}
+                                    </span>
+                                    <span
+                                        className={cn(
+                                            "inline-flex w-fit px-2.5 py-0.5 rounded-full text-xs font-bold",
+                                            statusBadgeClass
+                                        )}
+                                    >
+                                        {statusDisplayLabel}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                         {FRANCHISE_STRINGS.ADDRESS}
                                     </span>
                                     <p className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -349,8 +381,13 @@ export function FranchiseDetails() {
                                 <h3 className="font-bold text-lg text-slate-900 dark:text-white">
                                     {FRANCHISE_STRINGS.MANAGER_DETAILS}
                                 </h3>
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">
-                                    {detail.status ?? (detail.isActive ? FRANCHISE_STRINGS.STATUS_ACTIVE : "INACTIVE")}
+                                <span
+                                    className={cn(
+                                        "px-2 py-0.5 rounded-full text-[10px] font-bold",
+                                        statusBadgeClass
+                                    )}
+                                >
+                                    {statusDisplayLabel}
                                 </span>
                             </div>
                             <div className="flex items-center gap-4 mb-6">

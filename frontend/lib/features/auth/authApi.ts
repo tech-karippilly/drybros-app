@@ -28,6 +28,8 @@ export interface LoginResponse {
             phone: string | null;
             role: string;
         };
+        /** When true, show modal that franchise is temporarily closed */
+        franchiseTemporarilyClosed?: boolean;
     };
 }
 

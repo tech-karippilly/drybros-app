@@ -1,4 +1,4 @@
-import { UserRole, User } from "@prisma/client";
+import { UserRole, User, FranchiseStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import jwt, { SignOptions, Secret } from "jsonwebtoken";
 
@@ -617,6 +617,24 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
     }
   }
 
+  // Block login if user belongs to a blocked franchise; allow but flag if temporarily closed (MANAGER, STAFF, OFFICE_STAFF, DRIVER)
+  let franchiseTemporarilyClosed = false;
+  if (franchiseId) {
+    const franchise = await prisma.franchise.findUnique({
+      where: { id: franchiseId },
+      select: { status: true, isActive: true },
+    });
+    if (
+      franchise &&
+      (franchise.status === FranchiseStatus.BLOCKED || !franchise.isActive)
+    ) {
+      throw new BadRequestError(ERROR_MESSAGES.FRANCHISE_BLOCKED);
+    }
+    if (franchise?.status === FranchiseStatus.TEMPORARILY_CLOSED) {
+      franchiseTemporarilyClosed = true;
+    }
+  }
+
   // Generate tokens
   const accessToken = generateAccessToken(createAccessTokenPayload(userAuthShape));
   const refreshToken = generateRefreshToken(entityId);
@@ -656,6 +674,7 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
     accessToken,
     refreshToken,
     user: mapUserToResponse(userAuthShape, franchiseId),
+    ...(franchiseTemporarilyClosed && { franchiseTemporarilyClosed: true }),
   };
 }
 
@@ -928,16 +947,35 @@ export async function refreshToken(
     throw new BadRequestError(ERROR_MESSAGES.USER_NOT_FOUND);
   }
 
+  const franchiseId = await resolveFranchiseIdForLogin(user);
+
+  // Block refresh if user belongs to a blocked franchise; flag if temporarily closed
+  let franchiseTemporarilyClosed = false;
+  if (franchiseId) {
+    const franchise = await prisma.franchise.findUnique({
+      where: { id: franchiseId },
+      select: { status: true, isActive: true },
+    });
+    if (
+      franchise &&
+      (franchise.status === FranchiseStatus.BLOCKED || !franchise.isActive)
+    ) {
+      throw new BadRequestError(ERROR_MESSAGES.FRANCHISE_BLOCKED);
+    }
+    if (franchise?.status === FranchiseStatus.TEMPORARILY_CLOSED) {
+      franchiseTemporarilyClosed = true;
+    }
+  }
+
   // Generate new tokens
   const accessToken = generateAccessToken(createAccessTokenPayload(user));
   const newRefreshToken = generateRefreshToken(String(user.id));
-
-  const franchiseId = await resolveFranchiseIdForLogin(user);
 
   return {
     accessToken,
     refreshToken: newRefreshToken,
     user: mapUserToResponse(user, franchiseId),
+    ...(franchiseTemporarilyClosed && { franchiseTemporarilyClosed: true }),
   };
 }
 

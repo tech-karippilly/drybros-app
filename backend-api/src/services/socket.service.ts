@@ -238,8 +238,13 @@ class SocketService {
         );
       }
 
-      // Emit to all admins for important activities
-      if (activityLog.action.includes("CREATED") || activityLog.action.includes("STATUS_CHANGED")) {
+      // Emit to all admins for important activities (including clock-in for real-time activity logs)
+      const isAdminRelevant =
+        activityLog.action.includes("CREATED") ||
+        activityLog.action.includes("STATUS_CHANGED") ||
+        activityLog.action.includes("CLOCK_IN") ||
+        activityLog.action === "ATTENDANCE_RECORDED";
+      if (isAdminRelevant) {
         this.io.to(SOCKET_ROOMS.ALL_ADMINS).emit(SOCKET_EVENTS.ACTIVITY_LOG_CREATED, activityLog);
       }
 

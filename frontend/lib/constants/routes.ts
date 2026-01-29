@@ -14,6 +14,8 @@ export const DASHBOARD_ROUTES = {
     TRIPS: '/dashboard/trips',
     TRIP_TYPES: '/dashboard/trip-types',
     BOOKING: '/dashboard/booking',
+    /** Assign driver after booking: /dashboard/booking/assign-driver/[tripId] */
+    ASSIGN_DRIVER: '/dashboard/booking/assign-driver',
     UNASSIGNED_TRIPS: '/dashboard/unassigned-trips',
     COMPLAINTS: '/dashboard/complaints',
     ATTENDANCE: '/dashboard/attendance',

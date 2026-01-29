@@ -208,6 +208,7 @@ const styles = StyleSheet.create({
   wrapper: {
     alignItems: 'center',
     paddingTop: normalizeHeight(8),
+    zIndex: 1,
     ...(Platform.OS === 'ios' && {
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
@@ -215,7 +216,6 @@ const styles = StyleSheet.create({
       shadowRadius: 12,
     }),
     ...(Platform.OS === 'android' && { elevation: 8 }),
-    
   },
   bar: {
     width: '100%',

@@ -4,27 +4,26 @@
  */
 
 import React from 'react';
-import { View, StyleSheet, ScrollView, Image, TouchableOpacity, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Image, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Text } from '../typography';
-import { Badge } from '../components/ui';
-import { COLORS, TAB_BAR_SCENE_PADDING_BOTTOM, IMAGES, LAYOUT, HEADER_LABEL, PROFILE_CIRCLE } from '../constants';
-import { FONT_FAMILY } from '../constants/typography';
+import {
+  COLORS,
+  TAB_BAR_SCENE_PADDING_BOTTOM,
+  IMAGES,
+  LAYOUT,
+  HEADER_LABEL,
+  PROFILE_CIRCLE,
+  PROFILE_CARD,
+  PROFILE_SCREEN_GRADIENT,
+  PROFILE_STRINGS,
+  PROFILE_MOCK_USER,
+  PROFILE_MOCK_EARNINGS,
+} from '../constants';
+import { getFontFamily } from '../constants/typography';
 import { normalizeWidth, normalizeHeight, normalizeFont, heightPercentage } from '../utils/responsive';
-
-/** Placeholder: replace with real user/driver status from API or store */
-const PROFILE_STATUS = {
-  label: 'Active',
-  variant: 'success' as const,
-};
-
-/** Placeholder: replace with real user name and profile image from API or store */
-const PROFILE_USER = {
-  name: 'John Doe',
-  imageUri: null as string | null,
-};
 
 /** Get first two letters of name (e.g. "John Doe" -> "JD") */
 function getInitials(name: string): string {
@@ -38,16 +37,20 @@ export function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = heightPercentage(LAYOUT.PROFILE_HEADER_HEIGHT_PERCENT);
   const outerSize = normalizeWidth(PROFILE_CIRCLE.SIZE);
-  const bottomSize = normalizeWidth(PROFILE_CIRCLE.BOTTOM_CIRCLE_SIZE);
-  const bottomCircleRight = 0;
-  const bottomCircleBottom = -bottomSize / 2;
-  const hasProfileImage = Boolean(PROFILE_USER.imageUri);
-  const initials = getInitials(PROFILE_USER.name);
+  const hasProfileImage = Boolean(PROFILE_MOCK_USER.imageUri);
+  const initials = getInitials(PROFILE_MOCK_USER.name);
   const innerSize = outerSize - PROFILE_CIRCLE.BORDER_WIDTH * 2;
   const initialsFontSize = normalizeFont(PROFILE_CIRCLE.INITIALS_FONT_SIZE);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Screen background gradient: 180deg #ECECEC → #DBDBDB */}
+      <LinearGradient
+        colors={[PROFILE_SCREEN_GRADIENT.TOP, PROFILE_SCREEN_GRADIENT.BOTTOM]}
+        style={styles.screenGradient}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+      />
       {/* Header view – 20% height, banner-bg + pattern + gradient + DRYBROS label */}
       <View style={[styles.headerView, { height: headerHeight }]}>
         <Image
@@ -78,8 +81,8 @@ export function ProfileScreen() {
         </View>
       </View>
 
-      {/* Profile circle: outer circle (border 2) + profile image or initials, camera circle bottom right (zIndex) */}
-      <View style={[styles.profileCircleWrap, { marginTop: -outerSize / 2 - bottomSize / 2 }]}>
+      {/* Profile circle: circular avatar (thin light border) */}
+      <View style={[styles.profileCircleWrap, { marginTop: -outerSize / 2 }]}>
         <View
           style={[
             styles.profileCircleOuter,
@@ -94,7 +97,7 @@ export function ProfileScreen() {
         >
           {hasProfileImage ? (
             <Image
-              source={{ uri: PROFILE_USER.imageUri! }}
+              source={{ uri: PROFILE_MOCK_USER.imageUri! }}
               style={[
                 styles.profileCircleImage,
                 { width: innerSize, height: innerSize, borderRadius: innerSize / 2 },
@@ -107,58 +110,80 @@ export function ProfileScreen() {
             </View>
           )}
         </View>
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => {}}
-          style={[
-            styles.profileCircleBottom,
-            {
-              width: bottomSize,
-              height: bottomSize,
-              borderRadius: bottomSize / 2,
-              backgroundColor: PROFILE_CIRCLE.BOTTOM_CIRCLE_BACKGROUND,
-              right: bottomCircleRight,
-              bottom: bottomCircleBottom,
-              ...(Platform.OS === 'android' && { elevation: 4 }),
-            },
-          ]}
-        >
-          <MaterialCommunityIcons
-            name="camera"
-            size={normalizeWidth(18)}
-            color={COLORS.white}
-          />
-        </TouchableOpacity>
       </View>
 
-      <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: normalizeHeight(32) + TAB_BAR_SCENE_PADDING_BOTTOM }]}
-        showsVerticalScrollIndicator={false}
+      {/* White card below header – rounded corners, margin left/right/bottom */}
+      <View
+        style={[
+          styles.profileCard,
+          {
+            borderTopLeftRadius: normalizeWidth(PROFILE_CARD.BORDER_RADIUS_TOP),
+            borderTopRightRadius: normalizeWidth(PROFILE_CARD.BORDER_RADIUS_TOP),
+            borderBottomLeftRadius: normalizeWidth(PROFILE_CARD.BORDER_RADIUS_BOTTOM),
+            borderBottomRightRadius: normalizeWidth(PROFILE_CARD.BORDER_RADIUS_BOTTOM),
+            marginLeft: normalizeWidth(PROFILE_CARD.MARGIN_LEFT),
+            marginRight: normalizeWidth(PROFILE_CARD.MARGIN_RIGHT),
+            marginBottom: normalizeHeight(PROFILE_CARD.MARGIN_BOTTOM),
+          },
+        ]}
       >
-        <View style={styles.content}>
-          <MaterialCommunityIcons
-            name="account"
-            size={normalizeWidth(40)}
-            color={COLORS.primary}
-          />
-          <Text variant="h3" weight="bold" style={styles.title}>
-            Profile
-          </Text>
-          <Text variant="body" style={styles.subtitle}>
-            Your account and settings.
-          </Text>
-          <View style={styles.statusRow}>
-            <Text variant="caption" style={styles.statusLabel}>
-              Status
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: normalizeHeight(32) + TAB_BAR_SCENE_PADDING_BOTTOM }]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Profile info: name, phone */}
+          <View style={styles.profileInfo}>
+            <Text variant="h5" weight="bold" style={styles.profileName}>
+              {PROFILE_MOCK_USER.name}
             </Text>
-            <Badge
-              label={PROFILE_STATUS.label}
-              variant={PROFILE_STATUS.variant}
-              style={styles.statusBadge}
+            <Text variant="caption" style={styles.profilePhone}>
+              {PROFILE_MOCK_USER.phone}
+            </Text>
+          </View>
+
+          {/* HR: 1px gradient line (transparent → #DDDDDD → transparent) */}
+          <View style={styles.hrWrap}>
+            <LinearGradient
+              colors={[...PROFILE_CARD.HR_GRADIENT_COLORS]}
+              locations={[...PROFILE_CARD.HR_GRADIENT_LOCATIONS]}
+              style={styles.hrLine}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
             />
           </View>
-        </View>
-      </ScrollView>
+
+          {/* Earnings section */}
+          <Text variant="body" weight="semiBold" style={styles.sectionTitle}>
+            {PROFILE_STRINGS.EARNINGS}
+          </Text>
+          <View style={styles.earningsRow}>
+            <View style={styles.earningsBox}>
+              <Text variant="body" weight="bold" style={styles.earningsAmount}>
+                {PROFILE_MOCK_EARNINGS.today}
+              </Text>
+              <Text variant="caption" style={styles.earningsLabel}>
+                {PROFILE_STRINGS.TODAY_EARNINGS}
+              </Text>
+            </View>
+            <View style={styles.earningsBox}>
+              <Text variant="body" weight="bold" style={styles.earningsAmount}>
+                {PROFILE_MOCK_EARNINGS.monthly}
+              </Text>
+              <Text variant="caption" style={styles.earningsLabel}>
+                {PROFILE_STRINGS.MONTHLY_EARNINGS}
+              </Text>
+            </View>
+          </View>
+
+          {/* Logout */}
+          <TouchableOpacity activeOpacity={0.8} onPress={() => {}} style={styles.logoutButton}>
+            <MaterialCommunityIcons name="logout" size={normalizeWidth(18)} color={COLORS.textSecondary} />
+            <Text variant="caption" weight="medium" style={styles.logoutText}>
+              {PROFILE_STRINGS.LOGOUT}
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
     </View>
   );
 }
@@ -166,7 +191,13 @@ export function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.backgroundSecondary,
+  },
+  screenGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
   },
   headerView: {
     width: '100%',
@@ -209,7 +240,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerLabelPart: {
-    fontFamily: FONT_FAMILY.satoshiVariable,
+    fontFamily: getFontFamily('satoshiVariable'),
     fontWeight: '900',
     fontStyle: 'normal',
     letterSpacing: 0,
@@ -219,7 +250,7 @@ const styles = StyleSheet.create({
   profileCircleWrap: {
     alignSelf: 'center',
     width: normalizeWidth(PROFILE_CIRCLE.SIZE),
-    height: normalizeWidth(PROFILE_CIRCLE.SIZE) + normalizeWidth(PROFILE_CIRCLE.BOTTOM_CIRCLE_SIZE) / 2,
+    height: normalizeWidth(PROFILE_CIRCLE.SIZE),
   },
   profileCircleOuter: {
     overflow: 'hidden',
@@ -236,46 +267,75 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   profileCircleInitialsText: {
-    fontFamily: FONT_FAMILY.satoshiVariable,
+    fontFamily: getFontFamily('satoshiVariable'),
     fontWeight: '900',
     color: COLORS.white,
   },
-  profileCircleBottom: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
+  profileCard: {
+    flex: 1,
+    backgroundColor: PROFILE_CARD.BACKGROUND,
+    overflow: 'hidden',
   },
   scrollContent: {
     padding: normalizeWidth(24),
   },
-  content: {
+  profileInfo: {
     alignItems: 'center',
-    paddingVertical: normalizeHeight(32),
+    paddingTop: normalizeHeight(8),
+    paddingBottom: normalizeHeight(20),
   },
-  title: {
+  profileName: {
     color: COLORS.textPrimary,
-    marginTop: normalizeHeight(16),
     textAlign: 'center',
   },
-  subtitle: {
+  profilePhone: {
     color: COLORS.textSecondary,
-    marginTop: normalizeHeight(8),
+    marginTop: normalizeHeight(4),
     textAlign: 'center',
   },
-  statusRow: {
+  hrWrap: {
+    width: '100%',
+    height: 1,
+    marginVertical: normalizeHeight(16),
+  },
+  hrLine: {
+    width: '100%',
+    height: 1,
+  },
+  sectionTitle: {
+    color: COLORS.textPrimary,
+    marginBottom: normalizeHeight(12),
+  },
+  earningsRow: {
+    flexDirection: 'row',
+    gap: normalizeWidth(12),
+    marginBottom: normalizeHeight(16),
+  },
+  earningsBox: {
+    flex: 1,
+    backgroundColor: COLORS.gray100,
+    borderRadius: normalizeWidth(12),
+    padding: normalizeWidth(16),
+  },
+  earningsAmount: {
+    color: COLORS.textPrimary,
+  },
+  earningsLabel: {
+    color: COLORS.textSecondary,
+    marginTop: normalizeHeight(4),
+  },
+  logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: normalizeHeight(16),
     gap: normalizeWidth(8),
+    backgroundColor: COLORS.gray200,
+    borderRadius: normalizeWidth(12),
+    paddingVertical: normalizeHeight(14),
+    marginTop: normalizeHeight(24),
   },
-  statusLabel: {
+  logoutText: {
     color: COLORS.textSecondary,
-  },
-  statusBadge: {
-    width: undefined,
-    height: normalizeHeight(28),
   },
 });
 

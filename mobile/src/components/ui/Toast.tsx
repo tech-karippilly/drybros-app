@@ -1,8 +1,9 @@
 /**
  * Toast message component
+ * Styles built at render time so getFontFamily is never called before typography loads (avoids "regular of undefined").
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,11 +11,10 @@ import {
   Animated,
   TouchableOpacity,
   Dimensions,
-  Platform,
 } from 'react-native';
 import { ToastOptions } from '../../types/common';
 import { COLORS } from '../../constants/colors';
-import { FONT_FAMILY, FONT_SIZES } from '../../constants/typography';
+import { getFontFamily, getFontSize } from '../../constants/typography';
 import { normalizeFont } from '../../utils/responsive';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -32,6 +32,56 @@ const Toast: React.FC<ToastProps> = ({
   visible,
   onHide,
 }) => {
+  const styles = useMemo(() => {
+    const fontRegular = getFontFamily('regular');
+    const fontBold = getFontFamily('bold');
+    const sizeBase = getFontSize('base');
+    const size2xl = getFontSize('2xl');
+    return StyleSheet.create({
+      container: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        zIndex: 9999,
+        alignItems: 'center',
+        paddingHorizontal: 16,
+      },
+      toast: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 8,
+        minWidth: SCREEN_WIDTH * 0.9,
+        maxWidth: SCREEN_WIDTH * 0.95,
+        shadowColor: COLORS.black,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 5,
+      },
+      message: {
+        flex: 1,
+        fontFamily: fontRegular,
+        fontSize: normalizeFont(sizeBase),
+        color: COLORS.white,
+        marginRight: 8,
+      },
+      closeButton: {
+        width: 24,
+        height: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+      },
+      closeText: {
+        fontFamily: fontBold,
+        fontSize: normalizeFont(size2xl),
+        color: COLORS.white,
+        lineHeight: 24,
+      },
+    });
+  }, []);
   const translateY = useRef(new Animated.Value(position === 'top' ? -100 : 100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -118,50 +168,5 @@ const Toast: React.FC<ToastProps> = ({
     </Animated.View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    zIndex: 9999,
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  toast: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    minWidth: SCREEN_WIDTH * 0.9,
-    maxWidth: SCREEN_WIDTH * 0.95,
-    shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  message: {
-    flex: 1,
-    fontFamily: FONT_FAMILY.regular,
-    fontSize: normalizeFont(FONT_SIZES.base),
-    color: COLORS.white,
-    marginRight: 8,
-  },
-  closeButton: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeText: {
-    fontFamily: FONT_FAMILY.bold,
-    fontSize: normalizeFont(FONT_SIZES['2xl']),
-    color: COLORS.white,
-    lineHeight: 24,
-  },
-});
 
 export default Toast;

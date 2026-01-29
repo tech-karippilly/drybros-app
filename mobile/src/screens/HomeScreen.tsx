@@ -10,7 +10,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Text } from '../typography';
-import { COLORS, TAB_BAR_SCENE_PADDING_BOTTOM, IMAGES, FONT_FAMILY } from '../constants';
+import { COLORS, TAB_BAR_SCENE_PADDING_BOTTOM, IMAGES } from '../constants';
+import { getFontFamily } from '../constants/typography';
 import { normalizeWidth, normalizeHeight, normalizeFont } from '../utils/responsive';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -290,7 +291,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: COLORS.white,
-    fontFamily: FONT_FAMILY.satoshiVariable,
+    fontFamily: getFontFamily('satoshiVariable'),
     fontWeight: '700',
     fontSize: normalizeFont(14),
     lineHeight: normalizeFont(14) * 1.26, // 126% line height
@@ -368,7 +369,7 @@ const styles = StyleSheet.create({
   upcomingTripsLabel: {
     color: COLORS.white,
     fontSize: normalizeFont(14),
-    fontFamily: FONT_FAMILY.satoshiVariable,
+    fontFamily: getFontFamily('satoshiVariable'),
     fontWeight: '700',
     marginRight: normalizeWidth(8),
   },
@@ -393,7 +394,7 @@ const styles = StyleSheet.create({
   getHelpLabel: {
     color: COLORS.white,
     fontSize: normalizeFont(14),
-    fontFamily: FONT_FAMILY.satoshiVariable,
+    fontFamily: getFontFamily('satoshiVariable'),
     fontWeight: '700',
     marginRight: normalizeWidth(8),
   },

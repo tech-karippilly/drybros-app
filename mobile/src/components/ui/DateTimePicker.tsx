@@ -7,7 +7,7 @@ import { View, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { DateTimePickerProps } from '../../types/common';
 import { COLORS } from '../../constants/colors';
-import { FONT_FAMILY, FONT_SIZES } from '../../constants/typography';
+import { getFontFamily, FONT_SIZES } from '../../constants/typography';
 import { normalizeWidth, normalizeHeight, normalizeFont } from '../../utils/responsive';
 import { Text } from '../../typography';
 import { formatDate, formatTime } from '../../utils/formatters';
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   arrow: {
-    fontFamily: FONT_FAMILY.regular,
+    fontFamily: getFontFamily('regular'),
     fontSize: normalizeFont(FONT_SIZES.sm),
     color: COLORS.textSecondary,
   },

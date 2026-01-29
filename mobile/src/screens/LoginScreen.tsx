@@ -26,7 +26,7 @@ import { IMAGES } from '../constants/images';
 import { COLORS } from '../constants/colors';
 import { normalizeWidth, normalizeHeight, normalizeFont } from '../utils/responsive';
 import { useToast } from '../contexts';
-import { FONT_FAMILY, FONT_SIZES } from '../constants/typography';
+import { getFontFamily, FONT_SIZES } from '../constants/typography';
 
 interface LoginScreenProps {
   onLoginSuccess?: () => void;
@@ -490,12 +490,12 @@ const styles = StyleSheet.create({
   },
   brandingTextRed: {
     fontSize: normalizeFont(FONT_SIZES['5xl']),
-    fontFamily: FONT_FAMILY.bold,
+    fontFamily: getFontFamily('bold'),
     color: COLORS.error,
   },
   brandingTextWhite: {
     fontSize: normalizeFont(FONT_SIZES['5xl']),
-    fontFamily: FONT_FAMILY.bold,
+    fontFamily: getFontFamily('bold'),
     color: COLORS.white,
   },
   driverText: {
@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: COLORS.white,
     fontSize: normalizeFont(FONT_SIZES.base),
-    fontFamily: FONT_FAMILY.regular,
+    fontFamily: getFontFamily('regular'),
     paddingVertical: normalizeHeight(8),
   },
   passwordToggle: {
@@ -555,7 +555,7 @@ const styles = StyleSheet.create({
   loginButtonText: {
     color: '#1A1B29',
     fontSize: normalizeFont(16),
-    fontFamily: FONT_FAMILY.satoshiBold,
+    fontFamily: getFontFamily('satoshiBold'),
     fontWeight: '700',
     lineHeight: normalizeFont(16),
     letterSpacing: 0,

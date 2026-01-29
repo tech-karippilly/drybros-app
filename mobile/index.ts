@@ -1,3 +1,6 @@
+/** Load typography first so FONT_FAMILY is defined before any component (avoids "regular of undefined") */
+import './src/constants/typography';
+
 import { registerRootComponent } from 'expo';
 import { enableScreens } from 'react-native-screens';
 

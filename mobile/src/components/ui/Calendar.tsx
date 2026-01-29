@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { CalendarProps } from '../../types/common';
 import { COLORS } from '../../constants/colors';
-import { FONT_FAMILY, FONT_SIZES } from '../../constants/typography';
+import { getFontFamily, FONT_SIZES } from '../../constants/typography';
 import { normalizeWidth, normalizeHeight, normalizeFont } from '../../utils/responsive';
 import { Text } from '../../typography';
 
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   navText: {
-    fontFamily: FONT_FAMILY.bold,
+    fontFamily: getFontFamily('bold'),
     fontSize: normalizeFont(FONT_SIZES['2xl']),
     color: COLORS.primary,
   },
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   },
   dayHeaderText: {
     color: COLORS.textSecondary,
-    fontFamily: FONT_FAMILY.medium,
+    fontFamily: getFontFamily('medium'),
   },
   daysGrid: {
     flexDirection: 'row',
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     borderRadius: normalizeWidth(20),
   },
   dayText: {
-    fontFamily: FONT_FAMILY.regular,
+    fontFamily: getFontFamily('regular'),
     fontSize: normalizeFont(FONT_SIZES.base),
     color: COLORS.textPrimary,
   },
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   },
   dayTextSelected: {
     color: COLORS.white,
-    fontFamily: FONT_FAMILY.semiBold,
+    fontFamily: getFontFamily('semiBold'),
   },
 });
 

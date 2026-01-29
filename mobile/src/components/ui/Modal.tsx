@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { ModalProps } from '../../types/common';
 import { COLORS } from '../../constants/colors';
-import { FONT_FAMILY, FONT_SIZES } from '../../constants/typography';
+import { getFontFamily, FONT_SIZES } from '../../constants/typography';
 import { normalizeWidth, normalizeHeight, normalizeFont } from '../../utils/responsive';
 import { Text } from '../../typography';
 
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   closeText: {
-    fontFamily: FONT_FAMILY.bold,
+    fontFamily: getFontFamily('bold'),
     fontSize: normalizeFont(FONT_SIZES['3xl']),
     color: COLORS.textSecondary,
     lineHeight: normalizeFont(FONT_SIZES['3xl']),

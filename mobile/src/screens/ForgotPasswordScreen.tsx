@@ -29,7 +29,7 @@ import { useToast } from '../contexts';
 import { useSMS } from '../hooks/useSMS';
 import { isValidPhoneNumber } from '../utils/validators';
 import { formatPhoneNumber } from '../utils/formatters';
-import { FONT_FAMILY, FONT_SIZES } from '../constants/typography';
+import { getFontFamily, FONT_SIZES } from '../constants/typography';
 
 interface ForgotPasswordScreenProps {
   onBack?: () => void;
@@ -635,14 +635,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: normalizeHeight(8),
     fontSize: normalizeFont(FONT_SIZES['2xl']),
-    fontFamily: FONT_FAMILY.bold,
+    fontFamily: getFontFamily('bold'),
   },
   subtitle: {
     color: '#B4B7E0',
     textAlign: 'center',
     marginBottom: normalizeHeight(40),
     fontSize: normalizeFont(FONT_SIZES.base),
-    fontFamily: FONT_FAMILY.regular,
+    fontFamily: getFontFamily('regular'),
   },
   inputWrapper: {
     marginBottom: normalizeHeight(24),
@@ -658,7 +658,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: COLORS.white,
     fontSize: normalizeFont(FONT_SIZES.base),
-    fontFamily: FONT_FAMILY.regular,
+    fontFamily: getFontFamily('regular'),
     paddingVertical: normalizeHeight(8),
   },
   requestButton: {
@@ -680,7 +680,7 @@ const styles = StyleSheet.create({
   requestButtonText: {
     color: '#1A1B29',
     fontSize: normalizeFont(16),
-    fontFamily: FONT_FAMILY.satoshiBold,
+    fontFamily: getFontFamily('satoshiBold'),
     fontWeight: '700',
     lineHeight: normalizeFont(16),
     letterSpacing: 0,
@@ -712,7 +712,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: normalizeHeight(12),
     fontSize: normalizeFont(FONT_SIZES['2xl']),
-    fontFamily: FONT_FAMILY.bold,
+    fontFamily: getFontFamily('bold'),
   },
   successMessage: {
     color: '#B4B7E0',
@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
     marginBottom: normalizeHeight(32),
     lineHeight: normalizeHeight(24),
     fontSize: normalizeFont(FONT_SIZES.base),
-    fontFamily: FONT_FAMILY.regular,
+    fontFamily: getFontFamily('regular'),
   },
   backButton: {
     backgroundColor: COLORS.white,
@@ -738,7 +738,7 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#1A1B29',
     fontSize: normalizeFont(16),
-    fontFamily: FONT_FAMILY.satoshiBold,
+    fontFamily: getFontFamily('satoshiBold'),
     fontWeight: '700',
     lineHeight: normalizeFont(16),
     letterSpacing: 0,

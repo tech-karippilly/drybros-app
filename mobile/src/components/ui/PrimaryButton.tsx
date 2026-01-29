@@ -14,7 +14,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { PrimaryButtonProps } from '../../types/common';
 import { COLORS } from '../../constants/colors';
-import { FONT_FAMILY } from '../../constants/typography';
+import { getFontFamily } from '../../constants/typography';
 import { PRIMARY_BUTTON } from '../../constants/button';
 import {
   normalizeWidth,
@@ -51,7 +51,7 @@ export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
   };
 
   const labelStyle = {
-    fontFamily: FONT_FAMILY.satoshiVariable,
+    fontFamily: getFontFamily('satoshiVariable'),
     fontWeight: '500' as const,
     fontStyle: 'normal' as const,
     letterSpacing: 0,

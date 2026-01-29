@@ -12,7 +12,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { COLORS } from '../../constants/colors';
-import { FONT_FAMILY, FONT_SIZES } from '../../constants/typography';
+import { getFontFamily, FONT_SIZES } from '../../constants/typography';
 import { normalizeWidth, normalizeHeight, normalizeFont } from '../../utils/responsive';
 import { Text } from '../../typography';
 
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontFamily: FONT_FAMILY.regular,
+    fontFamily: getFontFamily('regular'),
     fontSize: normalizeFont(FONT_SIZES.base),
     color: COLORS.textPrimary,
     paddingHorizontal: normalizeWidth(16),

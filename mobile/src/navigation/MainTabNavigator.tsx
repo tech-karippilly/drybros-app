@@ -40,6 +40,7 @@ export function MainTabNavigator() {
           borderTopWidth: 0,
           elevation: 0,
           position: 'absolute',
+          zIndex: 1,
         },
       }}
     >

@@ -5,6 +5,8 @@ import { StyleSheet, ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+/** Load typography first so FONT_FAMILY is never undefined (avoids "regular of undefined" crash) */
+import './src/constants/typography';
 import { ToastProvider } from './src/contexts';
 import { COLORS } from './src/constants';
 import { loadFonts } from './src/utils/fonts';

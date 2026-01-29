@@ -7,7 +7,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, type ViewStyle } from 'react-native';
 import type { BadgeProps } from '../../types/common';
-import { FONT_FAMILY } from '../../constants/typography';
+import { getFontFamily } from '../../constants/typography';
 import { BADGE, type BadgeVariant } from '../../constants/badge';
 import { normalizeWidth, normalizeHeight, normalizeFont } from '../../utils/responsive';
 
@@ -69,7 +69,7 @@ export const Badge: React.FC<BadgeProps> = ({
           style={[
             styles.label,
             {
-              fontFamily: FONT_FAMILY.satoshiVariable,
+              fontFamily: getFontFamily('satoshiVariable'),
               fontWeight: '500',
               fontStyle: 'normal',
               letterSpacing: 0,

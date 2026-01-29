@@ -18,7 +18,7 @@ import MaskedView from '@react-native-masked-view/masked-view';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { SwipeButtonProps } from '../../types/common';
 import { COLORS } from '../../constants/colors';
-import { FONT_FAMILY } from '../../constants/typography';
+import { getFontFamily } from '../../constants/typography';
 import { SWIPE_BUTTON } from '../../constants/swipeButton';
 import {
   normalizeWidth,
@@ -122,7 +122,7 @@ export const SwipeButton: React.FC<SwipeButtonProps> = ({
   };
 
   const labelTextStyle = {
-    fontFamily: FONT_FAMILY.satoshiVariable,
+    fontFamily: getFontFamily('satoshiVariable'),
     fontWeight: '500' as const,
     fontStyle: 'normal' as const,
     letterSpacing: 0,

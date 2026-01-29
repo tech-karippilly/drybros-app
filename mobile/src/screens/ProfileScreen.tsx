@@ -33,6 +33,27 @@ function getInitials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+type ProfileListItemProps = {
+  label: string;
+  onPress?: () => void;
+  showDivider?: boolean;
+};
+
+function ProfileListItem({ label, onPress, showDivider = true }: ProfileListItemProps) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.7}
+      onPress={onPress}
+      style={[styles.listItem, showDivider && styles.listItemDivider]}
+    >
+      <Text variant="body" weight="medium" style={styles.listItemLabel}>
+        {label}
+      </Text>
+      <MaterialCommunityIcons name="chevron-right" size={normalizeWidth(22)} color={COLORS.textTertiary} />
+    </TouchableOpacity>
+  );
+}
+
 export function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = heightPercentage(LAYOUT.PROFILE_HEADER_HEIGHT_PERCENT);
@@ -173,6 +194,10 @@ export function ProfileScreen() {
                 {PROFILE_STRINGS.MONTHLY_EARNINGS}
               </Text>
             </View>
+          </View>
+          <View style={styles.listSection}>
+            <ProfileListItem label={PROFILE_STRINGS.EARNINGS_HISTORY_TITLE} onPress={() => {}} />
+            <ProfileListItem label={PROFILE_STRINGS.COMPLAINTS_HISTORY_TITLE} onPress={() => {}} showDivider={false} />
           </View>
 
           {/* Logout */}
@@ -323,6 +348,22 @@ const styles = StyleSheet.create({
   earningsLabel: {
     color: COLORS.textSecondary,
     marginTop: normalizeHeight(4),
+  },
+  listSection: {
+    marginTop: normalizeHeight(12),
+  },
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: normalizeHeight(14),
+  },
+  listItemDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.divider,
+  },
+  listItemLabel: {
+    color: COLORS.textPrimary,
   },
   logoutButton: {
     flexDirection: 'row',

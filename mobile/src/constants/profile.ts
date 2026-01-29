@@ -11,6 +11,7 @@ export const PROFILE_STRINGS = {
   EARNINGS_HISTORY_TITLE: 'Earnings History',
   COMPLAINTS: 'Complaints',
   VIEW_COMPLAINTS: 'View Complaints →',
+  COMPLAINTS_HISTORY_TITLE: 'Complaints History',
   LOGOUT: 'Logout',
 } as const;
 

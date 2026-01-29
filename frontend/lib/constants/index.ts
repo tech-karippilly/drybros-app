@@ -13,3 +13,4 @@ export * from './holidays';
 export * from './complaints';
 export * from './franchise';
 export * from './staff';
+export * from './activity';

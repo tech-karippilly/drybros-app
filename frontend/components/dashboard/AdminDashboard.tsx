@@ -24,8 +24,9 @@ import {
 } from "@/lib/features/dashboard/dashboardApi";
 import { ADMIN_DASHBOARD_STRINGS } from "@/lib/constants/dashboardMetrics";
 import { cn } from "@/lib/utils";
-import { useAppSelector } from "@/lib/hooks";
+import { useAppSelector, useActivityStream } from "@/lib/hooks";
 import { DASHBOARD_ROUTES } from "@/lib/constants/routes";
+import { activityToEventItem, getEmptyCriticalEventItem } from "@/lib/utils/activityFormatters";
 
 /** Primary color from Dybros Super Admin design */
 const PRIMARY = "#137fec";
@@ -169,11 +170,15 @@ function RevenueChartSvg({ data }: { data: DashboardAnalytics["revenueTrend"] })
 }
 
 export function AdminDashboard() {
-    const { refreshTrigger } = useAppSelector((state) => state.auth);
+    const { refreshTrigger, selectedFranchise } = useAppSelector((state) => state.auth);
     const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
     const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
     const [alerts, setAlerts] = useState<AlertItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const { activities: streamActivities, loading: streamLoading, error: streamError } = useActivityStream({
+        franchiseId: selectedFranchise?._id ?? undefined,
+        enabled: true,
+    });
 
     useEffect(() => {
         let cancelled = false;
@@ -274,19 +279,16 @@ export function AdminDashboard() {
         description: a.description,
         timeAgo: timeAgoLabels[i % 4],
     }));
+    const eventItemsFromStream =
+        streamActivities.length > 0
+            ? streamActivities.slice(0, 10).map((a) => activityToEventItem(a))
+            : [getEmptyCriticalEventItem()];
     const eventItems =
-        eventItemsFromAlerts.length > 0
-            ? eventItemsFromAlerts
-            : [
-                  {
-                      icon: <Building className="h-3.5 w-3.5" />,
-                      iconBg: "bg-[#137fec]",
-                      title: "System ready",
-                      description:
-                          "Dashboard loaded. No critical events.",
-                      timeAgo: "Just now",
-                  },
-              ];
+        eventItemsFromStream.length > 0
+            ? eventItemsFromStream
+            : eventItemsFromAlerts.length > 0
+              ? eventItemsFromAlerts
+              : [getEmptyCriticalEventItem()];
 
     return (
         <div className="animate-in fade-in duration-500">

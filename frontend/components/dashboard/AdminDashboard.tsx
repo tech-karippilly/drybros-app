@@ -254,41 +254,10 @@ export function AdminDashboard() {
                       : ADMIN_DASHBOARD_STRINGS.STATUS_STEADY,
         }));
 
-    const timeAgoLabels = [
-        "12 mins ago",
-        "45 mins ago",
-        "2 hours ago",
-        "5 hours ago",
-    ];
-    const eventItemsFromAlerts = alerts.slice(0, 4).map((a, i) => ({
-        icon:
-            a.severity === "high" ? (
-                <AlertTriangle className="h-3.5 w-3.5" />
-            ) : a.severity === "medium" ? (
-                <AlertTriangle className="h-3.5 w-3.5" />
-            ) : (
-                <CheckCircle className="h-3.5 w-3.5" />
-            ),
-        iconBg:
-            a.severity === "high"
-                ? "bg-orange-500"
-                : a.severity === "medium"
-                  ? "bg-amber-500"
-                  : "bg-green-500",
-        title: a.title,
-        description: a.description,
-        timeAgo: timeAgoLabels[i % 4],
-    }));
-    const eventItemsFromStream =
+    const eventItems =
         streamActivities.length > 0
             ? streamActivities.slice(0, 10).map((a) => activityToEventItem(a))
             : [getEmptyCriticalEventItem()];
-    const eventItems =
-        eventItemsFromStream.length > 0
-            ? eventItemsFromStream
-            : eventItemsFromAlerts.length > 0
-              ? eventItemsFromAlerts
-              : [getEmptyCriticalEventItem()];
 
     return (
         <div className="animate-in fade-in duration-500">
@@ -560,23 +529,30 @@ export function AdminDashboard() {
                         </div>
                     </div>
 
-                    {/* Critical Events */}
+                    {/* Critical Events (from /activities with selected franchise, debounced polling) */}
                     <div className="flex-1 rounded-xl border border-slate-200 bg-white p-6 dark:border-[#324d67] dark:bg-[#111a22]">
                         <h3 className="mb-6 text-sm font-bold uppercase tracking-widest text-slate-500 dark:text-[#92adc9]">
                             {ADMIN_DASHBOARD_STRINGS.CRITICAL_EVENTS_TITLE}
                         </h3>
-                        <div className="relative space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100 dark:before:bg-[#233648]">
-                            {eventItems.map((ev, idx) => (
-                                <EventItem
-                                    key={idx}
-                                    icon={ev.icon}
-                                    iconBg={ev.iconBg}
-                                    title={ev.title}
-                                    description={ev.description}
-                                    timeAgo={ev.timeAgo}
-                                />
-                            ))}
-                        </div>
+                        {streamError && (
+                            <p className="mb-4 text-xs text-amber-600 dark:text-amber-400">{streamError}</p>
+                        )}
+                        {streamLoading && eventItems.length <= 1 ? (
+                            <p className="text-xs text-slate-500 dark:text-[#92adc9]">Loading activities…</p>
+                        ) : (
+                            <div className="relative space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100 dark:before:bg-[#233648]">
+                                {eventItems.map((ev, idx) => (
+                                    <EventItem
+                                        key={idx}
+                                        icon={ev.icon}
+                                        iconBg={ev.iconBg}
+                                        title={ev.title}
+                                        description={ev.description}
+                                        timeAgo={ev.timeAgo}
+                                    />
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

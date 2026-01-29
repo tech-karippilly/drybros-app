@@ -190,13 +190,17 @@ export function ManagerDashboard() {
     const [currentTime, setCurrentTime] = useState(new Date());
     const [shiftTime, setShiftTime] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
+    // Normalize API date (ISO or YYYY-MM-DD) to YYYY-MM-DD for comparison
+    const attendanceDateStr = (d: string | null | undefined): string =>
+        !d ? '' : d.includes('T') ? d.split('T')[0]! : d;
+
     // Fetch today's attendance
     useEffect(() => {
         let cancelled = false;
+        const today = new Date().toISOString().split('T')[0];
         (async () => {
             try {
                 setAttendanceLoading(true);
-                const today = new Date().toISOString().split('T')[0];
                 const attendances = await getAttendances({
                     userId: user?._id ?? undefined,
                     startDate: today,
@@ -204,13 +208,12 @@ export function ManagerDashboard() {
                 });
                 
                 if (!cancelled) {
-                    // Find today's attendance (should be array or single item)
-                    const todayAttendance = Array.isArray(attendances) 
-                        ? attendances.find((a) => a.date === today)
-                        : (attendances as any)?.data?.find((a: AttendanceResponse) => a.date === today);
-                    
+                    const list = Array.isArray(attendances) ? attendances : (attendances as any)?.data ?? [];
+                    const todayAttendance = list.find((a: AttendanceResponse) => attendanceDateStr(a.date) === today);
                     if (todayAttendance) {
                         setAttendance(todayAttendance);
+                    } else {
+                        setAttendance(null);
                     }
                 }
             } catch (error) {
@@ -321,16 +324,9 @@ export function ManagerDashboard() {
                 startDate: today,
                 endDate: today,
             });
-            
-            const todayAttendance = Array.isArray(attendances) 
-                ? attendances.find((a) => a.date === today)
-                : (attendances as any)?.data?.find((a: AttendanceResponse) => a.date === today);
-            
-            if (todayAttendance) {
-                setAttendance(todayAttendance);
-            } else {
-                setAttendance(null);
-            }
+            const list = Array.isArray(attendances) ? attendances : (attendances as any)?.data ?? [];
+            const todayAttendance = list.find((a: AttendanceResponse) => attendanceDateStr(a.date) === today);
+            setAttendance(todayAttendance ?? null);
         } catch (error) {
             console.error("Failed to refresh attendance:", error);
         }
@@ -359,19 +355,33 @@ export function ManagerDashboard() {
             setClockingIn(true);
             await clockIn({ id: loggedUserId, notes: null });
             await refreshAttendance();
-            
             toast({
                 title: "Clocked In Successfully",
                 description: "Your shift has started.",
                 variant: "success",
             });
         } catch (error: any) {
-            console.error("Clock in failed:", error);
-            toast({
-                title: "Clock In Failed",
-                description: error?.response?.data?.message || error?.message || "Failed to clock in. Please try again.",
-                variant: "error",
-            });
+            const msg =
+                error?.response?.data?.error ??
+                error?.response?.data?.message ??
+                error?.message ??
+                "Failed to clock in. Please try again.";
+            const alreadyClockedIn =
+                typeof msg === "string" && msg.toLowerCase().includes("already clocked in");
+            if (alreadyClockedIn) {
+                await refreshAttendance();
+                toast({
+                    title: "Already Clocked In",
+                    description: "You are already clocked in for today. Your shift is being tracked.",
+                    variant: "warning",
+                });
+            } else {
+                toast({
+                    title: "Clock In Failed",
+                    description: msg,
+                    variant: "error",
+                });
+            }
         } finally {
             setClockingIn(false);
         }

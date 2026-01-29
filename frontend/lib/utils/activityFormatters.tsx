@@ -1,6 +1,7 @@
 /**
  * Map activity log entries to Critical Events / Notification display format.
  */
+import React from 'react';
 import {
   Truck,
   AlertTriangle,

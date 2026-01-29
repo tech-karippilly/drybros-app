@@ -105,7 +105,7 @@ export default function App() {
       <SafeAreaProvider>
         <ToastProvider>
           <NavigationContainer theme={navTheme}>
-            <StatusBar style="auto" />
+            <StatusBar style="light" backgroundColor={COLORS.headerBackground} />
             <MainTabNavigator />
           </NavigationContainer>
         </ToastProvider>

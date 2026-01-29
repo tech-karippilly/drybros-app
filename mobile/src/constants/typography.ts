@@ -12,6 +12,7 @@ export const FONT_FAMILY = {
   thin: 'Poppins-Thin',
   satoshiBold: 'Satoshi-Bold',
   satoshiVariable: 'Satoshi-Variable',
+  satoshiBlack: 'Satoshi-Bold', // Use Bold for Black (900) if no separate Black font
 } as const;
 
 export const FONT_SIZES = {

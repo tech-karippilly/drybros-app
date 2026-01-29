@@ -353,8 +353,8 @@ export function ManagerDashboard() {
 
         try {
             setClockingIn(true);
-            await clockIn({ id: loggedUserId, notes: null });
-            await refreshAttendance();
+            const result = await clockIn({ id: loggedUserId, notes: null });
+            setAttendance(result);
             toast({
                 title: "Clocked In Successfully",
                 description: "Your shift has started.",
@@ -408,9 +408,8 @@ export function ManagerDashboard() {
 
         try {
             setClockingOut(true);
-            await clockOut({ id: loggedUserId, notes: null });
-            await refreshAttendance();
-            
+            const result = await clockOut({ id: loggedUserId, notes: null });
+            setAttendance(result);
             toast({
                 title: "Clocked Out Successfully",
                 description: "Your shift has been recorded.",
@@ -418,9 +417,14 @@ export function ManagerDashboard() {
             });
         } catch (error: any) {
             console.error("Clock out failed:", error);
+            const msg =
+                error?.response?.data?.error ??
+                error?.response?.data?.message ??
+                error?.message ??
+                "Failed to clock out. Please try again.";
             toast({
                 title: "Clock Out Failed",
-                description: error?.response?.data?.message || error?.message || "Failed to clock out. Please try again.",
+                description: msg,
                 variant: "error",
             });
         } finally {

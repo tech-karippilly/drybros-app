@@ -57,6 +57,13 @@ export const COLORS = {
   // Tab bar
   tabBarBackground: '#090C20EB', // Dark blue with transparency
 
+  // Header / status bar (same as banner/header background)
+  headerBackground: '#1A1B29',
+
+  // Brand / header label (DRYBROS)
+  tomatoRed: '#FF6347', // DRY
+  headerLabelBros: '#FFFFFF', // BROS
+
   // Transparent
   transparent: 'transparent',
 } as const;

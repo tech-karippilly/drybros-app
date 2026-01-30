@@ -11,3 +11,14 @@ export const TAB_ROUTES = {
 } as const;
 
 export type TabRouteKey = keyof typeof TAB_ROUTES;
+
+/**
+ * Profile stack routes (nested under Profile tab)
+ */
+export const PROFILE_STACK_ROUTES = {
+  PROFILE_HOME: 'ProfileHome',
+  EARNINGS: 'Earnings',
+  COMPLAINTS: 'Complaints',
+} as const;
+
+export type ProfileStackRouteKey = keyof typeof PROFILE_STACK_ROUTES;

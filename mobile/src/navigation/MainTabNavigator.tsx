@@ -10,10 +10,10 @@ import {
   TripScreen,
   LeaveScreen,
   AlertsScreen,
-  ProfileScreen,
 } from '../screens';
 import { CustomTabBar } from './CustomTabBar';
 import { TAB_ROUTES } from '../constants/routes';
+import { ProfileStackNavigator } from './ProfileStackNavigator';
 
 export type MainTabParamList = {
   [TAB_ROUTES.HOME]: undefined;
@@ -48,7 +48,7 @@ export function MainTabNavigator() {
       <Tab.Screen name={TAB_ROUTES.TRIP} component={TripScreen} />
       <Tab.Screen name={TAB_ROUTES.LEAVE} component={LeaveScreen} />
       <Tab.Screen name={TAB_ROUTES.ALERTS} component={AlertsScreen} />
-      <Tab.Screen name={TAB_ROUTES.PROFILE} component={ProfileScreen} />
+      <Tab.Screen name={TAB_ROUTES.PROFILE} component={ProfileStackNavigator} />
     </Tab.Navigator>
   );
 }

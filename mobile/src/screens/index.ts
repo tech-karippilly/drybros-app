@@ -12,3 +12,5 @@ export * from './TripScreen';
 export * from './LeaveScreen';
 export * from './AlertsScreen';
 export * from './ProfileScreen';
+export * from './EarningScreen';
+export * from './ComplaintsScreen';

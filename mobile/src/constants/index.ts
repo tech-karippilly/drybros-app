@@ -18,3 +18,5 @@ export * from './badge';
 export * from './iconCircle';
 export * from './profile';
 export * from './auth';
+export * from './earnings';
+export * from './complaints';

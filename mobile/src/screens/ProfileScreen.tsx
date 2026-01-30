@@ -5,6 +5,8 @@
 
 import React from 'react';
 import { View, StyleSheet, ScrollView, Image, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -22,6 +24,8 @@ import {
   PROFILE_MOCK_USER,
   PROFILE_MOCK_EARNINGS,
 } from '../constants';
+import { PROFILE_STACK_ROUTES } from '../constants/routes';
+import type { ProfileStackParamList } from '../navigation/ProfileStackNavigator';
 import { getFontFamily } from '../constants/typography';
 import { normalizeWidth, normalizeHeight, normalizeFont, heightPercentage } from '../utils/responsive';
 
@@ -55,6 +59,7 @@ function ProfileListItem({ label, onPress, showDivider = true }: ProfileListItem
 }
 
 export function ProfileScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<ProfileStackParamList>>();
   const insets = useSafeAreaInsets();
   const headerHeight = heightPercentage(LAYOUT.PROFILE_HEADER_HEIGHT_PERCENT);
   const outerSize = normalizeWidth(PROFILE_CIRCLE.SIZE);
@@ -196,8 +201,15 @@ export function ProfileScreen() {
             </View>
           </View>
           <View style={styles.listSection}>
-            <ProfileListItem label={PROFILE_STRINGS.EARNINGS_HISTORY_TITLE} onPress={() => {}} />
-            <ProfileListItem label={PROFILE_STRINGS.COMPLAINTS_HISTORY_TITLE} onPress={() => {}} showDivider={false} />
+            <ProfileListItem
+              label={PROFILE_STRINGS.EARNINGS_HISTORY_TITLE}
+              onPress={() => navigation.navigate(PROFILE_STACK_ROUTES.EARNINGS)}
+            />
+            <ProfileListItem
+              label={PROFILE_STRINGS.COMPLAINTS_HISTORY_TITLE}
+              onPress={() => navigation.navigate(PROFILE_STACK_ROUTES.COMPLAINTS)}
+              showDivider={false}
+            />
           </View>
 
           {/* Logout */}

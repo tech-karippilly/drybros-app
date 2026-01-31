@@ -1,0 +1,57 @@
+/**
+ * Apply Leave screen constants (labels, layout)
+ */
+
+export const APPLY_LEAVE_STRINGS = {
+  TITLE: 'Apply Leave',
+
+  FROM_DATE_LABEL: 'From Date',
+  TO_DATE_LABEL: 'To Date',
+  REASON_LABEL: 'Reason',
+
+  DATE_PLACEHOLDER: 'DD/MM/YYYY',
+  REASON_PLACEHOLDER: 'Enter reason for leave',
+
+  SUBMIT: 'Submit Leave Request',
+  CANCEL: 'Cancel',
+} as const;
+
+export const APPLY_LEAVE_LAYOUT = {
+  SCREEN_HORIZONTAL_PADDING: 20,
+  HEADER_HEIGHT: 56,
+  HEADER_TITLE_FONT_SIZE: 18,
+  HEADER_ICON_SIZE: 26,
+
+  CARD_RADIUS: 28,
+  CARD_PADDING: 22,
+
+  FIELD_GAP: 18,
+  FIELD_LABEL_FONT_SIZE: 16,
+
+  INPUT_HEIGHT: 56,
+  INPUT_RADIUS: 12,
+  INPUT_PADDING_HORIZONTAL: 18,
+  INPUT_ICON_SIZE: 22,
+
+  REASON_HEIGHT: 140,
+
+  BUTTON_HEIGHT: 64,
+  BUTTON_RADIUS: 999,
+  BUTTON_FONT_SIZE: 18,
+  BUTTON_GAP: 16,
+} as const;
+
+export const APPLY_LEAVE_COLORS = {
+  SCREEN_BG: '#EFEFEF',
+  CARD_BG: '#FFFFFF',
+  BORDER: '#D1D5DB',
+  LABEL: '#6B7280',
+  PLACEHOLDER: '#9CA3AF',
+
+  PRIMARY_BG: '#111111',
+  PRIMARY_TEXT: '#FFFFFF',
+
+  SECONDARY_BG: '#E6E6E6',
+  SECONDARY_TEXT: '#111827',
+} as const;
+

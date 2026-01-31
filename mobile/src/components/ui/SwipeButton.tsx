@@ -128,6 +128,8 @@ export const SwipeButton: React.FC<SwipeButtonProps> = ({
     letterSpacing: 0,
     fontSize: labelFontSize,
     lineHeight: labelFontSize * (SWIPE_BUTTON.LABEL_LINE_HEIGHT_PERCENT / 100),
+    textAlign: 'center' as const,
+    width: '100%' as const,
   };
 
   return (
@@ -178,6 +180,7 @@ export const SwipeButton: React.FC<SwipeButtonProps> = ({
           </Animated.View>
           <View style={styles.labelWrap}>
             <MaskedView
+              style={styles.masked}
               maskElement={
                 <View style={styles.labelMask}>
                   <Text style={labelTextStyle}>{label}</Text>
@@ -222,9 +225,21 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+  masked: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
   },
   labelMask: {
+    flex: 1,
     backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
   },
   labelInvisible: {
     opacity: 0,
@@ -232,6 +247,8 @@ const styles = StyleSheet.create({
   gradientFill: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
   },
 });
 

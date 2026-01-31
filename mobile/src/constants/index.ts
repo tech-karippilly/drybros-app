@@ -20,3 +20,8 @@ export * from './profile';
 export * from './auth';
 export * from './earnings';
 export * from './complaints';
+export * from './alerts';
+export * from './leave';
+export * from './applyLeave';
+export * from './trips';
+export * from './home';

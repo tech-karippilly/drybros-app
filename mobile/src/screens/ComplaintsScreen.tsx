@@ -74,8 +74,8 @@ export function ComplaintsScreen({ navigation }: { navigation: { goBack: () => v
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Status bar: white background + dark icons */}
-      <StatusBar style="dark" backgroundColor={COLORS.white} />
+      {/* Status bar: keep consistent with app header/status bar color */}
+      <StatusBar style="light" backgroundColor={COLORS.headerBackground} />
 
       <ComplaintsHeader title={COMPLAINTS_STRINGS.TITLE} onBack={() => navigation.goBack()} />
       <View style={styles.headerDivider} />

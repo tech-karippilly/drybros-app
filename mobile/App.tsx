@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme as NavigationDefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 /** Load typography first so FONT_FAMILY is never undefined (avoids "regular of undefined" crash) */
 import './src/constants/typography';
@@ -91,15 +91,20 @@ export default function App() {
 
   // Show main app after login (tab bar: Home, Trip, Leave, Alerts, Profile)
   const navTheme = {
-    dark: false,
+    /**
+     * React Navigation expects `fonts` on theme in some versions (it reads `theme.fonts.regular`).
+     * Always extend the library default theme so we never crash on missing keys.
+     */
+    ...NavigationDefaultTheme,
     colors: {
+      ...NavigationDefaultTheme.colors,
       primary: COLORS.primary,
       background: COLORS.background,
       card: COLORS.background,
       text: COLORS.textPrimary,
       border: COLORS.border,
       notification: COLORS.primary,
-    },
+    } as typeof NavigationDefaultTheme.colors,
   };
 
   return (

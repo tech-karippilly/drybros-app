@@ -22,3 +22,23 @@ export const PROFILE_STACK_ROUTES = {
 } as const;
 
 export type ProfileStackRouteKey = keyof typeof PROFILE_STACK_ROUTES;
+
+/**
+ * Leave stack routes (nested under Leave tab)
+ */
+export const LEAVE_STACK_ROUTES = {
+  LEAVE_HOME: 'LeaveHome',
+  APPLY_LEAVE: 'ApplyLeave',
+} as const;
+
+export type LeaveStackRouteKey = keyof typeof LEAVE_STACK_ROUTES;
+
+/**
+ * Trip stack routes (nested under Trip tab)
+ */
+export const TRIP_STACK_ROUTES = {
+  TRIP_HOME: 'TripHome',
+  TRIP_DETAILS: 'TripDetails',
+} as const;
+
+export type TripStackRouteKey = keyof typeof TRIP_STACK_ROUTES;

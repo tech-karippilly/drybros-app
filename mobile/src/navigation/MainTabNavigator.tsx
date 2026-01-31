@@ -5,22 +5,26 @@
 
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import type { NavigatorScreenParams } from '@react-navigation/native';
 import {
   HomeScreen,
-  TripScreen,
-  LeaveScreen,
   AlertsScreen,
 } from '../screens';
 import { CustomTabBar } from './CustomTabBar';
 import { TAB_ROUTES } from '../constants/routes';
 import { ProfileStackNavigator } from './ProfileStackNavigator';
+import { LeaveStackNavigator } from './LeaveStackNavigator';
+import { TripStackNavigator } from './TripStackNavigator';
+import type { TripStackParamList } from './TripStackNavigator';
+import type { LeaveStackParamList } from './LeaveStackNavigator';
+import type { ProfileStackParamList } from './ProfileStackNavigator';
 
 export type MainTabParamList = {
   [TAB_ROUTES.HOME]: undefined;
-  [TAB_ROUTES.TRIP]: undefined;
-  [TAB_ROUTES.LEAVE]: undefined;
+  [TAB_ROUTES.TRIP]: NavigatorScreenParams<TripStackParamList> | undefined;
+  [TAB_ROUTES.LEAVE]: NavigatorScreenParams<LeaveStackParamList> | undefined;
   [TAB_ROUTES.ALERTS]: undefined;
-  [TAB_ROUTES.PROFILE]: undefined;
+  [TAB_ROUTES.PROFILE]: NavigatorScreenParams<ProfileStackParamList> | undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -45,8 +49,8 @@ export function MainTabNavigator() {
       }}
     >
       <Tab.Screen name={TAB_ROUTES.HOME} component={HomeScreen} />
-      <Tab.Screen name={TAB_ROUTES.TRIP} component={TripScreen} />
-      <Tab.Screen name={TAB_ROUTES.LEAVE} component={LeaveScreen} />
+      <Tab.Screen name={TAB_ROUTES.TRIP} component={TripStackNavigator} />
+      <Tab.Screen name={TAB_ROUTES.LEAVE} component={LeaveStackNavigator} />
       <Tab.Screen name={TAB_ROUTES.ALERTS} component={AlertsScreen} />
       <Tab.Screen name={TAB_ROUTES.PROFILE} component={ProfileStackNavigator} />
     </Tab.Navigator>

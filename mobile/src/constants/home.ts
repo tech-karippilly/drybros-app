@@ -27,7 +27,6 @@ export const HOME_STRINGS = {
   FROM: 'From',
   TO: 'To',
   TRANSMISSION_TYPE: 'Transmission Type',
-  WATCH_TUTORIAL: 'Watch Tutorial',
   NAVIGATE: 'Navigate',
   TRIP_DETAILS: 'Trip Details',
   SWIPE_START_TRIP: 'Swipe Start Trip',
@@ -78,10 +77,6 @@ export const HOME_LAYOUT = {
   CAR_IMAGE_W: 120,
   CAR_IMAGE_H: 64,
 
-  WATCH_BTN_HEIGHT: 38,
-  WATCH_BTN_RADIUS: 999,
-  WATCH_ICON_SIZE: 18,
-
   ACTION_BTN_HEIGHT: 52,
   ACTION_BTN_RADIUS: 999,
   ACTION_ICON_SIZE: 18,
@@ -118,9 +113,6 @@ export const HOME_COLORS = {
 
   PICKUP_DOT: '#3F51B5',
   DROP_DOT: '#D32F2F',
-
-  WATCH_BTN_BG: '#B10B0B',
-  WATCH_BTN_TEXT: '#FFFFFF',
 
   ACTION_BTN_BG: '#E6E6E6',
   ACTION_BTN_TEXT: '#111827',

@@ -12,6 +12,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Text } from '../typography';
 import { SwipeButton } from '../components/ui';
+import { openPhoneDialer } from '../utils/linking';
 import {
   COLORS,
   TAB_BAR_SCENE_PADDING_BOTTOM,
@@ -135,7 +136,12 @@ export function TripDetailsScreen({ navigation, route }: Props) {
             </View>
 
             <View style={styles.actionsRow}>
-              <TouchableOpacity accessibilityRole="button" activeOpacity={0.85} style={styles.actionBtn}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                activeOpacity={0.85}
+                style={styles.actionBtn}
+                onPress={() => openPhoneDialer(trip.customerPhone)}
+              >
                 <MaterialCommunityIcons name="phone-outline" size={normalizeWidth(18)} color={COLORS.textPrimary} />
                 <Text variant="body" weight="semiBold" style={styles.actionText}>{TRIPS_STRINGS.CALL_CUSTOMER}</Text>
               </TouchableOpacity>

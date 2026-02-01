@@ -62,6 +62,8 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
     return () => clearTimeout(timer);
   }, []);
 
+
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Background Image */}

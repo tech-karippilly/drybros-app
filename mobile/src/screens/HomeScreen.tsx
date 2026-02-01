@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Text } from '../typography';
 import { SwipeButton } from '../components/ui';
+import { openPhoneDialer } from '../utils/linking';
 import {
   COLORS,
   TAB_BAR_SCENE_PADDING_BOTTOM,
@@ -259,7 +260,12 @@ function UpcomingTripCard({
             </View>
           </View>
 
-          <TouchableOpacity accessibilityRole="button" activeOpacity={0.85} style={styles.callBtn}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            activeOpacity={0.85}
+            style={styles.callBtn}
+            onPress={() => openPhoneDialer(item.trip.customerPhone)}
+          >
             <MaterialCommunityIcons name="phone-outline" size={normalizeWidth(HOME_LAYOUT.CALL_ICON_SIZE)} color={HOME_COLORS.CARD_TEXT} />
           </TouchableOpacity>
         </View>
@@ -304,10 +310,6 @@ function UpcomingTripCard({
               resizeMode="contain"
               style={styles.carImage}
             />
-            <TouchableOpacity accessibilityRole="button" activeOpacity={0.9} style={styles.watchBtn}>
-              <MaterialCommunityIcons name="play-circle-outline" size={normalizeWidth(HOME_LAYOUT.WATCH_ICON_SIZE)} color={HOME_COLORS.WATCH_BTN_TEXT} />
-              <Text variant="caption" weight="semiBold" style={styles.watchBtnText}>{HOME_STRINGS.WATCH_TUTORIAL}</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -602,16 +604,6 @@ const styles = StyleSheet.create({
   transmissionRow: { flexDirection: 'row', alignItems: 'center', gap: normalizeWidth(10), marginTop: normalizeHeight(6) },
   vehicleRight: { alignItems: 'flex-end', gap: normalizeHeight(10) },
   carImage: { width: normalizeWidth(HOME_LAYOUT.CAR_IMAGE_W), height: normalizeHeight(HOME_LAYOUT.CAR_IMAGE_H), opacity: 0.8 },
-  watchBtn: {
-    height: normalizeHeight(HOME_LAYOUT.WATCH_BTN_HEIGHT),
-    borderRadius: normalizeWidth(HOME_LAYOUT.WATCH_BTN_RADIUS),
-    backgroundColor: HOME_COLORS.WATCH_BTN_BG,
-    paddingHorizontal: normalizeWidth(14),
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: normalizeWidth(8),
-  },
-  watchBtnText: { color: HOME_COLORS.WATCH_BTN_TEXT },
 
   actionRow: { flexDirection: 'row', gap: normalizeWidth(14) },
   actionBtn: {

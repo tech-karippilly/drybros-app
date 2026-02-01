@@ -54,6 +54,7 @@ export const PROFILE_CIRCLE = {
 
 export const STORAGE_KEYS = {
   AUTH_TOKEN: '@drybros/auth_token',
+  REFRESH_TOKEN: '@drybros/refresh_token',
   USER_DATA: '@drybros/user_data',
   ONBOARDING_COMPLETED: '@drybros/onboarding_completed',
   THEME: '@drybros/theme',

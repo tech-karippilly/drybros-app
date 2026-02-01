@@ -9,5 +9,8 @@ export const API_ENDPOINTS ={
         CLOCK_OUT:'/attendance/clock-out',
         LEAVE_REQUEST:'/leave-requests',
 
+    },
+    DRIVER:{
+        DRIVER_DETAILS:'/drivers/:id'
     }
 }as const;

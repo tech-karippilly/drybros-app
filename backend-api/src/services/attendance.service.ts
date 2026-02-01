@@ -8,6 +8,9 @@ import {
   upsertAttendance,
   updateAttendance,
   deleteAttendance,
+  getOpenAttendanceSession,
+  createAttendanceSession,
+  closeAttendanceSession,
 } from "../repositories/attendance.repository";
 import { getDriverById } from "../repositories/driver.repository";
 import { getStaffById } from "../repositories/staff.repository";
@@ -16,6 +19,7 @@ import {
   ClockInDTO,
   ClockOutDTO,
   AttendanceResponseDTO,
+  ClockAttendanceResponseDTO,
   AttendancePaginationQueryDTO,
   PaginatedAttendanceResponseDTO,
   CreateAttendanceDTO,
@@ -40,9 +44,34 @@ function mapAttendanceToResponse(attendance: any): AttendanceResponseDTO {
     clockOut: attendance.clockOut,
     status: attendance.status,
     notes: attendance.notes,
+    sessions: (attendance.sessions ?? []).map((s: any) => ({
+      id: s.id,
+      clockIn: s.clockIn,
+      clockOut: s.clockOut ?? null,
+      notes: s.notes ?? null,
+    })),
     createdAt: attendance.createdAt,
     updatedAt: attendance.updatedAt,
   };
+}
+
+function mapAttendanceToClockResponse(attendance: any): ClockAttendanceResponseDTO {
+  const base: ClockAttendanceResponseDTO = {
+    id: attendance.id,
+    date: attendance.date,
+    loginTime: attendance.loginTime ?? null,
+    clockIn: attendance.clockIn ?? null,
+    clockOut: attendance.clockOut ?? null,
+    status: attendance.status,
+  };
+
+  // Include only the relevant id (and omit null ids)
+  if (attendance.driverId) return { ...base, driverId: attendance.driverId };
+  if (attendance.staffId) return { ...base, staffId: attendance.staffId };
+  if (attendance.userId) return { ...base, userId: attendance.userId };
+
+  // Fallback (should not happen, but keep response stable)
+  return base;
 }
 
 /**
@@ -103,7 +132,7 @@ export async function trackLogin(
 
 export async function clockIn(
   input: ClockInDTO
-): Promise<{ message: string; data: AttendanceResponseDTO }> {
+): Promise<{ message: string; data: ClockAttendanceResponseDTO }> {
   const { id } = input;
 
   // Check if ID belongs to driver, staff, or user (manager) - check all in parallel
@@ -142,7 +171,7 @@ export async function clockIn(
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Check if already clocked in today
+  // Get (or create) today's attendance header
   const existing = await getAttendanceByDateAndPerson(
     today,
     driverId,
@@ -150,7 +179,19 @@ export async function clockIn(
     userId
   );
 
-  if (existing && existing.clockIn) {
+  const attendanceHeader =
+    existing ??
+    (await upsertAttendance({
+      driverId,
+      staffId,
+      userId,
+      date: today,
+      status: "PRESENT",
+    }));
+
+  // Allow multiple sessions per day, but block if there's an open session
+  const openSession = await getOpenAttendanceSession(attendanceHeader.id);
+  if (openSession) {
     throw new BadRequestError(ATTENDANCE_ERROR_MESSAGES.ALREADY_CLOCKED_IN);
   }
 
@@ -164,16 +205,28 @@ export async function clockIn(
 
   const clockInDescription = `${personName}${ATTENDANCE_ACTIVITY_DESCRIPTIONS.CLOCK_IN_SUFFIX}`;
 
+  const session = await createAttendanceSession({
+    attendanceId: attendanceHeader.id,
+    clockIn: new Date(),
+    notes: null,
+  });
+
   const attendance = await upsertAttendance({
     driverId,
     staffId,
     userId,
     date: today,
-    clockIn: new Date(),
+    clockIn: session.clockIn,
     clockOut: null,
     status: "PRESENT",
-    notes: null,
   });
+
+  const attendanceWithSessions = await getAttendanceByDateAndPerson(
+    today,
+    driverId,
+    staffId,
+    userId
+  );
 
   logger.info("Clock in recorded", {
     attendanceId: attendance.id,
@@ -227,14 +280,14 @@ export async function clockIn(
 
   return {
     message: "Clocked in successfully",
-    data: mapAttendanceToResponse(attendance),
+    data: mapAttendanceToClockResponse(attendanceWithSessions ?? attendance),
   };
 }
 
 export async function clockOut(
   input: ClockOutDTO
-): Promise<{ message: string; data: AttendanceResponseDTO }> {
-  const { id, notes } = input;
+): Promise<{ message: string; data: ClockAttendanceResponseDTO }> {
+  const { id } = input;
 
   // Check if ID belongs to driver, staff, or user (manager) - check all in parallel
   const [driver, staff, user] = await Promise.all([
@@ -272,7 +325,7 @@ export async function clockOut(
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Check if clocked in
+  // Check if there is an open session to clock out
   const existing = await getAttendanceByDateAndPerson(
     today,
     driverId,
@@ -280,13 +333,20 @@ export async function clockOut(
     userId
   );
 
-  if (!existing || !existing.clockIn) {
+  if (!existing) {
     throw new BadRequestError(ATTENDANCE_ERROR_MESSAGES.NOT_CLOCKED_IN);
   }
 
-  if (existing.clockOut) {
-    throw new BadRequestError("Already clocked out for today");
+  const openSession = await getOpenAttendanceSession(existing.id);
+  if (!openSession) {
+    throw new BadRequestError(ATTENDANCE_ERROR_MESSAGES.ALREADY_CLOCKED_OUT);
   }
+
+  const closedSession = await closeAttendanceSession({
+    sessionId: openSession.id,
+    clockOut: new Date(),
+    notes: null,
+  });
 
   const attendance = await upsertAttendance({
     driverId,
@@ -295,10 +355,17 @@ export async function clockOut(
     date: today,
     loginTime: existing.loginTime,
     clockIn: existing.clockIn,
-    clockOut: new Date(),
+    clockOut: closedSession.clockOut,
     status: existing.status,
-    notes: notes || existing.notes,
+    notes: existing.notes ?? null,
   });
+
+  const attendanceWithSessions = await getAttendanceByDateAndPerson(
+    today,
+    driverId,
+    staffId,
+    userId
+  );
 
   logger.info("Clock out recorded", {
     attendanceId: attendance.id,
@@ -320,7 +387,6 @@ export async function clockOut(
         date: attendance.date,
         clockIn: attendance.clockIn,
         clockOut: attendance.clockOut,
-        notes: notes,
       },
     }).catch((err) => {
       logger.error("Failed to log clock out activity", { error: err });
@@ -338,7 +404,6 @@ export async function clockOut(
         date: attendance.date,
         clockIn: attendance.clockIn,
         clockOut: attendance.clockOut,
-        notes: notes,
       },
     }).catch((err) => {
       logger.error("Failed to log clock out activity", { error: err });
@@ -356,7 +421,6 @@ export async function clockOut(
         date: attendance.date,
         clockIn: attendance.clockIn,
         clockOut: attendance.clockOut,
-        notes: notes,
       },
     }).catch((err) => {
       logger.error("Failed to log clock out activity", { error: err });
@@ -365,7 +429,7 @@ export async function clockOut(
 
   return {
     message: "Clocked out successfully",
-    data: mapAttendanceToResponse(attendance),
+    data: mapAttendanceToClockResponse(attendanceWithSessions ?? attendance),
   };
 }
 

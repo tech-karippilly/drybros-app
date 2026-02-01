@@ -71,6 +71,35 @@ function generateRefreshToken(userId: string): string {
 }
 
 /**
+ * Helper function to generate refresh token for driver
+ */
+function generateDriverRefreshToken(driverId: string): string {
+  const payload: RefreshTokenPayload = { driverId, type: "refresh" };
+  return jwt.sign(
+    payload,
+    authConfig.jwtSecret as Secret,
+    { expiresIn: authConfig.refreshTokenExpiresIn } as SignOptions
+  );
+}
+
+/**
+ * Helper function to generate access token for driver
+ */
+function generateDriverAccessToken(driver: { id: string; driverCode: string; email: string }): string {
+  const payload = {
+    driverId: driver.id,
+    driverCode: driver.driverCode,
+    email: driver.email,
+    type: "access",
+  };
+  return jwt.sign(
+    payload,
+    authConfig.jwtSecret as Secret,
+    { expiresIn: authConfig.jwtExpiresIn } as SignOptions
+  );
+}
+
+/**
  * Helper function to generate password reset token.
  * entityType + entityId identify User, Staff, or Driver.
  */
@@ -926,7 +955,78 @@ export async function refreshToken(
     throw new BadRequestError(ERROR_MESSAGES.TOKEN_INVALID_TYPE);
   }
 
+  // Driver refresh token flow
+  if (decoded.driverId) {
+    const driver = await prisma.driver.findUnique({
+      where: { id: decoded.driverId },
+      select: {
+        id: true,
+        driverCode: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        status: true,
+        isActive: true,
+        bannedGlobally: true,
+        blacklisted: true,
+        franchiseId: true,
+      },
+    });
+
+    if (
+      !driver ||
+      !driver.isActive ||
+      driver.status !== "ACTIVE" ||
+      driver.bannedGlobally ||
+      driver.blacklisted
+    ) {
+      throw new BadRequestError(ERROR_MESSAGES.DRIVER_NOT_FOUND);
+    }
+
+    // Block refresh if driver's franchise is blocked; flag if temporarily closed
+    let franchiseTemporarilyClosed = false;
+    if (driver.franchiseId) {
+      const franchise = await prisma.franchise.findUnique({
+        where: { id: driver.franchiseId },
+        select: { status: true, isActive: true },
+      });
+      if (
+        franchise &&
+        (franchise.status === FranchiseStatus.BLOCKED || !franchise.isActive)
+      ) {
+        throw new BadRequestError(ERROR_MESSAGES.FRANCHISE_BLOCKED);
+      }
+      if (franchise?.status === FranchiseStatus.TEMPORARILY_CLOSED) {
+        franchiseTemporarilyClosed = true;
+      }
+    }
+
+    const accessToken = generateDriverAccessToken(driver);
+    const refreshToken = generateDriverRefreshToken(driver.id);
+
+    return {
+      accessToken,
+      refreshToken,
+      // Keep response shape compatible with existing AuthResponseDTO by mapping to "user"
+      // (clients that are driver-specific can ignore this field)
+      user: {
+        id: driver.id,
+        fullName: `${driver.firstName} ${driver.lastName}`.trim(),
+        email: driver.email,
+        phone: driver.phone,
+        role: "DRIVER",
+        ...(driver.franchiseId ? { franchiseId: driver.franchiseId } : {}),
+      },
+      ...(franchiseTemporarilyClosed && { franchiseTemporarilyClosed: true }),
+    };
+  }
+
   // Find user
+  if (!decoded.userId) {
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_TOKEN);
+  }
+
   // This is a known issue with Prisma client type generation timing
   // The database uses UUID strings, but TypeScript may show cached number types
   // @ts-ignore - Prisma types may show number but database uses UUID string

@@ -2,6 +2,30 @@
 import { z } from "zod";
 import { AttendanceStatus } from "@prisma/client";
 
+export interface AttendanceSessionDTO {
+  id: string;
+  clockIn: Date;
+  clockOut: Date | null;
+  notes: string | null;
+}
+
+/**
+ * Slim response for clock-in/clock-out endpoints.
+ * - Only includes the relevant person id (driverId OR staffId OR userId).
+ * - Excludes notes, sessions, createdAt, updatedAt to keep payload small.
+ */
+export interface ClockAttendanceResponseDTO {
+  id: string;
+  driverId?: string;
+  staffId?: string;
+  userId?: string;
+  date: Date;
+  loginTime: Date | null;
+  clockIn: Date | null;
+  clockOut: Date | null;
+  status: AttendanceStatus;
+}
+
 /**
  * Treat empty strings as "not provided" for optional ID fields.
  */
@@ -51,7 +75,6 @@ export const clockOutSchema = z.object({
   driverId: optionalUuid,
   staffId: optionalUuid,
   userId: optionalUuid,
-  notes: z.string().max(500, "Notes must be less than 500 characters").optional().nullable(),
 }).refine(
   (data) => {
     const count = [data.id, data.driverId, data.staffId, data.userId].filter(Boolean)
@@ -64,7 +87,6 @@ export const clockOutSchema = z.object({
   }
 ).transform((data) => ({
   id: (data.id ?? data.driverId ?? data.staffId ?? data.userId) as string,
-  notes: data.notes ?? null,
 }));
 
 export type ClockOutDTO = z.infer<typeof clockOutSchema>;
@@ -83,6 +105,7 @@ export interface AttendanceResponseDTO {
   clockOut: Date | null;
   status: AttendanceStatus;
   notes: string | null;
+  sessions: AttendanceSessionDTO[];
   createdAt: Date;
   updatedAt: Date;
 }

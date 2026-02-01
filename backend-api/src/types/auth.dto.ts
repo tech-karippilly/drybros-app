@@ -169,7 +169,10 @@ export interface AccessTokenPayload {
  * JWT payload for refresh token
  */
 export interface RefreshTokenPayload {
-  userId: string;
+  /** Present for User/Staff/Admin refresh tokens */
+  userId?: string;
+  /** Present for Driver refresh tokens */
+  driverId?: string;
   type: "refresh";
 }
 

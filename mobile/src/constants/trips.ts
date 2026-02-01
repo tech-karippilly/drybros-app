@@ -48,6 +48,81 @@ export const TRIPS_STRINGS = {
   SPECIAL_REQUESTS: 'Special Requests',
 } as const;
 
+/**
+ * Trip Start screen (odometer + vehicle photos)
+ */
+export const TRIP_START_STRINGS = {
+  TITLE: 'Start Trip',
+  SUBTITLE: 'Capture vehicle photos and odometer reading to begin.',
+
+  ODOMETER_VALUE_LABEL: 'Odometer Value',
+  ODOMETER_VALUE_PLACEHOLDER: 'Enter odometer reading',
+  ODOMETER_VALUE_HELPER: 'Example: 12345.5',
+
+  PHOTO_SECTION_TITLE: 'Upload Photos',
+  ODOMETER_PHOTO_LABEL: 'Odometer Photo',
+  CAR_FRONT_PHOTO_LABEL: 'Car Front Photo',
+  CAR_BACK_PHOTO_LABEL: 'Car Back Photo',
+
+  ADD_PHOTO: 'Add Photo',
+  CHANGE_PHOTO: 'Change Photo',
+  TAKE_PHOTO: 'Take Photo',
+  CHOOSE_FROM_GALLERY: 'Choose from Gallery',
+  CANCEL: 'Cancel',
+
+  SUBMIT: 'Start Trip',
+  SUCCESS: 'Trip started successfully',
+
+  // Validation / errors
+  ERROR_ODOMETER_REQUIRED: 'Please enter odometer value',
+  ERROR_ODOMETER_INVALID: 'Please enter a valid odometer value',
+  ERROR_ODOMETER_PHOTO_REQUIRED: 'Please add odometer photo',
+  ERROR_CAR_FRONT_PHOTO_REQUIRED: 'Please add car front photo',
+  ERROR_CAR_BACK_PHOTO_REQUIRED: 'Please add car back photo',
+} as const;
+
+export const TRIP_START_LAYOUT = {
+  SCREEN_HORIZONTAL_PADDING: 20,
+  HEADER_HEIGHT: 56,
+  HEADER_TITLE_FONT_SIZE: 17,
+
+  CONTENT_TOP_PADDING: 16,
+  CONTENT_GAP: 16,
+
+  CAR_IMAGE_SIZE: 110,
+  CAR_IMAGE_RADIUS: 22,
+
+  CARD_RADIUS: 18,
+  CARD_PADDING: 16,
+
+  PHOTO_TILE_HEIGHT: 140,
+  PHOTO_TILE_RADIUS: 16,
+  PHOTO_TILE_GAP: 12,
+
+  ACTION_ROW_GAP: 12,
+  ACTION_BTN_HEIGHT: 52,
+  ACTION_BTN_RADIUS: 999,
+
+  BOTTOM_PADDING: 24,
+} as const;
+
+export const TRIP_START_COLORS = {
+  SCREEN_BG: TRIPS_COLORS.SCREEN_BG,
+  CARD_BG: TRIPS_COLORS.CARD_BG,
+  BORDER: TRIPS_COLORS.DIVIDER,
+
+  SUBTITLE: TRIPS_COLORS.SUBTEXT,
+
+  PHOTO_TILE_BG: '#EEF0F5',
+  PHOTO_PLACEHOLDER_ICON: '#9CA3AF',
+
+  PRIMARY_BG: '#0E1738',
+  PRIMARY_TEXT: '#FFFFFF',
+
+  SECONDARY_BG: '#E6E6E6',
+  SECONDARY_TEXT: '#111827',
+} as const;
+
 export const TRIPS_LAYOUT = {
   SCREEN_HORIZONTAL_PADDING: 20,
   LIST_PADDING_TOP: 16,

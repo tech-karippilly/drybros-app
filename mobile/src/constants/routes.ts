@@ -39,6 +39,7 @@ export type LeaveStackRouteKey = keyof typeof LEAVE_STACK_ROUTES;
 export const TRIP_STACK_ROUTES = {
   TRIP_HOME: 'TripHome',
   TRIP_DETAILS: 'TripDetails',
+  TRIP_START: 'TripStart',
 } as const;
 
 export type TripStackRouteKey = keyof typeof TRIP_STACK_ROUTES;

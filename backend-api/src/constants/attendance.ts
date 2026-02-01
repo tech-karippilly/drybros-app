@@ -6,6 +6,7 @@ export const ATTENDANCE_ERROR_MESSAGES = {
   STAFF_NOT_FOUND: "Staff not found",
   USER_NOT_FOUND: "User not found",
   ALREADY_CLOCKED_IN: "Already clocked in for today",
+  ALREADY_CLOCKED_OUT: "Already clocked out for today",
   NOT_CLOCKED_IN: "Must clock in before clocking out",
   INVALID_ATTENDANCE_TYPE: "ID not found in drivers, staff, or managers",
 } as const;

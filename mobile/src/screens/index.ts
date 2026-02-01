@@ -10,6 +10,7 @@ export * from './ForgotPasswordScreen';
 export * from './HomeScreen';
 export * from './TripScreen';
 export * from './TripDetailsScreen';
+export * from './TripStartScreen';
 export * from './LeaveScreen';
 export * from './ApplyLeaveScreen';
 export * from './AlertsScreen';

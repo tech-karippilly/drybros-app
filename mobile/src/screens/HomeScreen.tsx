@@ -3,7 +3,7 @@
  * Matches provided design (top cards + upcoming trips list)
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Image, Dimensions, TouchableOpacity, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,8 +12,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Text } from '../typography';
-import { SwipeButton } from '../components/ui';
+import { IconCircle, Modal, SwipeButton } from '../components/ui';
 import { openPhoneDialer } from '../utils/linking';
+import { useToast } from '../contexts';
 import {
   COLORS,
   TAB_BAR_SCENE_PADDING_BOTTOM,
@@ -21,6 +22,7 @@ import {
   TAB_ROUTES,
   TRIP_STACK_ROUTES,
   HOME_COLORS,
+  HOME_CHECKOUT_MODAL,
   HOME_LAYOUT,
   HOME_MOCK,
   HOME_STRINGS,
@@ -30,19 +32,75 @@ import {
 import { getFontFamily } from '../constants/typography';
 import { normalizeWidth, normalizeHeight, normalizeFont } from '../utils/responsive';
 import type { MainTabParamList } from '../navigation/MainTabNavigator';
+import { clockInApi, clockOutApi } from '../services/api/attendance';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
+  const { showToast } = useToast();
   const [isCheckedIn, setIsCheckedIn] = useState<boolean>(HOME_MOCK.status.isCheckedIn);
+  const [checkInLoading, setCheckInLoading] = useState(false);
+  const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   const target = HOME_MOCK.target;
   const targetPercent = useMemo(() => {
     const p = target.total > 0 ? Math.round((target.current / target.total) * 100) : 0;
     return Math.max(0, Math.min(100, p));
   }, [target.current, target.total]);
+
+  const openCheckoutModal = useCallback(() => {
+    setCheckoutModalVisible(true);
+  }, []);
+
+  const closeCheckoutModal = useCallback(() => {
+    if (checkoutLoading) return;
+    setCheckoutModalVisible(false);
+  }, [checkoutLoading]);
+
+  const handleCheckButtonPress = useCallback(async () => {
+    if (isCheckedIn) {
+      openCheckoutModal();
+      return;
+    }
+    if (checkInLoading) return;
+
+    setCheckInLoading(true);
+    try {
+      await clockInApi();
+      setIsCheckedIn(true);
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        HOME_STRINGS.CLOCK_IN_FAILED;
+      showToast({ message: errorMessage, type: 'error', position: 'top' });
+    } finally {
+      setCheckInLoading(false);
+    }
+  }, [checkInLoading, isCheckedIn, openCheckoutModal, showToast]);
+
+  const handleSwipeCheckout = useCallback(async () => {
+    if (checkoutLoading) return;
+    setCheckoutLoading(true);
+    try {
+      await clockOutApi();
+      setIsCheckedIn(false);
+      setCheckoutModalVisible(false);
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        HOME_STRINGS.CLOCK_OUT_FAILED;
+      showToast({ message: errorMessage, type: 'error', position: 'top' });
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }, [checkoutLoading, showToast]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -143,12 +201,17 @@ export function HomeScreen() {
               >
                 <View style={styles.cardContent}>
                   <View style={styles.checkInHeader}>
-                    <Text variant="body" weight="medium" style={styles.cardTitle}>
-                      {HOME_STRINGS.STATUS} {isCheckedIn ? HOME_STRINGS.CHECKED_IN : HOME_STRINGS.NOT_CHECKED_IN}
+                    <Text variant="body" style={styles.statusLine} numberOfLines={1}>
+                      <Text variant="body" style={styles.statusLabel}>
+                        {HOME_STRINGS.STATUS}{' '}
+                      </Text>
+                      <Text variant="body" style={styles.statusValue}>
+                        {isCheckedIn ? HOME_STRINGS.CHECKED_IN : HOME_STRINGS.NOT_CHECKED_IN}
+                      </Text>
                     </Text>
                     
                     {isCheckedIn ? (
-                      <Text variant="caption" style={styles.checkInTime}>
+                      <Text variant="h6" weight="medium" style={styles.checkInTime}>
                         {HOME_MOCK.status.checkedInAt}
                       </Text>
                     ) : null}
@@ -159,10 +222,10 @@ export function HomeScreen() {
                       styles.checkButton,
                       isCheckedIn ? styles.checkOutButton : styles.checkInButton,
                     ]}
-                    onPress={() => setIsCheckedIn((v) => !v)}
+                    onPress={handleCheckButtonPress}
                     activeOpacity={0.8}
                   >
-                    <Text variant="body" weight="medium" style={styles.checkButtonText}>
+                    <Text variant="h5" weight="bold" style={styles.checkButtonText}>
                       {isCheckedIn ? HOME_STRINGS.CHECK_OUT : HOME_STRINGS.CHECK_IN}
                     </Text>
                   </TouchableOpacity>
@@ -171,6 +234,50 @@ export function HomeScreen() {
             </BlurView>
           </View>
         </View>
+
+        {/* Checkout confirmation modal */}
+        <Modal visible={checkoutModalVisible} onClose={closeCheckoutModal} showCloseButton={false}>
+          <View style={styles.checkoutModalContent}>
+            <IconCircle
+              icon="alert"
+              size={HOME_CHECKOUT_MODAL.ICON_SIZE}
+              innerColor={HOME_COLORS.CHECKOUT_MODAL_ICON_INNER_BG}
+              iconColor={HOME_COLORS.CHECKOUT_MODAL_ICON_COLOR}
+              blurTint="light"
+              style={styles.checkoutModalIcon}
+            />
+
+            <Text variant="h3" weight="semiBold" style={styles.checkoutTitle}>
+              {HOME_STRINGS.CHECKOUT_TITLE}
+            </Text>
+            <Text variant="body" style={styles.checkoutSubtitle}>
+              {HOME_STRINGS.CHECKOUT_SUBTITLE}
+            </Text>
+
+            <SwipeButton
+              label={HOME_STRINGS.SWIPE_TO_CHECKOUT}
+              onSwipeComplete={handleSwipeCheckout}
+              height={normalizeHeight(HOME_CHECKOUT_MODAL.SWIPE_HEIGHT)}
+              trackColor={HOME_COLORS.CHECKOUT_MODAL_SWIPE_TRACK}
+              thumbColor={HOME_COLORS.CHECKOUT_MODAL_SWIPE_THUMB}
+              thumbIconColor={COLORS.white}
+              gradientColors={HOME_COLORS.CHECKOUT_MODAL_LABEL_GRADIENT}
+              disabled={checkoutLoading}
+              style={styles.checkoutSwipe}
+            />
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={closeCheckoutModal}
+              disabled={checkoutLoading}
+              style={[styles.checkoutCancelBtn, checkoutLoading && styles.checkoutCancelBtnDisabled]}
+            >
+              <Text variant="h5" weight="semiBold" style={styles.checkoutCancelText}>
+                {HOME_STRINGS.CANCEL}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
 
         {/* Upcoming Trips and Get Help Section */}
         <View style={styles.bottomSection}>
@@ -443,6 +550,24 @@ const styles = StyleSheet.create({
   checkInHeader: {
     marginBottom: normalizeHeight(4),
   },
+  statusLine: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+  },
+  statusLabel: {
+    color: HOME_COLORS.CARD_TEXT_MUTED,
+    fontFamily: getFontFamily('satoshiVariable'),
+    fontWeight: '500',
+    fontSize: normalizeFont(14),
+    lineHeight: normalizeFont(14) * 1.26,
+  },
+  statusValue: {
+    color: COLORS.white,
+    fontFamily: getFontFamily('satoshiVariable'),
+    fontWeight: '700',
+    fontSize: normalizeFont(14),
+    lineHeight: normalizeFont(14) * 1.26,
+  },
   progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -469,20 +594,16 @@ const styles = StyleSheet.create({
     borderRadius: normalizeWidth(HOME_LAYOUT.TARGET_PROGRESS_RADIUS),
   },
   checkInTime: {
-    color: COLORS.white,
-    fontSize: normalizeFont(9),
-    opacity: 0.7,
+    color: HOME_COLORS.CARD_TEXT_MUTED,
+    fontSize: normalizeFont(18),
     marginTop: normalizeHeight(2),
   },
   checkButton: {
     width: '100%',
     maxWidth: normalizeWidth(139),
-    height: normalizeHeight(36),
+    height: normalizeHeight(44),
     borderRadius: normalizeWidth(44),
-    paddingTop: normalizeHeight(8),
-    paddingRight: normalizeWidth(16),
-    paddingBottom: normalizeHeight(8),
-    paddingLeft: normalizeWidth(16),
+    paddingHorizontal: normalizeWidth(16),
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: normalizeHeight(4),
@@ -495,7 +616,48 @@ const styles = StyleSheet.create({
   },
   checkButtonText: {
     color: COLORS.white,
-    fontSize: normalizeFont(14),
+    fontSize: normalizeFont(20),
+    fontFamily: getFontFamily('satoshiVariable'),
+    fontWeight: '700',
+  },
+
+  checkoutModalContent: {
+    backgroundColor: HOME_COLORS.CHECKOUT_MODAL_BG,
+    borderRadius: normalizeWidth(HOME_CHECKOUT_MODAL.RADIUS),
+    paddingHorizontal: normalizeWidth(HOME_CHECKOUT_MODAL.PADDING_H),
+    paddingVertical: normalizeHeight(HOME_CHECKOUT_MODAL.PADDING_V),
+    alignItems: 'center',
+  },
+  checkoutModalIcon: {
+    marginBottom: normalizeHeight(HOME_CHECKOUT_MODAL.ICON_MARGIN_BOTTOM),
+  },
+  checkoutTitle: {
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+  },
+  checkoutSubtitle: {
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginTop: normalizeHeight(10),
+  },
+  checkoutSwipe: {
+    marginTop: normalizeHeight(HOME_CHECKOUT_MODAL.SWIPE_MARGIN_TOP),
+    width: '100%',
+  },
+  checkoutCancelBtn: {
+    marginTop: normalizeHeight(HOME_CHECKOUT_MODAL.CANCEL_MARGIN_TOP),
+    width: '100%',
+    height: normalizeHeight(HOME_CHECKOUT_MODAL.CANCEL_HEIGHT),
+    borderRadius: normalizeWidth(HOME_CHECKOUT_MODAL.CANCEL_RADIUS),
+    backgroundColor: HOME_COLORS.CHECKOUT_MODAL_CANCEL_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkoutCancelBtnDisabled: {
+    opacity: 0.6,
+  },
+  checkoutCancelText: {
+    color: HOME_COLORS.CHECKOUT_MODAL_CANCEL_TEXT,
   },
   bottomSection: {
     flexDirection: 'row',

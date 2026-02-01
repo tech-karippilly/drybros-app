@@ -366,6 +366,7 @@ model Attendance {
   Driver    Driver?          @relation(fields: [driverId], references: [id], onDelete: Cascade)
   Staff     Staff?           @relation(fields: [staffId], references: [id], onDelete: Cascade)
   User      User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions  AttendanceSession[]
 
   @@unique([driverId, date])
   @@unique([staffId, date])
@@ -374,6 +375,21 @@ model Attendance {
   @@index([driverId, date])
   @@index([staffId, date])
   @@index([userId, date])
+}
+
+model AttendanceSession {
+  id           String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  attendanceId String     @db.Uuid
+  clockIn      DateTime   @default(now())
+  clockOut     DateTime?
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  Attendance Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+
+  @@index([attendanceId, clockIn])
+  @@index([attendanceId, clockOut])
 }
 
 model LeaveRequest {

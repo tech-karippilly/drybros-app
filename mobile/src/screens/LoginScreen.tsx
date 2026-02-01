@@ -225,13 +225,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         password: password.trim(),
       });
 
-      if (rememberMe) {
-        await enableRememberMe({
-          driverCode: driverCode.trim(),
-          password: password.trim(),
-        });
-      } else {
-        await disableRememberMe();
+      // Remember-me should never block a successful login (storage can fail on some devices).
+      try {
+        if (rememberMe) {
+          await enableRememberMe({
+            driverCode: driverCode.trim(),
+            password: password.trim(),
+          });
+        } else {
+          await disableRememberMe();
+        }
+      } catch {
+        // Non-blocking: ignore remember-me persistence errors.
       }
       
       showToast({

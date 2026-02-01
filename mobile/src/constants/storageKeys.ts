@@ -21,7 +21,10 @@ export const STORAGE_KEYS = {
   /**
    * Stored securely via `expo-secure-store` as JSON:
    * `{ driverCode: string; password: string }`
+   *
+   * Note: SecureStore keys must use a safe character set (letters/numbers/._-).
+   * Avoid characters like `@` and `/` which can throw "Invalid key provided".
    */
-  REMEMBERED_CREDENTIALS: '@drybros/remembered_credentials',
+  REMEMBERED_CREDENTIALS: 'drybros.remembered_credentials',
 } as const;
 

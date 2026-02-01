@@ -154,7 +154,7 @@ export function TripDetailsScreen({ navigation, route }: Props) {
             <View style={styles.swipeWrap}>
               <SwipeButton
                 label={TRIPS_STRINGS.SWIPE_START_TRIP}
-                onSwipeComplete={() => {}}
+                onSwipeComplete={() => navigation.navigate(TRIP_STACK_ROUTES.TRIP_START, { trip })}
                 height={normalizeHeight(TRIPS_LAYOUT.DETAILS_SWIPE_HEIGHT)}
                 trackColor={TRIPS_COLORS.SWIPE_TRACK_BG}
               />

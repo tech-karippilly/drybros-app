@@ -17,6 +17,14 @@ export const HOME_STRINGS = {
   NOT_CHECKED_IN: 'Not Checked In',
   CHECK_OUT: 'Check Out',
   CHECK_IN: 'Check In',
+  CLOCK_IN_FAILED: 'Clock in failed. Please try again.',
+  CLOCK_OUT_FAILED: 'Clock out failed. Please try again.',
+
+  // Checkout modal
+  CHECKOUT_TITLE: 'Check out?',
+  CHECKOUT_SUBTITLE: 'This will make you unavailable for new trips.',
+  SWIPE_TO_CHECKOUT: 'Swipe to Checkout',
+  CANCEL: 'Cancel',
 
   // Sections
   UPCOMING_TRIPS: 'Upcoming Trips',
@@ -98,11 +106,22 @@ export const HOME_COLORS = {
   PROGRESS_TRACK: 'rgba(255, 255, 255, 0.1)',
   PROGRESS_GRADIENT: ['#5E66B7', '#8E97EA'] as const,
 
-  CHECK_IN_BG: '#D14646',
+  /** Button colors for attendance card */
+  CHECK_IN_BG: '#4CAF50',
   CHECK_OUT_BG: '#D14646',
 
   CARD_TEXT: '#FFFFFF',
   CARD_TEXT_MUTED: 'rgba(255, 255, 255, 0.75)',
+
+  /** Checkout modal */
+  CHECKOUT_MODAL_BG: '#FFFFFF',
+  CHECKOUT_MODAL_SWIPE_TRACK: '#111111',
+  CHECKOUT_MODAL_SWIPE_THUMB: '#3A3A3A',
+  CHECKOUT_MODAL_CANCEL_BG: '#E9EAED',
+  CHECKOUT_MODAL_CANCEL_TEXT: '#111827',
+  CHECKOUT_MODAL_ICON_INNER_BG: '#F05D5D',
+  CHECKOUT_MODAL_ICON_COLOR: '#FFFFFF',
+  CHECKOUT_MODAL_LABEL_GRADIENT: ['#6B7280', '#FFFFFF'] as const,
 
   TRIP_CARD_BG: '#FFFFFF',
   TRIP_SUBTEXT: '#8E8E8E',
@@ -121,6 +140,23 @@ export const HOME_COLORS = {
 
   VIEW_ALL_BG: '#F2A1A1',
   VIEW_ALL_TEXT: '#111827',
+} as const;
+
+export const HOME_CHECKOUT_MODAL = {
+  /** Modal card radius */
+  RADIUS: 28,
+  /** Modal content padding */
+  PADDING_H: 24,
+  PADDING_V: 28,
+  /** Icon spacing */
+  ICON_SIZE: 140,
+  ICON_MARGIN_BOTTOM: 18,
+  /** Swipe + cancel sizing */
+  SWIPE_HEIGHT: 64,
+  SWIPE_MARGIN_TOP: 22,
+  CANCEL_HEIGHT: 64,
+  CANCEL_RADIUS: 999,
+  CANCEL_MARGIN_TOP: 18,
 } as const;
 
 export type HomeUpcomingTrip = {

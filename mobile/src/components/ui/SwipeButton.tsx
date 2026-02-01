@@ -35,6 +35,8 @@ export const SwipeButton: React.FC<SwipeButtonProps> = ({
   height,
   trackColor = COLORS.gray200,
   thumbColor = COLORS.white,
+  thumbIconName = 'chevron-double-right',
+  thumbIconColor = COLORS.gray700,
   gradientColors = SWIPE_BUTTON.LABEL_GRADIENT_COLORS,
   disabled = false,
   style,
@@ -173,9 +175,9 @@ export const SwipeButton: React.FC<SwipeButtonProps> = ({
             ]}
           >
             <MaterialCommunityIcons
-              name="chevron-double-right"
+              name={thumbIconName as keyof typeof MaterialCommunityIcons.glyphMap}
               size={normalizeWidth(18)}
-              color={COLORS.gray700}
+              color={thumbIconColor}
             />
           </Animated.View>
           <View style={styles.labelWrap}>

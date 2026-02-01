@@ -2,6 +2,16 @@
 import prisma from "../config/prismaClient";
 import { Attendance, AttendanceStatus } from "@prisma/client";
 
+export type AttendanceSessionRow = {
+  id: string;
+  attendanceId: string;
+  clockIn: Date;
+  clockOut: Date | null;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export async function createAttendance(data: {
   driverId?: string;
   staffId?: string;
@@ -32,6 +42,9 @@ export async function getAttendanceById(id: string) {
   return prisma.attendance.findUnique({
     where: { id },
     include: {
+      sessions: {
+        orderBy: { clockIn: "asc" },
+      },
       Driver: {
         select: {
           id: true,
@@ -88,6 +101,52 @@ export async function getAttendanceByDateAndPerson(
 
   return prisma.attendance.findFirst({
     where: whereClause,
+    include: {
+      sessions: {
+        orderBy: { clockIn: "asc" },
+      },
+    },
+  });
+}
+
+export async function getOpenAttendanceSession(
+  attendanceId: string
+): Promise<AttendanceSessionRow | null> {
+  return prisma.attendanceSession.findFirst({
+    where: {
+      attendanceId,
+      clockOut: null,
+    },
+    orderBy: { clockIn: "desc" },
+  });
+}
+
+export async function createAttendanceSession(data: {
+  attendanceId: string;
+  clockIn?: Date;
+  notes?: string | null;
+}): Promise<AttendanceSessionRow> {
+  return prisma.attendanceSession.create({
+    data: {
+      attendanceId: data.attendanceId,
+      clockIn: data.clockIn ?? new Date(),
+      notes: data.notes ?? null,
+    },
+  });
+}
+
+export async function closeAttendanceSession(data: {
+  sessionId: string;
+  clockOut?: Date;
+  notes?: string | null;
+}): Promise<AttendanceSessionRow> {
+  return prisma.attendanceSession.update({
+    where: { id: data.sessionId },
+    data: {
+      clockOut: data.clockOut ?? new Date(),
+      notes: data.notes ?? null,
+      updatedAt: new Date(),
+    },
   });
 }
 
@@ -133,6 +192,9 @@ export async function getAttendancesPaginated(
       where: whereClause,
       orderBy: { date: "desc" },
       include: {
+        sessions: {
+          orderBy: { clockIn: "asc" },
+        },
         Driver: {
           select: {
             id: true,
@@ -199,6 +261,9 @@ export async function getAllAttendances(filters?: {
     where: whereClause,
     orderBy: { date: "desc" },
     include: {
+      sessions: {
+        orderBy: { clockIn: "asc" },
+      },
       Driver: {
         select: {
           id: true,

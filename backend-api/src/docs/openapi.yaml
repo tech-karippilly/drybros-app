@@ -3006,7 +3006,12 @@ paths:
   /auth/refresh-token:
     post:
       summary: Refresh access token
-      description: Generates a new access token and refresh token using a valid refresh token. Refresh token expires in 8 hours.
+      description: |
+        Generates a new access token and refresh token using a valid refresh token. Refresh token expires in 8 hours.
+
+        This endpoint supports refresh tokens for:
+        - **Users** (ADMIN / MANAGER / OFFICE_STAFF / STAFF) → returns `AuthResponse`
+        - **Drivers** → returns `AuthResponse` with `user.role = "DRIVER"` (driver tokens are refreshed too)
       tags:
         - Authentication
       requestBody:
@@ -3021,7 +3026,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthResponse"
+                type: object
+                properties:
+                  data:
+                    oneOf:
+                      - $ref: "#/components/schemas/AuthResponse"
+                      - $ref: "#/components/schemas/DriverLoginResponse"
         "400":
           description: Bad request (invalid or expired refresh token, validation error)
 
@@ -5776,7 +5786,7 @@ paths:
         Record clock in for a driver, staff member, or manager.
         
         Provide `id` (UUID) — the driver, staff, or manager ID. No note is required.
-        You can only clock in once per day.
+        Clock-in is blocked only when there is an **open session** (already clocked in and not clocked out yet).
       tags:
         - Attendance
       security:
@@ -5799,7 +5809,7 @@ paths:
                     type: string
                     example: "Clocked in successfully"
                   data:
-                    $ref: "#/components/schemas/Attendance"
+                    $ref: "#/components/schemas/ClockAttendanceResponse"
         "400":
           description: Bad request - validation error or already clocked in
           content:
@@ -5815,10 +5825,7 @@ paths:
       description: |
         Record clock out for a driver, staff member, or manager.
         
-        **Note:** Exactly one of `driverId`, `staffId`, or `userId` must be provided.
-        - `driverId`: For drivers
-        - `staffId`: For staff members
-        - `userId`: For managers (User table)
+        Provide `id` (UUID) — the driver, staff, or manager ID.
         
         You must clock in before clocking out.
       tags:
@@ -5843,7 +5850,7 @@ paths:
                     type: string
                     example: "Clocked out successfully"
                   data:
-                    $ref: "#/components/schemas/Attendance"
+                    $ref: "#/components/schemas/ClockAttendanceResponse"
         "400":
           description: Bad request - validation error or not clocked in
           content:
@@ -8687,11 +8694,73 @@ components:
           format: uuid
           description: User ID for managers (exactly one of id, driverId, staffId, or userId must be provided)
           example: "770e8400-e29b-41d4-a716-446655440002"
+    
+    AttendanceSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Attendance session ID
+        clockIn:
+          type: string
+          format: date-time
+          description: Session clock-in time
+        clockOut:
+          type: string
+          format: date-time
+          nullable: true
+          description: Session clock-out time (null if still open)
         notes:
           type: string
-          maxLength: 500
           nullable: true
-          example: "Completed all tasks"
+          description: Optional session notes
+
+    ClockAttendanceResponse:
+      type: object
+      description: |
+        Slim response for clock-in/clock-out endpoints.
+        Includes only the relevant person id (driverId OR staffId OR userId).
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Attendance record ID
+        driverId:
+          type: string
+          format: uuid
+          description: Driver ID (present only when the attendance belongs to a driver)
+        staffId:
+          type: string
+          format: uuid
+          description: Staff ID (present only when the attendance belongs to a staff member)
+        userId:
+          type: string
+          format: uuid
+          description: User ID (present only when the attendance belongs to a manager)
+        date:
+          type: string
+          format: date
+          description: Date of attendance
+        loginTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: Time when user logged in
+        clockIn:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last clock-in time recorded on the attendance header
+        clockOut:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last clock-out time recorded on the attendance header
+        status:
+          type: string
+          enum: [PRESENT, ABSENT, LATE, HALF_DAY, ON_LEAVE]
+          description: Attendance status
 
     CreateAttendanceRequest:
       type: object
@@ -8849,6 +8918,11 @@ components:
           type: string
           nullable: true
           description: Optional notes
+        sessions:
+          type: array
+          description: List of clock-in/clock-out sessions for this date (history)
+          items:
+            $ref: "#/components/schemas/AttendanceSession"
         createdAt:
           type: string
           format: date-time

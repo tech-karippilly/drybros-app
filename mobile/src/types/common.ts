@@ -90,6 +90,10 @@ export interface SwipeButtonProps {
   trackColor?: string;
   /** Thumb background color */
   thumbColor?: string;
+  /** Thumb icon name (MaterialCommunityIcons) */
+  thumbIconName?: string;
+  /** Thumb icon color */
+  thumbIconColor?: string;
   /** Gradient colors for label [start, end] */
   gradientColors?: readonly [string, string, ...string[]];
   /** Disabled state (no drag) */

@@ -13,6 +13,7 @@ import {
   softDeleteDriver as repoSoftDeleteDriver,
   getDriversPaginated,
   findBlacklistedDriverByPhoneOrEmail,
+  getDriverDailyLimitInfo,
 } from "../repositories/driver.repository";
 import { getFranchiseById } from "../repositories/franchise.repository";
 import { CreateDriverDTO, CreateDriverResponseDTO, DriverResponseDTO, DriverLoginDTO, DriverLoginResponseDTO, UpdateDriverDTO, UpdateDriverResponseDTO, UpdateDriverStatusDTO, UpdateDriverStatusResponseDTO, PaginationQueryDTO, PaginatedDriverResponseDTO } from "../types/driver.dto";
@@ -25,6 +26,7 @@ import logger from "../config/logger";
 import { ERROR_MESSAGES } from "../constants/errors";
 import { logActivity } from "./activity.service";
 import { ActivityAction, ActivityEntityType } from "@prisma/client";
+import { getDriverDailyStats } from "./driverEarnings.service";
 import {
   getDriversWithPerformance,
   sortDriversByPerformance,
@@ -226,7 +228,15 @@ export async function getDriver(id: string) {
     throw new NotFoundError(ERROR_MESSAGES.DRIVER_NOT_FOUND);
   }
 
-  return mapDriverToResponse(driver);
+  const [dailyLimit, dailyEarnings] = await Promise.all([
+    getDriverDailyLimitInfo(id),
+    getDriverDailyStats(id),
+  ]);
+
+  return {
+    ...mapDriverToResponse(driver),
+    dailyStatus: { dailyLimit, dailyEarnings },
+  };
 }
 
 /**
@@ -239,10 +249,17 @@ export async function getDriverWithPerformance(
   if (!driver) {
     throw new NotFoundError(ERROR_MESSAGES.DRIVER_NOT_FOUND);
   }
-  const performance = await calculateDriverPerformance(id);
+
+  const [performance, dailyLimit, dailyEarnings] = await Promise.all([
+    calculateDriverPerformance(id),
+    getDriverDailyLimitInfo(id),
+    getDriverDailyStats(id),
+  ]);
+
   return {
     ...mapDriverToResponse(driver),
     performance,
+    dailyStatus: { dailyLimit, dailyEarnings },
   };
 }
 

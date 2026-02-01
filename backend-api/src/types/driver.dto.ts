@@ -62,6 +62,31 @@ export interface DriverPerformanceMetricsDTO {
   rejectionRate: number; // percentage
 }
 
+export interface DriverDailyLimitStatusDTO {
+  driverId: string;
+  driverName: string;
+  dailyTargetAmount: number;
+  remainingDailyLimit: number;
+  usedDailyLimit: number;
+  cashInHand: number;
+}
+
+export interface DriverDailyEarningsStatusDTO {
+  driverId: string;
+  date: string; // YYYY-MM-DD
+  dailyTargetAmount: number;
+  amountRunToday: number;
+  tripsCountToday: number;
+  incentiveToday: number;
+  incentiveType: string | null;
+  remainingToAchieve: number;
+}
+
+export interface DriverDailyStatusDTO {
+  dailyLimit: DriverDailyLimitStatusDTO;
+  dailyEarnings: DriverDailyEarningsStatusDTO;
+}
+
 // Driver Response DTO
 export interface DriverResponseDTO {
   id: string; // UUID
@@ -103,6 +128,7 @@ export interface DriverResponseDTO {
   createdAt: Date;
   updatedAt: Date;
   performance?: DriverPerformanceMetricsDTO; // Optional performance metrics
+  dailyStatus?: DriverDailyStatusDTO; // Optional daily status snapshot
 }
 
 export interface CreateDriverResponseDTO {

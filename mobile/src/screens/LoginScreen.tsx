@@ -27,6 +27,13 @@ import { COLORS } from '../constants/colors';
 import { normalizeWidth, normalizeHeight, normalizeFont } from '../utils/responsive';
 import { useToast } from '../contexts';
 import { getFontFamily, FONT_SIZES } from '../constants/typography';
+import { loginApi } from '../services/api/auth';
+import { LOGIN_REMEMBER_ME_LABEL } from '../constants/auth';
+import {
+  disableRememberMe,
+  enableRememberMe,
+  loadRememberMeState,
+} from '../services/storage/rememberMe';
 
 interface LoginScreenProps {
   onLoginSuccess?: () => void;
@@ -43,6 +50,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMeHydrated, setRememberMeHydrated] = useState(false);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -157,6 +166,39 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     ]).start();
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const { enabled, credentials } = await loadRememberMeState();
+      if (cancelled) return;
+
+      setRememberMe(enabled);
+      if (credentials) {
+        setDriverCode(credentials.driverCode);
+        setPassword(credentials.password);
+      }
+      setRememberMeHydrated(true);
+    })().catch(() => {
+      // Non-blocking: login screen should still work if storage read fails.
+      setRememberMeHydrated(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    // If the user disables "Remember me", clear any saved credentials immediately.
+    if (!rememberMeHydrated) return;
+    if (!rememberMe) {
+      disableRememberMe().catch(() => {
+        // Best-effort cleanup.
+      });
+    }
+  }, [rememberMe, rememberMeHydrated]);
+
   const handleLogin = useCallback(async () => {
     if (!driverCode.trim()) {
       showToast({
@@ -178,11 +220,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
     setLoading(true);
     try {
-      // TODO: Implement actual login API call
-      // const response = await loginAPI(driverCode, password);
-      
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await loginApi({
+        driverCode: driverCode.trim(),
+        password: password.trim(),
+      });
+
+      if (rememberMe) {
+        await enableRememberMe({
+          driverCode: driverCode.trim(),
+          password: password.trim(),
+        });
+      } else {
+        await disableRememberMe();
+      }
       
       showToast({
         message: 'Login successful!',
@@ -192,18 +242,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       
       onLoginSuccess?.();
     } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        'Login failed. Please try again.';
       showToast({
-        message: error.message || 'Login failed. Please try again.',
+        message: errorMessage,
         type: 'error',
         position: 'top',
       });
     } finally {
       setLoading(false);
     }
-  }, [driverCode, password, showToast, onLoginSuccess]);
+  }, [driverCode, password, rememberMe, showToast, onLoginSuccess]);
 
   const togglePasswordVisibility = useCallback(() => {
     setShowPassword((prev) => !prev);
+  }, []);
+
+  const toggleRememberMe = useCallback(() => {
+    setRememberMe((prev) => !prev);
   }, []);
 
   const dismissKeyboard = useCallback(() => {
@@ -369,6 +428,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             </View>
           </Animated.View>
 
+          {/* Remember Me */}
+          <TouchableOpacity
+            onPress={toggleRememberMe}
+            activeOpacity={0.8}
+            style={styles.rememberMeRow}
+          >
+            <Ionicons
+              name={rememberMe ? 'checkbox-outline' : 'square-outline'}
+              size={normalizeWidth(18)}
+              color={COLORS.white}
+            />
+            <Text variant="caption" style={styles.rememberMeText}>
+              {LOGIN_REMEMBER_ME_LABEL}
+            </Text>
+          </TouchableOpacity>
+
           {/* Forgot Password Link */}
           <Animated.View
             style={{
@@ -532,6 +607,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: normalizeHeight(24),
     marginTop: normalizeHeight(-8),
+  },
+  rememberMeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: normalizeHeight(-6),
+    marginBottom: normalizeHeight(18),
+    gap: normalizeWidth(8),
+  },
+  rememberMeText: {
+    color: COLORS.white,
+    opacity: 0.85,
   },
   forgotPasswordText: {
     color: '#B4B7E0',

@@ -2,7 +2,7 @@ import axios,{AxiosError,type AxiosInstance , type InternalAxiosRequestConfig} f
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../../constants/config';
 import { API_ENDPOINTS } from '../../constants/endpints';
-import { STORAGE_KEYS } from '../../constants/app';
+import { STORAGE_KEYS } from '../../constants/storageKeys';
 
 let isRefreshing = false;
 let failedQueue: {

@@ -77,7 +77,9 @@
           "color": "#2563eb",
           "sounds": []
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-font"
     ],
     "extra": {
       "eas": {

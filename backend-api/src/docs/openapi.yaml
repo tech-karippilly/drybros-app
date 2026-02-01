@@ -8640,33 +8640,52 @@ components:
 
     ClockInRequest:
       type: object
-      required:
-        - id
+      required: []
       properties:
         id:
           type: string
           format: uuid
-          description: Driver, staff, or manager ID (UUID)
+          description: Single ID (UUID). You can also use driverId/staffId/userId.
           example: "550e8400-e29b-41d4-a716-446655440000"
+        driverId:
+          type: string
+          format: uuid
+          description: Driver ID (exactly one of id, driverId, staffId, or userId must be provided)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        staffId:
+          type: string
+          format: uuid
+          description: Staff ID (exactly one of id, driverId, staffId, or userId must be provided)
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        userId:
+          type: string
+          format: uuid
+          description: User ID for managers (exactly one of id, driverId, staffId, or userId must be provided)
+          example: "770e8400-e29b-41d4-a716-446655440002"
 
     ClockOutRequest:
       type: object
       required: []
       properties:
+        id:
+          type: string
+          format: uuid
+          description: Single ID (UUID). You can also use driverId/staffId/userId.
+          example: "550e8400-e29b-41d4-a716-446655440000"
         driverId:
           type: string
           format: uuid
-          description: Driver ID (exactly one of driverId, staffId, or userId must be provided)
+          description: Driver ID (exactly one of id, driverId, staffId, or userId must be provided)
           example: "550e8400-e29b-41d4-a716-446655440000"
         staffId:
           type: string
           format: uuid
-          description: Staff ID (exactly one of driverId, staffId, or userId must be provided)
+          description: Staff ID (exactly one of id, driverId, staffId, or userId must be provided)
           example: "660e8400-e29b-41d4-a716-446655440001"
         userId:
           type: string
           format: uuid
-          description: User ID for managers (exactly one of driverId, staffId, or userId must be provided)
+          description: User ID for managers (exactly one of id, driverId, staffId, or userId must be provided)
           example: "770e8400-e29b-41d4-a716-446655440002"
         notes:
           type: string
@@ -9470,6 +9489,61 @@ components:
           format: decimal
           description: Cash amount currently in driver's hand
           example: 0
+        dailyStatus:
+          type: object
+          nullable: true
+          description: Snapshot of today's driver daily status (limit + earnings)
+          properties:
+            dailyLimit:
+              type: object
+              properties:
+                driverId:
+                  type: string
+                  description: Driver ID
+                driverName:
+                  type: string
+                  description: Driver name
+                dailyTargetAmount:
+                  type: number
+                  description: Effective daily target amount
+                remainingDailyLimit:
+                  type: number
+                  description: Remaining daily limit
+                usedDailyLimit:
+                  type: number
+                  description: Used daily limit
+                cashInHand:
+                  type: number
+                  description: Current cash in hand
+            dailyEarnings:
+              type: object
+              properties:
+                driverId:
+                  type: string
+                  description: Driver ID
+                date:
+                  type: string
+                  format: date
+                  description: Date (YYYY-MM-DD)
+                dailyTargetAmount:
+                  type: number
+                  description: Daily target amount used for earnings calculation
+                amountRunToday:
+                  type: number
+                  description: Total amount earned today from completed trips
+                tripsCountToday:
+                  type: number
+                  description: Number of completed trips today
+                incentiveToday:
+                  type: number
+                  description: Calculated daily incentive
+                incentiveType:
+                  type: string
+                  nullable: true
+                  description: Type of incentive (full_extra or percentage)
+                remainingToAchieve:
+                  type: number
+                  description: Remaining amount to achieve daily target
         incentive:
           type: number
           format: decimal

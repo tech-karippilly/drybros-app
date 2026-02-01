@@ -2,6 +2,8 @@
  * App configuration constants
  */
 
+export { STORAGE_KEYS } from './storageKeys';
+
 export const APP_CONFIG = {
   NAME: 'Drybros',
   VERSION: '1.0.0',
@@ -50,13 +52,4 @@ export const PROFILE_CIRCLE = {
   BOTTOM_CIRCLE_BACKGROUND: '#1F2937',
   /** Font size for initials when no profile image */
   INITIALS_FONT_SIZE: 36,
-} as const;
-
-export const STORAGE_KEYS = {
-  AUTH_TOKEN: '@drybros/auth_token',
-  REFRESH_TOKEN: '@drybros/refresh_token',
-  USER_DATA: '@drybros/user_data',
-  ONBOARDING_COMPLETED: '@drybros/onboarding_completed',
-  THEME: '@drybros/theme',
-  LANGUAGE: '@drybros/language',
 } as const;

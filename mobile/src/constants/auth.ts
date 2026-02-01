@@ -6,3 +6,6 @@
 export const FRANCHISE_TEMPORARILY_CLOSED_TITLE = 'Franchise Temporarily Closed';
 export const FRANCHISE_TEMPORARILY_CLOSED_MESSAGE =
   'Your franchise is temporarily closed. Please contact support for more information.';
+
+/** Login screen */
+export const LOGIN_REMEMBER_ME_LABEL = 'Remember me';

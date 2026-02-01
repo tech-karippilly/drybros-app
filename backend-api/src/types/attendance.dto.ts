@@ -3,12 +3,43 @@ import { z } from "zod";
 import { AttendanceStatus } from "@prisma/client";
 
 /**
+ * Treat empty strings as "not provided" for optional ID fields.
+ */
+const optionalUuid = z.preprocess(
+  (val) => {
+    if (typeof val === "string" && val.trim() === "") return undefined;
+    return val;
+  },
+  z.string().uuid("ID must be a valid UUID").optional()
+);
+
+/**
  * Zod schema for clock in.
  * Only id is required; notes are not used for clock-in.
  */
 export const clockInSchema = z.object({
-  id: z.string().uuid("ID must be a valid UUID"),
-});
+  /**
+   * Backward compatible:
+   * - New: provide exactly one of driverId/staffId/userId (or id)
+   * - Old: provide id directly
+   */
+  id: optionalUuid,
+  driverId: optionalUuid,
+  staffId: optionalUuid,
+  userId: optionalUuid,
+}).refine(
+  (data) => {
+    const count = [data.id, data.driverId, data.staffId, data.userId].filter(Boolean)
+      .length;
+    return count === 1;
+  },
+  {
+    message: "Exactly one of id, driverId, staffId, or userId must be provided",
+    path: ["id"],
+  }
+).transform((data) => ({
+  id: (data.id ?? data.driverId ?? data.staffId ?? data.userId) as string,
+}));
 
 export type ClockInDTO = z.infer<typeof clockInSchema>;
 
@@ -16,9 +47,25 @@ export type ClockInDTO = z.infer<typeof clockInSchema>;
  * Zod schema for clock out
  */
 export const clockOutSchema = z.object({
-  id: z.string().uuid("ID must be a valid UUID"),
+  id: optionalUuid,
+  driverId: optionalUuid,
+  staffId: optionalUuid,
+  userId: optionalUuid,
   notes: z.string().max(500, "Notes must be less than 500 characters").optional().nullable(),
-});
+}).refine(
+  (data) => {
+    const count = [data.id, data.driverId, data.staffId, data.userId].filter(Boolean)
+      .length;
+    return count === 1;
+  },
+  {
+    message: "Exactly one of id, driverId, staffId, or userId must be provided",
+    path: ["id"],
+  }
+).transform((data) => ({
+  id: (data.id ?? data.driverId ?? data.staffId ?? data.userId) as string,
+  notes: data.notes ?? null,
+}));
 
 export type ClockOutDTO = z.infer<typeof clockOutSchema>;
 

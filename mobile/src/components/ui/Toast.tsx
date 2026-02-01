@@ -86,32 +86,30 @@ const Toast: React.FC<ToastProps> = ({
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (visible) {
-      // Show animation
-      Animated.parallel([
-        Animated.spring(translateY, {
-          toValue: 0,
-          useNativeDriver: true,
-          tension: 50,
-          friction: 7,
-        }),
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
+    if (!visible) return;
 
-      // Auto hide
-      const timer = setTimeout(() => {
-        hideToast();
-      }, duration);
+    // Show animation
+    Animated.parallel([
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 7,
+      }),
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
-      return () => clearTimeout(timer);
-    } else {
+    // Auto hide
+    const timer = setTimeout(() => {
       hideToast();
-    }
-  }, [visible]);
+    }, duration);
+
+    return () => clearTimeout(timer);
+  }, [visible, duration]);
 
   const hideToast = () => {
     Animated.parallel([

@@ -18,9 +18,14 @@ export const API_ENDPOINTS ={
     DRIVER:{
         DRIVER_DETAILS:'/drivers/:id',
         DAILY_STATS:'/drivers/:id/daily-stats',
+        ME_LOCATION: '/drivers/me/location',
     },
     TRIPS: {
         MY_ASSIGNED: '/trips/my-assigned',
         DETAILS: '/trips/:id',
+    },
+    TRIP_OFFERS: {
+        MY_PENDING: '/trip-offers/my-pending',
+        ACCEPT: '/trip-offers/:id/accept',
     },
 }as const;

@@ -1,11 +1,12 @@
 // src/routes/driver.routes.ts
 import express from "express";
-import { getDrivers, getDriverById, getDriverWithPerformanceHandler, getDriverPerformanceHandler, getAvailableGreenDriversHandler, getAvailableDriversHandler, getDriversByFranchisesHandler, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler, submitCashToCompanyHandler, submitCashForSettlementHandler, getDriverDailyLimitHandler } from "../controllers/driver.controller";
+import { getDrivers, getDriverById, getDriverWithPerformanceHandler, getDriverPerformanceHandler, getAvailableGreenDriversHandler, getAvailableDriversHandler, getDriversByFranchisesHandler, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler, submitCashToCompanyHandler, submitCashForSettlementHandler, getDriverDailyLimitHandler, updateMyDriverLocationHandler } from "../controllers/driver.controller";
 import { getDriverDailyStatsHandler, getDriverMonthlyStatsHandler, getDriverSettlementHandler } from "../controllers/driverEarnings.controller";
 import { authMiddleware, requireRole } from "../middlewares/auth";
 import { UserRole } from "@prisma/client";
 import { validate, validateParams, validateQuery } from "../middlewares/validation";
 import { createDriverSchema, driverLoginSchema, updateDriverSchema, updateDriverStatusSchema, paginationQuerySchema, submitCashForSettlementSchema } from "../types/driver.dto";
+import { updateDriverLocationSchema } from "../types/driverLocation.dto";
 import { z } from "zod";
 
 const router = express.Router();
@@ -15,6 +16,9 @@ router.post("/login", validate(driverLoginSchema), loginDriverHandler);
 
 // All other driver routes require authentication
 router.use(authMiddleware);
+
+// POST /drivers/me/location - Driver live location updates (driver token required)
+router.post("/me/location", validate(updateDriverLocationSchema), updateMyDriverLocationHandler);
 
 // GET /drivers (with optional pagination and performance)
 router.get("/", validateQuery(paginationQuerySchema), getDrivers);

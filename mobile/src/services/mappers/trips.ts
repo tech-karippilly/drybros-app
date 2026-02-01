@@ -1,25 +1,26 @@
 import { formatDateTime } from '../../utils/formatters';
 import type { TripItem, TripStatus } from '../../constants/trips';
 import type { HomeUpcomingTrip } from '../../constants/home';
+import { BACKEND_TRIP_STATUSES } from '../../constants/tripBackendStatus';
 import type { BackendTrip } from '../api/trips';
 
 const BACKEND_STATUS_TO_UI_STATUS: Record<string, TripStatus> = {
   // Upcoming-ish
-  ASSIGNED: 'upcoming',
-  REQUESTED: 'upcoming',
-  NOT_ASSIGNED: 'upcoming',
-  PENDING: 'upcoming',
-  DRIVER_ACCEPTED: 'upcoming',
+  [BACKEND_TRIP_STATUSES.ASSIGNED]: 'upcoming',
+  [BACKEND_TRIP_STATUSES.REQUESTED]: 'upcoming',
+  [BACKEND_TRIP_STATUSES.NOT_ASSIGNED]: 'upcoming',
+  [BACKEND_TRIP_STATUSES.PENDING]: 'upcoming',
+  [BACKEND_TRIP_STATUSES.DRIVER_ACCEPTED]: 'upcoming',
 
   // Ongoing
-  TRIP_STARTED: 'ongoing',
-  TRIP_PROGRESS: 'ongoing',
-  IN_PROGRESS: 'ongoing',
-  DRIVER_ON_THE_WAY: 'ongoing',
+  [BACKEND_TRIP_STATUSES.TRIP_STARTED]: 'ongoing',
+  [BACKEND_TRIP_STATUSES.TRIP_PROGRESS]: 'ongoing',
+  [BACKEND_TRIP_STATUSES.IN_PROGRESS]: 'ongoing',
+  [BACKEND_TRIP_STATUSES.DRIVER_ON_THE_WAY]: 'ongoing',
 
   // Completed
-  COMPLETED: 'completed',
-  TRIP_COMPLETED: 'completed',
+  [BACKEND_TRIP_STATUSES.COMPLETED]: 'completed',
+  [BACKEND_TRIP_STATUSES.TRIP_COMPLETED]: 'completed',
 };
 
 function toUiStatus(status?: string | null): TripStatus {

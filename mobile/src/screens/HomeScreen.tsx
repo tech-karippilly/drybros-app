@@ -8,7 +8,7 @@
  * - Upcoming trips: /trips/my-assigned
  */
 
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { View, StyleSheet, ScrollView, Image, Dimensions, TouchableOpacity, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,7 +19,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Text } from '../typography';
 import { IconCircle, Modal, SwipeButton } from '../components/ui';
 import { openPhoneDialer } from '../utils/linking';
-import { useToast } from '../contexts';
+import { useToast, useTripRealtime } from '../contexts';
 import {
   COLORS,
   TAB_BAR_SCENE_PADDING_BOTTOM,
@@ -30,6 +30,8 @@ import {
   HOME_CHECKOUT_MODAL,
   HOME_LAYOUT,
   HOME_STRINGS,
+  LOCATION_TRACKING,
+  isBackendTripOngoing,
   type HomeUpcomingTrip,
 } from '../constants';
 import { getFontFamily } from '../constants/typography';
@@ -40,6 +42,9 @@ import { clockInApi, clockOutApi, getAttendanceListApi, type AttendanceEntry } f
 import { getDriverDailyStatsApi } from '../services/api/driverDailyStats';
 import { getMyAssignedTripsApi } from '../services/api/trips';
 import { mapBackendTripToHomeUpcomingTrip } from '../services/mappers/trips';
+import { useLocation } from '../hooks/useLocation';
+import { updateMyDriverLocationApi } from '../services/api/driverLocation';
+import { haversineDistanceMeters } from '../utils/geo';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -62,11 +67,23 @@ export function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const { showToast } = useToast();
+  const { lastAssignedTripId } = useTripRealtime();
+  const { getCurrentLocation, watchPosition } = useLocation();
   const [isCheckedIn, setIsCheckedIn] = useState<boolean>(false);
   const [checkedInAt, setCheckedInAt] = useState<string | null>(null);
   const [checkInLoading, setCheckInLoading] = useState(false);
   const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [isOnTrip, setIsOnTrip] = useState(false);
+  const locationSubscriptionRef = useRef<any>(null);
+  const lastLocationSentRef = useRef<{
+    sentAtMs: number;
+    lat?: number;
+    lng?: number;
+  }>({ sentAtMs: 0 });
+  const pendingLocationRef = useRef<any>(null);
+  const sendTimerRef = useRef<any>(null);
+  const shouldSendLocationRef = useRef<boolean>(false);
 
   const [target, setTarget] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [upcomingTrips, setUpcomingTrips] = useState<HomeUpcomingTrip[]>([]);
@@ -100,6 +117,7 @@ export function HomeScreen() {
 
       // Upcoming trips
       const assigned = await getMyAssignedTripsApi();
+      setIsOnTrip(assigned.some((t) => isBackendTripOngoing(t.status)));
       const mapped = assigned.map(mapBackendTripToHomeUpcomingTrip);
       setUpcomingTrips(mapped);
     } catch (error: any) {
@@ -116,11 +134,122 @@ export function HomeScreen() {
     loadHomeData();
   }, [loadHomeData]);
 
+  useEffect(() => {
+    if (lastAssignedTripId) {
+      loadHomeData();
+    }
+  }, [lastAssignedTripId, loadHomeData]);
+
   useFocusEffect(
     useCallback(() => {
       loadHomeData();
     }, [loadHomeData])
   );
+
+  useEffect(() => {
+    shouldSendLocationRef.current = Boolean(isCheckedIn) && !Boolean(isOnTrip);
+    if (!shouldSendLocationRef.current) {
+      // Clear any pending send while on-trip/off-duty
+      pendingLocationRef.current = null;
+      if (sendTimerRef.current) {
+        clearTimeout(sendTimerRef.current);
+        sendTimerRef.current = null;
+      }
+    }
+  }, [isCheckedIn, isOnTrip]);
+
+  const sendLocationNow = useCallback(
+    async (location: any) => {
+      const coords = location?.coords;
+      if (!coords) return;
+
+      const lat = coords.latitude;
+      const lng = coords.longitude;
+      if (typeof lat !== 'number' || typeof lng !== 'number') return;
+
+      const nowMs = Date.now();
+      const last = lastLocationSentRef.current;
+      const hasPrev = typeof last.lat === 'number' && typeof last.lng === 'number';
+      if (hasPrev) {
+        const movedM = haversineDistanceMeters(
+          { lat: last.lat as number, lng: last.lng as number },
+          { lat, lng }
+        );
+        if (movedM < LOCATION_TRACKING.MIN_DISTANCE_M) return;
+      }
+
+      lastLocationSentRef.current = { sentAtMs: nowMs, lat, lng };
+
+      await updateMyDriverLocationApi({
+        lat,
+        lng,
+        accuracyM: typeof coords.accuracy === 'number' ? coords.accuracy : undefined,
+        capturedAt: typeof location?.timestamp === 'number' ? new Date(location.timestamp).toISOString() : undefined,
+      });
+    },
+    [LOCATION_TRACKING.MIN_DISTANCE_M]
+  );
+
+  const scheduleDebouncedLocationSend = useCallback(
+    (location: any) => {
+      if (!shouldSendLocationRef.current) return;
+      pendingLocationRef.current = location;
+
+      if (sendTimerRef.current) return;
+
+      const nowMs = Date.now();
+      const elapsed = nowMs - lastLocationSentRef.current.sentAtMs;
+      const delay = Math.max(0, LOCATION_TRACKING.SEND_INTERVAL_MS - elapsed);
+
+      sendTimerRef.current = setTimeout(() => {
+        sendTimerRef.current = null;
+        const latest = pendingLocationRef.current;
+        pendingLocationRef.current = null;
+        if (!latest) return;
+        if (!shouldSendLocationRef.current) return;
+        sendLocationNow(latest).catch(() => {});
+      }, delay);
+    },
+    [sendLocationNow]
+  );
+
+  const startLocationTracking = useCallback(async () => {
+    if (locationSubscriptionRef.current) return;
+
+    const initial = await getCurrentLocation();
+    if (initial) {
+      scheduleDebouncedLocationSend(initial);
+    }
+
+    try {
+      const sub = await watchPosition((loc) => {
+        scheduleDebouncedLocationSend(loc);
+      });
+      locationSubscriptionRef.current = sub;
+    } catch {
+      // Ignore; permission dialog or device errors handled in hook.
+    }
+  }, [getCurrentLocation, scheduleDebouncedLocationSend, watchPosition]);
+
+  const stopLocationTracking = useCallback(() => {
+    const sub = locationSubscriptionRef.current;
+    if (sub?.remove) sub.remove();
+    locationSubscriptionRef.current = null;
+    pendingLocationRef.current = null;
+    if (sendTimerRef.current) {
+      clearTimeout(sendTimerRef.current);
+      sendTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isCheckedIn) {
+      startLocationTracking().catch(() => {});
+    } else {
+      stopLocationTracking();
+    }
+    return () => stopLocationTracking();
+  }, [isCheckedIn, startLocationTracking, stopLocationTracking]);
 
   const openCheckoutModal = useCallback(() => {
     setCheckoutModalVisible(true);

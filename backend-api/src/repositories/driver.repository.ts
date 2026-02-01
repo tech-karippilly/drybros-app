@@ -155,7 +155,7 @@ export async function updateDriver(
 
 export async function updateDriverStatus(
   id: string,
-  status: string
+  status: DriverStatus
 ): Promise<Driver> {
   return prisma.driver.update({
     where: { id },
@@ -200,6 +200,26 @@ export async function updateDriverTripStatus(
   return prisma.driver.update({
     where: { id },
     data: { driverTripStatus },
+  });
+}
+
+export async function updateDriverLiveLocation(
+  driverId: string,
+  input: {
+    lat: number;
+    lng: number;
+    accuracyM?: number | null;
+    capturedAt?: Date;
+  }
+) {
+  return prisma.driver.update({
+    where: { id: driverId },
+    data: {
+      currentLat: input.lat,
+      currentLng: input.lng,
+      locationAccuracyM: input.accuracyM ?? null,
+      locationUpdatedAt: input.capturedAt ?? new Date(),
+    },
   });
 }
 

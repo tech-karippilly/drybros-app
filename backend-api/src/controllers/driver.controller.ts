@@ -5,6 +5,7 @@ import { calculateDriverPerformance } from "../services/driver-performance.servi
 import { DriverLoginDTO, UpdateDriverDTO, UpdateDriverStatusDTO } from "../types/driver.dto";
 import { submitCashToCompany, submitCashForSettlement, getDriverDailyLimit } from "../services/driverCash.service";
 import { SubmitCashForSettlementDTO } from "../types/driver.dto";
+import { updateMyDriverLocation } from "../services/driverLocation.service";
 
 export async function getDrivers(
   req: Request,
@@ -266,6 +267,28 @@ export async function submitCashForSettlementHandler(
     const { driverId, settlementAmount } = req.body as SubmitCashForSettlementDTO;
     const result = await submitCashForSettlement(driverId, settlementAmount);
     res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Update authenticated driver's live GPS location
+ * POST /drivers/me/location
+ */
+export async function updateMyDriverLocationHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const driverId = req.driver?.driverId;
+    if (!driverId) {
+      return res.status(401).json({ error: "Driver authentication required" });
+    }
+
+    const updated = await updateMyDriverLocation(driverId, req.body);
+    res.json({ data: updated });
   } catch (err) {
     next(err);
   }

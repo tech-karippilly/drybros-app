@@ -190,9 +190,13 @@ export async function createTripPhase1(data: {
   tripType: string;
   pickupLocation: string;
   pickupAddress: string;
+  pickupLat?: number | null;
+  pickupLng?: number | null;
   pickupLocationNote?: string | null;
   dropLocation: string;
   dropAddress: string;
+  dropLat?: number | null;
+  dropLng?: number | null;
   dropLocationNote?: string | null;
   carType: string;
   scheduledAt: Date | null;
@@ -215,9 +219,13 @@ export async function createTripPhase1(data: {
       tripType: data.tripType as any,
       pickupLocation: data.pickupLocation,
       pickupAddress: data.pickupAddress,
+      pickupLat: data.pickupLat ?? null,
+      pickupLng: data.pickupLng ?? null,
       pickupLocationNote: data.pickupLocationNote ?? null,
       dropLocation: data.dropLocation,
       dropAddress: data.dropAddress,
+      dropLat: data.dropLat ?? null,
+      dropLng: data.dropLng ?? null,
       dropLocationNote: data.dropLocationNote ?? null,
       carType: data.carType,
       scheduledAt: data.scheduledAt,

@@ -6,6 +6,8 @@ import { authConfig } from "../config/authConfig";
 import { UserRole } from "@prisma/client";
 import { SOCKET_EVENTS, SOCKET_ROOMS, SOCKET_ERROR_MESSAGES } from "../constants/socket";
 import logger from "../config/logger";
+import { acceptTripOffer } from "../repositories/tripOffer.repository";
+import { tripDispatchService } from "./tripDispatch.service";
 
 export interface SocketUser {
   userId?: string;
@@ -43,6 +45,26 @@ export interface NotificationPayload {
   read: boolean;
   createdAt: Date;
 }
+
+export type TripOfferPayload = {
+  offerId: string;
+  trip: any;
+  expiresAt: string; // ISO string
+};
+
+export type TripOfferAcceptPayload = {
+  offerId: string;
+};
+
+export type TripOfferResultPayload = {
+  offerId: string;
+  result: "accepted" | "rejected" | "expired" | "cancelled" | "lost";
+  reason?: string;
+};
+
+export type TripAssignedPayload = {
+  tripId: string;
+};
 
 class SocketService {
   private io: SocketIOServer | null = null;
@@ -143,6 +165,56 @@ class SocketService {
         logger.info("Driver connected to socket", {
           driverId: userData.driverId,
           socketId: socket.id,
+        });
+
+        // Driver trip offer accept (real-time)
+        socket.on(SOCKET_EVENTS.TRIP_OFFER_ACCEPT, async (payload: TripOfferAcceptPayload) => {
+          try {
+            const offerId = payload?.offerId;
+            if (!offerId) {
+              socket.emit(SOCKET_EVENTS.TRIP_OFFER_RESULT, {
+                offerId: "",
+                result: "rejected",
+                reason: "Missing offerId",
+              } satisfies TripOfferResultPayload);
+              return;
+            }
+
+            const updated = await acceptTripOffer(offerId, userData.driverId);
+            if (!updated) {
+              socket.emit(SOCKET_EVENTS.TRIP_OFFER_RESULT, {
+                offerId,
+                result: "rejected",
+                reason: "Offer not found",
+              } satisfies TripOfferResultPayload);
+              return;
+            }
+
+            const result: TripOfferResultPayload["result"] =
+              updated.status === "ACCEPTED"
+                ? "accepted"
+                : updated.status === "EXPIRED"
+                  ? "expired"
+                  : updated.status === "CANCELLED"
+                    ? "cancelled"
+                    : "rejected";
+
+            if (updated.status === "ACCEPTED") {
+              tripDispatchService.notifyOfferAccepted(updated.tripId).catch(() => {});
+            }
+
+            socket.emit(SOCKET_EVENTS.TRIP_OFFER_RESULT, {
+              offerId,
+              result,
+            } satisfies TripOfferResultPayload);
+          } catch (error) {
+            logger.error("Trip offer accept failed", {
+              error: error instanceof Error ? error.message : String(error),
+              driverId: userData.driverId,
+              socketId: socket.id,
+            });
+            socket.emit(SOCKET_EVENTS.ERROR, { message: "Trip offer accept failed" });
+          }
         });
       } else if (userData.userId) {
         socketUser.userId = userData.userId;
@@ -312,6 +384,30 @@ class SocketService {
         notificationId: notification.id,
       });
     }
+  }
+
+  emitTripOffer(driverId: string, payload: TripOfferPayload): void {
+    if (!this.io) return;
+    this.io.to(`${SOCKET_ROOMS.DRIVER_PREFIX}${driverId}`).emit(SOCKET_EVENTS.TRIP_OFFER, payload);
+  }
+
+  emitTripOfferCancelled(driverId: string, payload: TripOfferResultPayload): void {
+    if (!this.io) return;
+    this.io
+      .to(`${SOCKET_ROOMS.DRIVER_PREFIX}${driverId}`)
+      .emit(SOCKET_EVENTS.TRIP_OFFER_CANCELLED, payload);
+  }
+
+  emitTripOfferResult(driverId: string, payload: TripOfferResultPayload): void {
+    if (!this.io) return;
+    this.io
+      .to(`${SOCKET_ROOMS.DRIVER_PREFIX}${driverId}`)
+      .emit(SOCKET_EVENTS.TRIP_OFFER_RESULT, payload);
+  }
+
+  emitTripAssigned(driverId: string, payload: TripAssignedPayload): void {
+    if (!this.io) return;
+    this.io.to(`${SOCKET_ROOMS.DRIVER_PREFIX}${driverId}`).emit(SOCKET_EVENTS.TRIP_ASSIGNED, payload);
   }
 
   /**

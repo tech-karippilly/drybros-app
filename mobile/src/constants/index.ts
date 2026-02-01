@@ -30,3 +30,6 @@ export * from './runtime';
 export * from './attendance';
 export * from './tripRequest';
 export * from './leaveRequests';
+export * from './locationTracking';
+export * from './socket';
+export * from './tripBackendStatus';

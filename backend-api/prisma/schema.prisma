@@ -71,11 +71,17 @@ model Driver {
   incentive                Decimal?         @db.Decimal(10, 2) // Incentive amount (e.g. daily/monthly)
   bonus                    Decimal?         @db.Decimal(10, 2) // Bonus amount
   currentRating            Float?
+  // Live driver location (updated by driver mobile app while on-duty)
+  currentLat               Float?
+  currentLng               Float?
+  locationAccuracyM        Float?
+  locationUpdatedAt        DateTime?
   isActive                 Boolean          @default(true)
   createdBy                String?          @db.Uuid // User ID who created this driver
   createdAt                DateTime         @default(now())
   updatedAt                DateTime         @updatedAt
   Trip                     Trip[]
+  TripOffers               TripOffer[]
   Complaints               Complaint[]
   Attendances              Attendance[]
   LeaveRequests            LeaveRequest[]
@@ -179,7 +185,11 @@ model Trip {
   tripType             TripType
   status               TripStatus     @default(PENDING)
   pickupLocation       String
+  pickupLat            Float?
+  pickupLng            Float?
   dropLocation         String?
+  dropLat              Float?
+  dropLng              Float?
   scheduledAt          DateTime?
   startedAt            DateTime?
   endedAt              DateTime?
@@ -221,6 +231,36 @@ model Trip {
   DriverRatings        DriverRating[]
   ActivityLogs         ActivityLog[]
   TripStatusHistories  TripStatusHistory[]
+  TripOffers           TripOffer[]
+}
+
+enum TripOfferStatus {
+  OFFERED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+model TripOffer {
+  id          String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tripId      String          @db.Uuid
+  driverId    String          @db.Uuid
+  status      TripOfferStatus @default(OFFERED)
+  offeredAt   DateTime        @default(now())
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  rejectedAt  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  Trip        Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  Driver      Driver          @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, driverId])
+  @@index([driverId, status, expiresAt])
+  @@index([tripId, status])
+  @@index([expiresAt])
 }
 
 model TripPattern {

@@ -36,6 +36,7 @@ import {
   TRIP_HISTORY_LATE,
 } from "../constants/trip";
 import { calculateTripPrice } from "./pricing.service";
+import { tripDispatchService } from "./tripDispatch.service";
 import {
   getDriversWithPerformance,
   sortDriversByPerformance,
@@ -2119,10 +2120,14 @@ interface CreateTripPhase1Input {
   // Location data (from Google Places API)
   pickupLocation: string; // Google Place ID or coordinates
   pickupAddress: string;
+  pickupLat?: number;
+  pickupLng?: number;
   pickupLocationNote?: string;
   
   destinationLocation: string; // Google Place ID or coordinates
   destinationAddress: string;
+  destinationLat?: number;
+  destinationLng?: number;
   destinationNote?: string;
   
   // Trip details
@@ -2346,9 +2351,13 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
     tripType: tripTypeEnum,
     pickupLocation: input.pickupLocation,
     pickupAddress: input.pickupAddress,
+    pickupLat: input.pickupLat ?? null,
+    pickupLng: input.pickupLng ?? null,
     pickupLocationNote: input.pickupLocationNote,
     dropLocation: input.destinationLocation,
     dropAddress: input.destinationAddress,
+    dropLat: input.destinationLat ?? null,
+    dropLng: input.destinationLng ?? null,
     dropLocationNote: input.destinationNote,
     carType: carTypeData,
     scheduledAt,
@@ -2361,6 +2370,9 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
     totalAmount,
     finalAmount,
   });
+
+  // Start real-time dispatch (non-blocking)
+  tripDispatchService.startDispatchForTrip(trip.id).catch(() => {});
 
   return {
     trip,

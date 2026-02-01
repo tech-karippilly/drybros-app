@@ -24,7 +24,7 @@ import {
 } from '../constants';
 import { normalizeWidth, normalizeHeight } from '../utils/responsive';
 import type { TripStackParamList } from '../navigation/TripStackNavigator';
-import { useToast } from '../contexts';
+import { useToast, useTripRealtime } from '../contexts';
 import { getMyAssignedTripsApi } from '../services/api/trips';
 import { mapBackendTripToTripItem } from '../services/mappers/trips';
 
@@ -32,6 +32,7 @@ export function TripScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<TripStackParamList>>();
   const { showToast } = useToast();
+  const { lastAssignedTripId } = useTripRealtime();
   const [filter, setFilter] = React.useState<TripFilter>('all');
   const [trips, setTrips] = React.useState<TripItem[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -56,6 +57,12 @@ export function TripScreen() {
   React.useEffect(() => {
     loadTrips();
   }, [loadTrips]);
+
+  React.useEffect(() => {
+    if (lastAssignedTripId) {
+      loadTrips();
+    }
+  }, [lastAssignedTripId, loadTrips]);
 
   const filtered = React.useMemo(() => {
     if (filter === 'all') return trips;

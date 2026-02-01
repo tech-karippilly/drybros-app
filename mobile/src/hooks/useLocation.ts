@@ -2,7 +2,7 @@
  * Hook for location permissions and access
  */
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform, Alert, Linking } from 'react-native';
 import * as Location from 'expo-location';
 import { PERMISSION_STATUS, PERMISSION_MESSAGES } from '../constants/permissions';
@@ -22,11 +22,12 @@ export const useLocation = () => {
     loading: false,
   });
 
-  useEffect(() => {
-    checkPermission();
-  }, []);
-
-  const checkPermission = async () => {
+  /**
+   * IMPORTANT:
+   * These functions are memoized so screens can safely use them in `useEffect`
+   * dependency arrays without causing infinite re-render loops.
+   */
+  const checkPermission = useCallback(async () => {
     try {
       const { status } = await Location.getForegroundPermissionsAsync();
       setState((prev) => ({
@@ -36,9 +37,9 @@ export const useLocation = () => {
     } catch (error: any) {
       setState((prev) => ({ ...prev, error: error.message }));
     }
-  };
+  }, []);
 
-  const requestPermission = async () => {
+  const requestPermission = useCallback(async () => {
     try {
       setState((prev) => ({ ...prev, loading: true, error: null }));
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -68,9 +69,9 @@ export const useLocation = () => {
       setState((prev) => ({ ...prev, error: error.message, loading: false }));
       return false;
     }
-  };
+  }, []);
 
-  const getCurrentLocation = async () => {
+  const getCurrentLocation = useCallback(async () => {
     try {
       const hasPermission = await requestPermission();
       if (!hasPermission) {
@@ -88,9 +89,9 @@ export const useLocation = () => {
       setState((prev) => ({ ...prev, error: error.message, loading: false }));
       return null;
     }
-  };
+  }, [requestPermission]);
 
-  const watchPosition = (callback: (location: Location.LocationObject) => void) => {
+  const watchPosition = useCallback((callback: (location: Location.LocationObject) => void) => {
     return Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.Balanced,
@@ -99,14 +100,23 @@ export const useLocation = () => {
       },
       callback
     );
-  };
+  }, []);
 
-  return {
-    ...state,
-    hasPermission: state.permissionStatus === PERMISSION_STATUS.GRANTED,
-    requestPermission,
-    getCurrentLocation,
-    watchPosition,
-    checkPermission,
-  };
+  useEffect(() => {
+    checkPermission();
+  }, [checkPermission]);
+
+  const hasPermission = state.permissionStatus === PERMISSION_STATUS.GRANTED;
+
+  return useMemo(
+    () => ({
+      ...state,
+      hasPermission,
+      requestPermission,
+      getCurrentLocation,
+      watchPosition,
+      checkPermission,
+    }),
+    [checkPermission, getCurrentLocation, hasPermission, requestPermission, state, watchPosition]
+  );
 };

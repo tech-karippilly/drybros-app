@@ -12,7 +12,7 @@ import { COLORS } from './src/constants';
 import { loadFonts } from './src/utils/fonts';
 import { SplashScreen, LoginScreen, ForgotPasswordScreen } from './src/screens';
 import { MainTabNavigator } from './src/navigation';
-import { AuthProvider, useAuth } from './src/contexts';
+import { AuthProvider, useAuth, TripRealtimeProvider } from './src/contexts';
 
 const LoadingScreen = () => {
   const insets = useSafeAreaInsets();
@@ -132,7 +132,9 @@ function AppShell({ navTheme, showForgotPassword, setShowForgotPassword }: AppSh
   return (
     <NavigationContainer theme={navTheme}>
       <StatusBar style="light" backgroundColor={COLORS.headerBackground} />
-      <MainTabNavigator />
+      <TripRealtimeProvider>
+        <MainTabNavigator />
+      </TripRealtimeProvider>
     </NavigationContainer>
   );
 }

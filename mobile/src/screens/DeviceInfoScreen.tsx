@@ -36,7 +36,7 @@ export const DeviceInfoScreen: React.FC = () => {
     camera.checkPermission();
     notifications.checkPermission();
     sms.checkAvailability();
-  }, []);
+  }, [camera.checkPermission, location.checkPermission, notifications.checkPermission, sms.checkAvailability]);
 
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
@@ -47,7 +47,7 @@ export const DeviceInfoScreen: React.FC = () => {
       sms.checkAvailability(),
     ]);
     setRefreshing(false);
-  }, [location, camera, notifications, sms]);
+  }, [camera.checkPermission, location.checkPermission, notifications.checkPermission, sms.checkAvailability]);
 
   const getPermissionStatus = (status: string | null) => {
     if (!status) return 'Not Checked';

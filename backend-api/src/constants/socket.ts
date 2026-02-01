@@ -6,6 +6,13 @@ export const SOCKET_EVENTS = {
   DISCONNECT: "disconnect",
   CONNECTION_ERROR: "connection_error",
   
+  // Trip dispatch events (driver app)
+  TRIP_OFFER: "trip_offer",
+  TRIP_OFFER_ACCEPT: "trip_offer_accept",
+  TRIP_OFFER_RESULT: "trip_offer_result",
+  TRIP_ASSIGNED: "trip_assigned",
+  TRIP_OFFER_CANCELLED: "trip_offer_cancelled",
+
   // Activity log events
   ACTIVITY_LOG_CREATED: "activity_log_created",
   ACTIVITY_LOG_UPDATED: "activity_log_updated",

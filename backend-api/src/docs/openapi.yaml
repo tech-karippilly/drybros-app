@@ -963,6 +963,47 @@ paths:
               example:
                 error: "Invalid credentials"
 
+  /drivers/me/location:
+    post:
+      summary: Update my live location (Driver)
+      description: |
+        Updates the authenticated driver's current GPS location.
+        
+        **Authentication:**
+        - Requires driver authentication token (from `/drivers/login`)
+        
+        **Use Cases:**
+        - Driver mobile app periodically posts location while clocked-in/on-duty
+        - Dispatch/assignment logic uses this for nearest-driver selection
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DriverLocationUpdateRequest"
+            example:
+              lat: 12.9716
+              lng: 77.5946
+              accuracyM: 18
+              capturedAt: "2026-02-01T10:15:30Z"
+      responses:
+        "200":
+          description: Location updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriverLocationUpdateResponse"
+        "401":
+          description: Not authenticated or not a driver token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /drivers:
     get:
       summary: List all drivers
@@ -3435,6 +3476,83 @@ paths:
                   summary: Not a driver token
                   value:
                     error: "Driver authentication required. Please login as a driver."
+
+  /trip-offers/my-pending:
+    get:
+      summary: List my pending trip offers (Driver)
+      description: |
+        Returns active trip offers for the authenticated driver that are still valid (not expired).
+        
+        **Authentication:**
+        - Requires driver authentication token (from `/drivers/login`)
+        
+        **Use Cases:**
+        - REST fallback if socket is not connected
+        - Driver app can poll this endpoint to show incoming requests
+      tags:
+        - Trip Offers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Pending offers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TripOffer"
+        "401":
+          description: Not authenticated or not a driver token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trip-offers/{id}/accept:
+    post:
+      summary: Accept a trip offer (Driver)
+      description: |
+        Accepts a trip offer for the authenticated driver.
+        
+        This endpoint is **idempotent**: if already accepted, it returns the current state.
+      tags:
+        - Trip Offers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip offer ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Offer accepted (or current state returned)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TripOffer"
+        "401":
+          description: Not authenticated or not a driver token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Offer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /trips/unassigned:
     get:
@@ -6767,6 +6885,20 @@ components:
           example: "123 Main Street, New York, NY 10001"
           minLength: 1
           maxLength: 500
+        pickupLat:
+          type: number
+          description: Pickup latitude (optional, from Places/Geocoding)
+          example: 12.9716
+          minimum: -90
+          maximum: 90
+          nullable: true
+        pickupLng:
+          type: number
+          description: Pickup longitude (optional, from Places/Geocoding)
+          example: 77.5946
+          minimum: -180
+          maximum: 180
+          nullable: true
         pickupLocationNote:
           type: string
           description: Additional notes for pickup location (landmarks, details)
@@ -6784,6 +6916,20 @@ components:
           example: "456 Oak Avenue, New York, NY 10002"
           minLength: 1
           maxLength: 500
+        destinationLat:
+          type: number
+          description: Destination latitude (optional, from Places/Geocoding)
+          example: 12.9352
+          minimum: -90
+          maximum: 90
+          nullable: true
+        destinationLng:
+          type: number
+          description: Destination longitude (optional, from Places/Geocoding)
+          example: 77.6245
+          minimum: -180
+          maximum: 180
+          nullable: true
         destinationNote:
           type: string
           description: Additional notes for destination location (landmarks, details)
@@ -7041,9 +7187,29 @@ components:
           type: string
         pickupLocation:
           type: string
+        pickupLat:
+          type: number
+          nullable: true
+          description: Pickup latitude (if provided)
+          example: 12.9716
+        pickupLng:
+          type: number
+          nullable: true
+          description: Pickup longitude (if provided)
+          example: 77.5946
         dropLocation:
           type: string
           nullable: true
+        dropLat:
+          type: number
+          nullable: true
+          description: Drop latitude (if provided)
+          example: 12.9352
+        dropLng:
+          type: number
+          nullable: true
+          description: Drop longitude (if provided)
+          example: 77.6245
         scheduledAt:
           type: string
           format: date-time
@@ -9638,6 +9804,27 @@ components:
           nullable: true
           description: Current rating of the driver
           example: 4.5
+        currentLat:
+          type: number
+          nullable: true
+          description: Driver live latitude (updated by mobile app)
+          example: 12.9716
+        currentLng:
+          type: number
+          nullable: true
+          description: Driver live longitude (updated by mobile app)
+          example: 77.5946
+        locationAccuracyM:
+          type: number
+          nullable: true
+          description: GPS accuracy in meters
+          example: 18
+        locationUpdatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of last live location update
+          example: "2026-02-01T10:15:30Z"
         createdBy:
           type: integer
           nullable: true
@@ -9966,6 +10153,87 @@ components:
               enum: [ACTIVE, INACTIVE, BLOCKED, TERMINATED]
               description: Driver status
               example: "ACTIVE"
+
+    DriverLocationUpdateRequest:
+      type: object
+      required:
+        - lat
+        - lng
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+          description: Latitude
+          example: 12.9716
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+          description: Longitude
+          example: 77.5946
+        accuracyM:
+          type: number
+          nullable: true
+          minimum: 0
+          description: Optional GPS accuracy in meters
+          example: 18
+        capturedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Optional timestamp when location was captured on device
+          example: "2026-02-01T10:15:30Z"
+
+    DriverLocationUpdateResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Driver"
+
+    TripOffer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Offer ID
+        tripId:
+          type: string
+          format: uuid
+          description: Trip ID
+        driverId:
+          type: string
+          format: uuid
+          description: Driver ID
+        status:
+          type: string
+          enum: [OFFERED, ACCEPTED, REJECTED, EXPIRED, CANCELLED]
+          description: Offer status
+        offeredAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        acceptedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rejectedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        Trip:
+          description: Trip details (included in some endpoints)
+          nullable: true
+          $ref: "#/components/schemas/Trip"
 
     LogoutResponse:
       type: object

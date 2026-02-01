@@ -16,7 +16,6 @@ import {
   TAB_BAR_SCENE_PADDING_BOTTOM,
   TRIPS_COLORS,
   TRIPS_LAYOUT,
-  TRIPS_MOCK_LIST,
   TRIPS_STRINGS,
   TRIP_STACK_ROUTES,
   type TripFilter,
@@ -25,16 +24,43 @@ import {
 } from '../constants';
 import { normalizeWidth, normalizeHeight } from '../utils/responsive';
 import type { TripStackParamList } from '../navigation/TripStackNavigator';
+import { useToast } from '../contexts';
+import { getMyAssignedTripsApi } from '../services/api/trips';
+import { mapBackendTripToTripItem } from '../services/mappers/trips';
 
 export function TripScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<TripStackParamList>>();
+  const { showToast } = useToast();
   const [filter, setFilter] = React.useState<TripFilter>('all');
+  const [trips, setTrips] = React.useState<TripItem[]>([]);
+  const [loading, setLoading] = React.useState(false);
+
+  const loadTrips = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const assigned = await getMyAssignedTripsApi();
+      setTrips(assigned.map(mapBackendTripToTripItem));
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        'Failed to load trips';
+      showToast({ message: errorMessage, type: 'error', position: 'top' });
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  React.useEffect(() => {
+    loadTrips();
+  }, [loadTrips]);
 
   const filtered = React.useMemo(() => {
-    if (filter === 'all') return TRIPS_MOCK_LIST;
-    return TRIPS_MOCK_LIST.filter((x) => x.status === filter);
-  }, [filter]);
+    if (filter === 'all') return trips;
+    return trips.filter((x) => x.status === filter);
+  }, [filter, trips]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

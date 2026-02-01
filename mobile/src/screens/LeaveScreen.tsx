@@ -4,11 +4,11 @@
  */
 
 import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Text } from '../typography';
 import {
@@ -17,24 +17,82 @@ import {
   TAB_BAR,
   LEAVES_COLORS,
   LEAVES_LAYOUT,
-  LEAVES_MOCK_LIST,
   LEAVES_STRINGS,
   LEAVE_STACK_ROUTES,
   type LeaveItem,
   type LeaveStatus,
+  LEAVE_REQUEST_STATUS,
 } from '../constants';
 import { normalizeWidth, normalizeHeight } from '../utils/responsive';
 import type { LeaveStackParamList } from '../navigation/LeaveStackNavigator';
+import { getLeaveRequestsApi, type LeaveRequest } from '../services/api/leaveRequests';
 
 export function LeaveScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<LeaveStackParamList>>();
   const [filter, setFilter] = React.useState<'all' | LeaveStatus>('all');
+  const [loading, setLoading] = React.useState(false);
+  const [items, setItems] = React.useState<LeaveItem[]>([]);
 
-  const filtered = React.useMemo(() => {
-    if (filter === 'all') return LEAVES_MOCK_LIST;
-    return LEAVES_MOCK_LIST.filter((x) => x.status === filter);
-  }, [filter]);
+  const toApiStatus = React.useCallback((value: 'all' | LeaveStatus) => {
+    if (value === 'all') return undefined;
+    if (value === 'pending') return LEAVE_REQUEST_STATUS.PENDING;
+    if (value === 'approved') return LEAVE_REQUEST_STATUS.APPROVED;
+    if (value === 'rejected') return LEAVE_REQUEST_STATUS.REJECTED;
+    return LEAVE_REQUEST_STATUS.CANCELLED;
+  }, []);
+
+  const formatDateLabel = React.useCallback((startDate: string, endDate: string) => {
+    const fmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return '';
+    const startText = fmt.format(start);
+    const endText = fmt.format(end);
+    return startText === endText ? startText : `${startText} - ${endText}`;
+  }, []);
+
+  const mapApiStatusToUi = React.useCallback((status: LeaveRequest['status']): LeaveStatus => {
+    switch (status) {
+      case LEAVE_REQUEST_STATUS.APPROVED:
+        return 'approved';
+      case LEAVE_REQUEST_STATUS.REJECTED:
+        return 'rejected';
+      case LEAVE_REQUEST_STATUS.CANCELLED:
+        return 'cancelled';
+      case LEAVE_REQUEST_STATUS.PENDING:
+      default:
+        return 'pending';
+    }
+  }, []);
+
+  const fetchLeaves = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getLeaveRequestsApi({
+        page: 1,
+        limit: 10,
+        status: toApiStatus(filter),
+      });
+
+      const mapped: LeaveItem[] = (res.data ?? []).map((lr) => ({
+        id: lr.id,
+        dateLabel: formatDateLabel(lr.startDate, lr.endDate),
+        title: lr.reason,
+        status: mapApiStatusToUi(lr.status),
+      }));
+
+      setItems(mapped);
+    } finally {
+      setLoading(false);
+    }
+  }, [filter, formatDateLabel, mapApiStatusToUi, toApiStatus]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchLeaves();
+    }, [fetchLeaves])
+  );
 
   // Place FAB low, overlapping just above the floating tab bar.
   const bottomInset = Math.max(insets.bottom, normalizeHeight(12));
@@ -86,11 +144,26 @@ export function LeaveScreen() {
             isActive={filter === 'rejected'}
             onPress={() => setFilter('rejected')}
           />
+          <FilterPill
+            label={LEAVES_STRINGS.FILTER_CANCELLED}
+            isActive={filter === 'cancelled'}
+            onPress={() => setFilter('cancelled')}
+          />
         </ScrollView>
 
-        {filtered.map((item) => (
-          <LeaveCard key={item.id} item={item} />
-        ))}
+        {loading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator color={COLORS.primary} />
+          </View>
+        ) : items.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Text variant="caption" style={styles.emptyText}>
+              {LEAVES_STRINGS.EMPTY}
+            </Text>
+          </View>
+        ) : (
+          items.map((item) => <LeaveCard key={item.id} item={item} />)
+        )}
       </ScrollView>
 
       {/* Floating action button */}
@@ -159,6 +232,13 @@ function getStatusMeta(status: LeaveStatus) {
         text: LEAVES_COLORS.STATUS_REJECTED_TEXT,
         dot: LEAVES_COLORS.STATUS_REJECTED_DOT,
         label: LEAVES_STRINGS.FILTER_REJECTED.toUpperCase(),
+      };
+    case 'cancelled':
+      return {
+        bg: LEAVES_COLORS.STATUS_CANCELLED_BG,
+        text: LEAVES_COLORS.STATUS_CANCELLED_TEXT,
+        dot: LEAVES_COLORS.STATUS_CANCELLED_DOT,
+        label: LEAVES_STRINGS.FILTER_CANCELLED.toUpperCase(),
       };
     case 'pending':
     default:
@@ -229,6 +309,19 @@ const styles = StyleSheet.create({
   headerDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: LEAVES_COLORS.DIVIDER,
+  },
+  loadingWrap: {
+    paddingTop: normalizeHeight(18),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyWrap: {
+    paddingTop: normalizeHeight(18),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    color: LEAVES_COLORS.SUBTEXT,
   },
 
   filtersRow: {

@@ -48,6 +48,39 @@ export const TRIPS_STRINGS = {
   SPECIAL_REQUESTS: 'Special Requests',
 } as const;
 
+export const TRIPS_COLORS = {
+  SCREEN_BG: '#EFEFEF',
+  CARD_BG: '#FFFFFF',
+  SUBTEXT: '#8E8E8E',
+  DIVIDER: '#E7E7E7',
+  CARD_SHADOW: '#000000',
+
+  FILTER_ACTIVE_BG: '#0E1738',
+  FILTER_ACTIVE_TEXT: '#FFFFFF',
+  FILTER_INACTIVE_BG: '#E6E6E6',
+  FILTER_INACTIVE_TEXT: '#111827',
+
+  // Status pills
+  STATUS_ONGOING_BG: '#DDF2D4',
+  STATUS_ONGOING_TEXT: '#2E7D32',
+  STATUS_UPCOMING_BG: '#F6E5C8',
+  STATUS_UPCOMING_TEXT: '#D97706',
+  STATUS_COMPLETED_BG: '#DDF2D4',
+  STATUS_COMPLETED_TEXT: '#2E7D32',
+
+  // Route dots
+  PICKUP_DOT: '#3F51B5',
+  DROP_DOT: '#D32F2F',
+
+  // Details action buttons
+  ACTION_BG: '#E6E6E6',
+  ACTION_TEXT: '#111827',
+
+  // Trip details
+  SWIPE_TRACK_BG: '#1A244B',
+  METRIC_CARD_BG: '#EEF0F5',
+} as const;
+
 /**
  * Trip Start screen (odometer + vehicle photos)
  */
@@ -166,39 +199,6 @@ export const TRIPS_LAYOUT = {
 
   METRIC_CARD_RADIUS: 18,
   METRIC_CARD_PADDING: 16,
-} as const;
-
-export const TRIPS_COLORS = {
-  SCREEN_BG: '#EFEFEF',
-  CARD_BG: '#FFFFFF',
-  SUBTEXT: '#8E8E8E',
-  DIVIDER: '#E7E7E7',
-  CARD_SHADOW: '#000000',
-
-  FILTER_ACTIVE_BG: '#0E1738',
-  FILTER_ACTIVE_TEXT: '#FFFFFF',
-  FILTER_INACTIVE_BG: '#E6E6E6',
-  FILTER_INACTIVE_TEXT: '#111827',
-
-  // Status pills
-  STATUS_ONGOING_BG: '#DDF2D4',
-  STATUS_ONGOING_TEXT: '#2E7D32',
-  STATUS_UPCOMING_BG: '#F6E5C8',
-  STATUS_UPCOMING_TEXT: '#D97706',
-  STATUS_COMPLETED_BG: '#DDF2D4',
-  STATUS_COMPLETED_TEXT: '#2E7D32',
-
-  // Route dots
-  PICKUP_DOT: '#3F51B5',
-  DROP_DOT: '#D32F2F',
-
-  // Details action buttons
-  ACTION_BG: '#E6E6E6',
-  ACTION_TEXT: '#111827',
-
-  // Trip details
-  SWIPE_TRACK_BG: '#1A244B',
-  METRIC_CARD_BG: '#EEF0F5',
 } as const;
 
 export type TripStatus = 'ongoing' | 'upcoming' | 'completed';

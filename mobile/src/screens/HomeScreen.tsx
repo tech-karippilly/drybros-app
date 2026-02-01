@@ -1,15 +1,20 @@
 /**
  * Home tab screen
  * Matches provided design (top cards + upcoming trips list)
+ *
+ * Live data bindings:
+ * - Attendance: /attendance (today) + /attendance/clock-in + /attendance/clock-out
+ * - Target: /drivers/:id/daily-stats
+ * - Upcoming trips: /trips/my-assigned
  */
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Image, Dimensions, TouchableOpacity, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Text } from '../typography';
 import { IconCircle, Modal, SwipeButton } from '../components/ui';
@@ -24,32 +29,98 @@ import {
   HOME_COLORS,
   HOME_CHECKOUT_MODAL,
   HOME_LAYOUT,
-  HOME_MOCK,
   HOME_STRINGS,
-  HOME_UPCOMING_TRIPS,
   type HomeUpcomingTrip,
 } from '../constants';
 import { getFontFamily } from '../constants/typography';
 import { normalizeWidth, normalizeHeight, normalizeFont } from '../utils/responsive';
 import type { MainTabParamList } from '../navigation/MainTabNavigator';
-import { clockInApi, clockOutApi } from '../services/api/attendance';
+import { formatTime } from '../utils/formatters';
+import { clockInApi, clockOutApi, getAttendanceListApi, type AttendanceEntry } from '../services/api/attendance';
+import { getDriverDailyStatsApi } from '../services/api/driverDailyStats';
+import { getMyAssignedTripsApi } from '../services/api/trips';
+import { mapBackendTripToHomeUpcomingTrip } from '../services/mappers/trips';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+function getTodayRangeISO(): { startISO: string; endISO: string } {
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+  return { startISO: start.toISOString(), endISO: end.toISOString() };
+}
+
+function getOpenAttendanceRecord(attendances: AttendanceEntry[]): AttendanceEntry | null {
+  // "Open session" means clocked in but not clocked out (used by backend rules too).
+  const open = attendances.find((a) => Boolean(a.clockIn) && !a.clockOut);
+  return open ?? null;
+}
 
 export function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const { showToast } = useToast();
-  const [isCheckedIn, setIsCheckedIn] = useState<boolean>(HOME_MOCK.status.isCheckedIn);
+  const [isCheckedIn, setIsCheckedIn] = useState<boolean>(false);
+  const [checkedInAt, setCheckedInAt] = useState<string | null>(null);
   const [checkInLoading, setCheckInLoading] = useState(false);
   const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
-  const target = HOME_MOCK.target;
+  const [target, setTarget] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const [upcomingTrips, setUpcomingTrips] = useState<HomeUpcomingTrip[]>([]);
+  const upcomingCount = upcomingTrips.length;
+
   const targetPercent = useMemo(() => {
     const p = target.total > 0 ? Math.round((target.current / target.total) * 100) : 0;
     return Math.max(0, Math.min(100, p));
   }, [target.current, target.total]);
+
+  const loadHomeData = useCallback(async () => {
+    try {
+      // Target card
+      const daily = await getDriverDailyStatsApi();
+      setTarget({
+        current: Number.isFinite(daily.amountRunToday) ? daily.amountRunToday : 0,
+        total: Number.isFinite(daily.dailyTargetAmount) ? daily.dailyTargetAmount : 0,
+      });
+
+      // Attendance card (derive from today's attendance record)
+      const { startISO, endISO } = getTodayRangeISO();
+      const todayAttendances = await getAttendanceListApi({ startDate: startISO, endDate: endISO });
+      const openAttendance = getOpenAttendanceRecord(todayAttendances);
+      setIsCheckedIn(Boolean(openAttendance));
+      if (openAttendance?.clockIn) {
+        const d = new Date(openAttendance.clockIn);
+        setCheckedInAt(Number.isNaN(d.getTime()) ? null : formatTime(d));
+      } else {
+        setCheckedInAt(null);
+      }
+
+      // Upcoming trips
+      const assigned = await getMyAssignedTripsApi();
+      const mapped = assigned.map(mapBackendTripToHomeUpcomingTrip);
+      setUpcomingTrips(mapped);
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        'Failed to load dashboard data';
+      showToast({ message: errorMessage, type: 'error', position: 'top' });
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    loadHomeData();
+  }, [loadHomeData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadHomeData();
+    }, [loadHomeData])
+  );
 
   const openCheckoutModal = useCallback(() => {
     setCheckoutModalVisible(true);
@@ -69,8 +140,12 @@ export function HomeScreen() {
 
     setCheckInLoading(true);
     try {
-      await clockInApi();
+      const res = await clockInApi();
       setIsCheckedIn(true);
+      if (res?.data?.clockIn) {
+        const d = new Date(res.data.clockIn);
+        setCheckedInAt(Number.isNaN(d.getTime()) ? null : formatTime(d));
+      }
     } catch (error: any) {
       const errorMessage =
         error?.response?.data?.message ||
@@ -89,6 +164,7 @@ export function HomeScreen() {
     try {
       await clockOutApi();
       setIsCheckedIn(false);
+      setCheckedInAt(null);
       setCheckoutModalVisible(false);
     } catch (error: any) {
       const errorMessage =
@@ -212,7 +288,7 @@ export function HomeScreen() {
                     
                     {isCheckedIn ? (
                       <Text variant="h6" weight="medium" style={styles.checkInTime}>
-                        {HOME_MOCK.status.checkedInAt}
+                        {checkedInAt ?? ''}
                       </Text>
                     ) : null}
                   </View>
@@ -288,7 +364,7 @@ export function HomeScreen() {
             </Text>
             <View style={styles.badge}>
               <Text variant="caption" weight="bold" style={styles.badgeText}>
-                {HOME_MOCK.upcomingCount}
+                {upcomingCount}
               </Text>
             </View>
           </View>
@@ -309,7 +385,7 @@ export function HomeScreen() {
 
         {/* Upcoming trip cards */}
         <View style={styles.upcomingList}>
-          {HOME_UPCOMING_TRIPS.map((t) => (
+          {upcomingTrips.map((t) => (
             <UpcomingTripCard
               key={t.id}
               item={t}
@@ -331,7 +407,7 @@ export function HomeScreen() {
           onPress={() => navigation.navigate(TAB_ROUTES.TRIP)}
         >
           <Text variant="body" weight="semiBold" style={styles.viewAllText}>
-            {HOME_STRINGS.VIEW_ALL_PREFIX} {HOME_MOCK.upcomingCount}
+            {HOME_STRINGS.VIEW_ALL_PREFIX} {upcomingCount}
           </Text>
           <MaterialCommunityIcons name="arrow-right" size={normalizeWidth(HOME_LAYOUT.VIEW_ALL_ARROW_SIZE)} color={HOME_COLORS.VIEW_ALL_TEXT} />
         </TouchableOpacity>

@@ -61,3 +61,14 @@ export async function loginApi(payload:LoginRequest):Promise<LoginResponse>{
 
       return { accessToken, refreshToken, driver };
 }
+
+export type LogoutResponse = {
+  message?: string;
+};
+
+export async function logoutApi(): Promise<LogoutResponse> {
+  const res = await apiClient.post<LogoutResponse>(API_ENDPOINTS.AUTH.LOGOUT);
+  return res.data;
+}
+
+

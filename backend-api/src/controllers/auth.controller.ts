@@ -10,6 +10,7 @@ import {
   changePassword,
 } from "../services/auth.service";
 import { authMiddleware } from "../middlewares/auth";
+import { ERROR_MESSAGES } from "../constants/errors";
 
 export async function registerAdminHandler(
   req: Request,
@@ -82,10 +83,17 @@ export async function logoutHandler(
   next: NextFunction
 ) {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: "Not authenticated" });
+    if (!req.user && !req.driver) {
+      return res.status(401).json({ error: ERROR_MESSAGES.UNAUTHORIZED });
     }
-    const result = await logout(req.user.userId);
+
+    // Support both User tokens (req.user) and Driver tokens (req.driver)
+    const authenticatedId = req.user?.userId ?? req.driver?.driverId;
+    if (!authenticatedId) {
+      return res.status(401).json({ error: ERROR_MESSAGES.UNAUTHORIZED });
+    }
+
+    const result = await logout(authenticatedId);
     res.json({ message: result.message });
   } catch (err) {
     next(err);

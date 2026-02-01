@@ -104,3 +104,52 @@ export async function clockOutApi(payload?: ClockOutRequest): Promise<ClockOutRe
   );
   return res.data;
 }
+
+export type AttendanceListResponse =
+  | {
+      data: AttendanceEntry[];
+    }
+  | {
+      // Paginated shape (kept flexible; we only need `data`)
+      data: AttendanceEntry[];
+      pagination?: unknown;
+    };
+
+export type AttendanceListQuery = {
+  driverId?: string;
+  staffId?: string;
+  userId?: string;
+  /** ISO 8601 date-time */
+  startDate?: string;
+  /** ISO 8601 date-time */
+  endDate?: string;
+  page?: number;
+  limit?: number;
+};
+
+export async function getAttendanceListApi(query?: AttendanceListQuery): Promise<AttendanceEntry[]> {
+  // Driver app default: if caller didn't specify who, filter by stored driver id.
+  const hasPersonFilter = Boolean(query?.driverId || query?.staffId || query?.userId);
+  let effectiveQuery = query;
+
+  if (!hasPersonFilter) {
+    const rawUserData = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
+    if (rawUserData) {
+      try {
+        const parsed = JSON.parse(rawUserData) as { id?: string };
+        const storedId = normalizeId(parsed?.id);
+        if (storedId) {
+          effectiveQuery = { ...(query ?? {}), driverId: storedId };
+        }
+      } catch {
+        // Ignore; fall back to original query.
+      }
+    }
+  }
+
+  const res = await apiClient.get<AttendanceListResponse>(API_ENDPOINTS.ATTENDANCE.LIST, {
+    params: effectiveQuery,
+  });
+  const payload = (res.data as any)?.data ?? res.data;
+  return (payload?.data ?? payload) as AttendanceEntry[];
+}

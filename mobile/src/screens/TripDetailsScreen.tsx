@@ -24,6 +24,9 @@ import {
 } from '../constants';
 import { normalizeHeight, normalizeWidth } from '../utils/responsive';
 import type { TripStackParamList } from '../navigation/TripStackNavigator';
+import { useToast } from '../contexts';
+import { getTripByIdApi } from '../services/api/trips';
+import { mapBackendTripToTripItem } from '../services/mappers/trips';
 
 type Props = NativeStackScreenProps<TripStackParamList, typeof TRIP_STACK_ROUTES.TRIP_DETAILS>;
 
@@ -63,7 +66,9 @@ function RouteBlock({ pickup, drop }: { pickup: string; drop: string }) {
 
 export function TripDetailsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const trip: TripItem | undefined = route.params?.trip;
+  const { showToast } = useToast();
+  const initialTrip: TripItem | undefined = route.params?.trip;
+  const [trip, setTrip] = React.useState<TripItem | undefined>(initialTrip);
 
   if (!trip) {
     return (
@@ -83,6 +88,29 @@ export function TripDetailsScreen({ navigation, route }: Props) {
       </View>
     );
   }
+
+  React.useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        if (!initialTrip?.id) return;
+        const detailed = await getTripByIdApi(initialTrip.id);
+        const mapped = mapBackendTripToTripItem(detailed);
+        if (mounted) setTrip((prev) => ({ ...(prev ?? mapped), ...mapped }));
+      } catch (error: any) {
+        const errorMessage =
+          error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          error?.message ||
+          'Failed to load trip details';
+        showToast({ message: errorMessage, type: 'error', position: 'top' });
+      }
+    };
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [initialTrip?.id, showToast]);
 
   const status = getStatusPill(trip.status);
 

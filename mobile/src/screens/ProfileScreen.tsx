@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Text } from '../typography';
+import { useToast, useAuth } from '../contexts';
 import {
   COLORS,
   TAB_BAR_SCENE_PADDING_BOTTOM,
@@ -61,12 +62,23 @@ function ProfileListItem({ label, onPress, showDivider = true }: ProfileListItem
 export function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<ProfileStackParamList>>();
   const insets = useSafeAreaInsets();
+  const { showToast } = useToast();
+  const { logout } = useAuth();
   const headerHeight = heightPercentage(LAYOUT.PROFILE_HEADER_HEIGHT_PERCENT);
   const outerSize = normalizeWidth(PROFILE_CIRCLE.SIZE);
   const hasProfileImage = Boolean(PROFILE_MOCK_USER.imageUri);
   const initials = getInitials(PROFILE_MOCK_USER.name);
   const innerSize = outerSize - PROFILE_CIRCLE.BORDER_WIDTH * 2;
   const initialsFontSize = normalizeFont(PROFILE_CIRCLE.INITIALS_FONT_SIZE);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      showToast({ message: PROFILE_STRINGS.LOGOUT_SUCCESS, type: 'success' });
+    } catch {
+      showToast({ message: PROFILE_STRINGS.LOGOUT_FAILED, type: 'error' });
+    }
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -213,7 +225,7 @@ export function ProfileScreen() {
           </View>
 
           {/* Logout */}
-          <TouchableOpacity activeOpacity={0.8} onPress={() => {}} style={styles.logoutButton}>
+          <TouchableOpacity activeOpacity={0.8} onPress={handleLogout} style={styles.logoutButton}>
             <MaterialCommunityIcons name="logout" size={normalizeWidth(18)} color={COLORS.textSecondary} />
             <Text variant="caption" weight="medium" style={styles.logoutText}>
               {PROFILE_STRINGS.LOGOUT}

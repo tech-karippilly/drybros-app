@@ -3038,7 +3038,9 @@ paths:
   /auth/logout:
     post:
       summary: Logout user
-      description: Logs out the current authenticated user. Since we use stateless JWT tokens, logout is primarily client-side (token removal). The server confirms the logout action.
+      description: |
+        Logs out the current authenticated account (User or Driver).
+        Since we use stateless JWT tokens, logout is primarily client-side (token removal). The server confirms the logout action.
       tags:
         - Authentication
       security:

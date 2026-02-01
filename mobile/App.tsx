@@ -12,6 +12,7 @@ import { COLORS } from './src/constants';
 import { loadFonts } from './src/utils/fonts';
 import { SplashScreen, LoginScreen, ForgotPasswordScreen } from './src/screens';
 import { MainTabNavigator } from './src/navigation';
+import { AuthProvider, useAuth } from './src/contexts';
 
 const LoadingScreen = () => {
   const insets = useSafeAreaInsets();
@@ -25,7 +26,6 @@ const LoadingScreen = () => {
 export default function App() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [splashFinished, setSplashFinished] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   useEffect(() => {
@@ -61,35 +61,6 @@ export default function App() {
     );
   }
 
-  // Show forgot password screen
-  if (showForgotPassword) {
-    return (
-      <SafeAreaProvider>
-        <ToastProvider>
-          <ForgotPasswordScreen
-            onBack={() => setShowForgotPassword(false)}
-            onSuccess={() => setShowForgotPassword(false)}
-          />
-        </ToastProvider>
-      </SafeAreaProvider>
-    );
-  }
-
-  // Show login screen after splash
-  if (!isLoggedIn) {
-    return (
-      <SafeAreaProvider>
-        <ToastProvider>
-          <LoginScreen
-            onLoginSuccess={() => setIsLoggedIn(true)}
-            onForgotPassword={() => setShowForgotPassword(true)}
-          />
-        </ToastProvider>
-      </SafeAreaProvider>
-    );
-  }
-
-  // Show main app after login (tab bar: Home, Trip, Leave, Alerts, Profile)
   const navTheme = {
     /**
      * React Navigation expects `fonts` on theme in some versions (it reads `theme.fonts.regular`).
@@ -111,13 +82,58 @@ export default function App() {
     <GestureHandlerRootView style={[styles.flex1, styles.appBackground]}>
       <SafeAreaProvider>
         <ToastProvider>
-          <NavigationContainer theme={navTheme}>
-            <StatusBar style="light" backgroundColor={COLORS.headerBackground} />
-            <MainTabNavigator />
-          </NavigationContainer>
+          <AuthProvider>
+            <AppShell
+              navTheme={navTheme}
+              showForgotPassword={showForgotPassword}
+              setShowForgotPassword={setShowForgotPassword}
+            />
+          </AuthProvider>
         </ToastProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+type AppShellProps = {
+  navTheme: any;
+  showForgotPassword: boolean;
+  setShowForgotPassword: React.Dispatch<React.SetStateAction<boolean>>;
+};
+
+function AppShell({ navTheme, showForgotPassword, setShowForgotPassword }: AppShellProps) {
+  const { isHydrated, isLoggedIn, markLoggedIn } = useAuth();
+
+  if (!isHydrated) {
+    return <LoadingScreen />;
+  }
+
+  // Show forgot password screen
+  if (showForgotPassword) {
+    return (
+      <ForgotPasswordScreen
+        onBack={() => setShowForgotPassword(false)}
+        onSuccess={() => setShowForgotPassword(false)}
+      />
+    );
+  }
+
+  // Show login screen after splash
+  if (!isLoggedIn) {
+    return (
+      <LoginScreen
+        onLoginSuccess={() => markLoggedIn()}
+        onForgotPassword={() => setShowForgotPassword(true)}
+      />
+    );
+  }
+
+  // Show main app after login (tab bar: Home, Trip, Leave, Alerts, Profile)
+  return (
+    <NavigationContainer theme={navTheme}>
+      <StatusBar style="light" backgroundColor={COLORS.headerBackground} />
+      <MainTabNavigator />
+    </NavigationContainer>
   );
 }
 

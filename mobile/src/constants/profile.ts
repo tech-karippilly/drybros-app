@@ -13,6 +13,8 @@ export const PROFILE_STRINGS = {
   VIEW_COMPLAINTS: 'View Complaints →',
   COMPLAINTS_HISTORY_TITLE: 'Complaints History',
   LOGOUT: 'Logout',
+  LOGOUT_SUCCESS: 'Logged out successfully',
+  LOGOUT_FAILED: 'Logout failed. Please try again.',
 } as const;
 
 /** Mock user – replace with real user from API/store */

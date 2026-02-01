@@ -14,3 +14,4 @@ export * from './SwipeButton';
 export * from './PrimaryButton';
 export * from './Badge';
 export * from './IconCircle';
+export * from './TripRequestModal';

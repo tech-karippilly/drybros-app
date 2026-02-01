@@ -18,7 +18,7 @@ let failedQueue: {
     failedQueue = [];
   };
 
-const clearAuthStorage = async (): Promise<void> => {
+export const clearAuthStorage = async (): Promise<void> => {
   await AsyncStorage.multiRemove([
     STORAGE_KEYS.AUTH_TOKEN,
     STORAGE_KEYS.REFRESH_TOKEN,

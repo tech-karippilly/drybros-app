@@ -9,6 +9,8 @@ export const LEAVES_STRINGS = {
   FILTER_PENDING: 'Pending',
   FILTER_APPROVED: 'Approved',
   FILTER_REJECTED: 'Rejected',
+  FILTER_CANCELLED: 'Cancelled',
+  EMPTY: 'No leave requests found.',
 } as const;
 
 export const LEAVES_LAYOUT = {
@@ -71,13 +73,17 @@ export const LEAVES_COLORS = {
   STATUS_PENDING_TEXT: '#D97706',
   STATUS_PENDING_DOT: '#D97706',
 
+  STATUS_CANCELLED_BG: '#E5E7EB',
+  STATUS_CANCELLED_TEXT: '#6B7280',
+  STATUS_CANCELLED_DOT: '#6B7280',
+
   FAB_BG: '#DE4A48',
   FAB_ICON: '#FFFFFF',
 
   CARD_SHADOW: '#000000',
 } as const;
 
-export type LeaveStatus = 'approved' | 'rejected' | 'pending';
+export type LeaveStatus = 'approved' | 'rejected' | 'pending' | 'cancelled';
 
 export type LeaveItem = {
   id: string;

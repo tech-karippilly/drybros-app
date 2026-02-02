@@ -104,6 +104,23 @@ export async function getTripsPaginated(
 }
 
 /**
+ * Get trips without pagination, with optional filters
+ * (e.g., by status/statuses, date range, franchiseId).
+ */
+export async function getTripsFiltered(filters?: TripFilters) {
+  const where = buildTripWhere(filters);
+  return prisma.trip.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    include: {
+      Franchise: true,
+      Driver: true,
+      Customer: true,
+    },
+  });
+}
+
+/**
  * Get unassigned trips with pagination
  */
 export async function getUnassignedTripsPaginated(skip: number, take: number) {

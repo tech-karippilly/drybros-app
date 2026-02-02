@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import {
   listTrips,
+  listTripsFiltered,
   getTrip,
   createTrip,
   createTripPhase1,
@@ -56,6 +57,8 @@ export async function getTrips(
   next: NextFunction
 ) {
   try {
+    const filters = parseTripFilters(req.query as Record<string, unknown>);
+
     if (req.query.page || req.query.limit) {
       const page = parseInt(req.query.page as string) || 1;
       const limit = Math.min(parseInt(req.query.limit as string) || 10, 100);
@@ -66,11 +69,12 @@ export async function getTrips(
         });
       }
 
-      const filters = parseTripFilters(req.query as Record<string, unknown>);
       const result = await listTripsPaginated({ page, limit }, filters);
       res.json(result);
     } else {
-      const data = await listTrips();
+      // Backward compatible: no pagination means return array.
+      // But if filters are provided (e.g. status/statuses/date range), apply them.
+      const data = filters ? await listTripsFiltered(filters) : await listTrips();
       res.json({ data });
     }
   } catch (err) {

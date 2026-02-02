@@ -2,7 +2,7 @@ import express from "express";
 import { authMiddleware } from "../middlewares/auth";
 import { validateParams } from "../middlewares/validation";
 import { z } from "zod";
-import { acceptTripOfferHandler, listMyPendingTripOffersHandler } from "../controllers/tripOffer.controller";
+import { acceptTripOfferHandler, listMyPendingTripOffersHandler, rejectTripOfferHandler } from "../controllers/tripOffer.controller";
 
 const router = express.Router();
 
@@ -14,6 +14,11 @@ router.post(
   "/:id/accept",
   validateParams(z.object({ id: z.string().uuid("Invalid offer ID format") })),
   acceptTripOfferHandler
+);
+router.post(
+  "/:id/reject",
+  validateParams(z.object({ id: z.string().uuid("Invalid offer ID format") })),
+  rejectTripOfferHandler
 );
 
 export default router;

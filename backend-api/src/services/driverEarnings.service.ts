@@ -238,3 +238,34 @@ export async function getDriverSettlement(
     },
   };
 }
+
+/**
+ * Get total lifetime earnings for a driver (sum of completed, paid trips)
+ */
+export async function getDriverTotalEarnings(driverId: string) {
+  // Validate driver exists
+  const driver = await getDriverById(driverId);
+  if (!driver) {
+    const err: any = new Error("Driver not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const result = await prisma.trip.aggregate({
+    where: {
+      driverId,
+      status: {
+        in: [TripStatus.TRIP_ENDED, TripStatus.COMPLETED, TripStatus.PAYMENT_DONE],
+      },
+      paymentStatus: PaymentStatus.COMPLETED,
+    },
+    _sum: {
+      finalAmount: true,
+    },
+  });
+
+  return {
+    driverId,
+    totalEarnings: result._sum.finalAmount || 0,
+  };
+}

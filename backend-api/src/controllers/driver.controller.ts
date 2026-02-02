@@ -6,6 +6,7 @@ import { DriverLoginDTO, UpdateDriverDTO, UpdateDriverStatusDTO } from "../types
 import { submitCashToCompany, submitCashForSettlement, getDriverDailyLimit } from "../services/driverCash.service";
 import { SubmitCashForSettlementDTO } from "../types/driver.dto";
 import { updateMyDriverLocation } from "../services/driverLocation.service";
+import { getDriverMonthlyStats, getDriverTotalEarnings } from "../services/driverEarnings.service";
 
 export async function getDrivers(
   req: Request,
@@ -289,6 +290,45 @@ export async function updateMyDriverLocationHandler(
 
     const updated = await updateMyDriverLocation(driverId, req.body);
     res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /drivers/me/profile
+ * Driver profile summary for mobile (driver token required).
+ * Includes total + monthly earnings.
+ */
+export async function getMyDriverProfileHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const driverId = req.driver?.driverId;
+    if (!driverId) {
+      return res.status(401).json({ error: "Driver authentication required" });
+    }
+
+    const now = new Date();
+    const year = req.query.year ? parseInt(req.query.year as string) : now.getFullYear();
+    const month = req.query.month ? parseInt(req.query.month as string) : now.getMonth() + 1;
+
+    const [profile, total, monthly] = await Promise.all([
+      getDriver(driverId),
+      getDriverTotalEarnings(driverId),
+      getDriverMonthlyStats(driverId, year, month),
+    ]);
+
+    res.json({
+      data: {
+        ...profile,
+        earnings: {
+          totalEarnings: total.totalEarnings,
+          month: monthly.month,
+          year: monthly.year,
+          monthlyEarnings: monthly.monthlyEarnings,
+          tripsCount: monthly.tripsCount,
+        },
+      },
+    });
   } catch (err) {
     next(err);
   }

@@ -1,6 +1,6 @@
 // src/routes/driver.routes.ts
 import express from "express";
-import { getDrivers, getDriverById, getDriverWithPerformanceHandler, getDriverPerformanceHandler, getAvailableGreenDriversHandler, getAvailableDriversHandler, getDriversByFranchisesHandler, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler, submitCashToCompanyHandler, submitCashForSettlementHandler, getDriverDailyLimitHandler, updateMyDriverLocationHandler } from "../controllers/driver.controller";
+import { getDrivers, getDriverById, getDriverWithPerformanceHandler, getDriverPerformanceHandler, getAvailableGreenDriversHandler, getAvailableDriversHandler, getDriversByFranchisesHandler, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler, submitCashToCompanyHandler, submitCashForSettlementHandler, getDriverDailyLimitHandler, updateMyDriverLocationHandler, getMyDriverProfileHandler } from "../controllers/driver.controller";
 import { getDriverDailyStatsHandler, getDriverMonthlyStatsHandler, getDriverSettlementHandler } from "../controllers/driverEarnings.controller";
 import { authMiddleware, requireRole } from "../middlewares/auth";
 import { UserRole } from "@prisma/client";
@@ -16,6 +16,18 @@ router.post("/login", validate(driverLoginSchema), loginDriverHandler);
 
 // All other driver routes require authentication
 router.use(authMiddleware);
+
+// GET /drivers/me/profile - Driver profile summary for mobile
+router.get(
+  "/me/profile",
+  validateQuery(
+    z.object({
+      year: z.string().regex(/^\d{4}$/).optional(),
+      month: z.string().regex(/^(?:[1-9]|1[0-2])$/).optional(),
+    })
+  ),
+  getMyDriverProfileHandler
+);
 
 // POST /drivers/me/location - Driver live location updates (driver token required)
 router.post("/me/location", validate(updateDriverLocationSchema), updateMyDriverLocationHandler);

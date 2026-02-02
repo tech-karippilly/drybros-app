@@ -6,6 +6,7 @@ import {
   updateTrip,
   getUnassignedTrips,
   getTripsPaginated,
+  getTripsFiltered,
   getUnassignedTripsPaginated,
   getTripsByDriver,
   getTripsByDriverAllStatuses,
@@ -92,6 +93,11 @@ interface CreateTripInput {
 
 export async function listTrips() {
   const trips = await getAllTrips();
+  return trips.map(augmentTripCarPreferences);
+}
+
+export async function listTripsFiltered(filters?: TripFilters) {
+  const trips = await getTripsFiltered(filters);
   return trips.map(augmentTripCarPreferences);
 }
 
@@ -753,6 +759,24 @@ export async function driverRejectTrip(tripId: string, driverId: string) {
   
   // Update driver trip status back to AVAILABLE when they reject
   await updateDriverTripStatus(driverId, "AVAILABLE");
+
+  // Log activity (non-blocking)
+  logActivity({
+    action: ActivityAction.TRIP_REJECTED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: tripId,
+    franchiseId: trip.franchiseId,
+    driverId: driverId,
+    tripId: tripId,
+    description: `Driver rejected trip ${tripId}`,
+    metadata: {
+      tripId: tripId,
+      driverId: driverId,
+      customerName: trip.customerName,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log trip rejection activity", { error: err });
+  });
   
   return updatedTrip;
 }

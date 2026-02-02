@@ -23,6 +23,7 @@ import activityRoutes from "./routes/activity.routes";
 import penaltyRoutes from "./routes/penalty.routes";
 import earningsConfigRoutes from "./routes/earningsConfig.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
+import alertsRoutes from "./routes/alerts.routes";
 
 import cors from "cors";
 import path from "path";
@@ -181,6 +182,7 @@ app.use("/activities", activityRoutes);
 app.use("/penalties", penaltyRoutes);
 app.use("/config", earningsConfigRoutes);
 app.use("/dashboard", dashboardRoutes);
+app.use("/alerts", alertsRoutes);
 
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Drybros backend root 🚗" });

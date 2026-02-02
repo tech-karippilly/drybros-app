@@ -1004,6 +1004,80 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /drivers/me/profile:
+    get:
+      summary: Get my driver profile (Mobile)
+      description: |
+        Returns the authenticated driver's profile plus earnings summary for the mobile app.
+
+        Includes:
+        - totalEarnings (lifetime)
+        - monthlyEarnings (for provided year/month or current month)
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          required: false
+          description: Year (YYYY). Defaults to current year.
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+        - name: month
+          in: query
+          required: false
+          description: Month (1-12). Defaults to current month.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        "200":
+          description: Driver profile with earnings retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      firstName:
+                        type: string
+                      lastName:
+                        type: string
+                      driverCode:
+                        type: string
+                      phone:
+                        type: string
+                      email:
+                        type: string
+                      earnings:
+                        type: object
+                        properties:
+                          totalEarnings:
+                            type: integer
+                          year:
+                            type: integer
+                          month:
+                            type: integer
+                          monthlyEarnings:
+                            type: integer
+                          tripsCount:
+                            type: integer
+        "401":
+          description: Not authenticated or not a driver token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /drivers:
     get:
       summary: List all drivers
@@ -3272,13 +3346,20 @@ paths:
     get:
       summary: Get all trips
       description: |
-        Get a list of all trips. Supports optional pagination via query parameters.
+        Get a list of all trips.
+
+        Supports optional **pagination** and **filters** via query parameters.
 
         **Query Parameters:**
         - `page` (optional): Page number (default: 1)
         - `limit` (optional): Number of items per page (default: 10, max: 100)
+        - `status` (optional): Filter by a single trip status (e.g. `ASSIGNED`)
+        - `statuses` (optional): Filter by multiple statuses (comma-separated, e.g. `ASSIGNED,TRIP_STARTED`)
+        - `dateFrom` (optional): Filter from date (YYYY-MM-DD) using scheduledAt (or createdAt if scheduledAt is null)
+        - `dateTo` (optional): Filter to date (YYYY-MM-DD) using scheduledAt (or createdAt if scheduledAt is null)
+        - `franchiseId` (optional): Filter by franchise UUID
 
-        **Without pagination parameters:** Returns all trips (backward compatible)
+        **Without pagination parameters:** Returns an array response `{ data: Trip[] }` (backward compatible)
 
         **With pagination parameters:** Returns paginated results with metadata
       tags:
@@ -3303,6 +3384,42 @@ paths:
             minimum: 1
             maximum: 100
             default: 10
+        - name: status
+          in: query
+          required: false
+          description: Filter trips by a single status (mutually exclusive with `statuses`)
+          schema:
+            type: string
+            example: "ASSIGNED"
+        - name: statuses
+          in: query
+          required: false
+          description: Filter trips by multiple statuses (comma-separated). If provided, `status` is ignored.
+          schema:
+            type: string
+            example: "ASSIGNED,TRIP_STARTED,TRIP_PROGRESS"
+        - name: dateFrom
+          in: query
+          required: false
+          description: Filter trips from this date (YYYY-MM-DD)
+          schema:
+            type: string
+            example: "2026-02-01"
+        - name: dateTo
+          in: query
+          required: false
+          description: Filter trips up to this date (YYYY-MM-DD)
+          schema:
+            type: string
+            example: "2026-02-28"
+        - name: franchiseId
+          in: query
+          required: false
+          description: Filter trips by franchise UUID
+          schema:
+            type: string
+            format: uuid
+            example: "660e8400-e29b-41d4-a716-446655440001"
       responses:
         "200":
           description: List of trips (paginated or all)
@@ -3587,6 +3704,120 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Offer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trip-offers/{id}/reject:
+    post:
+      summary: Reject a trip offer (Driver)
+      description: |
+        Rejects a trip offer for the authenticated driver.
+      tags:
+        - Trip Offers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip offer ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Offer rejected successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TripOffer"
+        "401":
+          description: Not authenticated or not a driver token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Offer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /alerts/my:
+    get:
+      summary: Get my alerts (Driver)
+      description: |
+        Alerts feed for driver mobile app.
+        Includes:
+        - Incoming trip requests (pending offers)
+        - Trip lifecycle events (accepted/rejected/started/ended)
+      tags:
+        - Alerts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Max number of recent event items to include (1-200). Default is 50.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: Alerts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              example: "INCOMING_REQUEST"
+                            title:
+                              type: string
+                            message:
+                              type: string
+                            createdAt:
+                              type: string
+                              format: date-time
+                            tripId:
+                              type: string
+                              format: uuid
+                            offerId:
+                              type: string
+                              format: uuid
+                            metadata:
+                              type: object
+                      counts:
+                        type: object
+                        properties:
+                          incomingRequests:
+                            type: integer
+                          recentEvents:
+                            type: integer
+                          total:
+                            type: integer
+        "401":
+          description: Not authenticated or not a driver token
           content:
             application/json:
               schema:

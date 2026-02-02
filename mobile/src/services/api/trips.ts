@@ -136,6 +136,16 @@ export async function getMyAssignedTripsApi(): Promise<BackendTrip[]> {
   return (payload?.data ?? payload) as BackendTrip[];
 }
 
+/**
+ * Trips tab / history list.
+ * Returns all trips for the logged-in driver (includes completed/cancelled).
+ */
+export async function getMyTripsApi(): Promise<BackendTrip[]> {
+  const res = await apiClient.get<ListMyAssignedTripsResponse>(API_ENDPOINTS.TRIPS.MY);
+  const payload = (res.data as any)?.data ?? res.data;
+  return (payload?.data ?? payload) as BackendTrip[];
+}
+
 export async function getTripByIdApi(tripId: string): Promise<BackendTrip> {
   const url = replacePathParam(API_ENDPOINTS.TRIPS.DETAILS, tripId);
   const res = await apiClient.get<TripDetailsResponse>(url);

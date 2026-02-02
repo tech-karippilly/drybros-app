@@ -3356,7 +3356,7 @@ paths:
       description: |
         Get a list of trips that are assigned to a specific driver.
         
-        Returns trips with status: ASSIGNED, DRIVER_ACCEPTED, TRIP_STARTED, or TRIP_PROGRESS.
+        Returns trips with status: ASSIGNED, DRIVER_ACCEPTED, DRIVER_ON_THE_WAY, TRIP_STARTED, TRIP_PROGRESS, or IN_PROGRESS.
         
         **Query Parameters:**
         - `driverId` (required): Driver UUID to get assigned trips for
@@ -3476,6 +3476,44 @@ paths:
                   summary: Not a driver token
                   value:
                     error: "Driver authentication required. Please login as a driver."
+
+  /trips/my:
+    get:
+      summary: Get my trips (Driver) - includes completed
+      description: |
+        Get **all** trips for the authenticated driver (any status), including completed/cancelled trips.
+        
+        This endpoint uses the driver ID from the authentication token, so no `driverId` parameter is needed.
+        
+        **Why this exists (vs `/trips/my-assigned`):**
+        - `/trips/my-assigned` is used for "Upcoming Trips" and real-time driver workflow (active-only)
+        - `/trips/my` is used for the Trips tab / history where completed trips must be visible
+        
+        **Authentication:**
+        - Requires driver authentication token (from `/drivers/login`)
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of trips retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    description: Array of trips for the authenticated driver (any status)
+                    items:
+                      $ref: "#/components/schemas/Trip"
+        "401":
+          description: Not authenticated or not a driver token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /trip-offers/my-pending:
     get:
@@ -4064,9 +4102,9 @@ paths:
         - "Request list of drivers"
         
         **Modes:**
-        - `ALL` (default): Offers the trip to all eligible drivers immediately.
-        - `SPECIFIC`: Offers the trip to `driverId` (only if the driver is eligible).
-        - `LIST`: Offers the trip to `driverIds[]` (only eligible drivers will receive offers).
+        - `ALL` (default): Offers the trip to all drivers in the trip's franchise, in rating-tier priority (5 → 4 → 3 → 2 → 1).
+        - `SPECIFIC`: Offers the trip to `driverId` (only if the driver belongs to the trip's franchise).
+        - `LIST`: Offers the trip to `driverIds[]` (only drivers that belong to the trip's franchise will receive offers).
         
         **Response:**
         Returns `{ requested: number }` which is the count of *new* offers created.

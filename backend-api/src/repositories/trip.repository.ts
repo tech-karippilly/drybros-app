@@ -1,4 +1,5 @@
 import prisma from "../config/prismaClient";
+import { ACTIVE_DRIVER_ASSIGNED_TRIP_STATUSES } from "../constants/trip";
 
 export async function getAllTrips() {
   return prisma.trip.findMany({
@@ -257,31 +258,37 @@ export async function updateTrip(id: string, data: any) {
 }
 
 /**
- * Get trips assigned to a driver
+ * Get active trips assigned to a driver (driver "my assigned" list)
  */
 export async function getTripsByDriver(driverId: string) {
   return prisma.trip.findMany({
     where: {
       driverId,
       status: {
-        in: [
-          // Active / upcoming
-          "ASSIGNED",
-          "DRIVER_ACCEPTED",
-          "DRIVER_ON_THE_WAY",
-          "IN_PROGRESS",
-          "TRIP_STARTED",
-          "TRIP_PROGRESS",
-          // Completed-ish
-          "TRIP_ENDED",
-          "COMPLETED",
-          "PAYMENT_DONE",
-          // Cancelled / rejected
-          "CANCELLED_BY_CUSTOMER",
-          "CANCELLED_BY_OFFICE",
-          "REJECTED_BY_DRIVER",
-        ],
+        in: ACTIVE_DRIVER_ASSIGNED_TRIP_STATUSES,
       },
+    },
+    orderBy: { createdAt: "desc" },
+    include: {
+      Franchise: true,
+      Driver: true,
+      Customer: true,
+    },
+  });
+}
+
+/**
+ * Get ALL trips for a driver (any status).
+ *
+ * NOTE:
+ * - `/trips/my-assigned` intentionally uses `getTripsByDriver()` (active-only)
+ *   for "Upcoming Trips" and realtime UX.
+ * - Trip history screens should use this "all statuses" query.
+ */
+export async function getTripsByDriverAllStatuses(driverId: string) {
+  return prisma.trip.findMany({
+    where: {
+      driverId,
     },
     orderBy: { createdAt: "desc" },
     include: {
@@ -300,14 +307,7 @@ export async function getAssignedTrips(franchiseId?: string) {
   const whereClause: any = {
     driverId: { not: null }, // Must have a driver assigned
     status: {
-      in: [
-        "ASSIGNED",
-        "DRIVER_ACCEPTED",
-        "TRIP_STARTED",
-        "TRIP_PROGRESS",
-        "IN_PROGRESS",
-        "DRIVER_ON_THE_WAY",
-      ],
+      in: ACTIVE_DRIVER_ASSIGNED_TRIP_STATUSES,
     },
   };
 
@@ -337,14 +337,7 @@ export async function getAssignedTripsPaginated(
   const whereClause: any = {
     driverId: { not: null }, // Must have a driver assigned
     status: {
-      in: [
-        "ASSIGNED",
-        "DRIVER_ACCEPTED",
-        "TRIP_STARTED",
-        "TRIP_PROGRESS",
-        "IN_PROGRESS",
-        "DRIVER_ON_THE_WAY",
-      ],
+      in: ACTIVE_DRIVER_ASSIGNED_TRIP_STATUSES,
     },
   };
 

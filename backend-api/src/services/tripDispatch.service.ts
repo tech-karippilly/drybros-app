@@ -1,6 +1,6 @@
 import prisma from "../config/prismaClient";
 import { TripOfferStatus, TripStatus } from "@prisma/client";
-import { DISPATCH_CONFIG } from "../constants/dispatch";
+import { DISPATCH_CONFIG, DISPATCH_RATING, DISPATCH_RATING_TIERS } from "../constants/dispatch";
 import { socketService } from "./socket.service";
 import { haversineDistanceKm } from "../utils/geo";
 import { updateDriverTripStatus } from "../repositories/driver.repository";
@@ -11,10 +11,31 @@ type DispatchState = {
   startedAt: Date;
 };
 
+type OfferTripOptions = {
+  /**
+   * When true, re-sends an offer even if a previous one is still active (OFFERED and not expired),
+   * by refreshing the offer window and emitting again.
+   *
+   * Intended for manual "request again" flows from dispatcher UI.
+   */
+  forceResend?: boolean;
+};
+
 class TripDispatchService {
   private dispatchStates = new Map<string, DispatchState>();
   private offerTimers = new Map<string, NodeJS.Timeout[]>();
   private decisionTimers = new Map<string, NodeJS.Timeout>();
+
+  private getDriverRatingTier(currentRating: number | null): number {
+    if (typeof currentRating !== "number" || Number.isNaN(currentRating)) {
+      return DISPATCH_RATING.UNKNOWN_TIER;
+    }
+    // Bucket rating into integer tiers (5→4→3→2→1). Anything outside clamps.
+    const tier = Math.floor(currentRating);
+    if (tier < DISPATCH_RATING.MIN_TIER) return DISPATCH_RATING.MIN_TIER;
+    if (tier > DISPATCH_RATING.MAX_TIER) return DISPATCH_RATING.MAX_TIER;
+    return tier;
+  }
 
   async startDispatchForTrip(tripId: string): Promise<void> {
     if (this.dispatchStates.has(tripId)) return;
@@ -23,8 +44,7 @@ class TripDispatchService {
     if (!trip) return;
     if (trip.driverId) return; // already assigned
 
-    const candidates = await this.listCandidateDrivers(trip.franchiseId);
-    const candidateDriverIds = candidates.map((d) => d.id);
+    const candidateDriverIds = await this.listCandidateDriverIdsByRatingTiers(trip.franchiseId);
 
     this.dispatchStates.set(tripId, { candidateDriverIds, startedAt: new Date() });
 
@@ -48,12 +68,11 @@ class TripDispatchService {
     if (!trip) return { requested: 0 };
     if (trip.driverId) return { requested: 0 };
 
-    const candidates = await this.listCandidateDrivers(trip.franchiseId);
-    const candidateDriverIds = candidates.map((d) => d.id);
+    const candidateDriverIds = await this.listCandidateDriverIdsByRatingTiers(trip.franchiseId);
 
     let requested = 0;
     for (const driverId of candidateDriverIds) {
-      const created = await this.offerTripToDriver(tripId, driverId);
+      const created = await this.offerTripToDriver(tripId, driverId, { forceResend: true });
       if (created) requested += 1;
     }
 
@@ -69,13 +88,13 @@ class TripDispatchService {
     if (!trip) return { requested: 0 };
     if (trip.driverId) return { requested: 0 };
 
-    const candidates = await this.listCandidateDrivers(trip.franchiseId);
-    const candidateSet = new Set(candidates.map((d) => d.id));
+    const candidateDriverIds = await this.listCandidateDriverIdsByRatingTiers(trip.franchiseId);
+    const candidateSet = new Set(candidateDriverIds);
 
     let requested = 0;
     for (const driverId of driverIds) {
       if (!candidateSet.has(driverId)) continue;
-      const created = await this.offerTripToDriver(tripId, driverId);
+      const created = await this.offerTripToDriver(tripId, driverId, { forceResend: true });
       if (created) requested += 1;
     }
 
@@ -101,37 +120,53 @@ class TripDispatchService {
   }
 
   private async listCandidateDrivers(franchiseId: string) {
-    /**
-     * Priority: rating desc, remainingDailyLimit desc, then freshest location.
-     *
-     * NOTE:
-     * We intentionally do NOT require location to be present/recent for eligibility,
-     * because we still want drivers to receive trip requests even if they haven't
-     * updated GPS recently (e.g., app restarted, location permission pending).
-     * Location is used later as a tie-breaker when picking a winner among accepted offers.
-     */
+    // NOTE: Kept as a separate method for reuse, but eligibility checks are intentionally minimal.
     return prisma.driver.findMany({
       where: {
         franchiseId,
-        isActive: true,
-        status: "ACTIVE",
-        bannedGlobally: false,
-        blacklisted: false,
-        driverTripStatus: "AVAILABLE",
-        OR: [{ remainingDailyLimit: { gt: 0 } }, { remainingDailyLimit: null }],
       },
-      orderBy: [
-        { currentRating: "desc" },
-        { remainingDailyLimit: "desc" },
-        { locationUpdatedAt: "desc" },
-      ],
       select: {
         id: true,
+        currentRating: true,
       },
     });
   }
 
-  private async offerTripToDriver(tripId: string, driverId: string): Promise<boolean> {
+  /**
+   * Returns all drivers in a franchise ordered by rating tier priority:
+   * 5 → 4 → 3 → 2 → 1 → unknown.
+   *
+   * No other eligibility checks are applied (as requested).
+   */
+  private async listCandidateDriverIdsByRatingTiers(franchiseId: string): Promise<string[]> {
+    const drivers = await this.listCandidateDrivers(franchiseId);
+
+    // Group by integer rating tier.
+    const byTier = new Map<number, string[]>();
+    for (const d of drivers) {
+      const tier = this.getDriverRatingTier(d.currentRating);
+      const arr = byTier.get(tier) ?? [];
+      arr.push(d.id);
+      byTier.set(tier, arr);
+    }
+
+    // Flatten tiers in requested order; unknown goes last.
+    const ordered: string[] = [];
+    for (const tier of DISPATCH_RATING_TIERS) {
+      const ids = byTier.get(tier);
+      if (ids?.length) ordered.push(...ids);
+    }
+    const unknownIds = byTier.get(DISPATCH_RATING.UNKNOWN_TIER);
+    if (unknownIds?.length) ordered.push(...unknownIds);
+
+    return ordered;
+  }
+
+  private async offerTripToDriver(
+    tripId: string,
+    driverId: string,
+    options: OfferTripOptions = {}
+  ): Promise<boolean> {
     const trip = await prisma.trip.findUnique({ where: { id: tripId } });
     if (!trip) return false;
     if (trip.driverId) return false; // assigned, stop offering
@@ -148,7 +183,8 @@ class TripDispatchService {
     if (existing) {
       const isExpiredByTime = existing.expiresAt.getTime() <= now.getTime();
       const isTerminalStatus = existing.status !== TripOfferStatus.OFFERED && existing.status !== TripOfferStatus.ACCEPTED;
-      const canReOffer = isExpiredByTime || isTerminalStatus;
+      const isActiveOffer = existing.status === TripOfferStatus.OFFERED && !isExpiredByTime;
+      const canReOffer = isExpiredByTime || isTerminalStatus || (options.forceResend === true && isActiveOffer);
 
       if (!canReOffer) return false;
 

@@ -8,6 +8,7 @@ import {
   getTripsPaginated,
   getUnassignedTripsPaginated,
   getTripsByDriver,
+  getTripsByDriverAllStatuses,
   getAssignedTrips as repoGetAssignedTrips,
   getAssignedTripsPaginated as repoGetAssignedTripsPaginated,
   type TripFilters,
@@ -315,6 +316,17 @@ export async function getTrip(id: string) {
  */
 export async function getDriverAssignedTrips(driverId: string) {
   const trips = await getTripsByDriver(driverId);
+  return trips.map(augmentTripCarPreferences);
+}
+
+/**
+ * Get ALL trips for a driver (any status).
+ *
+ * Use for the Trips tab / trip history screens where completed/cancelled trips
+ * must be visible.
+ */
+export async function getDriverTripsAllStatuses(driverId: string) {
+  const trips = await getTripsByDriverAllStatuses(driverId);
   return trips.map(augmentTripCarPreferences);
 }
 

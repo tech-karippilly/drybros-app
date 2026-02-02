@@ -2,6 +2,8 @@
  * Trip-related constants
  */
 
+import { TripStatus } from "@prisma/client";
+
 export const CAR_GEAR_TYPES = {
   MANUAL: "MANUAL",
   AUTOMATIC: "AUTOMATIC",
@@ -44,6 +46,19 @@ export const TRIP_ERROR_MESSAGES = {
   DISPATCH_MISSING_DRIVER_ID: "driverId is required when mode is SPECIFIC",
   DISPATCH_MISSING_DRIVER_IDS: "driverIds is required when mode is LIST",
 } as const;
+
+/**
+ * Trip statuses considered "active/ongoing" for a driver's assigned trips list.
+ * Used by `/trips/my-assigned` and related socket event.
+ */
+export const ACTIVE_DRIVER_ASSIGNED_TRIP_STATUSES: TripStatus[] = [
+  TripStatus.ASSIGNED,
+  TripStatus.DRIVER_ACCEPTED,
+  TripStatus.DRIVER_ON_THE_WAY,
+  TripStatus.TRIP_STARTED,
+  TripStatus.TRIP_PROGRESS,
+  TripStatus.IN_PROGRESS,
+];
 
 /** Trip statuses that allow reschedule (before trip has started) */
 export const RESCHEDULABLE_TRIP_STATUSES = [

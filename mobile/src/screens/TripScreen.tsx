@@ -25,7 +25,7 @@ import {
 import { normalizeWidth, normalizeHeight } from '../utils/responsive';
 import type { TripStackParamList } from '../navigation/TripStackNavigator';
 import { useToast, useTripRealtime } from '../contexts';
-import { getMyAssignedTripsApi } from '../services/api/trips';
+import { getMyTripsApi } from '../services/api/trips';
 import { mapBackendTripToTripItem } from '../services/mappers/trips';
 
 export function TripScreen() {
@@ -40,8 +40,8 @@ export function TripScreen() {
   const loadTrips = React.useCallback(async () => {
     setLoading(true);
     try {
-      const assigned = await getMyAssignedTripsApi();
-      setTrips(assigned.map(mapBackendTripToTripItem));
+      const allTrips = await getMyTripsApi();
+      setTrips(allTrips.map(mapBackendTripToTripItem));
     } catch (error: any) {
       const errorMessage =
         error?.response?.data?.message ||

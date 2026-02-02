@@ -4,14 +4,7 @@
 
 import { Driver, Trip } from "@prisma/client";
 import prisma from "../config/prismaClient";
-
-const ACTIVE_TRIP_STATUSES = [
-  "ASSIGNED",
-  "DRIVER_ACCEPTED",
-  "IN_PROGRESS",
-  "TRIP_STARTED",
-  "TRIP_PROGRESS",
-] as const;
+import { ACTIVE_DRIVER_ASSIGNED_TRIP_STATUSES } from "../constants/trip";
 
 /**
  * Validates if a driver is eligible for trip assignment
@@ -55,7 +48,7 @@ export async function validateDriverForTripAssignment(
     where: {
       driverId: driver.id,
       status: {
-        in: ACTIVE_TRIP_STATUSES,
+        in: ACTIVE_DRIVER_ASSIGNED_TRIP_STATUSES,
       },
     },
   });
@@ -105,7 +98,7 @@ export async function getDriversWithActiveTrips(
         in: driverIds,
       },
       status: {
-        in: ACTIVE_TRIP_STATUSES,
+        in: ACTIVE_DRIVER_ASSIGNED_TRIP_STATUSES,
       },
     },
     select: {

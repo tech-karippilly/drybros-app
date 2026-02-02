@@ -22,6 +22,7 @@ export const API_ENDPOINTS ={
     },
     TRIPS: {
         MY_ASSIGNED: '/trips/my-assigned',
+        MY: '/trips/my',
         DETAILS: '/trips/:id',
         START_INITIATE: '/trips/:id/start-initiate',
         START_VERIFY: '/trips/:id/start-verify',

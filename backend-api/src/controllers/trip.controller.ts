@@ -17,6 +17,7 @@ import {
   getAvailableDriversForTrip,
   assignDriverToTrip,
   getDriverAssignedTrips,
+  getDriverTripsAllStatuses,
   getAssignedTrips,
   getAssignedTripsPaginated,
   initiateStartTrip,
@@ -354,6 +355,34 @@ export async function getMyAssignedTripsHandler(
     }
 
     const trips = await getDriverAssignedTrips(driverId);
+    res.json({ data: trips });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Get ALL trips for the authenticated driver (includes completed/cancelled).
+ *
+ * Why separate from `/trips/my-assigned`?
+ * - `/trips/my-assigned` is used by the Home tab + realtime "upcoming trips" UX and must stay active-only.
+ * - Trips tab needs history, so it uses this endpoint.
+ */
+export async function getMyTripsHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const driverId = req.driver?.driverId;
+
+    if (!driverId) {
+      return res.status(401).json({
+        error: "Driver authentication required. Please login as a driver.",
+      });
+    }
+
+    const trips = await getDriverTripsAllStatuses(driverId);
     res.json({ data: trips });
   } catch (err) {
     next(err);

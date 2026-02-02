@@ -649,6 +649,8 @@ model ActivityLog {
   userId      String?            @db.Uuid // User who performed the action
   description String
   metadata    Json? // Additional data (old values, new values, etc.)
+  latitude    Float?
+  longitude   Float?
   createdAt   DateTime           @default(now())
   User        User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
   Franchise   Franchise?         @relation(fields: [franchiseId], references: [id], onDelete: SetNull)
@@ -702,6 +704,10 @@ enum ActivityAction {
   RATING_SUBMITTED
   // Attendance actions
   ATTENDANCE_RECORDED
+  LOGIN
+  LOGOUT
+  CHECK_IN
+  CHECK_OUT
   // Other
   CUSTOMER_CREATED
   CUSTOMER_UPDATED
@@ -721,6 +727,7 @@ enum ActivityEntityType {
   RATING
   ATTENDANCE
   OTHER
+  USER
 }
 
 model Penalty {

@@ -1,6 +1,17 @@
 // src/repositories/attendance.repository.ts
 import prisma from "../config/prismaClient";
-import { Attendance, AttendanceStatus } from "@prisma/client";
+import { Attendance, AttendanceStatus, UserRole } from "@prisma/client";
+
+export type AttendanceRoleType = "DRIVER" | "STAFF" | "MANAGER" | "ADMIN";
+
+export interface AttendanceFilters {
+  driverId?: string;
+  staffId?: string;
+  userId?: string;
+  startDate?: Date;
+  endDate?: Date;
+  roleType?: AttendanceRoleType;
+}
 
 export type AttendanceSessionRow = {
   id: string;
@@ -226,13 +237,7 @@ export async function getAttendancesPaginated(
   return { data, total };
 }
 
-export async function getAllAttendances(filters?: {
-  driverId?: string;
-  staffId?: string;
-  userId?: string;
-  startDate?: Date;
-  endDate?: Date;
-}) {
+export async function getAllAttendances(filters?: AttendanceFilters) {
   const whereClause: any = {};
   
   if (filters?.driverId) {
@@ -247,6 +252,23 @@ export async function getAllAttendances(filters?: {
     whereClause.userId = filters.userId;
   }
   
+  if (filters?.roleType) {
+    if (filters.roleType === "DRIVER") {
+      whereClause.driverId = { not: null };
+    } else if (filters.roleType === "STAFF") {
+      whereClause.staffId = { not: null };
+    } else if (filters.roleType === "MANAGER") {
+      // Assuming Managers are Users with role MANAGER. 
+      // But Attendance stores userId, which could be ADMIN or MANAGER.
+      // We need to filter by User.role = MANAGER
+      whereClause.userId = { not: null };
+      whereClause.User = { role: UserRole.MANAGER };
+    } else if (filters.roleType === "ADMIN") {
+      whereClause.userId = { not: null };
+      whereClause.User = { role: UserRole.ADMIN };
+    }
+  }
+
   if (filters?.startDate || filters?.endDate) {
     whereClause.date = {};
     if (filters.startDate) {

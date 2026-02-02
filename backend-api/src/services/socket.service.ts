@@ -31,6 +31,8 @@ export interface ActivityLogPayload {
   userId?: string;
   description: string;
   metadata?: any;
+  latitude?: number;
+  longitude?: number;
   createdAt: Date;
 }
 

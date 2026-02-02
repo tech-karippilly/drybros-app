@@ -28,6 +28,8 @@ export interface ActivityLogResponseDTO {
   userId: string | null;
   description: string;
   metadata: any;
+  latitude?: number | null;
+  longitude?: number | null;
   createdAt: Date;
   // Related entity info (optional, populated when needed)
   user?: {

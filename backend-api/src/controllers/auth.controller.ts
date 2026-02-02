@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { UserRole } from "@prisma/client";
 import {
   registerAdmin,
   login,
@@ -93,7 +94,10 @@ export async function logoutHandler(
       return res.status(401).json({ error: ERROR_MESSAGES.UNAUTHORIZED });
     }
 
-    const result = await logout(authenticatedId);
+    const role = req.user?.role ?? (req.driver ? UserRole.DRIVER : undefined);
+    const driverId = req.driver?.driverId;
+
+    const result = await logout(authenticatedId, role, driverId);
     res.json({ message: result.message });
   } catch (err) {
     next(err);

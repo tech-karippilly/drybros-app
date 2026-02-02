@@ -13,6 +13,8 @@ export interface CreateActivityLogData {
   userId?: string | null;
   description: string;
   metadata?: any;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export async function createActivityLog(data: CreateActivityLogData): Promise<ActivityLog> {
@@ -28,6 +30,8 @@ export async function createActivityLog(data: CreateActivityLogData): Promise<Ac
       userId: data.userId || null,
       description: data.description,
       metadata: data.metadata || null,
+      latitude: data.latitude || null,
+      longitude: data.longitude || null,
     },
   });
 }

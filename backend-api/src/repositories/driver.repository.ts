@@ -47,6 +47,34 @@ export async function getDriversPaginated(skip: number, take: number, franchiseI
   return { data, total };
 }
 
+export async function getDriversWithLocation(franchiseId?: string) {
+  const whereClause: any = {
+    isActive: true,
+    currentLat: { not: null },
+    currentLng: { not: null },
+  };
+
+  if (franchiseId) {
+    whereClause.franchiseId = franchiseId;
+  }
+
+  return prisma.driver.findMany({
+    where: whereClause,
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      currentLat: true,
+      currentLng: true,
+      locationUpdatedAt: true,
+      driverTripStatus: true,
+      franchiseId: true,
+      driverCode: true,
+    },
+  });
+}
+
 export async function getDriverById(id: string) {
   return prisma.driver.findUnique({
     where: { id },

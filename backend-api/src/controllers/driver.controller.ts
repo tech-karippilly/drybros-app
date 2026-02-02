@@ -5,7 +5,7 @@ import { calculateDriverPerformance } from "../services/driver-performance.servi
 import { DriverLoginDTO, UpdateDriverDTO, UpdateDriverStatusDTO } from "../types/driver.dto";
 import { submitCashToCompany, submitCashForSettlement, getDriverDailyLimit } from "../services/driverCash.service";
 import { SubmitCashForSettlementDTO } from "../types/driver.dto";
-import { updateMyDriverLocation } from "../services/driverLocation.service";
+import { updateMyDriverLocation, getLiveLocations } from "../services/driverLocation.service";
 import { getDriverMonthlyStats, getDriverTotalEarnings } from "../services/driverEarnings.service";
 
 export async function getDrivers(
@@ -43,7 +43,7 @@ export async function getDriverById(
   next: NextFunction
 ) {
   try {
-    const id = req.params.id; // UUID string
+    const id = req.params.id as string; // UUID string
     const driver = await getDriver(id);
     res.json({ data: driver });
   } catch (err) {
@@ -57,7 +57,7 @@ export async function getDriverWithPerformanceHandler(
   next: NextFunction
 ) {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const driver = await getDriverWithPerformance(id);
     res.json({ data: driver });
   } catch (err) {
@@ -71,7 +71,7 @@ export async function getDriverPerformanceHandler(
   next: NextFunction
 ) {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const performance = await calculateDriverPerformance(id);
     res.json({ data: performance });
   } catch (err) {
@@ -112,7 +112,7 @@ export async function updateDriverHandler(
   next: NextFunction
 ) {
   try {
-    const id = req.params.id; // UUID string
+    const id = req.params.id as string; // UUID string
     const result = await updateDriver(id, req.body as UpdateDriverDTO);
     res.json(result);
   } catch (err) {
@@ -126,7 +126,7 @@ export async function updateDriverStatusHandler(
   next: NextFunction
 ) {
   try {
-    const id = req.params.id; // UUID string
+    const id = req.params.id as string; // UUID string
     const result = await updateDriverStatus(id, req.body as UpdateDriverStatusDTO);
     res.json(result);
   } catch (err) {
@@ -140,7 +140,7 @@ export async function softDeleteDriverHandler(
   next: NextFunction
 ) {
   try {
-    const id = req.params.id; // UUID string
+    const id = req.params.id as string; // UUID string
     const result = await softDeleteDriver(id);
     res.json(result);
   } catch (err) {
@@ -231,7 +231,7 @@ export async function submitCashToCompanyHandler(
   next: NextFunction
 ) {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const result = await submitCashToCompany(id);
     res.json({ data: result });
   } catch (err) {
@@ -248,7 +248,7 @@ export async function getDriverDailyLimitHandler(
   next: NextFunction
 ) {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const result = await getDriverDailyLimit(id);
     res.json({ data: result });
   } catch (err) {
@@ -290,6 +290,24 @@ export async function updateMyDriverLocationHandler(
 
     const updated = await updateMyDriverLocation(driverId, req.body);
     res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Get live location of all drivers
+ * GET /drivers/live-location
+ */
+export async function getDriversLiveLocationHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const franchiseId = req.query.franchiseId as string | undefined;
+    const locations = await getLiveLocations(franchiseId);
+    res.json({ data: locations });
   } catch (err) {
     next(err);
   }

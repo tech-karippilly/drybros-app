@@ -242,7 +242,7 @@ export async function clockIn(
   };
   if (driverId) {
     logActivity({
-      action: ActivityAction.DRIVER_CLOCK_IN,
+      action: ActivityAction.CHECK_IN,
       entityType: ActivityEntityType.ATTENDANCE,
       entityId: attendance.id,
       franchiseId: driver?.franchiseId,
@@ -254,7 +254,7 @@ export async function clockIn(
     });
   } else if (staffId) {
     logActivity({
-      action: ActivityAction.STAFF_CLOCK_IN,
+      action: ActivityAction.CHECK_IN,
       entityType: ActivityEntityType.ATTENDANCE,
       entityId: attendance.id,
       franchiseId: staff?.franchiseId,
@@ -266,7 +266,7 @@ export async function clockIn(
     });
   } else if (userId && user) {
     logActivity({
-      action: ActivityAction.ATTENDANCE_RECORDED,
+      action: ActivityAction.CHECK_IN,
       entityType: ActivityEntityType.ATTENDANCE,
       entityId: attendance.id,
       franchiseId: user.franchiseId || undefined,
@@ -376,7 +376,7 @@ export async function clockOut(
   // Log activity (non-blocking)
   if (driverId) {
     logActivity({
-      action: ActivityAction.DRIVER_CLOCK_OUT,
+      action: ActivityAction.CHECK_OUT,
       entityType: ActivityEntityType.ATTENDANCE,
       entityId: attendance.id,
       franchiseId: driver?.franchiseId,
@@ -393,7 +393,7 @@ export async function clockOut(
     });
   } else if (staffId) {
     logActivity({
-      action: ActivityAction.STAFF_CLOCK_OUT,
+      action: ActivityAction.CHECK_OUT,
       entityType: ActivityEntityType.ATTENDANCE,
       entityId: attendance.id,
       franchiseId: staff?.franchiseId,
@@ -410,7 +410,7 @@ export async function clockOut(
     });
   } else if (userId && user) {
     logActivity({
-      action: ActivityAction.ATTENDANCE_RECORDED,
+      action: ActivityAction.CHECK_OUT,
       entityType: ActivityEntityType.ATTENDANCE,
       entityId: attendance.id,
       franchiseId: user.franchiseId || undefined,
@@ -433,25 +433,38 @@ export async function clockOut(
   };
 }
 
+import { AttendanceFilters } from "../repositories/attendance.repository";
+
 export async function listAttendances(
-  filters?: { driverId?: string; staffId?: string; userId?: string; startDate?: Date; endDate?: Date }
+  filters?: AttendanceFilters
 ): Promise<AttendanceResponseDTO[]> {
   const attendances = await getAllAttendances(filters);
   return attendances.map(mapAttendanceToResponse);
 }
 
 export async function listAttendancesPaginated(
-  pagination: AttendancePaginationQueryDTO
+  pagination: AttendancePaginationQueryDTO,
+  overrides?: AttendanceFilters
 ): Promise<PaginatedAttendanceResponseDTO> {
   const { page, limit, driverId, staffId, userId, startDate, endDate } = pagination;
   const skip = (page - 1) * limit;
 
-  const filters: any = {};
+  // Start with filters from pagination query
+  const filters: AttendanceFilters = {};
   if (driverId) filters.driverId = driverId;
   if (staffId) filters.staffId = staffId;
   if (userId) filters.userId = userId;
   if (startDate) filters.startDate = new Date(startDate);
   if (endDate) filters.endDate = new Date(endDate);
+
+  // Apply overrides (RBAC enforcement)
+  if (overrides) {
+    if (overrides.driverId !== undefined) filters.driverId = overrides.driverId;
+    if (overrides.staffId !== undefined) filters.staffId = overrides.staffId;
+    if (overrides.userId !== undefined) filters.userId = overrides.userId;
+    if (overrides.roleType !== undefined) filters.roleType = overrides.roleType;
+    // Date overrides if necessary, but usually date is user-selected
+  }
 
   const { data, total } = await getAttendancesPaginated(skip, limit, filters);
 

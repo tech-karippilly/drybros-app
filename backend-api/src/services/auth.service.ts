@@ -1,4 +1,4 @@
-import { UserRole, User, FranchiseStatus } from "@prisma/client";
+import { UserRole, User, FranchiseStatus, ActivityAction, ActivityEntityType } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import jwt, { SignOptions, Secret } from "jsonwebtoken";
 
@@ -6,6 +6,7 @@ import { authConfig } from "../config/authConfig";
 import { emailConfig } from "../config/emailConfig";
 import prisma from "../config/prismaClient";
 import { trackLogin } from "./attendance.service";
+import { logActivity } from "./activity.service";
 import {
   ConflictError,
   BadRequestError,
@@ -675,22 +676,39 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
   });
 
   // Track login time for attendance (non-blocking)
-  try {
-    if (userAuthShape.role === UserRole.DRIVER) {
-      await trackLogin(entityId, undefined, undefined);
-    } else if (userAuthShape.role === UserRole.STAFF || userAuthShape.role === UserRole.OFFICE_STAFF) {
-      // For staff, we need to find the staff record by email
-      const staff = await prisma.staff.findFirst({
-        where: { email: userAuthShape.email },
-        select: { id: true },
-      });
-      if (staff) {
-        await trackLogin(undefined, staff.id, undefined);
+    try {
+      if (userAuthShape.role === UserRole.DRIVER) {
+        await trackLogin(entityId, undefined, undefined);
+      } else if (userAuthShape.role === UserRole.STAFF || userAuthShape.role === UserRole.OFFICE_STAFF) {
+        // For staff, we need to find the staff record by email
+        const staff = await prisma.staff.findFirst({
+          where: { email: userAuthShape.email },
+          select: { id: true },
+        });
+        if (staff) {
+          await trackLogin(undefined, staff.id, undefined);
+        }
+      } else if (userAuthShape.role === UserRole.MANAGER) {
+        await trackLogin(undefined, undefined, entityId);
       }
-    } else if (userAuthShape.role === UserRole.MANAGER) {
-      await trackLogin(undefined, undefined, entityId);
-    }
-  } catch (error) {
+
+      // Log LOGIN activity
+      logActivity({
+        action: ActivityAction.LOGIN,
+        entityType: userAuthShape.role === UserRole.DRIVER ? ActivityEntityType.DRIVER : 
+                   (userAuthShape.role === UserRole.STAFF || userAuthShape.role === UserRole.OFFICE_STAFF ? ActivityEntityType.STAFF : (ActivityEntityType as any).USER),
+        entityId: entityId,
+        franchiseId: franchiseId,
+        driverId: userAuthShape.role === UserRole.DRIVER ? entityId : undefined,
+        staffId: userAuthShape.role === UserRole.STAFF || userAuthShape.role === UserRole.OFFICE_STAFF ? entityId : undefined,
+        userId: userAuthShape.role === UserRole.ADMIN || userAuthShape.role === UserRole.MANAGER ? entityId : undefined,
+        description: `User ${userAuthShape.email} logged in`,
+        metadata: {
+          email: userAuthShape.email,
+          role: userAuthShape.role,
+        }
+      });
+    } catch (error) {
     // Log error but don't fail login if attendance tracking fails
     logger.error("Failed to track login time", {
       error: error instanceof Error ? error.message : String(error),
@@ -1085,8 +1103,67 @@ export async function refreshToken(
  * The server just confirms the logout. In a production system with token blacklisting,
  * you would invalidate the refresh token here.
  */
-export async function logout(userId: string): Promise<LogoutResponseDTO> {
-  logger.info("User logged out", { userId });
+export async function logout(
+  userId: string,
+  role?: UserRole,
+  driverId?: string
+): Promise<LogoutResponseDTO> {
+  logger.info("User logged out", { userId, role, driverId });
+
+  // Log LOGOUT activity
+  try {
+    let franchiseId: string | undefined = undefined;
+    
+    // Resolve franchiseId if possible
+    if (role === UserRole.DRIVER && driverId) {
+      const driver = await prisma.driver.findUnique({
+        where: { id: driverId },
+        select: { franchiseId: true }
+      });
+      franchiseId = driver?.franchiseId;
+    } else if (role === UserRole.STAFF || role === UserRole.OFFICE_STAFF) {
+      const staff = await prisma.staff.findFirst({
+        where: { email: { not: undefined } }, // We might need to look up by ID if email is not available in args
+        // But we only have userId here which corresponds to User.id or Staff.id? 
+        // In login, we return entityId. 
+        // Let's assume userId passed here is the entity ID.
+      });
+      // Actually, let's trust the caller to provide enough info or look it up efficiently if needed.
+      // But for now, let's just log what we have.
+      if (userId) {
+         const staff = await prisma.staff.findUnique({
+             where: { id: userId },
+             select: { franchiseId: true }
+         });
+         franchiseId = staff?.franchiseId;
+      }
+    } else if (role === UserRole.MANAGER && userId) {
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { franchiseId: true }
+        });
+        franchiseId = user?.franchiseId || undefined;
+    }
+
+    logActivity({
+      action: ActivityAction.LOGOUT,
+      entityType: role === UserRole.DRIVER ? ActivityEntityType.DRIVER : 
+                 (role === UserRole.STAFF || role === UserRole.OFFICE_STAFF ? ActivityEntityType.STAFF : (ActivityEntityType as any).USER),
+      entityId: userId || driverId,
+      franchiseId: franchiseId,
+      driverId: role === UserRole.DRIVER ? driverId : undefined,
+      staffId: role === UserRole.STAFF || role === UserRole.OFFICE_STAFF ? userId : undefined,
+      userId: role === UserRole.ADMIN || role === UserRole.MANAGER ? userId : undefined,
+      description: `User logged out`,
+      metadata: {
+        userId,
+        role,
+        driverId
+      }
+    });
+  } catch (error) {
+    logger.error("Failed to log logout activity", { error });
+  }
   
   return {
     message: "Logged out successfully",

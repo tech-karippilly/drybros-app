@@ -42,6 +42,8 @@ export async function logActivity(data: CreateActivityLogData): Promise<void> {
       userId: activityLog.userId || undefined,
       description: activityLog.description,
       metadata: activityLog.metadata || undefined,
+      latitude: activityLog.latitude || undefined,
+      longitude: activityLog.longitude || undefined,
       createdAt: activityLog.createdAt,
     });
   } catch (error) {
@@ -67,6 +69,8 @@ function mapActivityLogToResponse(activityLog: any): ActivityLogResponseDTO {
     userId: activityLog.userId,
     description: activityLog.description,
     metadata: activityLog.metadata,
+    latitude: activityLog.latitude,
+    longitude: activityLog.longitude,
     createdAt: activityLog.createdAt,
     user: activityLog.User ? {
       id: activityLog.User.id,

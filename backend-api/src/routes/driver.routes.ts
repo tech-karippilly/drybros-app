@@ -1,6 +1,6 @@
 // src/routes/driver.routes.ts
 import express from "express";
-import { getDrivers, getDriverById, getDriverWithPerformanceHandler, getDriverPerformanceHandler, getAvailableGreenDriversHandler, getAvailableDriversHandler, getDriversByFranchisesHandler, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler, submitCashToCompanyHandler, submitCashForSettlementHandler, getDriverDailyLimitHandler, updateMyDriverLocationHandler, getMyDriverProfileHandler } from "../controllers/driver.controller";
+import { getDrivers, getDriverById, getDriverWithPerformanceHandler, getDriverPerformanceHandler, getAvailableGreenDriversHandler, getAvailableDriversHandler, getDriversByFranchisesHandler, createDriverHandler, loginDriverHandler, updateDriverHandler, updateDriverStatusHandler, softDeleteDriverHandler, submitCashToCompanyHandler, submitCashForSettlementHandler, getDriverDailyLimitHandler, updateMyDriverLocationHandler, getMyDriverProfileHandler, getDriversLiveLocationHandler } from "../controllers/driver.controller";
 import { getDriverDailyStatsHandler, getDriverMonthlyStatsHandler, getDriverSettlementHandler } from "../controllers/driverEarnings.controller";
 import { authMiddleware, requireRole } from "../middlewares/auth";
 import { UserRole } from "@prisma/client";
@@ -31,6 +31,14 @@ router.get(
 
 // POST /drivers/me/location - Driver live location updates (driver token required)
 router.post("/me/location", validate(updateDriverLocationSchema), updateMyDriverLocationHandler);
+
+// GET /drivers/live-location - View live locations (Admin, Manager, Staff)
+router.get(
+  "/live-location",
+  requireRole(UserRole.ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.OFFICE_STAFF),
+  validateQuery(z.object({ franchiseId: z.string().uuid("Invalid franchise ID format").optional() })),
+  getDriversLiveLocationHandler
+);
 
 // GET /drivers (with optional pagination and performance)
 router.get("/", validateQuery(paginationQuerySchema), getDrivers);

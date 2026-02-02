@@ -12,6 +12,11 @@ export const SOCKET_EVENTS = {
   TRIP_OFFER_RESULT: "trip_offer_result",
   TRIP_ASSIGNED: "trip_assigned",
   TRIP_OFFER_CANCELLED: "trip_offer_cancelled",
+  /**
+   * Driver app: request assigned trips list via socket.
+   * Kept as a path-style event for parity with REST route.
+   */
+  TRIPS_MY_ASSIGNED: "/trips/my-assigned",
 
   // Activity log events
   ACTIVITY_LOG_CREATED: "activity_log_created",
@@ -49,4 +54,8 @@ export const SOCKET_ERROR_MESSAGES = {
   INVALID_TOKEN: "Invalid authentication token",
   MISSING_TOKEN: "Missing authentication token",
   CONNECTION_FAILED: "Connection failed",
+} as const;
+
+export const SOCKET_LOG = {
+  CONSOLE_PREFIX: "[SOCKET]",
 } as const;

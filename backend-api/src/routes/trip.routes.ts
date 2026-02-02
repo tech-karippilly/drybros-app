@@ -24,6 +24,7 @@ import {
   verifyPaymentAndEndTripHandler,
   getTripHistoryHandler,
   getTripLogsHandler,
+  requestTripDriversHandler,
 } from "../controllers/trip.controller";
 import { authMiddleware } from "../middlewares/auth";
 import { validate, validateParams } from "../middlewares/validation";
@@ -33,6 +34,7 @@ import {
   reassignDriverSchema,
   assignDriverSchema,
 } from "../types/trip.dto";
+import { TRIP_ERROR_MESSAGES } from "../constants/trip";
 import { z } from "zod";
 
 const router = express.Router();
@@ -55,6 +57,36 @@ router.post(
   assignDriverToTripWithFranchiseHandler
 );
 router.post("/:id/assign-driver", assignDriverToTripHandler);
+
+const requestTripDriversSchema = z
+  .object({
+    mode: z.enum(["ALL", "SPECIFIC", "LIST"]).optional().default("ALL"),
+    driverId: z.string().uuid("Invalid driver ID format").optional(),
+    driverIds: z.array(z.string().uuid("Invalid driver ID format")).optional(),
+  })
+  .refine(
+    (v) => {
+      if (v.mode === "SPECIFIC") return Boolean(v.driverId);
+      if (v.mode === "LIST") return Array.isArray(v.driverIds) && v.driverIds.length > 0;
+      return true;
+    },
+    (v) => ({
+      message:
+        v.mode === "SPECIFIC"
+          ? TRIP_ERROR_MESSAGES.DISPATCH_MISSING_DRIVER_ID
+          : v.mode === "LIST"
+            ? TRIP_ERROR_MESSAGES.DISPATCH_MISSING_DRIVER_IDS
+            : "Invalid request",
+      path: ["mode"],
+    })
+  );
+
+router.post(
+  "/:id/request-drivers",
+  validateParams(z.object({ id: z.string().uuid("Invalid trip ID format") })),
+  validate(requestTripDriversSchema),
+  requestTripDriversHandler
+);
 
 router.patch("/:id/driver-accept", driverAcceptTripHandler);
 router.patch("/:id/driver-reject", driverRejectTripHandler);

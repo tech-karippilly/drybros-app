@@ -257,10 +257,10 @@ export function TripBookingForm() {
             };
             const response = await createTripPhase1(payload);
             const tripId = response.data.trip.id;
-            setSuccess(`Trip created successfully! Redirecting to assign driver...`);
+            setSuccess(BOOKING_STRINGS.SUCCESS_CREATED_REDIRECTING_REQUEST_DRIVERS);
             setCreatedTripId(tripId);
-            // Redirect to dedicated Assign Driver screen (Dybros Dispatch style)
-            router.push(`${DASHBOARD_ROUTES.ASSIGN_DRIVER}/${tripId}`);
+            // Redirect to dedicated Request Drivers screen (Dybros Dispatch style)
+            router.push(`${DASHBOARD_ROUTES.REQUEST_DRIVERS}/${tripId}`);
         } catch (err: unknown) {
             const ex = err as { response?: { data?: { error?: string }; status?: number }; message?: string };
             setError(

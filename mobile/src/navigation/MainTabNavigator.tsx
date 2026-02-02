@@ -11,7 +11,7 @@ import {
   AlertsScreen,
 } from '../screens';
 import { CustomTabBar } from './CustomTabBar';
-import { TAB_ROUTES } from '../constants/routes';
+import { TAB_ROUTES, TRIP_STACK_ROUTES } from '../constants/routes';
 import { ProfileStackNavigator } from './ProfileStackNavigator';
 import { LeaveStackNavigator } from './LeaveStackNavigator';
 import { TripStackNavigator } from './TripStackNavigator';
@@ -49,7 +49,18 @@ export function MainTabNavigator() {
       }}
     >
       <Tab.Screen name={TAB_ROUTES.HOME} component={HomeScreen} />
-      <Tab.Screen name={TAB_ROUTES.TRIP} component={TripStackNavigator} />
+      <Tab.Screen
+        name={TAB_ROUTES.TRIP}
+        component={TripStackNavigator}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            // Always bring the user to TripHome when pressing the Trip tab
+            // (prevents staying on nested screens like TripStart OTP).
+            e.preventDefault();
+            navigation.navigate(TAB_ROUTES.TRIP, { screen: TRIP_STACK_ROUTES.TRIP_HOME });
+          },
+        })}
+      />
       <Tab.Screen name={TAB_ROUTES.LEAVE} component={LeaveStackNavigator} />
       <Tab.Screen name={TAB_ROUTES.ALERTS} component={AlertsScreen} />
       <Tab.Screen name={TAB_ROUTES.PROFILE} component={ProfileStackNavigator} />

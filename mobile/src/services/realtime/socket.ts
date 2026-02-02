@@ -2,7 +2,8 @@ import { io, type Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../../constants/config';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
-import { SOCKET_EVENTS } from '../../constants/socket';
+import { SOCKET_EVENTS, SOCKET_TIMINGS_MS } from '../../constants/socket';
+import type { BackendTrip } from '../api/trips';
 
 export type TripOfferEventPayload = {
   offerId: string;
@@ -19,6 +20,10 @@ export type TripOfferResultEventPayload = {
   result: 'accepted' | 'rejected' | 'expired' | 'cancelled' | 'lost';
   reason?: string;
 };
+
+export type TripsMyAssignedAck =
+  | { data: BackendTrip[] }
+  | { error: string; message?: string };
 
 let socket: Socket | null = null;
 
@@ -56,5 +61,36 @@ export function getDriverSocket(): Socket | null {
 export function emitTripOfferAccept(offerId: string): void {
   if (!socket) return;
   socket.emit(SOCKET_EVENTS.TRIP_OFFER_ACCEPT, { offerId });
+}
+
+export async function fetchMyAssignedTripsViaSocket(): Promise<BackendTrip[]> {
+  const s = await connectDriverSocket();
+
+  return await new Promise<BackendTrip[]>((resolve, reject) => {
+    let settled = false;
+
+    const timer: ReturnType<typeof setTimeout> = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error('Socket request timed out'));
+    }, SOCKET_TIMINGS_MS.ACK_TIMEOUT);
+
+    s.emit(SOCKET_EVENTS.TRIPS_MY_ASSIGNED, {}, (ack: TripsMyAssignedAck) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+
+      if (ack && 'data' in ack && Array.isArray(ack.data)) {
+        resolve(ack.data);
+        return;
+      }
+
+      const message =
+        (ack && 'message' in ack && typeof ack.message === 'string' && ack.message) ||
+        (ack && 'error' in ack && typeof ack.error === 'string' && ack.error) ||
+        'Failed to fetch assigned trips';
+      reject(new Error(message));
+    });
+  });
 }
 

@@ -29,6 +29,7 @@ import {
 } from "../services/trip.service";
 import { PaymentStatus, PaymentMode } from "@prisma/client";
 import { requireValidUUID, validateAndGetUUID } from "../utils/validation";
+import { tripDispatchService } from "../services/tripDispatch.service";
 
 function parseTripFilters(q: Record<string, unknown>): import("../repositories/trip.repository").TripFilters | undefined {
   const dateFrom = typeof q.dateFrom === "string" ? q.dateFrom.trim() || undefined : undefined;
@@ -476,6 +477,41 @@ export async function assignDriverToTripWithFranchiseHandler(
     // Franchise is derived from the trip inside assignDriverToTrip
     const trip = await assignDriverToTrip(tripId, driverId, userId);
     res.json({ data: trip });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /trips/:id/request-drivers
+ * Manually trigger trip offers to drivers (ALL / SPECIFIC / LIST).
+ *
+ * Note: Phase-1 booking already starts dispatch automatically; this endpoint is for
+ * "request now" / "request specific driver" flows from the dispatcher UI.
+ */
+export async function requestTripDriversHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
+    const body = req.body as {
+      mode?: "ALL" | "SPECIFIC" | "LIST";
+      driverId?: string;
+      driverIds?: string[];
+    };
+
+    const mode = body.mode ?? "ALL";
+
+    if (mode === "SPECIFIC" && body.driverId) {
+      const result = await tripDispatchService.requestTripToEligibleDriverNow(tripId, body.driverId);
+      return res.json({ data: result });
+    }
+
+    if (mode === "LIST" && Array.isArray(body.driverIds)) {
+      const result = await tripDispatchService.requestTripToEligibleDriversNow(tripId, body.driverIds);
+      return res.json({ data: result });
+    }
+
+    const result = await tripDispatchService.requestTripToAllEligibleDriversNow(tripId);
+    return res.json({ data: result });
   } catch (err) {
     next(err);
   }

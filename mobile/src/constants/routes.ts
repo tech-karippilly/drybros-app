@@ -40,6 +40,8 @@ export const TRIP_STACK_ROUTES = {
   TRIP_HOME: 'TripHome',
   TRIP_DETAILS: 'TripDetails',
   TRIP_START: 'TripStart',
+  TRIP_END: 'TripEnd',
+  TRIP_PAYMENT: 'TripPayment',
 } as const;
 
 export type TripStackRouteKey = keyof typeof TRIP_STACK_ROUTES;

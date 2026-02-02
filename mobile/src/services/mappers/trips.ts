@@ -2,6 +2,7 @@ import { formatDateTime } from '../../utils/formatters';
 import type { TripItem, TripStatus } from '../../constants/trips';
 import type { HomeUpcomingTrip } from '../../constants/home';
 import { BACKEND_TRIP_STATUSES } from '../../constants/tripBackendStatus';
+import { TRIPS_STRINGS } from '../../constants/trips';
 import type { BackendTrip } from '../api/trips';
 
 const BACKEND_STATUS_TO_UI_STATUS: Record<string, TripStatus> = {
@@ -21,6 +22,11 @@ const BACKEND_STATUS_TO_UI_STATUS: Record<string, TripStatus> = {
   // Completed
   [BACKEND_TRIP_STATUSES.COMPLETED]: 'completed',
   [BACKEND_TRIP_STATUSES.TRIP_COMPLETED]: 'completed',
+  [BACKEND_TRIP_STATUSES.TRIP_ENDED]: 'completed',
+  [BACKEND_TRIP_STATUSES.PAYMENT_DONE]: 'completed',
+  [BACKEND_TRIP_STATUSES.CANCELLED_BY_CUSTOMER]: 'completed',
+  [BACKEND_TRIP_STATUSES.CANCELLED_BY_OFFICE]: 'completed',
+  [BACKEND_TRIP_STATUSES.REJECTED_BY_DRIVER]: 'completed',
 };
 
 function toUiStatus(status?: string | null): TripStatus {
@@ -51,19 +57,22 @@ export function mapBackendTripToTripItem(trip: BackendTrip): TripItem {
   const status = toUiStatus(trip.status);
 
   const scheduled = safeFormatDateTime(trip.scheduledAt);
+  const started = safeFormatDateTime(trip.startedAt);
+  const ended = safeFormatDateTime(trip.endedAt);
   const created = safeFormatDateTime(trip.createdAt);
 
   const footerLabel =
     status === 'completed'
-      ? `Completed on ${scheduled}`
+      ? `${TRIPS_STRINGS.COMPLETED_ON_PREFIX} ${ended !== 'N/A' ? ended : scheduled}`
       : status === 'ongoing'
-        ? `Started at ${scheduled}`
-        : `Scheduled for ${scheduled}`;
+        ? `${TRIPS_STRINGS.STARTED_AT_PREFIX} ${started !== 'N/A' ? started : scheduled}`
+        : `${TRIPS_STRINGS.SCHEDULED_FOR_PREFIX} ${scheduled}`;
 
   return {
     id: trip.id,
     tripIdLabel: buildTripIdLabel(trip),
     status,
+    backendStatus: trip.status ?? null,
     customerName: pickNonEmpty(trip.customerName),
     pickup: pickNonEmpty(trip.pickupAddress, trip.pickupLocation),
     drop: pickNonEmpty(trip.dropAddress, trip.dropLocation),
@@ -71,6 +80,8 @@ export function mapBackendTripToTripItem(trip: BackendTrip): TripItem {
     scheduledDateTimeLabel: scheduled,
     bookingTimeLabel: created,
     customerPhone: pickNonEmpty(trip.customerPhone),
+    startedAtISO: trip.startedAt ?? null,
+    endedAtISO: trip.endedAt ?? null,
     estDistanceKm: 'N/A',
     estDurationMin: 'N/A',
     vehicleNumber: 'N/A',

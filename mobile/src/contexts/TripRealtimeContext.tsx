@@ -22,6 +22,9 @@ type TripOfferState = {
 type TripRealtimeContextValue = {
   currentOffer: TripOfferState | null;
   lastAssignedTripId: string | null;
+  isRealtimeEnabled: boolean;
+  enableRealtime: () => void;
+  disableRealtime: () => void;
   acceptCurrentOffer: () => void;
   dismissOffer: () => void;
 };
@@ -38,6 +41,7 @@ export function TripRealtimeProvider({ children }: { children: React.ReactNode }
   const { showToast } = useToast();
   const [currentOffer, setCurrentOffer] = useState<TripOfferState | null>(null);
   const [lastAssignedTripId, setLastAssignedTripId] = useState<string | null>(null);
+  const [isRealtimeEnabled, setIsRealtimeEnabled] = useState<boolean>(false);
   const acceptingRef = useRef(false);
   const currentOfferRef = useRef<TripOfferState | null>(null);
 
@@ -48,6 +52,17 @@ export function TripRealtimeProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     let mounted = true;
     let s: any = null;
+
+    // Only connect when explicitly enabled (e.g., after clock-in).
+    if (!isRealtimeEnabled) {
+      disconnectDriverSocket();
+      setCurrentOffer(null);
+      setLastAssignedTripId(null);
+      acceptingRef.current = false;
+      return () => {
+        mounted = false;
+      };
+    }
 
     const init = async () => {
       try {
@@ -122,7 +137,15 @@ export function TripRealtimeProvider({ children }: { children: React.ReactNode }
       mounted = false;
       disconnectDriverSocket();
     };
-  }, [showToast]);
+  }, [isRealtimeEnabled, showToast]);
+
+  const enableRealtime = useCallback(() => {
+    setIsRealtimeEnabled(true);
+  }, []);
+
+  const disableRealtime = useCallback(() => {
+    setIsRealtimeEnabled(false);
+  }, []);
 
   const dismissOffer = useCallback(() => {
     setCurrentOffer(null);
@@ -167,8 +190,16 @@ export function TripRealtimeProvider({ children }: { children: React.ReactNode }
   }, [currentOffer]);
 
   const value = useMemo<TripRealtimeContextValue>(
-    () => ({ currentOffer, lastAssignedTripId, acceptCurrentOffer, dismissOffer }),
-    [currentOffer, lastAssignedTripId, acceptCurrentOffer, dismissOffer]
+    () => ({
+      currentOffer,
+      lastAssignedTripId,
+      isRealtimeEnabled,
+      enableRealtime,
+      disableRealtime,
+      acceptCurrentOffer,
+      dismissOffer,
+    }),
+    [currentOffer, lastAssignedTripId, isRealtimeEnabled, enableRealtime, disableRealtime, acceptCurrentOffer, dismissOffer]
   );
 
   return (

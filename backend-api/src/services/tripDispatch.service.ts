@@ -40,6 +40,53 @@ class TripDispatchService {
   }
 
   /**
+   * Immediately request a trip to all eligible drivers (no staggering).
+   * Safe to call multiple times; duplicate offers are ignored.
+   */
+  async requestTripToAllEligibleDriversNow(tripId: string): Promise<{ requested: number }> {
+    const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+    if (!trip) return { requested: 0 };
+    if (trip.driverId) return { requested: 0 };
+
+    const candidates = await this.listCandidateDrivers(trip.franchiseId);
+    const candidateDriverIds = candidates.map((d) => d.id);
+
+    let requested = 0;
+    for (const driverId of candidateDriverIds) {
+      const created = await this.offerTripToDriver(tripId, driverId);
+      if (created) requested += 1;
+    }
+
+    return { requested };
+  }
+
+  /**
+   * Immediately request a trip to specific driver(s), but only if they are eligible candidates.
+   * Duplicate offers are ignored.
+   */
+  async requestTripToEligibleDriversNow(tripId: string, driverIds: string[]): Promise<{ requested: number }> {
+    const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+    if (!trip) return { requested: 0 };
+    if (trip.driverId) return { requested: 0 };
+
+    const candidates = await this.listCandidateDrivers(trip.franchiseId);
+    const candidateSet = new Set(candidates.map((d) => d.id));
+
+    let requested = 0;
+    for (const driverId of driverIds) {
+      if (!candidateSet.has(driverId)) continue;
+      const created = await this.offerTripToDriver(tripId, driverId);
+      if (created) requested += 1;
+    }
+
+    return { requested };
+  }
+
+  async requestTripToEligibleDriverNow(tripId: string, driverId: string): Promise<{ requested: number }> {
+    return this.requestTripToEligibleDriversNow(tripId, [driverId]);
+  }
+
+  /**
    * Called after an offer transitions to ACCEPTED (REST or socket).
    * We wait a short grace window to allow multiple accepts, then assign the winner.
    */
@@ -84,20 +131,57 @@ class TripDispatchService {
     });
   }
 
-  private async offerTripToDriver(tripId: string, driverId: string): Promise<void> {
+  private async offerTripToDriver(tripId: string, driverId: string): Promise<boolean> {
     const trip = await prisma.trip.findUnique({ where: { id: tripId } });
-    if (!trip) return;
-    if (trip.driverId) return; // assigned, stop offering
+    if (!trip) return false;
+    if (trip.driverId) return false; // assigned, stop offering
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + DISPATCH_CONFIG.OFFER_TTL_MS);
 
-    // Prevent duplicate offers to the same driver for the same trip.
+    // Prevent duplicate offers to the same driver for the same trip,
+    // BUT allow "re-request" if the previous offer is expired/cancelled/rejected.
     const existing = await prisma.tripOffer.findFirst({
       where: { tripId, driverId },
-      select: { id: true },
+      select: { id: true, status: true, expiresAt: true },
     });
-    if (existing) return;
+    if (existing) {
+      const isExpiredByTime = existing.expiresAt.getTime() <= now.getTime();
+      const isTerminalStatus = existing.status !== TripOfferStatus.OFFERED && existing.status !== TripOfferStatus.ACCEPTED;
+      const canReOffer = isExpiredByTime || isTerminalStatus;
+
+      if (!canReOffer) return false;
+
+      const offer = await prisma.tripOffer.update({
+        where: { id: existing.id },
+        data: {
+          status: TripOfferStatus.OFFERED,
+          offeredAt: now,
+          expiresAt,
+          acceptedAt: null,
+          rejectedAt: null,
+        },
+      });
+
+      socketService.emitTripOffer(driverId, {
+        offerId: offer.id,
+        trip: {
+          id: trip.id,
+          customerName: trip.customerName,
+          customerPhone: trip.customerPhone,
+          pickupAddress: trip.pickupAddress,
+          dropAddress: trip.dropAddress,
+          pickupLocation: trip.pickupLocation,
+          dropLocation: trip.dropLocation,
+          scheduledAt: trip.scheduledAt,
+          pickupLat: trip.pickupLat,
+          pickupLng: trip.pickupLng,
+        },
+        expiresAt: expiresAt.toISOString(),
+      });
+
+      return true;
+    }
 
     const offer = await prisma.tripOffer.create({
       data: {
@@ -124,6 +208,8 @@ class TripDispatchService {
       },
       expiresAt: expiresAt.toISOString(),
     });
+
+    return true;
   }
 
   private async finalizeAssignment(tripId: string): Promise<void> {

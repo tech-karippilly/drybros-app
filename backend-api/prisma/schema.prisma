@@ -208,6 +208,7 @@ model Trip {
   updatedAt            DateTime
   alternativePhone     String?
   carType              String?
+  carGearType          String?
   customerEmail        String?
   dropLocationNote     String?
   isDetailsReconfirmed Boolean        @default(false)

@@ -40,6 +40,9 @@ export const TRIP_ERROR_MESSAGES = {
   INVALID_CANCELLED_BY: "cancelledBy must be OFFICE or CUSTOMER",
   TRIP_HAS_NO_DRIVER: "Trip has no driver to reassign",
   REASSIGN_SAME_DRIVER: "New driver must be different from current driver",
+  // Dispatch / trip offers (request-to-drivers)
+  DISPATCH_MISSING_DRIVER_ID: "driverId is required when mode is SPECIFIC",
+  DISPATCH_MISSING_DRIVER_IDS: "driverIds is required when mode is LIST",
 } as const;
 
 /** Trip statuses that allow reschedule (before trip has started) */

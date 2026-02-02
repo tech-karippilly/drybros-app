@@ -33,6 +33,7 @@ import {
 } from '../constants';
 import { normalizeHeight, normalizeWidth } from '../utils/responsive';
 import type { TripStackParamList } from '../navigation/TripStackNavigator';
+import { startTripInitiateApi, startTripVerifyApi } from '../services/api/trips';
 
 type Props = NativeStackScreenProps<TripStackParamList, typeof TRIP_STACK_ROUTES.TRIP_START>;
 
@@ -70,6 +71,9 @@ export function TripStartScreen({ navigation, route }: Props) {
   );
   const [pickerVisible, setPickerVisible] = useState(false);
   const [activePhotoKey, setActivePhotoKey] = useState<PhotoKey>('odometerPic');
+  const [token, setToken] = useState<string | null>(null);
+  const [otpText, setOtpText] = useState<string>('');
+  const [submitting, setSubmitting] = useState(false);
 
   const openPicker = useCallback((key: PhotoKey) => {
     setActivePhotoKey(key);
@@ -105,7 +109,12 @@ export function TripStartScreen({ navigation, route }: Props) {
     );
   }, [odometerText, photos]);
 
-  const submit = useCallback(() => {
+  const initiate = useCallback(async () => {
+    if (!trip?.id) {
+      showToast({ message: TRIP_START_STRINGS.ERROR_TRIP_MISSING, type: 'error', position: 'top' });
+      return;
+    }
+
     const value = Number(odometerText);
     if (!odometerText.trim()) {
       showToast({ message: TRIP_START_STRINGS.ERROR_ODOMETER_REQUIRED, type: 'error', position: 'top' });
@@ -135,16 +144,52 @@ export function TripStartScreen({ navigation, route }: Props) {
       carBackPic: photos.carBackPic.uri,
     };
 
-    // Ready for API wiring: payload matches required backend shape.
-    // For now we just return to Trip Details (you can plug this into an API next).
-    if (__DEV__) {
-      // Useful during API wiring: shows the exact payload shape.
-      // eslint-disable-next-line no-console
-      console.log(payload);
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await startTripInitiateApi(trip.id, payload);
+      setToken(res.token);
+      showToast({ message: TRIP_START_STRINGS.OTP_SENT, type: 'success', position: 'top' });
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.message ||
+        TRIP_START_STRINGS.ERROR_INITIATE_FAILED;
+      showToast({ message: msg, type: 'error', position: 'top' });
+    } finally {
+      setSubmitting(false);
     }
-    showToast({ message: TRIP_START_STRINGS.SUCCESS, type: 'success', position: 'top' });
-    navigation.goBack();
-  }, [navigation, odometerText, photos, showToast]);
+  }, [odometerText, photos, showToast, submitting, trip?.id]);
+
+  const verify = useCallback(async () => {
+    if (!trip?.id) {
+      showToast({ message: TRIP_START_STRINGS.ERROR_TRIP_MISSING, type: 'error', position: 'top' });
+      return;
+    }
+    if (!token) return;
+    if (!otpText.trim()) {
+      showToast({ message: TRIP_START_STRINGS.ERROR_OTP_REQUIRED, type: 'error', position: 'top' });
+      return;
+    }
+    if (submitting) return;
+
+    setSubmitting(true);
+    try {
+      await startTripVerifyApi(trip.id, { token, otp: otpText.trim() });
+      showToast({ message: TRIP_START_STRINGS.SUCCESS, type: 'success', position: 'top' });
+      navigation.goBack();
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.message ||
+        TRIP_START_STRINGS.ERROR_VERIFY_FAILED;
+      showToast({ message: msg, type: 'error', position: 'top' });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [navigation, otpText, showToast, submitting, token, trip?.id]);
 
   const screenPaddingTop = insets.top;
   const screenPaddingBottom = Math.max(insets.bottom, normalizeHeight(TRIP_START_LAYOUT.BOTTOM_PADDING));
@@ -187,47 +232,76 @@ export function TripStartScreen({ navigation, route }: Props) {
         </View>
 
         <View style={styles.formCard}>
-          <Input
-            label={TRIP_START_STRINGS.ODOMETER_VALUE_LABEL}
-            value={odometerText}
-            onChangeText={setOdometerText}
-            placeholder={TRIP_START_STRINGS.ODOMETER_VALUE_PLACEHOLDER}
-            helperText={TRIP_START_STRINGS.ODOMETER_VALUE_HELPER}
-            keyboardType={Platform.OS === 'ios' ? 'decimal-pad' : 'numeric'}
-          />
+          {!token ? (
+            <>
+              <Input
+                label={TRIP_START_STRINGS.ODOMETER_VALUE_LABEL}
+                value={odometerText}
+                onChangeText={setOdometerText}
+                placeholder={TRIP_START_STRINGS.ODOMETER_VALUE_PLACEHOLDER}
+                helperText={TRIP_START_STRINGS.ODOMETER_VALUE_HELPER}
+                keyboardType={Platform.OS === 'ios' ? 'decimal-pad' : 'numeric'}
+              />
 
-          <Text variant="body" weight="semiBold" style={styles.photoSectionTitle}>
-            {TRIP_START_STRINGS.PHOTO_SECTION_TITLE}
-          </Text>
+              <Text variant="body" weight="semiBold" style={styles.photoSectionTitle}>
+                {TRIP_START_STRINGS.PHOTO_SECTION_TITLE}
+              </Text>
 
-          <View style={styles.photoGrid}>
-            <PhotoTile
-              label={TRIP_START_STRINGS.ODOMETER_PHOTO_LABEL}
-              asset={photos.odometerPic}
-              onPress={() => openPicker('odometerPic')}
-            />
-            <PhotoTile
-              label={TRIP_START_STRINGS.CAR_FRONT_PHOTO_LABEL}
-              asset={photos.carFrontPic}
-              onPress={() => openPicker('carFrontPic')}
-            />
-            <PhotoTile
-              label={TRIP_START_STRINGS.CAR_BACK_PHOTO_LABEL}
-              asset={photos.carBackPic}
-              onPress={() => openPicker('carBackPic')}
-            />
-          </View>
+              <View style={styles.photoGrid}>
+                <PhotoTile
+                  label={TRIP_START_STRINGS.ODOMETER_PHOTO_LABEL}
+                  asset={photos.odometerPic}
+                  onPress={() => openPicker('odometerPic')}
+                />
+                <PhotoTile
+                  label={TRIP_START_STRINGS.CAR_FRONT_PHOTO_LABEL}
+                  asset={photos.carFrontPic}
+                  onPress={() => openPicker('carFrontPic')}
+                />
+                <PhotoTile
+                  label={TRIP_START_STRINGS.CAR_BACK_PHOTO_LABEL}
+                  asset={photos.carBackPic}
+                  onPress={() => openPicker('carBackPic')}
+                />
+              </View>
 
-          <View style={styles.actionRow}>
-            <PrimaryButton
-              label={TRIP_START_STRINGS.SUBMIT}
-              onPress={submit}
-              backgroundColor={TRIP_START_COLORS.PRIMARY_BG}
-              textColor={TRIP_START_COLORS.PRIMARY_TEXT}
-              height={normalizeHeight(TRIP_START_LAYOUT.ACTION_BTN_HEIGHT)}
-              disabled={!canSubmit || cameraLoading}
-            />
-          </View>
+              <View style={styles.actionRow}>
+                <PrimaryButton
+                  label={TRIP_START_STRINGS.SUBMIT}
+                  onPress={initiate}
+                  backgroundColor={TRIP_START_COLORS.PRIMARY_BG}
+                  textColor={TRIP_START_COLORS.PRIMARY_TEXT}
+                  height={normalizeHeight(TRIP_START_LAYOUT.ACTION_BTN_HEIGHT)}
+                  disabled={!canSubmit || cameraLoading || submitting}
+                />
+              </View>
+            </>
+          ) : (
+            <>
+              <Text variant="body" weight="semiBold" style={styles.photoSectionTitle}>
+                {TRIP_START_STRINGS.OTP_TITLE}
+              </Text>
+              <Input
+                label={TRIP_START_STRINGS.OTP_LABEL}
+                value={otpText}
+                onChangeText={setOtpText}
+                placeholder={TRIP_START_STRINGS.OTP_PLACEHOLDER}
+                helperText={TRIP_START_STRINGS.OTP_HELPER}
+                keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+              />
+
+              <View style={styles.actionRow}>
+                <PrimaryButton
+                  label={TRIP_START_STRINGS.VERIFY}
+                  onPress={verify}
+                  backgroundColor={TRIP_START_COLORS.PRIMARY_BG}
+                  textColor={TRIP_START_COLORS.PRIMARY_TEXT}
+                  height={normalizeHeight(TRIP_START_LAYOUT.ACTION_BTN_HEIGHT)}
+                  disabled={cameraLoading || submitting}
+                />
+              </View>
+            </>
+          )}
         </View>
       </ScrollView>
 

@@ -4,10 +4,11 @@ import { Server as SocketIOServer, Socket } from "socket.io";
 import jwt from "jsonwebtoken";
 import { authConfig } from "../config/authConfig";
 import { UserRole } from "@prisma/client";
-import { SOCKET_EVENTS, SOCKET_ROOMS, SOCKET_ERROR_MESSAGES } from "../constants/socket";
+import { SOCKET_EVENTS, SOCKET_ROOMS, SOCKET_ERROR_MESSAGES, SOCKET_LOG } from "../constants/socket";
 import logger from "../config/logger";
 import { acceptTripOffer } from "../repositories/tripOffer.repository";
 import { tripDispatchService } from "./tripDispatch.service";
+import { getTripsByDriver } from "../repositories/trip.repository";
 
 export interface SocketUser {
   userId?: string;
@@ -66,9 +67,84 @@ export type TripAssignedPayload = {
   tripId: string;
 };
 
+type TripsMyAssignedAck =
+  | { data: any[] }
+  | { error: string; message: string };
+
 class SocketService {
   private io: SocketIOServer | null = null;
   private connectedUsers: Map<string, SocketUser> = new Map();
+
+  private shouldConsoleLog(): boolean {
+    // Keep console logs noisy only in development by default.
+    return process.env.NODE_ENV === "DEVELOPMENT";
+  }
+
+  private consoleLog(message: string, meta?: Record<string, unknown>): void {
+    if (!this.shouldConsoleLog()) return;
+    if (meta) {
+      // eslint-disable-next-line no-console
+      console.log(SOCKET_LOG.CONSOLE_PREFIX, message, meta);
+      return;
+    }
+    // eslint-disable-next-line no-console
+    console.log(SOCKET_LOG.CONSOLE_PREFIX, message);
+  }
+
+  private static getSocketIdentity(socket: Socket): Record<string, unknown> {
+    const userData = socket.data?.user as Record<string, unknown> | undefined;
+    return {
+      socketId: socket.id,
+      userId: userData?.userId,
+      driverId: userData?.driverId,
+      staffId: userData?.staffId,
+      role: userData?.role,
+      franchiseId: userData?.franchiseId,
+    };
+  }
+
+  private static summarizeArgs(args: unknown[]): unknown[] {
+    const summarizeArg = (arg: unknown): unknown => {
+      if (arg === null || arg === undefined) return arg;
+
+      const t = typeof arg;
+      if (t === "string") {
+        const str = arg as string;
+        return str.length > 250 ? `${str.slice(0, 250)}…(len=${str.length})` : str;
+      }
+      if (t === "number" || t === "boolean") return arg;
+      if (arg instanceof Date) return arg.toISOString();
+      if (Array.isArray(arg)) return { type: "array", length: arg.length };
+
+      // Buffer exists in Node runtime; keep this defensive.
+      const maybeBuffer = arg as { constructor?: { name?: string }; length?: number };
+      if (maybeBuffer?.constructor?.name === "Buffer" && typeof maybeBuffer.length === "number") {
+        return { type: "buffer", length: maybeBuffer.length };
+      }
+
+      if (t === "object") {
+        const obj = arg as Record<string, unknown>;
+        const keys = Object.keys(obj);
+        const preview: Record<string, unknown> = {};
+
+        for (const key of keys.slice(0, 15)) {
+          const v = obj[key];
+          if (v === null || v === undefined) preview[key] = v;
+          else if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") preview[key] = v;
+          else if (Array.isArray(v)) preview[key] = `[array:${v.length}]`;
+          else if (typeof v === "object") preview[key] = "[object]";
+          else preview[key] = `[${typeof v}]`;
+        }
+
+        return { type: "object", keysCount: keys.length, keys: keys.slice(0, 20), preview };
+      }
+
+      if (t === "function") return "[function]";
+      return String(arg);
+    };
+
+    return args.map(summarizeArg);
+  }
 
   /**
    * Initialize Socket.IO server
@@ -94,6 +170,15 @@ class SocketService {
       transports: ["websocket", "polling"],
     });
 
+    // Engine-level connection errors (handshake / transport issues)
+    this.io.engine.on("connection_error", (err: any) => {
+      this.consoleLog("engine_connection_error", {
+        code: err?.code,
+        message: err?.message,
+        context: err?.context,
+      });
+    });
+
     this.setupMiddleware();
     this.setupEventHandlers();
 
@@ -110,7 +195,16 @@ class SocketService {
       try {
         const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace("Bearer ", "");
 
+        this.consoleLog("auth_handshake", {
+          socketId: socket.id,
+          hasToken: Boolean(token),
+          origin: socket.handshake.headers?.origin,
+          userAgent: socket.handshake.headers?.["user-agent"],
+          address: socket.handshake.address,
+        });
+
         if (!token) {
+          this.consoleLog("auth_missing_token", { socketId: socket.id });
           return next(new Error(SOCKET_ERROR_MESSAGES.MISSING_TOKEN));
         }
 
@@ -120,16 +214,33 @@ class SocketService {
           // Attach user info to socket
           socket.data.user = payload;
 
+          this.consoleLog("auth_ok", {
+            socketId: socket.id,
+            userId: payload?.userId,
+            driverId: payload?.driverId,
+            staffId: payload?.staffId,
+            role: payload?.role,
+            franchiseId: payload?.franchiseId,
+          });
+
           next();
         } catch (error) {
           logger.warn("Socket authentication failed", {
             error: error instanceof Error ? error.message : String(error),
             socketId: socket.id,
           });
+          this.consoleLog("auth_invalid_token", {
+            socketId: socket.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
           next(new Error(SOCKET_ERROR_MESSAGES.INVALID_TOKEN));
         }
       } catch (error) {
         logger.error("Socket middleware error", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        this.consoleLog("auth_middleware_error", {
+          socketId: socket.id,
           error: error instanceof Error ? error.message : String(error),
         });
         next(new Error(SOCKET_ERROR_MESSAGES.CONNECTION_FAILED));
@@ -144,6 +255,27 @@ class SocketService {
     if (!this.io) return;
 
     this.io.on(SOCKET_EVENTS.CONNECT, (socket: Socket) => {
+      // Log every incoming event ("requested") for this socket (dev only).
+      socket.onAny((event: string, ...args: unknown[]) => {
+        this.consoleLog("event_in", {
+          event,
+          ...SocketService.getSocketIdentity(socket),
+          args: SocketService.summarizeArgs(args),
+        });
+      });
+
+      // Log every outgoing event for this socket (if supported by current socket.io version).
+      const anySocket = socket as unknown as { onAnyOutgoing?: (listener: (...args: unknown[]) => void) => void };
+      if (typeof anySocket.onAnyOutgoing === "function") {
+        anySocket.onAnyOutgoing((event: unknown, ...args: unknown[]) => {
+          this.consoleLog("event_out", {
+            event,
+            ...SocketService.getSocketIdentity(socket),
+            args: SocketService.summarizeArgs(args),
+          });
+        });
+      }
+
       const userData = socket.data.user;
       const socketUser: SocketUser = {
         socketId: socket.id,
@@ -166,12 +298,24 @@ class SocketService {
           driverId: userData.driverId,
           socketId: socket.id,
         });
+        this.consoleLog("connected_driver", {
+          socketId: socket.id,
+          driverId: userData.driverId,
+          franchiseId: userData.franchiseId,
+          rooms: Array.from(socket.rooms),
+          origin: socket.handshake.headers?.origin,
+          address: socket.handshake.address,
+        });
 
         // Driver trip offer accept (real-time)
         socket.on(SOCKET_EVENTS.TRIP_OFFER_ACCEPT, async (payload: TripOfferAcceptPayload) => {
           try {
             const offerId = payload?.offerId;
             if (!offerId) {
+              this.consoleLog("trip_offer_accept_missing_offerId", {
+                socketId: socket.id,
+                driverId: userData.driverId,
+              });
               socket.emit(SOCKET_EVENTS.TRIP_OFFER_RESULT, {
                 offerId: "",
                 result: "rejected",
@@ -180,8 +324,19 @@ class SocketService {
               return;
             }
 
+            this.consoleLog("trip_offer_accept_requested", {
+              socketId: socket.id,
+              driverId: userData.driverId,
+              offerId,
+            });
+
             const updated = await acceptTripOffer(offerId, userData.driverId);
             if (!updated) {
+              this.consoleLog("trip_offer_accept_offer_not_found", {
+                socketId: socket.id,
+                driverId: userData.driverId,
+                offerId,
+              });
               socket.emit(SOCKET_EVENTS.TRIP_OFFER_RESULT, {
                 offerId,
                 result: "rejected",
@@ -203,6 +358,15 @@ class SocketService {
               tripDispatchService.notifyOfferAccepted(updated.tripId).catch(() => {});
             }
 
+            this.consoleLog("trip_offer_accept_result", {
+              socketId: socket.id,
+              driverId: userData.driverId,
+              offerId,
+              status: updated.status,
+              tripId: updated.tripId,
+              result,
+            });
+
             socket.emit(SOCKET_EVENTS.TRIP_OFFER_RESULT, {
               offerId,
               result,
@@ -213,7 +377,45 @@ class SocketService {
               driverId: userData.driverId,
               socketId: socket.id,
             });
+            this.consoleLog("trip_offer_accept_failed", {
+              socketId: socket.id,
+              driverId: userData.driverId,
+              error: error instanceof Error ? error.message : String(error),
+            });
             socket.emit(SOCKET_EVENTS.ERROR, { message: "Trip offer accept failed" });
+          }
+        });
+
+        /**
+         * Driver app: fetch "my assigned trips" via socket with ack callback.
+         *
+         * Client should call:
+         *   socket.emit("/trips/my-assigned", {}, (ack) => { ... })
+         */
+        socket.on(SOCKET_EVENTS.TRIPS_MY_ASSIGNED, async (_payload: unknown, ack?: (res: TripsMyAssignedAck) => void) => {
+          try {
+            const driverId = userData.driverId as string | undefined;
+            if (!driverId) {
+              if (typeof ack === "function") {
+                ack({ error: "unauthorized", message: SOCKET_ERROR_MESSAGES.UNAUTHORIZED });
+              }
+              return;
+            }
+
+            const trips = await getTripsByDriver(driverId);
+            if (typeof ack === "function") {
+              ack({ data: trips as any[] });
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.error("Socket my-assigned trips failed", {
+              error: message,
+              driverId: userData.driverId,
+              socketId: socket.id,
+            });
+            if (typeof ack === "function") {
+              ack({ error: "failed", message });
+            }
           }
         });
       } else if (userData.userId) {
@@ -246,24 +448,37 @@ class SocketService {
           role: userData.role,
           socketId: socket.id,
         });
+        this.consoleLog("connected_user", {
+          socketId: socket.id,
+          userId: userData.userId,
+          staffId: userData.staffId,
+          role: userData.role,
+          franchiseId: userData.franchiseId,
+          rooms: Array.from(socket.rooms),
+          origin: socket.handshake.headers?.origin,
+          address: socket.handshake.address,
+        });
       }
 
       // Handle room joining
       socket.on(SOCKET_EVENTS.JOIN_ROOM, (room: string) => {
         socket.join(room);
         logger.debug("Socket joined room", { socketId: socket.id, room });
+        this.consoleLog("join_room", { room, ...SocketService.getSocketIdentity(socket) });
       });
 
       // Handle room leaving
       socket.on(SOCKET_EVENTS.LEAVE_ROOM, (room: string) => {
         socket.leave(room);
         logger.debug("Socket left room", { socketId: socket.id, room });
+        this.consoleLog("leave_room", { room, ...SocketService.getSocketIdentity(socket) });
       });
 
       // Handle disconnection
-      socket.on(SOCKET_EVENTS.DISCONNECT, () => {
+      socket.on(SOCKET_EVENTS.DISCONNECT, (reason: string) => {
         this.connectedUsers.delete(socket.id);
         logger.info("Socket disconnected", { socketId: socket.id });
+        this.consoleLog("disconnected", { reason, ...SocketService.getSocketIdentity(socket) });
       });
     });
   }

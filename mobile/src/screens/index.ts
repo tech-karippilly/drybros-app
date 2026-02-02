@@ -11,6 +11,8 @@ export * from './HomeScreen';
 export * from './TripScreen';
 export * from './TripDetailsScreen';
 export * from './TripStartScreen';
+export * from './TripEndScreen';
+export * from './TripPaymentScreen';
 export * from './LeaveScreen';
 export * from './ApplyLeaveScreen';
 export * from './AlertsScreen';

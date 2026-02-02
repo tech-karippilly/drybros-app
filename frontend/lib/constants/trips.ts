@@ -121,6 +121,8 @@ export const BOOKING_STRINGS = {
     SELECT_FRANCHISE: 'Select franchise',
     SELECT_TRIP_TYPE: 'Select trip type',
     LOADING_FRANCHISES: 'Loading franchises...',
+    SUCCESS_CREATED_REDIRECTING_REQUEST_DRIVERS:
+        'Trip created successfully! Redirecting to request drivers...',
 } as const;
 
 /** Statuses that allow reschedule */
@@ -158,4 +160,33 @@ export const ASSIGN_DRIVER_STRINGS = {
     NO_DRIVERS: 'No available drivers for this trip.',
     LOADING_TRIP: 'Loading trip details...',
     LOADING_DRIVERS: 'Loading available drivers...',
+} as const;
+
+/** Request Drivers screen (after booking) – trigger trip offers via dispatch */
+export const REQUEST_DRIVERS_STRINGS = {
+    PAGE_TITLE: 'Request Drivers',
+    PAGE_SUBTITLE: 'Send this trip request to drivers (all or specific).',
+    DISPATCH_NOTE:
+        'Dispatch already starts automatically after booking. Use this screen to request immediately or target specific drivers.',
+    INVALID_TRIP: 'Invalid trip. Missing trip ID.',
+    PLACEHOLDER_DASH: '—',
+    ERROR_LOAD_TRIP: 'Failed to load trip details',
+    ERROR_REQUEST_DRIVERS: 'Failed to request drivers',
+    ERROR_REQUEST_DRIVER: 'Failed to request driver',
+    TRIP_DETAILS: 'Trip Details',
+    PICKUP: 'Pickup',
+    DESTINATION: 'Destination',
+    DATE: 'Date',
+    TIME: 'Time',
+    SEARCH_PLACEHOLDER: 'Search driver by name...',
+    AVAILABLE_DRIVERS: 'Drivers',
+    REQUEST_ALL: 'Request All Drivers Now',
+    REQUEST_DRIVER: 'Request Driver',
+    REQUESTING: 'Requesting...',
+    MANUAL_ASSIGN: 'Manual Assign',
+    BACK_TO_BOOKING: 'Back to Booking',
+    LOADING_TRIP: 'Loading trip details...',
+    LOADING_DRIVERS: 'Loading drivers...',
+    NO_DRIVERS: 'No eligible drivers found for this trip.',
+    REQUESTED_COUNT_TEMPLATE: 'Requested {count} driver(s).',
 } as const;

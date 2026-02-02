@@ -9,7 +9,7 @@
  */
 
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, Image, Dimensions, TouchableOpacity, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Image, Dimensions, TouchableOpacity, Platform, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -31,7 +31,9 @@ import {
   HOME_LAYOUT,
   HOME_STRINGS,
   LOCATION_TRACKING,
+  SOCKET_TIMINGS_MS,
   isBackendTripOngoing,
+  BACKEND_TRIP_STATUSES,
   type HomeUpcomingTrip,
 } from '../constants';
 import { getFontFamily } from '../constants/typography';
@@ -44,6 +46,7 @@ import { getMyAssignedTripsApi } from '../services/api/trips';
 import { mapBackendTripToHomeUpcomingTrip } from '../services/mappers/trips';
 import { useLocation } from '../hooks/useLocation';
 import { updateMyDriverLocationApi } from '../services/api/driverLocation';
+import { fetchMyAssignedTripsViaSocket } from '../services/realtime/socket';
 import { haversineDistanceMeters } from '../utils/geo';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -67,7 +70,7 @@ export function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const { showToast } = useToast();
-  const { lastAssignedTripId } = useTripRealtime();
+  const { lastAssignedTripId, enableRealtime, disableRealtime } = useTripRealtime();
   const { getCurrentLocation, watchPosition } = useLocation();
   const [isCheckedIn, setIsCheckedIn] = useState<boolean>(false);
   const [checkedInAt, setCheckedInAt] = useState<string | null>(null);
@@ -75,6 +78,9 @@ export function HomeScreen() {
   const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [isOnTrip, setIsOnTrip] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [swipeResetSeed, setSwipeResetSeed] = useState(0);
+  const myAssignedDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const locationSubscriptionRef = useRef<any>(null);
   const lastLocationSentRef = useRef<{
     sentAtMs: number;
@@ -88,6 +94,37 @@ export function HomeScreen() {
   const [target, setTarget] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [upcomingTrips, setUpcomingTrips] = useState<HomeUpcomingTrip[]>([]);
   const upcomingCount = upcomingTrips.length;
+
+  const syncAssignedTripsViaSocket = useCallback(async () => {
+    // Only meaningful when clocked-in and not on an ongoing trip.
+    if (!isCheckedIn) return;
+    if (isOnTrip) return;
+
+    try {
+      const assigned = await fetchMyAssignedTripsViaSocket();
+      setIsOnTrip(assigned.some((t) => isBackendTripOngoing(t.status)));
+      setUpcomingTrips(assigned.map(mapBackendTripToHomeUpcomingTrip));
+    } catch {
+      // Socket is optional; fallback to REST silently.
+      try {
+        const assigned = await getMyAssignedTripsApi();
+        setIsOnTrip(assigned.some((t) => isBackendTripOngoing(t.status)));
+        setUpcomingTrips(assigned.map(mapBackendTripToHomeUpcomingTrip));
+      } catch {
+        // Ignore; loadHomeData already shows errors when appropriate.
+      }
+    }
+  }, [isCheckedIn, isOnTrip]);
+
+  const debouncedSyncAssignedTrips = useCallback(() => {
+    if (myAssignedDebounceRef.current) {
+      clearTimeout(myAssignedDebounceRef.current);
+    }
+    myAssignedDebounceRef.current = setTimeout(() => {
+      myAssignedDebounceRef.current = null;
+      syncAssignedTripsViaSocket().catch(() => {});
+    }, SOCKET_TIMINGS_MS.MY_ASSIGNED_DEBOUNCE);
+  }, [syncAssignedTripsViaSocket]);
 
   const targetPercent = useMemo(() => {
     const p = target.total > 0 ? Math.round((target.current / target.total) * 100) : 0;
@@ -130,6 +167,16 @@ export function HomeScreen() {
     }
   }, [showToast]);
 
+  const onRefresh = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await loadHomeData();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadHomeData, refreshing]);
+
   useEffect(() => {
     loadHomeData();
   }, [loadHomeData]);
@@ -140,11 +187,37 @@ export function HomeScreen() {
     }
   }, [lastAssignedTripId, loadHomeData]);
 
+  useEffect(() => {
+    // Realtime should only run when the driver is clocked-in.
+    if (isCheckedIn) {
+      enableRealtime();
+    } else {
+      disableRealtime();
+    }
+  }, [disableRealtime, enableRealtime, isCheckedIn]);
+
+  useEffect(() => {
+    // After clock-in, if there is no ongoing trip, ask for assigned trips via socket (debounced).
+    if (!isCheckedIn) return;
+    if (isOnTrip) return;
+    debouncedSyncAssignedTrips();
+  }, [debouncedSyncAssignedTrips, isCheckedIn, isOnTrip]);
+
   useFocusEffect(
     useCallback(() => {
+      setSwipeResetSeed((s) => s + 1);
       loadHomeData();
     }, [loadHomeData])
   );
+
+  useEffect(() => {
+    return () => {
+      if (myAssignedDebounceRef.current) {
+        clearTimeout(myAssignedDebounceRef.current);
+        myAssignedDebounceRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     shouldSendLocationRef.current = Boolean(isCheckedIn) && !Boolean(isOnTrip);
@@ -271,9 +344,14 @@ export function HomeScreen() {
     try {
       const res = await clockInApi();
       setIsCheckedIn(true);
+      enableRealtime();
       if (res?.data?.clockIn) {
         const d = new Date(res.data.clockIn);
         setCheckedInAt(Number.isNaN(d.getTime()) ? null : formatTime(d));
+      }
+      // If not on an ongoing trip, refresh assigned trips via socket (debounced).
+      if (!isOnTrip) {
+        debouncedSyncAssignedTrips();
       }
     } catch (error: any) {
       const errorMessage =
@@ -285,7 +363,7 @@ export function HomeScreen() {
     } finally {
       setCheckInLoading(false);
     }
-  }, [checkInLoading, isCheckedIn, openCheckoutModal, showToast]);
+  }, [checkInLoading, debouncedSyncAssignedTrips, enableRealtime, isCheckedIn, isOnTrip, openCheckoutModal, showToast]);
 
   const handleSwipeCheckout = useCallback(async () => {
     if (checkoutLoading) return;
@@ -293,6 +371,7 @@ export function HomeScreen() {
     try {
       await clockOutApi();
       setIsCheckedIn(false);
+      disableRealtime();
       setCheckedInAt(null);
       setCheckoutModalVisible(false);
     } catch (error: any) {
@@ -305,7 +384,7 @@ export function HomeScreen() {
     } finally {
       setCheckoutLoading(false);
     }
-  }, [checkoutLoading, showToast]);
+  }, [checkoutLoading, disableRealtime, showToast]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -346,6 +425,14 @@ export function HomeScreen() {
           { paddingBottom: normalizeHeight(HOME_LAYOUT.CONTENT_BOTTOM_PADDING) + TAB_BAR_SCENE_PADDING_BOTTOM },
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={COLORS.white}
+            colors={[COLORS.primary]}
+          />
+        }
       >
         {/* Brand */}
         <View style={styles.brandWrap} pointerEvents="none">
@@ -524,6 +611,18 @@ export function HomeScreen() {
                   params: { trip: t.trip },
                 })
               }
+              onTripSwipe={() =>
+                navigation.navigate(TAB_ROUTES.TRIP, {
+                  screen:
+                    (t.trip.backendStatus ?? '').trim().toUpperCase() === BACKEND_TRIP_STATUSES.TRIP_PROGRESS
+                      ? TRIP_STACK_ROUTES.TRIP_PAYMENT
+                      : t.trip.status === 'ongoing'
+                        ? TRIP_STACK_ROUTES.TRIP_END
+                        : TRIP_STACK_ROUTES.TRIP_START,
+                  params: { trip: t.trip },
+                })
+              }
+              swipeResetSeed={swipeResetSeed}
             />
           ))}
         </View>
@@ -548,9 +647,13 @@ export function HomeScreen() {
 function UpcomingTripCard({
   item,
   onTripDetails,
+  onTripSwipe,
+  swipeResetSeed,
 }: {
   item: HomeUpcomingTrip;
   onTripDetails: () => void;
+  onTripSwipe: () => void;
+  swipeResetSeed: number;
 }) {
   return (
     <View style={styles.tripCardOuter}>
@@ -641,8 +744,15 @@ function UpcomingTripCard({
         <View style={styles.swipeWrap}>
           {/* Reuse existing SwipeButton UI */}
           <SwipeButton
-            label={HOME_STRINGS.SWIPE_START_TRIP}
-            onSwipeComplete={() => {}}
+            key={`${item.id}-${item.trip.status}-${swipeResetSeed}`}
+            label={
+              (item.trip.backendStatus ?? '').trim().toUpperCase() === BACKEND_TRIP_STATUSES.TRIP_PROGRESS
+                ? HOME_STRINGS.SWIPE_COLLECT_PAYMENT
+                : item.trip.status === 'ongoing'
+                  ? HOME_STRINGS.SWIPE_END_TRIP
+                  : HOME_STRINGS.SWIPE_START_TRIP
+            }
+            onSwipeComplete={onTripSwipe}
             height={normalizeHeight(HOME_LAYOUT.SWIPE_HEIGHT)}
             trackColor={HOME_COLORS.SWIPE_TRACK_BG}
           />

@@ -31,6 +31,9 @@ export const TRIPS_STRINGS = {
   CALL_CUSTOMER: 'Call Customer',
   NAVIGATE: 'Navigate',
   SWIPE_START_TRIP: 'Swipe Start Trip',
+  SWIPE_END_TRIP: 'Swipe End Trip',
+  TRIP_TIMER_LABEL: 'Trip Timer',
+  SWIPE_COLLECT_PAYMENT: 'Swipe Collect Payment',
 
   CUSTOMER_DETAILS_TITLE: 'Customer Details',
   TRIP_METRICS_TITLE: 'Trip Metrics',
@@ -105,6 +108,16 @@ export const TRIP_START_STRINGS = {
 
   SUBMIT: 'Start Trip',
   SUCCESS: 'Trip started successfully',
+  OTP_SENT: 'OTP sent. Please enter OTP to start the trip.',
+  OTP_TITLE: 'Verify OTP',
+  OTP_LABEL: 'OTP',
+  OTP_PLACEHOLDER: 'Enter OTP',
+  OTP_HELPER: 'Ask customer for the OTP',
+  VERIFY: 'Verify & Start',
+  ERROR_TRIP_MISSING: 'Trip details missing. Please try again.',
+  ERROR_OTP_REQUIRED: 'Please enter OTP',
+  ERROR_INITIATE_FAILED: 'Failed to initiate trip start',
+  ERROR_VERIFY_FAILED: 'Failed to verify OTP',
 
   // Validation / errors
   ERROR_ODOMETER_REQUIRED: 'Please enter odometer value',
@@ -154,6 +167,148 @@ export const TRIP_START_COLORS = {
 
   SECONDARY_BG: '#E6E6E6',
   SECONDARY_TEXT: '#111827',
+} as const;
+
+/**
+ * Trip End screen (odometer + odometer photo)
+ */
+export const TRIP_END_STRINGS = {
+  TITLE: 'End Trip',
+  SUBTITLE: 'Capture end odometer reading to finish the trip.',
+
+  ODOMETER_VALUE_LABEL: 'Odometer Value',
+  ODOMETER_VALUE_PLACEHOLDER: 'Enter end odometer reading',
+  ODOMETER_VALUE_HELPER: 'Example: 12350.2',
+
+  PHOTO_SECTION_TITLE: 'Upload Photo',
+  ODOMETER_PHOTO_LABEL: 'Odometer Photo',
+
+  ADD_PHOTO: 'Add Photo',
+  CHANGE_PHOTO: 'Change Photo',
+  TAKE_PHOTO: 'Take Photo',
+  CHOOSE_FROM_GALLERY: 'Choose from Gallery',
+
+  SUBMIT: 'End Trip',
+  OTP_SENT: 'OTP sent. Please enter OTP to end the trip.',
+  OTP_TITLE: 'Verify OTP',
+  OTP_LABEL: 'OTP',
+  OTP_PLACEHOLDER: 'Enter OTP',
+  OTP_HELPER: 'Ask customer for the OTP',
+  VERIFY: 'Verify & End',
+
+  SUCCESS_WITH_AMOUNT: 'Trip ended. Amount: ₹{amount}',
+  END_VERIFIED_GO_TO_PAYMENT: 'Trip end verified. Collect payment to finish.',
+
+  ERROR_TRIP_MISSING: 'Trip details missing. Please try again.',
+  ERROR_ODOMETER_REQUIRED: 'Please enter odometer value',
+  ERROR_ODOMETER_INVALID: 'Please enter a valid odometer value',
+  ERROR_ODOMETER_PHOTO_REQUIRED: 'Please add odometer photo',
+  ERROR_OTP_REQUIRED: 'Please enter OTP',
+  ERROR_INITIATE_FAILED: 'Failed to initiate trip end',
+  ERROR_VERIFY_FAILED: 'Failed to verify OTP',
+} as const;
+
+export const TRIP_END_LAYOUT = {
+  SCREEN_HORIZONTAL_PADDING: TRIP_START_LAYOUT.SCREEN_HORIZONTAL_PADDING,
+  HEADER_HEIGHT: TRIP_START_LAYOUT.HEADER_HEIGHT,
+  HEADER_TITLE_FONT_SIZE: TRIP_START_LAYOUT.HEADER_TITLE_FONT_SIZE,
+
+  CONTENT_TOP_PADDING: TRIP_START_LAYOUT.CONTENT_TOP_PADDING,
+  CONTENT_GAP: TRIP_START_LAYOUT.CONTENT_GAP,
+
+  CAR_IMAGE_SIZE: TRIP_START_LAYOUT.CAR_IMAGE_SIZE,
+  CAR_IMAGE_RADIUS: TRIP_START_LAYOUT.CAR_IMAGE_RADIUS,
+
+  CARD_RADIUS: TRIP_START_LAYOUT.CARD_RADIUS,
+  CARD_PADDING: TRIP_START_LAYOUT.CARD_PADDING,
+
+  PHOTO_TILE_HEIGHT: TRIP_START_LAYOUT.PHOTO_TILE_HEIGHT,
+  PHOTO_TILE_RADIUS: TRIP_START_LAYOUT.PHOTO_TILE_RADIUS,
+
+  ACTION_BTN_HEIGHT: TRIP_START_LAYOUT.ACTION_BTN_HEIGHT,
+  BOTTOM_PADDING: TRIP_START_LAYOUT.BOTTOM_PADDING,
+} as const;
+
+export const TRIP_END_COLORS = {
+  SCREEN_BG: TRIP_START_COLORS.SCREEN_BG,
+  CARD_BG: TRIP_START_COLORS.CARD_BG,
+  BORDER: TRIP_START_COLORS.BORDER,
+  SUBTITLE: TRIP_START_COLORS.SUBTITLE,
+
+  PHOTO_TILE_BG: TRIP_START_COLORS.PHOTO_TILE_BG,
+  PHOTO_PLACEHOLDER_ICON: TRIP_START_COLORS.PHOTO_PLACEHOLDER_ICON,
+
+  PRIMARY_BG: TRIP_START_COLORS.PRIMARY_BG,
+  PRIMARY_TEXT: TRIP_START_COLORS.PRIMARY_TEXT,
+  SECONDARY_BG: TRIP_START_COLORS.SECONDARY_BG,
+  SECONDARY_TEXT: TRIP_START_COLORS.SECONDARY_TEXT,
+} as const;
+
+/**
+ * Trip Payment screen (collect + verify payment)
+ */
+export const TRIP_PAYMENT_STRINGS = {
+  TITLE: 'Collect Payment',
+
+  AMOUNT_PREFIX: 'Amount',
+  AMOUNT_UNKNOWN: 'Amount: N/A',
+
+  PAYMENT_METHOD_LABEL: 'Payment Method',
+  METHOD_UPI: 'UPI',
+  METHOD_CASH: 'Cash',
+  METHOD_BOTH: 'Both',
+
+  UPI_AMOUNT_LABEL: 'UPI Amount',
+  UPI_AMOUNT_PLACEHOLDER: 'Enter UPI amount',
+  UPI_AMOUNT_HELPER: 'Enter amount collected via UPI',
+
+  UPI_REFERENCE_LABEL: 'UPI Reference (Optional)',
+  UPI_REFERENCE_PLACEHOLDER: 'Enter UPI reference',
+  UPI_REFERENCE_HELPER: 'Transaction reference/ID',
+
+  CASH_AMOUNT_LABEL: 'Cash Amount',
+  CASH_AMOUNT_PLACEHOLDER: 'Enter cash amount',
+  CASH_AMOUNT_HELPER: 'Enter amount collected as cash',
+
+  SUBMIT: 'Submit Payment',
+  SUCCESS: 'Payment completed. Trip finished.',
+
+  ERROR_TRIP_MISSING: 'Trip details missing. Please try again.',
+  ERROR_DRIVER_MISSING: 'Driver details missing. Please login again.',
+  ERROR_FAILED: 'Payment failed. Please try again.',
+} as const;
+
+export const TRIP_PAYMENT_LAYOUT = {
+  SCREEN_HORIZONTAL_PADDING: TRIP_START_LAYOUT.SCREEN_HORIZONTAL_PADDING,
+  HEADER_HEIGHT: TRIP_START_LAYOUT.HEADER_HEIGHT,
+  HEADER_TITLE_FONT_SIZE: TRIP_START_LAYOUT.HEADER_TITLE_FONT_SIZE,
+
+  CONTENT_TOP_PADDING: TRIP_START_LAYOUT.CONTENT_TOP_PADDING,
+  CONTENT_GAP: 14,
+
+  CARD_RADIUS: TRIP_START_LAYOUT.CARD_RADIUS,
+  CARD_PADDING: TRIP_START_LAYOUT.CARD_PADDING,
+
+  METHOD_PILL_HEIGHT: 44,
+  METHOD_PILL_RADIUS: 999,
+
+  ACTION_BTN_HEIGHT: TRIP_START_LAYOUT.ACTION_BTN_HEIGHT,
+  BOTTOM_PADDING: TRIP_START_LAYOUT.BOTTOM_PADDING,
+} as const;
+
+export const TRIP_PAYMENT_COLORS = {
+  SCREEN_BG: TRIP_START_COLORS.SCREEN_BG,
+  CARD_BG: TRIP_START_COLORS.CARD_BG,
+  BORDER: TRIP_START_COLORS.BORDER,
+  SUBTITLE: TRIP_START_COLORS.SUBTITLE,
+
+  METHOD_ACTIVE_BG: '#0E1738',
+  METHOD_ACTIVE_TEXT: '#FFFFFF',
+  METHOD_INACTIVE_BG: '#E6E6E6',
+  METHOD_INACTIVE_TEXT: '#111827',
+
+  PRIMARY_BG: TRIP_START_COLORS.PRIMARY_BG,
+  PRIMARY_TEXT: TRIP_START_COLORS.PRIMARY_TEXT,
 } as const;
 
 export const TRIPS_LAYOUT = {
@@ -208,6 +363,8 @@ export type TripItem = {
   id: string;
   tripIdLabel: string;
   status: TripStatus;
+  /** Raw backend status string (Prisma TripStatus), used for action decisions */
+  backendStatus?: string | null;
   customerName: string;
   pickup: string;
   drop: string;
@@ -215,6 +372,10 @@ export type TripItem = {
   scheduledDateTimeLabel: string;
   bookingTimeLabel: string;
   customerPhone: string;
+  /** ISO timestamp when trip started (from backend) */
+  startedAtISO?: string | null;
+  /** ISO timestamp when trip ended (from backend) */
+  endedAtISO?: string | null;
   estDistanceKm: string;
   estDurationMin: string;
   vehicleNumber: string;

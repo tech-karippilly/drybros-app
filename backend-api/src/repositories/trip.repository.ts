@@ -199,6 +199,7 @@ export async function createTripPhase1(data: {
   dropLng?: number | null;
   dropLocationNote?: string | null;
   carType: string;
+  carGearType?: string | null;
   scheduledAt: Date | null;
   isDetailsReconfirmed: boolean;
   isFareDiscussed: boolean;
@@ -228,6 +229,7 @@ export async function createTripPhase1(data: {
       dropLng: data.dropLng ?? null,
       dropLocationNote: data.dropLocationNote ?? null,
       carType: data.carType,
+      carGearType: data.carGearType ?? null,
       scheduledAt: data.scheduledAt,
       isDetailsReconfirmed: data.isDetailsReconfirmed,
       isFareDiscussed: data.isFareDiscussed,
@@ -262,7 +264,23 @@ export async function getTripsByDriver(driverId: string) {
     where: {
       driverId,
       status: {
-        in: ["ASSIGNED", "DRIVER_ACCEPTED", "TRIP_STARTED", "TRIP_PROGRESS"],
+        in: [
+          // Active / upcoming
+          "ASSIGNED",
+          "DRIVER_ACCEPTED",
+          "DRIVER_ON_THE_WAY",
+          "IN_PROGRESS",
+          "TRIP_STARTED",
+          "TRIP_PROGRESS",
+          // Completed-ish
+          "TRIP_ENDED",
+          "COMPLETED",
+          "PAYMENT_DONE",
+          // Cancelled / rejected
+          "CANCELLED_BY_CUSTOMER",
+          "CANCELLED_BY_OFFICE",
+          "REJECTED_BY_DRIVER",
+        ],
       },
     },
     orderBy: { createdAt: "desc" },

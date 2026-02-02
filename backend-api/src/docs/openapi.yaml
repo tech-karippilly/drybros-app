@@ -4052,6 +4052,99 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /trips/{id}/request-drivers:
+    post:
+      summary: Request trip to drivers (manual dispatch)
+      description: |
+        Manually trigger trip offers to drivers (ALL / SPECIFIC / LIST).
+        
+        This endpoint is intended for dispatcher UI flows like:
+        - "Request now" (offer to all eligible drivers immediately)
+        - "Request specific driver"
+        - "Request list of drivers"
+        
+        **Modes:**
+        - `ALL` (default): Offers the trip to all eligible drivers immediately.
+        - `SPECIFIC`: Offers the trip to `driverId` (only if the driver is eligible).
+        - `LIST`: Offers the trip to `driverIds[]` (only eligible drivers will receive offers).
+        
+        **Response:**
+        Returns `{ requested: number }` which is the count of *new* offers created.
+        If the trip doesn't exist or is already assigned, `requested` will be `0`.
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip ID (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestTripDriversRequest"
+            examples:
+              all:
+                summary: Request all eligible drivers now
+                value:
+                  mode: "ALL"
+              specific:
+                summary: Request a specific driver (if eligible)
+                value:
+                  mode: "SPECIFIC"
+                  driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+              list:
+                summary: Request a list of drivers (eligible only)
+                value:
+                  mode: "LIST"
+                  driverIds:
+                    - "779a77f6-5704-4b00-8561-2892c58946a2"
+                    - "660e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Trip offers requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestTripDriversResponse"
+              example:
+                data:
+                  requested: 5
+        "400":
+          description: Bad request - invalid UUID or invalid mode payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidTripId:
+                  summary: Invalid trip ID format
+                  value:
+                    error: "Invalid Trip ID format. Expected UUID."
+                missingDriverIdForSpecific:
+                  summary: Missing driverId for SPECIFIC mode
+                  value:
+                    error: "driverId is required when mode is SPECIFIC"
+                missingDriverIdsForList:
+                  summary: Missing driverIds for LIST mode
+                  value:
+                    error: "driverIds is required when mode is LIST"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /trips/{id}/driver-accept:
     patch:
       summary: Driver accepts a trip
@@ -6850,6 +6943,44 @@ components:
       required:
         - tripId
         - driverId
+
+    RequestTripDriversRequest:
+      type: object
+      description: |
+        Request body for manually requesting a trip to drivers.
+        
+        - mode=ALL: no other fields needed
+        - mode=SPECIFIC: requires driverId
+        - mode=LIST: requires driverIds (non-empty)
+      properties:
+        mode:
+          type: string
+          enum: [ALL, SPECIFIC, LIST]
+          description: Dispatch request mode
+          default: ALL
+        driverId:
+          type: string
+          format: uuid
+          description: Driver ID (required when mode is SPECIFIC)
+          nullable: true
+        driverIds:
+          type: array
+          description: List of driver IDs (required when mode is LIST)
+          nullable: true
+          items:
+            type: string
+            format: uuid
+
+    RequestTripDriversResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            requested:
+              type: integer
+              description: Number of new trip offers created
+              example: 5
 
     CreateTripPhase1Request:
       type: object

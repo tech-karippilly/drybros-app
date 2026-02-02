@@ -29,6 +29,8 @@ import { findOrCreateCustomer } from "./customer.service";
 import {
   CAR_GEAR_TYPES,
   CAR_TYPE_CATEGORIES,
+  type CarGearType,
+  type CarTypeCategory,
   TRIP_ERROR_MESSAGES,
   RESCHEDULABLE_TRIP_STATUSES,
   CANCELLABLE_TRIP_STATUSES,
@@ -53,6 +55,28 @@ import {
   getDriversWithActiveTrips,
 } from "./trip-validation.service";
 
+function extractCarGearTypeFromLegacyCarType(carType?: string | null): string | null {
+  if (!carType) return null;
+  try {
+    const parsed = JSON.parse(carType) as { gearType?: unknown };
+    return typeof parsed?.gearType === "string" ? parsed.gearType : null;
+  } catch {
+    return null;
+  }
+}
+
+function augmentTripCarPreferences<
+  T extends { carGearType?: string | null; carType?: string | null }
+>(trip: T): T & { carGearType: string | null; transmissionType: string | null } {
+  const carGearType = trip.carGearType ?? extractCarGearTypeFromLegacyCarType(trip.carType);
+  return {
+    ...(trip as any),
+    carGearType,
+    // Client-friendly alias; same meaning/values as carGearType
+    transmissionType: carGearType,
+  };
+}
+
 interface CreateTripInput {
   franchiseId: number;
   driverId: number;
@@ -66,7 +90,8 @@ interface CreateTripInput {
 }
 
 export async function listTrips() {
-  return getAllTrips();
+  const trips = await getAllTrips();
+  return trips.map(augmentTripCarPreferences);
 }
 
 export interface PaginationQuery {
@@ -94,7 +119,8 @@ export interface PaginatedTripsResponse {
  * Get unassigned trips (PENDING or NOT_ASSIGNED status)
  */
 export async function listUnassignedTrips() {
-  return getUnassignedTrips();
+  const trips = await getUnassignedTrips();
+  return trips.map(augmentTripCarPreferences);
 }
 
 /**
@@ -114,7 +140,7 @@ export async function listTripsPaginated(
   const hasPrev = page > 1;
 
   return {
-    data,
+    data: data.map(augmentTripCarPreferences),
     pagination: {
       page,
       limit,
@@ -142,7 +168,7 @@ export async function listUnassignedTripsPaginated(
   const hasPrev = page > 1;
 
   return {
-    data,
+    data: data.map(augmentTripCarPreferences),
     pagination: {
       page,
       limit,
@@ -265,8 +291,10 @@ export async function getTrip(id: string) {
     }),
   ]);
 
+  const augmentedTrip = augmentTripCarPreferences(trip);
+
   return {
-    ...trip,
+    ...augmentedTrip,
     statistics: {
       totalStaff: totalStaffCount,
       totalDrivers: totalDriversCount,
@@ -286,7 +314,8 @@ export async function getTrip(id: string) {
  * Get trips assigned to a driver
  */
 export async function getDriverAssignedTrips(driverId: string) {
-  return getTripsByDriver(driverId);
+  const trips = await getTripsByDriver(driverId);
+  return trips.map(augmentTripCarPreferences);
 }
 
 /**
@@ -296,7 +325,8 @@ export async function getDriverAssignedTrips(driverId: string) {
 export async function getAssignedTrips(
   franchiseId?: string
 ): Promise<any[]> {
-  return repoGetAssignedTrips(franchiseId);
+  const trips = await repoGetAssignedTrips(franchiseId);
+  return trips.map(augmentTripCarPreferences);
 }
 
 /**
@@ -316,7 +346,7 @@ export async function getAssignedTripsPaginated(
   const hasPrev = page > 1;
 
   return {
-    data,
+    data: data.map(augmentTripCarPreferences),
     pagination: {
       page,
       limit,
@@ -365,13 +395,28 @@ export async function getAvailableDriversForTrip(tripId: string) {
       let matchScore = 0;
 
       // Car type matching (if trip has car type requirement)
-      if (trip.carType) {
+      if (trip.carType || (trip as any).carGearType) {
         try {
-          const tripCarType = JSON.parse(trip.carType);
+          // Backward compatible:
+          // - legacy `carType`: JSON string {"gearType":"MANUAL","category":"PREMIUM"}
+          // - new `carType`: plain category string "PREMIUM" | "LUXURY" | "NORMAL"
+          const legacy = (() => {
+            if (!trip.carType) return null;
+            try {
+              const parsed = JSON.parse(trip.carType) as { gearType?: string; category?: string };
+              if (parsed && (parsed.gearType || parsed.category)) return parsed;
+              return null;
+            } catch {
+              return null;
+            }
+          })();
+
+          const tripGearType = (trip as any).carGearType ?? legacy?.gearType ?? null;
+          const tripCategory = legacy?.category ?? (trip.carType ? trip.carType : null);
           const driverCarTypes = JSON.parse(driver.carTypes || "[]");
 
           // Check gear type match
-          if (driverCarTypes.includes(tripCarType.gearType)) {
+          if (tripGearType && driverCarTypes.includes(tripGearType)) {
             matchScore += 25;
           }
 
@@ -383,7 +428,8 @@ export async function getAvailableDriversForTrip(tripId: string) {
           };
 
           if (
-            categoryMap[tripCarType.category]?.some((cat) =>
+            tripCategory &&
+            categoryMap[tripCategory]?.some((cat) =>
               driverCarTypes.includes(cat)
             )
           ) {
@@ -2135,10 +2181,13 @@ interface CreateTripPhase1Input {
   tripType: TripType;
   distance?: number;
   distanceScope?: string;
+  duration?: number;
   
   // Car preferences
-  carGearType: string; // MANUAL | AUTOMATIC
-  carType: string; // PREMIUM | LUXURY | NORMAL
+  carGearType?: CarGearType; // MANUAL | AUTOMATIC
+  /** Alias used by some clients (same values as carGearType) */
+  transmissionType?: CarGearType;
+  carType: CarTypeCategory; // PREMIUM | LUXURY | NORMAL
   
   // Schedule
   tripDate: string; // ISO date string
@@ -2154,6 +2203,11 @@ interface CreateTripPhase1Input {
 }
 
 export async function createTripPhase1(input: CreateTripPhase1Input) {
+  // Backward/forward compatibility:
+  // - Some clients send `transmissionType` instead of `carGearType`
+  const resolvedCarGearType =
+    input.carGearType ?? (input as unknown as { transmissionType?: string }).transmissionType;
+
   // Validate required fields
   if (!input.customerName) {
     const err: any = new Error(TRIP_ERROR_MESSAGES.MISSING_CUSTOMER_NAME);
@@ -2182,7 +2236,7 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
   }
 
   // Validate car gear type
-  if (!Object.values(CAR_GEAR_TYPES).includes(input.carGearType as any)) {
+  if (!resolvedCarGearType || !Object.values(CAR_GEAR_TYPES).includes(resolvedCarGearType as any)) {
     const err: any = new Error(TRIP_ERROR_MESSAGES.INVALID_CAR_GEAR_TYPE);
     err.statusCode = 400;
     throw err;
@@ -2257,12 +2311,12 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
     franchiseId: input.franchiseId,
   });
 
-  // Combine car gear type and category for storage
-  // Store as JSON: {"gearType": "MANUAL", "category": "PREMIUM"}
-  const carTypeData = JSON.stringify({
-    gearType: input.carGearType,
-    category: input.carType,
-  });
+  // Persist car preferences:
+  // - carGearType: gear/transmission (MANUAL/AUTOMATIC)
+  // - carType: category only (PREMIUM/LUXURY/NORMAL)
+  //
+  // NOTE: Older rows stored JSON in `carType`. Read paths still support that for backward compatibility.
+  const carTypeCategory = input.carType;
 
   // Parse trip date and time
   let scheduledAt: Date | null = null;
@@ -2359,7 +2413,8 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
     dropLat: input.destinationLat ?? null,
     dropLng: input.destinationLng ?? null,
     dropLocationNote: input.destinationNote,
-    carType: carTypeData,
+    carType: carTypeCategory,
+    carGearType: resolvedCarGearType,
     scheduledAt,
     isDetailsReconfirmed: input.isDetailsReconfirmed,
     isFareDiscussed: input.isFareDiscussed,
@@ -2375,7 +2430,7 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
   tripDispatchService.startDispatchForTrip(trip.id).catch(() => {});
 
   return {
-    trip,
+    trip: augmentTripCarPreferences(trip),
     customer: {
       id: customer.id,
       name: customer.fullName,

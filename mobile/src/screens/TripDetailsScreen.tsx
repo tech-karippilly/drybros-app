@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { Text } from '../typography';
 import { SwipeButton } from '../components/ui';
@@ -16,6 +17,7 @@ import { openPhoneDialer } from '../utils/linking';
 import {
   COLORS,
   TAB_BAR_SCENE_PADDING_BOTTOM,
+  BACKEND_TRIP_STATUSES,
   TRIPS_COLORS,
   TRIPS_LAYOUT,
   TRIPS_STRINGS,
@@ -69,6 +71,8 @@ export function TripDetailsScreen({ navigation, route }: Props) {
   const { showToast } = useToast();
   const initialTrip: TripItem | undefined = route.params?.trip;
   const [trip, setTrip] = React.useState<TripItem | undefined>(initialTrip);
+  const [elapsedLabel, setElapsedLabel] = React.useState<string>('');
+  const [swipeResetSeed, setSwipeResetSeed] = React.useState(0);
 
   if (!trip) {
     return (
@@ -89,30 +93,70 @@ export function TripDetailsScreen({ navigation, route }: Props) {
     );
   }
 
-  React.useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      try {
-        if (!initialTrip?.id) return;
-        const detailed = await getTripByIdApi(initialTrip.id);
-        const mapped = mapBackendTripToTripItem(detailed);
-        if (mounted) setTrip((prev) => ({ ...(prev ?? mapped), ...mapped }));
-      } catch (error: any) {
-        const errorMessage =
-          error?.response?.data?.message ||
-          error?.response?.data?.error ||
-          error?.message ||
-          'Failed to load trip details';
-        showToast({ message: errorMessage, type: 'error', position: 'top' });
-      }
-    };
-    load();
-    return () => {
-      mounted = false;
-    };
+  const load = React.useCallback(async () => {
+    try {
+      if (!initialTrip?.id) return;
+      const detailed = await getTripByIdApi(initialTrip.id);
+      const mapped = mapBackendTripToTripItem(detailed);
+      setTrip((prev) => ({ ...(prev ?? mapped), ...mapped }));
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        'Failed to load trip details';
+      showToast({ message: errorMessage, type: 'error', position: 'top' });
+    }
   }, [initialTrip?.id, showToast]);
 
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      load();
+      setSwipeResetSeed((s) => s + 1);
+    }, [load])
+  );
+
+  React.useEffect(() => {
+    if (trip.status !== 'ongoing') {
+      setElapsedLabel('');
+      return;
+    }
+    if (!trip.startedAtISO) {
+      setElapsedLabel('');
+      return;
+    }
+
+    const startedAtMs = new Date(trip.startedAtISO).getTime();
+    if (Number.isNaN(startedAtMs)) {
+      setElapsedLabel('');
+      return;
+    }
+
+    const tick = () => {
+      const diffMs = Math.max(0, Date.now() - startedAtMs);
+      const totalSeconds = Math.floor(diffMs / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      const hh = String(hours).padStart(2, '0');
+      const mm = String(minutes).padStart(2, '0');
+      const ss = String(seconds).padStart(2, '0');
+      setElapsedLabel(`${hh}:${mm}:${ss}`);
+    };
+
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [trip.startedAtISO, trip.status]);
+
   const status = getStatusPill(trip.status);
+  const backendStatus = (trip.backendStatus ?? '').trim().toUpperCase();
+  const isPaymentPending = backendStatus === BACKEND_TRIP_STATUSES.TRIP_PROGRESS;
+  const isOngoing = trip.status === 'ongoing' && !isPaymentPending;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -179,10 +223,30 @@ export function TripDetailsScreen({ navigation, route }: Props) {
               </TouchableOpacity>
             </View>
 
+            {isOngoing && elapsedLabel ? (
+              <View style={styles.timerRow}>
+                <Text variant="caption" style={styles.sectionLabel}>{TRIPS_STRINGS.TRIP_TIMER_LABEL}</Text>
+                <Text variant="body" weight="semiBold" style={styles.sectionValue}>{elapsedLabel}</Text>
+              </View>
+            ) : null}
+
             <View style={styles.swipeWrap}>
               <SwipeButton
-                label={TRIPS_STRINGS.SWIPE_START_TRIP}
-                onSwipeComplete={() => navigation.navigate(TRIP_STACK_ROUTES.TRIP_START, { trip })}
+                key={`${trip.id}-${trip.status}-${swipeResetSeed}`}
+                label={
+                  isPaymentPending
+                    ? TRIPS_STRINGS.SWIPE_COLLECT_PAYMENT
+                    : isOngoing
+                      ? TRIPS_STRINGS.SWIPE_END_TRIP
+                      : TRIPS_STRINGS.SWIPE_START_TRIP
+                }
+                onSwipeComplete={() =>
+                  isPaymentPending
+                    ? navigation.navigate(TRIP_STACK_ROUTES.TRIP_PAYMENT, { trip })
+                    : isOngoing
+                      ? navigation.navigate(TRIP_STACK_ROUTES.TRIP_END, { trip })
+                      : navigation.navigate(TRIP_STACK_ROUTES.TRIP_START, { trip })
+                }
                 height={normalizeHeight(TRIPS_LAYOUT.DETAILS_SWIPE_HEIGHT)}
                 trackColor={TRIPS_COLORS.SWIPE_TRACK_BG}
               />
@@ -353,6 +417,7 @@ const styles = StyleSheet.create({
   },
   actionText: { color: TRIPS_COLORS.ACTION_TEXT },
   swipeWrap: { marginTop: normalizeHeight(14) },
+  timerRow: { marginTop: normalizeHeight(12), gap: normalizeHeight(4) },
 
   sectionBlock: { backgroundColor: TRIPS_COLORS.CARD_BG, borderRadius: normalizeWidth(18), padding: normalizeWidth(18) },
   sectionTitle: { color: COLORS.textPrimary, marginBottom: normalizeHeight(12) },

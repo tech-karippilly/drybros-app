@@ -38,6 +38,8 @@ export const HOME_STRINGS = {
   NAVIGATE: 'Navigate',
   TRIP_DETAILS: 'Trip Details',
   SWIPE_START_TRIP: 'Swipe Start Trip',
+  SWIPE_END_TRIP: 'Swipe End Trip',
+  SWIPE_COLLECT_PAYMENT: 'Swipe Collect Payment',
 
   VIEW_ALL_PREFIX: 'View All',
 } as const;

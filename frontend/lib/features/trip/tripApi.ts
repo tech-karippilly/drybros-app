@@ -12,6 +12,8 @@ export const TRIP_ENDPOINTS = {
     BY_ID: (id: string | number) => `/trips/${id}`,
     /** POST /trips/:id/assign-driver - Assign a driver to a trip */
     ASSIGN_DRIVER: (tripId: string) => `/trips/${tripId}/assign-driver`,
+    /** POST /trips/:id/request-drivers - Trigger trip offers to drivers (dispatch) */
+    REQUEST_DRIVERS: (tripId: string) => `/trips/${tripId}/request-drivers`,
 } as const;
 
 // Request DTOs (matching backend)
@@ -129,6 +131,22 @@ export interface TripListResponse {
     data: TripResponse[];
 }
 
+export type RequestTripDriversMode = "ALL" | "SPECIFIC" | "LIST";
+
+export interface RequestTripDriversRequest {
+    mode?: RequestTripDriversMode;
+    /** Required when mode=SPECIFIC */
+    driverId?: string;
+    /** Required when mode=LIST */
+    driverIds?: string[];
+}
+
+export interface RequestTripDriversResponse {
+    data: {
+        requested: number;
+    };
+}
+
 export interface TripFilters {
     dateFrom?: string;
     dateTo?: string;
@@ -218,6 +236,23 @@ export async function assignDriverToTrip(tripId: string, driverId: string): Prom
     const response = await api.post<{ data: TripResponse }>(
         TRIP_ENDPOINTS.ASSIGN_DRIVER(tripId),
         { driverId }
+    );
+    return response.data.data;
+}
+
+/**
+ * Trigger trip offers to drivers (dispatch).
+ * - mode=ALL: request all eligible drivers now
+ * - mode=SPECIFIC: request one eligible driver now
+ * - mode=LIST: request selected eligible drivers now
+ */
+export async function requestTripDrivers(
+    tripId: string,
+    payload: RequestTripDriversRequest = {}
+): Promise<RequestTripDriversResponse["data"]> {
+    const response = await api.post<RequestTripDriversResponse>(
+        TRIP_ENDPOINTS.REQUEST_DRIVERS(tripId),
+        payload
     );
     return response.data.data;
 }

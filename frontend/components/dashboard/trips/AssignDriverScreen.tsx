@@ -148,7 +148,7 @@ export function AssignDriverScreen({ tripId }: AssignDriverScreenProps) {
             setAssigningDriver(driverId);
             await assignDriverToTrip(tripId, driverId);
             setDriverAssigned(true);
-            router.push(DASHBOARD_ROUTES.UNASSIGNED_TRIPS);
+            router.push(DASHBOARD_ROUTES.TRIPS);
         } catch (err: unknown) {
             const ex = err as { response?: { data?: { error?: string } }; message?: string };
             setError(
@@ -358,12 +358,6 @@ export function AssignDriverScreen({ tripId }: AssignDriverScreenProps) {
                             <p className="text-slate-600 dark:text-slate-300 font-medium">
                                 {ASSIGN_DRIVER_STRINGS.NO_DRIVERS}
                             </p>
-                            <Link
-                                href={DASHBOARD_ROUTES.UNASSIGNED_TRIPS}
-                                className="text-theme-blue font-medium hover:underline"
-                            >
-                                View unassigned trips
-                            </Link>
                         </div>
                     ) : (
                         <div className="space-y-4">

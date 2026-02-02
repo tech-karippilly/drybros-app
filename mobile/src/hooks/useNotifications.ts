@@ -2,7 +2,7 @@
  * Hook for notification permissions and handling
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Alert, Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { PERMISSION_STATUS, PERMISSION_MESSAGES } from '../constants/permissions';
@@ -34,31 +34,12 @@ export const useNotifications = () => {
   const notificationListener = useRef<Notifications.Subscription>();
   const responseListener = useRef<Notifications.Subscription>();
 
-  useEffect(() => {
-    checkPermission();
-    registerForPushNotifications();
-
-    // Listen for notifications while app is foregrounded
-    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
-      console.log('Notification received:', notification);
-    });
-
-    // Listen for user interaction with notifications
-    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log('Notification response:', response);
-    });
-
-    return () => {
-      if (notificationListener.current) {
-        Notifications.removeNotificationSubscription(notificationListener.current);
-      }
-      if (responseListener.current) {
-        Notifications.removeNotificationSubscription(responseListener.current);
-      }
-    };
-  }, []);
-
-  const checkPermission = async () => {
+  /**
+   * IMPORTANT:
+   * These functions are memoized so screens can safely use them in `useEffect`
+   * dependency arrays without causing infinite re-render loops.
+   */
+  const checkPermission = useCallback(async () => {
     try {
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       setState((prev) => ({
@@ -68,9 +49,9 @@ export const useNotifications = () => {
     } catch (error: any) {
       setState((prev) => ({ ...prev, error: error.message }));
     }
-  };
+  }, []);
 
-  const registerForPushNotifications = async () => {
+  const registerForPushNotifications = useCallback(async (): Promise<boolean> => {
     try {
       setState((prev) => ({ ...prev, loading: true, error: null }));
 
@@ -94,8 +75,12 @@ export const useNotifications = () => {
             },
           ]
         );
-        setState((prev) => ({ ...prev, loading: false }));
-        return;
+        setState((prev) => ({
+          ...prev,
+          permissionStatus: finalStatus as typeof PERMISSION_STATUS[keyof typeof PERMISSION_STATUS],
+          loading: false,
+        }));
+        return false;
       }
 
       // Get push token
@@ -116,17 +101,42 @@ export const useNotifications = () => {
         expoPushToken: token,
         loading: false,
       }));
+      return true;
     } catch (error: any) {
       setState((prev) => ({ ...prev, error: error.message, loading: false }));
+      return false;
     }
-  };
+  }, []);
 
-  const requestPermission = async () => {
-    await registerForPushNotifications();
-    return state.permissionStatus === PERMISSION_STATUS.GRANTED;
-  };
+  useEffect(() => {
+    checkPermission();
+    registerForPushNotifications();
 
-  const scheduleNotification = async (title: string, body: string, data?: any) => {
+    // Listen for notifications while app is foregrounded
+    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
+      console.log('Notification received:', notification);
+    });
+
+    // Listen for user interaction with notifications
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log('Notification response:', response);
+    });
+
+    return () => {
+      if (notificationListener.current) {
+        Notifications.removeNotificationSubscription(notificationListener.current);
+      }
+      if (responseListener.current) {
+        Notifications.removeNotificationSubscription(responseListener.current);
+      }
+    };
+  }, [checkPermission, registerForPushNotifications]);
+
+  const requestPermission = useCallback(async () => {
+    return await registerForPushNotifications();
+  }, [registerForPushNotifications]);
+
+  const scheduleNotification = useCallback(async (title: string, body: string, data?: any) => {
     await Notifications.scheduleNotificationAsync({
       content: {
         title,
@@ -135,18 +145,23 @@ export const useNotifications = () => {
       },
       trigger: null, // Send immediately
     });
-  };
+  }, []);
 
-  const cancelAllNotifications = async () => {
+  const cancelAllNotifications = useCallback(async () => {
     await Notifications.cancelAllScheduledNotificationsAsync();
-  };
+  }, []);
 
-  return {
-    ...state,
-    hasPermission: state.permissionStatus === PERMISSION_STATUS.GRANTED,
-    requestPermission,
-    scheduleNotification,
-    cancelAllNotifications,
-    checkPermission,
-  };
+  const hasPermission = state.permissionStatus === PERMISSION_STATUS.GRANTED;
+
+  return useMemo(
+    () => ({
+      ...state,
+      hasPermission,
+      requestPermission,
+      scheduleNotification,
+      cancelAllNotifications,
+      checkPermission,
+    }),
+    [cancelAllNotifications, checkPermission, hasPermission, requestPermission, scheduleNotification, state]
+  );
 };

@@ -3,8 +3,8 @@
  * Note: SMS sending capabilities are limited on iOS
  */
 
-import { useState } from 'react';
-import { Platform, Linking, Alert } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Linking, Alert } from 'react-native';
 import * as SMS from 'expo-sms';
 
 export interface SMSState {
@@ -20,7 +20,12 @@ export const useSMS = () => {
     loading: false,
   });
 
-  const checkAvailability = async () => {
+  /**
+   * IMPORTANT:
+   * Memoize functions so screens can safely depend on them in `useEffect`
+   * without causing infinite re-render loops.
+   */
+  const checkAvailability = useCallback(async () => {
     try {
       const isAvailable = await SMS.isAvailableAsync();
       setState((prev) => ({ ...prev, isAvailable }));
@@ -29,9 +34,9 @@ export const useSMS = () => {
       setState((prev) => ({ ...prev, error: error.message }));
       return false;
     }
-  };
+  }, []);
 
-  const sendSMS = async (phoneNumbers: string[], message: string) => {
+  const sendSMS = useCallback(async (phoneNumbers: string[], message: string) => {
     try {
       setState((prev) => ({ ...prev, loading: true, error: null }));
 
@@ -66,21 +71,24 @@ export const useSMS = () => {
       setState((prev) => ({ ...prev, error: error.message, loading: false }));
       return false;
     }
-  };
+  }, [checkAvailability]);
 
-  const openSMS = (phoneNumber: string, message?: string) => {
+  const openSMS = useCallback((phoneNumber: string, message?: string) => {
     const url = message
       ? `sms:${phoneNumber}?body=${encodeURIComponent(message)}`
       : `sms:${phoneNumber}`;
     Linking.openURL(url).catch((err) => {
       setState((prev) => ({ ...prev, error: err.message }));
     });
-  };
+  }, []);
 
-  return {
-    ...state,
-    sendSMS,
-    openSMS,
-    checkAvailability,
-  };
+  return useMemo(
+    () => ({
+      ...state,
+      sendSMS,
+      openSMS,
+      checkAvailability,
+    }),
+    [checkAvailability, openSMS, sendSMS, state]
+  );
 };

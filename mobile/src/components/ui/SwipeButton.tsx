@@ -10,7 +10,6 @@ import {
   Animated,
   PanResponder,
   StyleSheet,
-  Dimensions,
   type ViewStyle,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,8 +24,6 @@ import {
   normalizeHeight,
   normalizeFont,
 } from '../../utils/responsive';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export const SwipeButton: React.FC<SwipeButtonProps> = ({
   label,
@@ -53,12 +50,22 @@ export const SwipeButton: React.FC<SwipeButtonProps> = ({
   const thumbPadding = normalizeWidth(SWIPE_BUTTON.THUMB_PADDING);
   const labelFontSize = normalizeFont(SWIPE_BUTTON.LABEL_FONT_SIZE);
 
-  const [trackInnerWidth, setTrackInnerWidth] = useState(
-    typeof width === 'number' ? width - trackPaddingL - trackPaddingR : SCREEN_WIDTH - trackPaddingL - trackPaddingR - normalizeWidth(80)
+  /**
+   * IMPORTANT (iOS):
+   * Measure the actual rendered track width via onLayout and compute the swipe
+   * range from that. Using screen-width guesses can under-estimate and makes the
+   * thumb stop early (looks like "half swipe").
+   */
+  const [trackWidth, setTrackWidth] = useState<number>(typeof width === 'number' ? width : 0);
+  const [trackInnerWidth, setTrackInnerWidth] = useState<number>(
+    typeof width === 'number' ? Math.max(0, width - trackPaddingL - trackPaddingR) : 0
   );
   const containerHeight = typeof height === 'number' ? height : trackHeight;
   const trackInnerHeight = containerHeight - trackPaddingT - trackPaddingB;
-  const maxThumbX = Math.max(0, trackInnerWidth - thumbSize - trackGap);
+  const usableTrackWidth = Math.max(0, trackWidth - trackPaddingL - trackPaddingR);
+  // Prefer measured inner width (most reliable inside ScrollView on iOS).
+  const effectiveInnerWidth = trackInnerWidth > 0 ? trackInnerWidth : usableTrackWidth;
+  const maxThumbX = Math.max(0, effectiveInnerWidth - thumbSize);
   const maxThumbXRef = useRef(maxThumbX);
   maxThumbXRef.current = maxThumbX;
 
@@ -86,8 +93,11 @@ export const SwipeButton: React.FC<SwipeButtonProps> = ({
 
   const panResponder = useRef(
     PanResponder.create({
+      // Capture is important on iOS when embedded in ScrollView (prevents early termination / partial swipe).
       onStartShouldSetPanResponder: () => !disabled,
-      onMoveShouldSetPanResponder: () => !disabled,
+      onStartShouldSetPanResponderCapture: () => !disabled,
+      onMoveShouldSetPanResponder: (_evt, g) => !disabled && Math.abs(g.dx) > Math.abs(g.dy),
+      onMoveShouldSetPanResponderCapture: (_evt, g) => !disabled && Math.abs(g.dx) > Math.abs(g.dy),
       onPanResponderGrant: () => {},
       onPanResponderMove: (_, gestureState) => {
         if (disabled) return;
@@ -107,16 +117,24 @@ export const SwipeButton: React.FC<SwipeButtonProps> = ({
           animateThumb(0, true);
         }
       },
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
     })
   ).current;
 
-  const onTrackInnerLayout = useCallback(
+  const onTrackLayout = useCallback(
     (e: { nativeEvent: { layout: { width: number } } }) => {
+      if (typeof width === 'number') return; // fixed width already known
       const w = e.nativeEvent.layout.width;
-      if (typeof width === 'string' && w > 0) setTrackInnerWidth(w);
+      if (w > 0) setTrackWidth(w);
     },
     [width]
   );
+
+  const onTrackInnerLayout = useCallback((e: { nativeEvent: { layout: { width: number } } }) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0) setTrackInnerWidth(w);
+  }, []);
 
   const containerStyle: ViewStyle = {
     width: typeof width === 'number' ? width : '100%',
@@ -137,6 +155,7 @@ export const SwipeButton: React.FC<SwipeButtonProps> = ({
   return (
     <View style={[containerStyle, style]}>
       <View
+        onLayout={onTrackLayout}
         style={[
           styles.track,
           {

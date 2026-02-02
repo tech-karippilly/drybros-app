@@ -2,8 +2,8 @@
  * Hook for camera permissions and access
  */
 
-import { useState, useEffect } from 'react';
-import { Platform, Alert, Linking } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { PERMISSION_STATUS, PERMISSION_MESSAGES } from '../constants/permissions';
 
@@ -20,11 +20,12 @@ export const useCamera = () => {
     loading: false,
   });
 
-  useEffect(() => {
-    checkPermission();
-  }, []);
-
-  const checkPermission = async () => {
+  /**
+   * IMPORTANT:
+   * These functions are memoized so screens can safely use them in `useEffect`
+   * dependency arrays without causing infinite re-render loops.
+   */
+  const checkPermission = useCallback(async () => {
     try {
       const { status } = await ImagePicker.getCameraPermissionsAsync();
       setState((prev) => ({
@@ -34,9 +35,13 @@ export const useCamera = () => {
     } catch (error: any) {
       setState((prev) => ({ ...prev, error: error.message }));
     }
-  };
+  }, []);
 
-  const requestPermission = async () => {
+  useEffect(() => {
+    checkPermission();
+  }, [checkPermission]);
+
+  const requestPermission = useCallback(async () => {
     try {
       setState((prev) => ({ ...prev, loading: true, error: null }));
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -66,9 +71,9 @@ export const useCamera = () => {
       setState((prev) => ({ ...prev, error: error.message, loading: false }));
       return false;
     }
-  };
+  }, []);
 
-  const takePicture = async () => {
+  const takePicture = useCallback(async () => {
     try {
       const hasPermission = await requestPermission();
       if (!hasPermission) {
@@ -94,9 +99,9 @@ export const useCamera = () => {
       setState((prev) => ({ ...prev, error: error.message, loading: false }));
       return null;
     }
-  };
+  }, [requestPermission]);
 
-  const pickImage = async () => {
+  const pickImage = useCallback(async () => {
     try {
       setState((prev) => ({ ...prev, loading: true, error: null }));
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -117,14 +122,19 @@ export const useCamera = () => {
       setState((prev) => ({ ...prev, error: error.message, loading: false }));
       return null;
     }
-  };
+  }, []);
 
-  return {
-    ...state,
-    hasPermission: state.permissionStatus === PERMISSION_STATUS.GRANTED,
-    requestPermission,
-    takePicture,
-    pickImage,
-    checkPermission,
-  };
+  const hasPermission = state.permissionStatus === PERMISSION_STATUS.GRANTED;
+
+  return useMemo(
+    () => ({
+      ...state,
+      hasPermission,
+      requestPermission,
+      takePicture,
+      pickImage,
+      checkPermission,
+    }),
+    [checkPermission, hasPermission, pickImage, requestPermission, state, takePicture]
+  );
 };

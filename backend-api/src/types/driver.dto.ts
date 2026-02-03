@@ -1,10 +1,10 @@
 // src/types/driver.dto.ts
 import { z } from "zod";
-import { CarType, DriverStatus, DriverTripStatus, DriverEmploymentType } from "@prisma/client";
+import { CarType, DriverStatus, DriverTripStatus } from "@prisma/client";
 import { DriverPerformanceCategory } from "../constants/driver";
 
-// Driver Employment Type Enum Schema
-export const driverEmploymentTypeEnum = z.nativeEnum(DriverEmploymentType);
+// Driver Employment Type Enum Schema (API-facing string values)
+export const driverEmploymentTypeEnum = z.enum(["part time", "full time", "contract"]);
 
 // CarType enum schema
 export const carTypeEnum = z.enum([
@@ -111,7 +111,7 @@ export interface DriverResponseDTO {
   pincode: string;
   licenseNumber: string;
   licenseType: string | null;
-  employmentType: DriverEmploymentType | null;
+  employmentType: string | null;
   licenseExpDate: Date;
   bankAccountName: string;
   bankAccountNumber: string;

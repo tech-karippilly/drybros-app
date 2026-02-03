@@ -4,6 +4,7 @@ import { listDrivers, listDriversPaginated, getDriver, getDriverWithPerformance,
 import { calculateDriverPerformance } from "../services/driver-performance.service";
 import { DriverLoginDTO, UpdateDriverDTO, UpdateDriverStatusDTO } from "../types/driver.dto";
 import { DriverEmploymentType } from "@prisma/client";
+import { toPrismaEmploymentType } from "../utils/employmentType";
 import { submitCashToCompany, submitCashForSettlement, getDriverDailyLimit } from "../services/driverCash.service";
 import { SubmitCashForSettlementDTO } from "../types/driver.dto";
 import { updateMyDriverLocation, getLiveLocations } from "../services/driverLocation.service";
@@ -21,8 +22,9 @@ export async function getDrivers(
     
     const employmentTypeStr = req.query.employmentType as string | undefined;
     let employmentType: DriverEmploymentType | undefined;
-    if (employmentTypeStr && Object.values(DriverEmploymentType).includes(employmentTypeStr as DriverEmploymentType)) {
-      employmentType = employmentTypeStr as DriverEmploymentType;
+    if (employmentTypeStr) {
+      const mapped = toPrismaEmploymentType(employmentTypeStr);
+      if (mapped) employmentType = mapped;
     }
     
     // Check if pagination query parameters are provided

@@ -18,6 +18,7 @@ import {
 import { getFranchiseById } from "../repositories/franchise.repository";
 import { CreateDriverDTO, CreateDriverResponseDTO, DriverResponseDTO, DriverLoginDTO, DriverLoginResponseDTO, UpdateDriverDTO, UpdateDriverResponseDTO, UpdateDriverStatusDTO, UpdateDriverStatusResponseDTO, PaginationQueryDTO, PaginatedDriverResponseDTO } from "../types/driver.dto";
 import { CarType, DriverEmploymentType } from "@prisma/client";
+import { toPrismaEmploymentType, toApiEmploymentType } from "../utils/employmentType";
 import { ConflictError, NotFoundError, BadRequestError } from "../utils/errors";
 import { sendDriverWelcomeEmail } from "./email.service";
 import { emailConfig } from "../config/emailConfig";
@@ -124,7 +125,7 @@ function mapDriverToResponse(driver: any): DriverResponseDTO {
     pincode: driver.pincode,
     licenseNumber: driver.licenseNumber,
     licenseType: driver.licenseType,
-    employmentType: driver.employmentType || null,
+    employmentType: toApiEmploymentType(driver.employmentType) || null,
     licenseExpDate: driver.licenseExpDate,
     bankAccountName: driver.bankAccountName,
     bankAccountNumber: driver.bankAccountNumber,
@@ -326,7 +327,7 @@ export async function createDriver(
     pincode: input.pincode,
     licenseNumber: input.licenseNumber,
     licenseExpDate: input.licenseExpDate,
-    employmentType: input.employmentType || null,
+    employmentType: toPrismaEmploymentType(input.employmentType) || null,
     bankAccountName: input.bankAccountName,
     bankAccountNumber: input.bankAccountNumber,
     bankIfscCode: input.bankIfscCode,
@@ -518,7 +519,7 @@ export async function updateDriver(
   if (input.pincode !== undefined) updateData.pincode = input.pincode;
   if (input.licenseNumber !== undefined) updateData.licenseNumber = input.licenseNumber;
   if (input.licenseExpDate !== undefined) updateData.licenseExpDate = input.licenseExpDate;
-  if (input.employmentType !== undefined) updateData.employmentType = input.employmentType;
+  if (input.employmentType !== undefined) updateData.employmentType = toPrismaEmploymentType(input.employmentType) || null;
   if (input.bankAccountName !== undefined) updateData.bankAccountName = input.bankAccountName;
   if (input.bankAccountNumber !== undefined) updateData.bankAccountNumber = input.bankAccountNumber;
   if (input.bankIfscCode !== undefined) updateData.bankIfscCode = input.bankIfscCode;

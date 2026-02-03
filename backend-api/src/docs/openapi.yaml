@@ -10905,9 +10905,9 @@ components:
           example: "2025-12-31T00:00:00Z"
         employmentType:
           type: string
-          enum: [FULL_TIME, PART_TIME, CONTRACT]
-          description: Driver's employment type
-          example: "FULL_TIME"
+          enum: ["part time", "full time", "contract"]
+          description: Driver's employment type (API-facing string values)
+          example: "full time"
         bankAccountName:
           type: string
           description: Bank account holder name

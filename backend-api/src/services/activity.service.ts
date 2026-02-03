@@ -1,7 +1,7 @@
 // src/services/activity.service.ts
 import {
   createActivityLog as repoCreateActivityLog,
-  getActivityLogsPaginated,
+  getActivityLogsPaginated as repoGetActivityLogsPaginated,
   getAllActivityLogs,
   getActivityLogById,
   CreateActivityLogData,
@@ -209,7 +209,7 @@ export async function getActivityLogsPaginated(
       break;
   }
 
-  const { data, total } = await getActivityLogsPaginated(skip, limit, filters);
+  const { data, total } = await repoGetActivityLogsPaginated(skip, limit, filters);
 
   const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
   const hasNext = page < totalPages;

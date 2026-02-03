@@ -3,6 +3,7 @@ import { Server as HttpServer } from "http";
 import { Server as SocketIOServer, Socket } from "socket.io";
 import jwt from "jsonwebtoken";
 import { authConfig } from "../config/authConfig";
+import config from "../config/appConfig";
 import { UserRole } from "@prisma/client";
 import { SOCKET_EVENTS, SOCKET_ROOMS, SOCKET_ERROR_MESSAGES, SOCKET_LOG } from "../constants/socket";
 import logger from "../config/logger";
@@ -79,7 +80,7 @@ class SocketService {
 
   private shouldConsoleLog(): boolean {
     // Keep console logs noisy only in development by default.
-    return process.env.NODE_ENV === "DEVELOPMENT";
+    return config.nodeEnv === "development" || config.nodeEnv === "DEVELOPMENT";
   }
 
   private consoleLog(message: string, meta?: Record<string, unknown>): void {
@@ -156,14 +157,20 @@ class SocketService {
       cors: {
         origin: (origin, callback) => {
           // Allow all origins in development, or check against allowed origins
-          if (process.env.NODE_ENV === "DEVELOPMENT" || !origin) {
+          // In development, we allow requests with no origin (mobile apps often have no origin) or any origin
+          const isDev = config.nodeEnv === "development" || config.nodeEnv === "DEVELOPMENT";
+          
+          if (isDev || !origin) {
             return callback(null, true);
           }
+          
           // In production, validate against frontend URLs
-          const allowedOrigins = process.env.FRONTEND_URL_BASE?.split(",").map(url => url.trim()) || [];
+          const allowedOrigins = config.frontendUrls;
           if (allowedOrigins.some(url => origin.startsWith(url))) {
             return callback(null, true);
           }
+          
+          logger.warn("Socket CORS blocked connection", { origin, allowedOrigins });
           callback(new Error("Not allowed by CORS"));
         },
         credentials: true,

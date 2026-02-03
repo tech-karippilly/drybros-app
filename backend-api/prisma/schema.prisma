@@ -19,6 +19,7 @@ model Customer {
   updatedAt   DateTime
   Franchise   Franchise   @relation(fields: [franchiseId], references: [id])
   Trip        Trip[]
+  TripReviews TripReview[]
   Complaints  Complaint[]
 }
 
@@ -86,6 +87,7 @@ model Driver {
   Attendances              Attendance[]
   LeaveRequests            LeaveRequest[]
   DriverRatings            DriverRating[]
+  TripReviews              TripReview[]
   ActivityLogs             ActivityLog[]
   DriverPenalties          DriverPenalty[]
   DriverDailyMetrics       DriverDailyMetrics[]
@@ -112,6 +114,7 @@ model Franchise {
   // Driver relation commented out temporarily to allow dummy UUIDs
   // Driver    Driver[]
   Trip                    Trip[]
+  TripReviews             TripReview[]
   ActivityLogs            ActivityLog[]
   Staff                   Staff[]
 }
@@ -233,6 +236,7 @@ model Trip {
   ActivityLogs         ActivityLog[]
   TripStatusHistories  TripStatusHistory[]
   TripOffers           TripOffer[]
+  TripReviews          TripReview[]
 }
 
 enum TripOfferStatus {
@@ -635,6 +639,27 @@ model DriverRating {
   @@index([driverId])
   @@index([tripId])
   @@index([createdAt])
+}
+
+model TripReview {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tripId      String   @db.Uuid
+  driverId    String   @db.Uuid
+  franchiseId String   @db.Uuid
+  customerId  String   @db.Uuid
+  rating      Int
+  comment     String
+  createdAt   DateTime @default(now())
+
+  Trip       Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  Driver     Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Franchise  Franchise @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
+  Customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@index([driverId])
+  @@index([customerId])
+  @@index([franchiseId])
 }
 
 model ActivityLog {

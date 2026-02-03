@@ -1078,6 +1078,52 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /drivers/live-location:
+    get:
+      summary: Get live locations of drivers
+      description: |
+        Returns current GPS locations of active drivers. Optionally filter by franchiseId.
+        
+        Only ADMIN, MANAGER, STAFF, and OFFICE_STAFF roles can access this endpoint.
+      tags:
+        - Drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: franchiseId
+          in: query
+          required: false
+          description: Filter by franchise ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Live locations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DriverLiveLocation"
+              example:
+                data:
+                  - id: "779a77f6-5704-4b00-8561-2892c58946a2"
+                    firstName: "John"
+                    lastName: "Doe"
+                    phone: "+1234567890"
+                    driverCode: "DRV-3ZSQIA"
+                    franchiseId: "550e8400-e29b-41d4-a716-446655440000"
+                    currentLat: 12.9716
+                    currentLng: 77.5946
+                    locationUpdatedAt: "2026-02-01T10:15:30Z"
+                    driverTripStatus: "AVAILABLE"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
   /drivers:
     get:
       summary: List all drivers
@@ -7100,6 +7146,592 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /penalties:
+    get:
+      summary: List penalties
+      description: |
+        Get a list of penalties with optional pagination and filters.
+        
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 20, max: 100)
+        - `isActive` (optional): Filter by active status
+        - `type` (optional): Filter by type (`PENALTY` or `DEDUCTION`)
+      tags:
+        - Penalties
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: isActive
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [PENALTY, DEDUCTION]
+      responses:
+        "200":
+          description: List of penalties
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PaginatedPenaltyResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Penalty"
+        "401":
+          description: Not authenticated (missing or invalid token)
+    post:
+      summary: Create penalty
+      description: |
+        Create a new penalty. Only ADMIN and MANAGER roles can create penalties.
+      tags:
+        - Penalties
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePenaltyRequest"
+      responses:
+        "201":
+          description: Penalty created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Penalty created successfully"
+                  data:
+                    $ref: "#/components/schemas/Penalty"
+        "400":
+          description: Bad request - validation error
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions
+
+  /penalties/{id}:
+    get:
+      summary: Get penalty by ID
+      tags:
+        - Penalties
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Penalty retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Penalty"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Penalty not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      summary: Update penalty
+      description: Update an existing penalty (ADMIN and MANAGER only).
+      tags:
+        - Penalties
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePenaltyRequest"
+      responses:
+        "200":
+          description: Penalty updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Penalty updated successfully"
+                  data:
+                    $ref: "#/components/schemas/Penalty"
+        "400":
+          description: Bad request - validation error
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions
+        "404":
+          description: Penalty not found
+    delete:
+      summary: Delete penalty
+      description: Delete a penalty (ADMIN and MANAGER only).
+      tags:
+        - Penalties
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Penalty deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Penalty deleted successfully"
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions
+        "404":
+          description: Penalty not found
+
+  /penalties/apply/driver/{driverId}:
+    post:
+      summary: Apply penalty to a driver
+      description: |
+        Apply a penalty to a specific driver. Only ADMIN and MANAGER roles can apply penalties.
+      tags:
+        - Penalties
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: driverId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplyPenaltyToDriverRequest"
+      responses:
+        "201":
+          description: Penalty applied to driver
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Penalty applied to driver successfully"
+                  data:
+                    $ref: "#/components/schemas/DriverPenalty"
+        "400":
+          description: Bad request - validation error
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions
+        "404":
+          description: Driver or penalty not found
+
+  /penalties/apply/drivers:
+    post:
+      summary: Apply penalty to multiple drivers
+      description: |
+        Apply a penalty to multiple drivers by IDs, or by franchise.
+        Only ADMIN and MANAGER roles can apply penalties.
+      tags:
+        - Penalties
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplyPenaltyToDriversRequest"
+      responses:
+        "201":
+          description: Penalty applied to multiple drivers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Penalty applied to multiple drivers successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DriverPenalty"
+        "400":
+          description: Bad request - validation error
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions
+        "404":
+          description: One or more drivers or penalty not found
+
+  /penalties/driver-penalties:
+    get:
+      summary: List driver penalties
+      description: |
+        Get a list of penalties applied to drivers, with optional pagination and filters.
+        
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 20, max: 100)
+        - `driverId` (optional): Filter by driver ID
+        - `penaltyId` (optional): Filter by penalty ID
+        - `startDate` (optional): Filter by start date (ISO 8601)
+        - `endDate` (optional): Filter by end date (ISO 8601)
+      tags:
+        - Penalties
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: driverId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: penaltyId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: List of driver penalties
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PaginatedDriverPenaltyResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/DriverPenalty"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /penalties/driver-penalties/{id}:
+    get:
+      summary: Get driver penalty by ID
+      tags:
+        - Penalties
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Driver penalty retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/DriverPenalty"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Driver penalty not found
+    patch:
+      summary: Update driver penalty
+      description: Update fields like amount, reason, or active status (ADMIN and MANAGER only).
+      tags:
+        - Penalties
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Driver penalty updated successfully
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions
+        "404":
+          description: Driver penalty not found
+    delete:
+      summary: Delete driver penalty
+      description: Delete a driver penalty record (ADMIN and MANAGER only).
+      tags:
+        - Penalties
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Driver penalty deleted successfully
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions
+        "404":
+          description: Driver penalty not found
+
+  /penalties/daily-limit/driver/{driverId}:
+    patch:
+      summary: Set driver's daily limit
+      description: |
+        Set the daily target amount for a specific driver (ADMIN and MANAGER only).
+      tags:
+        - Penalties
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: driverId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetDriverDailyLimitRequest"
+      responses:
+        "200":
+          description: Driver daily limit set successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Driver daily limit set successfully"
+                  data:
+                    type: object
+                    properties:
+                      driverId:
+                        type: string
+                        format: uuid
+                      dailyTargetAmount:
+                        type: integer
+        "400":
+          description: Bad request - validation error
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions
+        "404":
+          description: Driver not found
+
+  /penalties/daily-limit/drivers:
+    patch:
+      summary: Set drivers' daily limit (bulk)
+      description: |
+        Set the daily target amount for multiple drivers by IDs or by franchise (ADMIN and MANAGER only).
+      tags:
+        - Penalties
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetDriversDailyLimitRequest"
+      responses:
+        "200":
+          description: Drivers' daily limits set successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Drivers' daily limits set successfully"
+                  data:
+                    type: object
+                    properties:
+                      updatedCount:
+                        type: integer
+        "400":
+          description: Bad request - validation error
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - insufficient permissions
+        "404":
+          description: One or more drivers or franchise not found
+        
+  /reviews/public:
+    post:
+      summary: Submit trip review (public)
+      description: Submit a customer trip review without authentication.
+      tags:
+        - Reviews
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTripReviewRequest"
+      responses:
+        "201":
+          description: Trip review submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/TripReview"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Related entity not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /reviews/{id}:
+    get:
+      summary: Get trip review by ID (public)
+      tags:
+        - Reviews
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip review ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Trip review fetched
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TripReview"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        
 components:
   schemas:
     CreateCustomerRequest:
@@ -7145,6 +7777,63 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/Customer"
+    
+    TripReview:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tripId:
+          type: string
+          format: uuid
+        driverId:
+          type: string
+          format: uuid
+        franchiseId:
+          type: string
+          format: uuid
+        customerId:
+          type: string
+          format: uuid
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    
+    CreateTripReviewRequest:
+      type: object
+      required:
+        - tripId
+        - driverId
+        - franchiseId
+        - customerId
+        - rating
+        - comment
+      properties:
+        tripId:
+          type: string
+          format: uuid
+        driverId:
+          type: string
+          format: uuid
+        franchiseId:
+          type: string
+          format: uuid
+        customerId:
+          type: string
+          format: uuid
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
 
     CustomerDetailsResponse:
       type: object
@@ -10591,6 +11280,256 @@ components:
         data:
           $ref: "#/components/schemas/Driver"
 
+    DriverLiveLocation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        driverCode:
+          type: string
+        franchiseId:
+          type: string
+          format: uuid
+        currentLat:
+          type: number
+        currentLng:
+          type: number
+        locationUpdatedAt:
+          type: string
+          format: date-time
+        driverTripStatus:
+          type: string
+    CreatePenaltyRequest:
+      type: object
+      required:
+        - name
+        - amount
+        - type
+      properties:
+        name:
+          type: string
+          description: Penalty name
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          description: Optional description
+          maxLength: 500
+          nullable: true
+        amount:
+          type: integer
+          description: Penalty amount
+          minimum: 1
+        type:
+          type: string
+          enum: [PENALTY, DEDUCTION]
+          description: Penalty type
+        isActive:
+          type: boolean
+          description: Whether the penalty is active
+          default: true
+    UpdatePenaltyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        amount:
+          type: integer
+          minimum: 1
+        type:
+          type: string
+          enum: [PENALTY, DEDUCTION]
+        isActive:
+          type: boolean
+    Penalty:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        amount:
+          type: integer
+        type:
+          type: string
+          enum: [PENALTY, DEDUCTION]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PaginatedPenaltyResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Penalty"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+    ApplyPenaltyToDriverRequest:
+      type: object
+      required:
+        - penaltyId
+      properties:
+        penaltyId:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          minimum: 1
+          nullable: true
+        reason:
+          type: string
+          maxLength: 500
+          nullable: true
+        violationDate:
+          type: string
+          format: date-time
+          nullable: true
+    ApplyPenaltyToDriversRequest:
+      type: object
+      required:
+        - penaltyId
+      properties:
+        penaltyId:
+          type: string
+          format: uuid
+        driverIds:
+          type: array
+          nullable: true
+          items:
+            type: string
+            format: uuid
+        amount:
+          type: integer
+          minimum: 1
+          nullable: true
+        reason:
+          type: string
+          maxLength: 500
+          nullable: true
+        violationDate:
+          type: string
+          format: date-time
+          nullable: true
+    DriverPenalty:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        driverId:
+          type: string
+          format: uuid
+        penaltyId:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+        reason:
+          type: string
+          nullable: true
+        violationDate:
+          type: string
+          format: date-time
+        appliedAt:
+          type: string
+          format: date-time
+        appliedBy:
+          type: string
+          format: uuid
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        driver:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            firstName:
+              type: string
+            lastName:
+              type: string
+            driverCode:
+              type: string
+        penalty:
+          $ref: "#/components/schemas/Penalty"
+        appliedByUser:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            fullName:
+              type: string
+            email:
+              type: string
+              format: email
+    PaginatedDriverPenaltyResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/DriverPenalty"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+    SetDriverDailyLimitRequest:
+      type: object
+      required:
+        - dailyTargetAmount
+      properties:
+        dailyTargetAmount:
+          type: integer
+          minimum: 1
+    SetDriversDailyLimitRequest:
+      type: object
+      required:
+        - dailyTargetAmount
+      properties:
+        driverIds:
+          type: array
+          nullable: true
+          items:
+            type: string
+            format: uuid
+        franchiseId:
+          type: string
+          format: uuid
+          nullable: true
+        dailyTargetAmount:
+          type: integer
+          minimum: 1
     TripOffer:
       type: object
       properties:

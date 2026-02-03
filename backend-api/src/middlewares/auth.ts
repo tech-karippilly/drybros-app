@@ -68,3 +68,24 @@ export function requireRole(...roles: UserRole[]) {
     next();
   };
 }
+
+/**
+ * Allow if request has a driver token OR a user token with one of the specified roles.
+ * Useful for endpoints that both drivers (driver token) and staff/managers (user token) can access.
+ */
+export function requireRoleOrDriver(...roles: UserRole[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    // Allow driver token
+    if (req.driver) {
+      return next();
+    }
+    // Otherwise require user token with allowed role
+    if (!req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    next();
+  };
+}

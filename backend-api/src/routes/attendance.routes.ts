@@ -21,7 +21,7 @@ import {
   updateAttendanceStatusSchema,
 } from "../types/attendance.dto";
 import { z } from "zod";
-import { requireRole } from "../middlewares/auth";
+import { requireRole, requireRoleOrDriver } from "../middlewares/auth";
 import { UserRole } from "@prisma/client";
 
 const router = express.Router();
@@ -32,7 +32,7 @@ router.use(authMiddleware);
 // POST /attendance/clock-in
 router.post(
   "/clock-in",
-  requireRole(UserRole.DRIVER, UserRole.STAFF, UserRole.MANAGER, UserRole.OFFICE_STAFF),
+  requireRoleOrDriver(UserRole.DRIVER, UserRole.STAFF, UserRole.MANAGER, UserRole.OFFICE_STAFF),
   validate(clockInSchema),
   clockInHandler
 );
@@ -40,7 +40,7 @@ router.post(
 // POST /attendance/clock-out
 router.post(
   "/clock-out",
-  requireRole(UserRole.DRIVER, UserRole.STAFF, UserRole.MANAGER, UserRole.OFFICE_STAFF),
+  requireRoleOrDriver(UserRole.DRIVER, UserRole.STAFF, UserRole.MANAGER, UserRole.OFFICE_STAFF),
   validate(clockOutSchema),
   clockOutHandler
 );

@@ -219,6 +219,11 @@ export async function createFranchise(
   const plainPassword = generatePassword(12);
   const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
+  // Validate emails are different
+  if (input.franchiseEmail && input.managerEmail && input.franchiseEmail === input.managerEmail) {
+    throw new BadRequestError("Franchise email and manager email must be different");
+  }
+
   // Generate unique franchise code first (outside transaction to avoid deadlocks)
   const franchiseCode = await getUniqueFranchiseCode();
 

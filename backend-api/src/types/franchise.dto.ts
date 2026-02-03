@@ -62,6 +62,19 @@ export const createFranchiseSchema = z.object({
     .default(false),
 });
 
+// Ensure franchise email and manager email are different
+export const createFranchiseSchemaWithValidation = createFranchiseSchema.superRefine((data, ctx) => {
+  if (data.franchiseEmail && data.managerEmail && data.franchiseEmail === data.managerEmail) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Franchise email and manager email must be different",
+      path: ["managerEmail"],
+    });
+  }
+});
+
+export type CreateFranchiseDTO = z.infer<typeof createFranchiseSchemaWithValidation>;
+
 /**
  * DTO for creating a franchise (inferred from Zod schema)
  */

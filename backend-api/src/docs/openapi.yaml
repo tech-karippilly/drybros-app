@@ -8,107 +8,6 @@ servers:
   - url: http://localhost:4000
 
 paths:
-  /attendance/monitor:
-    get:
-      summary: Get attendance monitoring data (dashboard)
-      description: |
-        Get real-time attendance stats and logs for the current day.
-        
-        **Access Control:**
-        - **Admin**: View All (Drivers, Staff, Managers)
-        - **Manager**: View Drivers and Staff
-        - **Staff/Office Staff**: View Drivers only
-      tags:
-        - Attendance
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Attendance monitor data
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  stats:
-                    type: object
-                    properties:
-                      activeStaffCount:
-                        type: integer
-                      activeDriverCount:
-                        type: integer
-                      activeManagerCount:
-                        type: integer
-                  logs:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                          format: uuid
-                        personId:
-                          type: string
-                          format: uuid
-                        name:
-                          type: string
-                        role:
-                          type: string
-                        loginTime:
-                          type: string
-                          format: date-time
-                          nullable: true
-                        clockInTime:
-                          type: string
-                          format: date-time
-                          nullable: true
-                        clockOutTime:
-                          type: string
-                          format: date-time
-                          nullable: true
-                        logoutTime:
-                          type: string
-                          format: date-time
-                          nullable: true
-                        timeWorked:
-                          type: string
-                          example: "04:30"
-                          nullable: true
-                        status:
-                          type: string
-                          enum: [PRESENT, ABSENT, HALF_DAY, LEAVE]
-        "401":
-          description: Unauthorized
-        "403":
-          description: Forbidden
-
-  /attendance/status/{id}:
-    get:
-      summary: Get attendance status by person ID
-      description: Check if a specific person (Driver, Staff, or Manager) is currently clocked in for the day.
-      tags:
-        - Attendance
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          required: true
-          description: The UUID of the person (Driver ID, Staff ID, or User ID)
-      responses:
-        "200":
-          description: Current attendance status
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AttendanceStatus"
-        "400":
-          description: Invalid ID format
-        "401":
-          description: Unauthorized
 
   /health:
     get:
@@ -123,6 +22,382 @@ paths:
       responses:
         "200":
           description: App version info
+
+
+  /roles:
+    get:
+      summary: List all roles
+      tags:
+        - Roles
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of roles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Role"
+        "401":
+          description: Not authenticated (missing or invalid token)
+    post:
+      summary: Create a new role
+      tags:
+        - Roles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleRequest"
+      responses:
+        "201":
+          description: Role created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleResponse"
+        "400":
+          description: Bad request (e.g., role name already exists)
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /roles/{id}:
+    get:
+      summary: Get role by ID
+      tags:
+        - Roles
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      responses:
+        "200":
+          description: Role data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Role not found
+    put:
+      summary: Update a role
+      tags:
+        - Roles
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleRequest"
+      responses:
+        "200":
+          description: Role updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleResponse"
+        "400":
+          description: Bad request (e.g., role name already exists)
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Role not found
+    delete:
+      summary: Delete a role
+      tags:
+        - Roles
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      responses:
+        "204":
+          description: Role deleted successfully
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Role not found
+
+# AUTH
+  /auth/register-admin:
+    post:
+      summary: Register a new admin user
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterAdminRequest"
+      responses:
+        "201":
+          description: Admin registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterAdminResponse"
+        "400":
+          description: Bad request (validation error)
+        "409":
+          description: Email already in use
+
+  /auth/login:
+    post:
+      summary: Login user
+      description: |
+        Authenticates a user and returns access and refresh tokens.
+        
+        **Rate Limiting & Account Lockout:**
+        The system implements escalating account lockout to prevent brute-force attacks:
+        - After **5 incorrect password attempts**, the account is locked for **5 minutes**
+        - After the lockout expires, if **2 more incorrect attempts** occur, the account is locked for **10 minutes**
+        - Each subsequent threshold (every 2 more incorrect attempts) doubles the lockout duration
+        - Maximum lockout duration is capped at **30 minutes**
+        - Failed attempts counter resets to 0 on successful login
+        
+        **Lockout Behavior:**
+        - If an account is locked, login attempts will return a 429 error with the remaining lockout time
+        - The lockout check happens before password verification
+        - Successful login automatically resets the failed attempts counter and unlocks the account
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Invalid credentials (incorrect email or password)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Account temporarily locked due to multiple failed login attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Account is temporarily locked due to multiple failed login attempts. Please try again in 5 minute(s)."
+
+  /auth/forgot-password:
+    post:
+      summary: Request password reset
+      description: Sends a password reset link to the user's email address. Returns an error if the email does not exist in the system or if the account is inactive.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: Password reset email sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForgotPasswordResponse"
+        "400":
+          description: Bad request (validation error or account is inactive)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Email address not found in the system
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/reset-password:
+    post:
+      summary: Reset password with token
+      description: Resets the user's password using the token received via email. Token expiration is configurable (default: 1 hour).
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResetPasswordResponse"
+        "400":
+          description: Bad request (invalid or expired token, validation error)
+
+  /auth/refresh-token:
+    post:
+      summary: Refresh access token
+      description: |
+        Generates a new access token and refresh token using a valid refresh token. Refresh token expires in 8 hours.
+
+        This endpoint supports refresh tokens for:
+        - **Users** (ADMIN / MANAGER / OFFICE_STAFF / STAFF) → returns `AuthResponse`
+        - **Drivers** → returns `AuthResponse` with `user.role = "DRIVER"` (driver tokens are refreshed too)
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    oneOf:
+                      - $ref: "#/components/schemas/AuthResponse"
+                      - $ref: "#/components/schemas/DriverLoginResponse"
+        "400":
+          description: Bad request (invalid or expired refresh token, validation error)
+
+  /auth/logout:
+    post:
+      summary: Logout user
+      description: |
+        Logs out the current authenticated account (User or Driver).
+        Since we use stateless JWT tokens, logout is primarily client-side (token removal). The server confirms the logout action.
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /auth/me:
+    get:
+      summary: Get current user information
+      description: Returns the current authenticated user's information based on the JWT token.
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUserResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: User not found
+        "400":
+          description: User account is inactive
+
+  /auth/change-password:
+    post:
+      summary: Change password
+      description: |
+        Change password for the authenticated user. Requires previous password verification.
+        
+        **Security:**
+        - User can only change their own password (id must match authenticated user)
+        - Previous password must be verified
+        - New password must be at least 8 characters
+        - Supports User (ADMIN, MANAGER), Staff, and Driver roles
+        
+        **Note:** This endpoint is for authenticated users to change their password from the profile section.
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+            example:
+              id: "550e8400-e29b-41d4-a716-446655440000"
+              previousPassword: "oldPassword123"
+              newPassword: "newSecurePassword123"
+      responses:
+        "200":
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Password changed successfully"
+        "400":
+          description: Bad request (validation error, previous password incorrect, or id mismatch)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: User/Staff/Driver not found
+
+# FRANCHISES
 
   /franchises:
     get:
@@ -253,6 +528,7 @@ paths:
               region: "New York"
               address: "123 Main Street, New York, NY 10001"
               phone: "+1234567890"
+              franchiseEmail: "contact.downtown@drybros.com"
               inchargeName: "John Smith"
               managerEmail: "john.smith@drybros.com"
               managerPhone: "+1234567891"
@@ -544,132 +820,112 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /roles:
+
+
+  /attendance/monitor:
     get:
-      summary: List all roles
+      summary: Get attendance monitoring data (dashboard)
+      description: |
+        Get real-time attendance stats and logs for the current day.
+        
+        **Access Control:**
+        - **Admin**: View All (Drivers, Staff, Managers)
+        - **Manager**: View Drivers and Staff
+        - **Staff/Office Staff**: View Drivers only
       tags:
-        - Roles
+        - Attendance
       security:
         - bearerAuth: []
       responses:
         "200":
-          description: List of roles
+          description: Attendance monitor data
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  data:
+                  stats:
+                    type: object
+                    properties:
+                      activeStaffCount:
+                        type: integer
+                      activeDriverCount:
+                        type: integer
+                      activeManagerCount:
+                        type: integer
+                  logs:
                     type: array
                     items:
-                      $ref: "#/components/schemas/Role"
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        personId:
+                          type: string
+                          format: uuid
+                        name:
+                          type: string
+                        role:
+                          type: string
+                        loginTime:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        clockInTime:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        clockOutTime:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        logoutTime:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        timeWorked:
+                          type: string
+                          example: "04:30"
+                          nullable: true
+                        status:
+                          type: string
+                          enum: [PRESENT, ABSENT, HALF_DAY, LEAVE]
         "401":
-          description: Not authenticated (missing or invalid token)
-    post:
-      summary: Create a new role
-      tags:
-        - Roles
-      security:
-        - bearerAuth: []
-      x-roles: ["ADMIN"]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateRoleRequest"
-      responses:
-        "201":
-          description: Role created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RoleResponse"
-        "400":
-          description: Bad request (e.g., role name already exists)
-        "401":
-          description: Not authenticated (missing or invalid token)
+          description: Unauthorized
+        "403":
+          description: Forbidden
 
-  /roles/{id}:
+  /attendance/status/{id}:
     get:
-      summary: Get role by ID
+      summary: Get attendance status by person ID
+      description: Check if a specific person (Driver, Staff, or Manager) is currently clocked in for the day.
       tags:
-        - Roles
+        - Attendance
       security:
         - bearerAuth: []
       parameters:
-        - name: id
-          in: path
-          required: true
+        - in: path
+          name: id
           schema:
             type: string
             format: uuid
-            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-      responses:
-        "200":
-          description: Role data
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RoleResponse"
-        "401":
-          description: Not authenticated (missing or invalid token)
-        "404":
-          description: Role not found
-    put:
-      summary: Update a role
-      tags:
-        - Roles
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
           required: true
-          schema:
-            type: string
-            format: uuid
-            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateRoleRequest"
+          description: The UUID of the person (Driver ID, Staff ID, or User ID)
       responses:
         "200":
-          description: Role updated successfully
+          description: Current attendance status
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RoleResponse"
+                $ref: "#/components/schemas/AttendanceStatus"
         "400":
-          description: Bad request (e.g., role name already exists)
+          description: Invalid ID format
         "401":
-          description: Not authenticated (missing or invalid token)
-        "404":
-          description: Role not found
-    delete:
-      summary: Delete a role
-      tags:
-        - Roles
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-      responses:
-        "204":
-          description: Role deleted successfully
-        "401":
-          description: Not authenticated (missing or invalid token)
-        "404":
-          description: Role not found
+          description: Unauthorized
+
+
+
 
   /staff:
     get:
@@ -3154,253 +3410,6 @@ paths:
         "403":
           description: Forbidden - only ADMIN
 
-  /auth/register-admin:
-    post:
-      summary: Register a new admin user
-      tags:
-        - Authentication
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RegisterAdminRequest"
-      responses:
-        "201":
-          description: Admin registered successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RegisterAdminResponse"
-        "400":
-          description: Bad request (validation error)
-        "409":
-          description: Email already in use
-
-  /auth/login:
-    post:
-      summary: Login user
-      description: |
-        Authenticates a user and returns access and refresh tokens.
-        
-        **Rate Limiting & Account Lockout:**
-        The system implements escalating account lockout to prevent brute-force attacks:
-        - After **5 incorrect password attempts**, the account is locked for **5 minutes**
-        - After the lockout expires, if **2 more incorrect attempts** occur, the account is locked for **10 minutes**
-        - Each subsequent threshold (every 2 more incorrect attempts) doubles the lockout duration
-        - Maximum lockout duration is capped at **30 minutes**
-        - Failed attempts counter resets to 0 on successful login
-        
-        **Lockout Behavior:**
-        - If an account is locked, login attempts will return a 429 error with the remaining lockout time
-        - The lockout check happens before password verification
-        - Successful login automatically resets the failed attempts counter and unlocks the account
-      tags:
-        - Authentication
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LoginRequest"
-      responses:
-        "200":
-          description: Login successful
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthResponse"
-        "400":
-          description: Invalid credentials (incorrect email or password)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "429":
-          description: Account temporarily locked due to multiple failed login attempts
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                error: "Account is temporarily locked due to multiple failed login attempts. Please try again in 5 minute(s)."
-
-  /auth/forgot-password:
-    post:
-      summary: Request password reset
-      description: Sends a password reset link to the user's email address. Returns an error if the email does not exist in the system or if the account is inactive.
-      tags:
-        - Authentication
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ForgotPasswordRequest"
-      responses:
-        "200":
-          description: Password reset email sent successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ForgotPasswordResponse"
-        "400":
-          description: Bad request (validation error or account is inactive)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Email address not found in the system
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /auth/reset-password:
-    post:
-      summary: Reset password with token
-      description: Resets the user's password using the token received via email. Token expiration is configurable (default: 1 hour).
-      tags:
-        - Authentication
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ResetPasswordRequest"
-      responses:
-        "200":
-          description: Password reset successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ResetPasswordResponse"
-        "400":
-          description: Bad request (invalid or expired token, validation error)
-
-  /auth/refresh-token:
-    post:
-      summary: Refresh access token
-      description: |
-        Generates a new access token and refresh token using a valid refresh token. Refresh token expires in 8 hours.
-
-        This endpoint supports refresh tokens for:
-        - **Users** (ADMIN / MANAGER / OFFICE_STAFF / STAFF) → returns `AuthResponse`
-        - **Drivers** → returns `AuthResponse` with `user.role = "DRIVER"` (driver tokens are refreshed too)
-      tags:
-        - Authentication
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RefreshTokenRequest"
-      responses:
-        "200":
-          description: Tokens refreshed successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    oneOf:
-                      - $ref: "#/components/schemas/AuthResponse"
-                      - $ref: "#/components/schemas/DriverLoginResponse"
-        "400":
-          description: Bad request (invalid or expired refresh token, validation error)
-
-  /auth/logout:
-    post:
-      summary: Logout user
-      description: |
-        Logs out the current authenticated account (User or Driver).
-        Since we use stateless JWT tokens, logout is primarily client-side (token removal). The server confirms the logout action.
-      tags:
-        - Authentication
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Logged out successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LogoutResponse"
-        "401":
-          description: Not authenticated (missing or invalid token)
-
-  /auth/me:
-    get:
-      summary: Get current user information
-      description: Returns the current authenticated user's information based on the JWT token.
-      tags:
-        - Authentication
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Current user information
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CurrentUserResponse"
-        "401":
-          description: Not authenticated (missing or invalid token)
-        "404":
-          description: User not found
-        "400":
-          description: User account is inactive
-
-  /auth/change-password:
-    post:
-      summary: Change password
-      description: |
-        Change password for the authenticated user. Requires previous password verification.
-        
-        **Security:**
-        - User can only change their own password (id must match authenticated user)
-        - Previous password must be verified
-        - New password must be at least 8 characters
-        - Supports User (ADMIN, MANAGER), Staff, and Driver roles
-        
-        **Note:** This endpoint is for authenticated users to change their password from the profile section.
-      tags:
-        - Authentication
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ChangePasswordRequest"
-            example:
-              id: "550e8400-e29b-41d4-a716-446655440000"
-              previousPassword: "oldPassword123"
-              newPassword: "newSecurePassword123"
-      responses:
-        "200":
-          description: Password changed successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "Password changed successfully"
-        "400":
-          description: Bad request (validation error, previous password incorrect, or id mismatch)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Not authenticated (missing or invalid token)
-        "404":
-          description: User/Staff/Driver not found
 
   /customers:
     get:

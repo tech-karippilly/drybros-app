@@ -26,6 +26,7 @@ import { Search, Loader2, AlertCircle, LogIn, LogOut, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AttendanceCalendar } from '@/components/ui/AttendanceCalendar';
 import { format, subDays } from 'date-fns';
+import { AttendanceMonitor } from './AttendanceMonitor';
 
 function isPaginated(r: AttendanceResponse[] | PaginatedAttendanceResponse): r is PaginatedAttendanceResponse {
     return typeof r === 'object' && 'pagination' in r && Array.isArray((r as PaginatedAttendanceResponse).data);
@@ -39,6 +40,7 @@ export function AttendanceManager() {
     const [clockModal, setClockModal] = useState<'in' | 'out' | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [dateFilter, setDateFilter] = useState<AttendanceDateFilter>(ATTENDANCE_DATE_FILTERS.TODAY);
+    const [viewMode, setViewMode] = useState<'monitor' | 'list'>('monitor'); // 'monitor' | 'list'
 
     const [drivers, setDrivers] = useState<DriverResponse[]>([]);
     const [staff, setStaff] = useState<StaffResponse[]>([]);
@@ -339,10 +341,43 @@ export function AttendanceManager() {
                         {filterDateRange.startDate}
                     </span>
                 )}
+                
+                {/* View Mode Toggle (Only for Today) */}
+                {dateFilter === ATTENDANCE_DATE_FILTERS.TODAY && (
+                    <div className="flex items-center gap-2 ml-auto">
+                        <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden h-8">
+                            <button
+                                onClick={() => setViewMode('monitor')}
+                                className={cn(
+                                    'px-3 text-sm font-medium transition-colors',
+                                    viewMode === 'monitor'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
+                                )}
+                            >
+                                Live Monitor
+                            </button>
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={cn(
+                                    'px-3 text-sm font-medium transition-colors border-l border-gray-200 dark:border-gray-800',
+                                    viewMode === 'list'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
+                                )}
+                            >
+                                Records List
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* Attendance Table Section */}
-            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+            {/* Attendance Content */}
+            {dateFilter === ATTENDANCE_DATE_FILTERS.TODAY && viewMode === 'monitor' ? (
+                <AttendanceMonitor />
+            ) : (
+                <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
                 {loading ? (
                     <div className="flex items-center justify-center py-16">
                         <Loader2 className="size-8 animate-spin text-[#0d59f2]" />
@@ -363,6 +398,7 @@ export function AttendanceManager() {
                                     <th className="text-left px-6 py-3 font-semibold text-[#0d121c] dark:text-white">Date</th>
                                     <th className="text-left px-6 py-3 font-semibold text-[#0d121c] dark:text-white">Clock In</th>
                                     <th className="text-left px-6 py-3 font-semibold text-[#0d121c] dark:text-white">Clock Out</th>
+                                    <th className="text-left px-6 py-3 font-semibold text-[#0d121c] dark:text-white">Total Work Hours</th>
                                     <th className="text-left px-6 py-3 font-semibold text-[#0d121c] dark:text-white">Status</th>
                                     <th className="text-left px-6 py-3 font-semibold text-[#0d121c] dark:text-white">Trip Status</th>
                                 </tr>
@@ -393,6 +429,9 @@ export function AttendanceManager() {
                                         </td>
                                         <td className="px-6 py-3 text-[#49659c] dark:text-gray-400">
                                             {a.clockOut ? new Date(a.clockOut).toLocaleTimeString() : '—'}
+                                        </td>
+                                        <td className="px-6 py-3 text-[#49659c] dark:text-gray-400 font-medium">
+                                            {a.totalWorkHours || '—'}
                                         </td>
                                         <td className="px-6 py-3">
                                             <span
@@ -431,6 +470,7 @@ export function AttendanceManager() {
                     </div>
                 )}
             </div>
+            )}
 
             {clockModal === 'in' && (
                 <ClockInOutModal

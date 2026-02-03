@@ -11,6 +11,108 @@ security:
   - bearerAuth: []
 
 paths:
+  /attendance/monitor:
+    get:
+      summary: Get attendance monitoring data (dashboard)
+      description: |
+        Get real-time attendance stats and logs for the current day.
+        
+        **Access Control:**
+        - **Admin**: View All (Drivers, Staff, Managers)
+        - **Manager**: View Drivers and Staff
+        - **Staff/Office Staff**: View Drivers only
+      tags:
+        - Attendance
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Attendance monitor data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    type: object
+                    properties:
+                      activeStaffCount:
+                        type: integer
+                      activeDriverCount:
+                        type: integer
+                      activeManagerCount:
+                        type: integer
+                  logs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        personId:
+                          type: string
+                          format: uuid
+                        name:
+                          type: string
+                        role:
+                          type: string
+                        loginTime:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        clockInTime:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        clockOutTime:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        logoutTime:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        timeWorked:
+                          type: string
+                          example: "04:30"
+                          nullable: true
+                        status:
+                          type: string
+                          enum: [PRESENT, ABSENT, HALF_DAY, LEAVE]
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /attendance/status/{id}:
+    get:
+      summary: Get attendance status by person ID
+      description: Check if a specific person (Driver, Staff, or Manager) is currently clocked in for the day.
+      tags:
+        - Attendance
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: The UUID of the person (Driver ID, Staff ID, or User ID)
+      responses:
+        "200":
+          description: Current attendance status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceStatus"
+        "400":
+          description: Invalid ID format
+        "401":
+          description: Unauthorized
+
   /health:
     get:
       summary: Health check
@@ -1139,10 +1241,15 @@ paths:
         **Franchise Filtering:**
         - Use `franchiseId` query parameter to filter drivers by franchise (optional)
         - If provided, only returns drivers belonging to that franchise
+
+        **Employment Type Filtering:**
+        - Use `employmentType` query parameter to filter drivers by employment type (optional)
+        - Values: `FULL_TIME`, `PART_TIME`, `CONTRACT`
         
         **Examples:**
         - `/drivers?page=1&limit=10` - Get first 10 drivers
         - `/drivers?franchiseId=550e8400-e29b-41d4-a716-446655440000` - Get all drivers for a specific franchise
+        - `/drivers?employmentType=FULL_TIME` - Get all full-time drivers
         - `/drivers?page=1&limit=20&franchiseId=550e8400-e29b-41d4-a716-446655440000` - Get paginated drivers for a specific franchise
         
         **Without Pagination:**
@@ -1179,6 +1286,14 @@ paths:
             type: string
             format: uuid
             example: "550e8400-e29b-41d4-a716-446655440000"
+        - name: employmentType
+          in: query
+          required: false
+          description: Filter drivers by employment type
+          schema:
+            type: string
+            enum: [FULL_TIME, PART_TIME, CONTRACT]
+            example: "FULL_TIME"
       responses:
         "200":
           description: List of drivers retrieved successfully
@@ -7734,6 +7849,32 @@ paths:
         
 components:
   schemas:
+    AttendanceStatus:
+      type: object
+      properties:
+        clockedIn:
+          type: boolean
+          description: Whether the person is currently clocked in
+        clockInTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: Time of the first clock-in for the day
+        lastClockOutTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: Time of the last clock-out for the day
+        status:
+          type: string
+          enum: [PRESENT, ABSENT, HALF_DAY, LEAVE]
+          description: Current attendance status
+        attendanceId:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID of the attendance record
+
     CreateCustomerRequest:
       type: object
       properties:
@@ -10762,6 +10903,11 @@ components:
           format: date-time
           description: License expiration date
           example: "2025-12-31T00:00:00Z"
+        employmentType:
+          type: string
+          enum: [FULL_TIME, PART_TIME, CONTRACT]
+          description: Driver's employment type
+          example: "FULL_TIME"
         bankAccountName:
           type: string
           description: Bank account holder name

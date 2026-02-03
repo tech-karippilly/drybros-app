@@ -37,35 +37,30 @@ export function DriversManager() {
     // If viewing driver details, show full-page details view
     if (isDetailsOpen && selectedDriver) {
         return (
-            <>
-                <DriverDetails
-                    driver={selectedDriver}
-                    onBack={handleBackToList}
-                    onEdit={() => handleEditClick(selectedDriver)}
-                />
-                
-                <DriverForm
-                    isOpen={isFormOpen}
-                    driver={selectedDriver}
-                    onClose={handleCloseForm}
-                />
-            </>
+            <DriverDetails
+                driver={selectedDriver}
+                onBack={handleBackToList}
+                onEdit={() => handleEditClick(selectedDriver)}
+            />
         );
     }
 
-    return (
-        <>
-            <DriversList
-                onEditClick={handleEditClick}
-                onCreateClick={handleCreateClick}
-                onViewClick={handleViewClick}
-            />
-            
+    // If form is open, show full-page form
+    if (isFormOpen) {
+        return (
             <DriverForm
                 isOpen={isFormOpen}
                 driver={selectedDriver}
                 onClose={handleCloseForm}
             />
-        </>
+        );
+    }
+
+    return (
+        <DriversList
+            onEditClick={handleEditClick}
+            onCreateClick={handleCreateClick}
+            onViewClick={handleViewClick}
+        />
     );
 }

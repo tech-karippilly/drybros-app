@@ -17,7 +17,7 @@ import {
 } from "../repositories/driver.repository";
 import { getFranchiseById } from "../repositories/franchise.repository";
 import { CreateDriverDTO, CreateDriverResponseDTO, DriverResponseDTO, DriverLoginDTO, DriverLoginResponseDTO, UpdateDriverDTO, UpdateDriverResponseDTO, UpdateDriverStatusDTO, UpdateDriverStatusResponseDTO, PaginationQueryDTO, PaginatedDriverResponseDTO } from "../types/driver.dto";
-import { CarType } from "@prisma/client";
+import { CarType, DriverEmploymentType } from "@prisma/client";
 import { ConflictError, NotFoundError, BadRequestError } from "../utils/errors";
 import { sendDriverWelcomeEmail } from "./email.service";
 import { emailConfig } from "../config/emailConfig";
@@ -123,6 +123,8 @@ function mapDriverToResponse(driver: any): DriverResponseDTO {
     state: driver.state,
     pincode: driver.pincode,
     licenseNumber: driver.licenseNumber,
+    licenseType: driver.licenseType,
+    employmentType: driver.employmentType || null,
     licenseExpDate: driver.licenseExpDate,
     bankAccountName: driver.bankAccountName,
     bankAccountNumber: driver.bankAccountNumber,
@@ -153,7 +155,8 @@ function mapDriverToResponse(driver: any): DriverResponseDTO {
  */
 export async function listDrivers(
   franchiseId?: string,
-  includePerformance: boolean = false
+  includePerformance: boolean = false,
+  employmentType?: DriverEmploymentType
 ): Promise<DriverResponseDTO[] | (DriverResponseDTO & { performance: DriverPerformanceMetrics })[]> {
   if (includePerformance) {
     const drivers = await getDriversWithPerformance(franchiseId, false);
@@ -163,7 +166,7 @@ export async function listDrivers(
       performance: driver.performance,
     }));
   }
-  const drivers = await getAllDrivers(false, franchiseId);
+  const drivers = await getAllDrivers(false, franchiseId, employmentType);
   return drivers.map(mapDriverToResponse);
 }
 
@@ -174,7 +177,7 @@ export async function listDriversPaginated(
   pagination: PaginationQueryDTO,
   includePerformance: boolean = false
 ): Promise<PaginatedDriverResponseDTO | (PaginatedDriverResponseDTO & { data: (DriverResponseDTO & { performance: DriverPerformanceMetrics })[] })> {
-  const { page = 1, limit = 10, franchiseId } = pagination;
+  const { page = 1, limit = 10, franchiseId, employmentType } = pagination;
   const skip = (page - 1) * limit;
 
   if (includePerformance) {
@@ -201,7 +204,7 @@ export async function listDriversPaginated(
   }
 
   // Original pagination logic
-  const { data, total } = await getDriversPaginated(skip, limit, franchiseId);
+  const { data, total } = await getDriversPaginated(skip, limit, franchiseId, employmentType);
   
   // Calculate pagination metadata efficiently
   const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
@@ -323,6 +326,7 @@ export async function createDriver(
     pincode: input.pincode,
     licenseNumber: input.licenseNumber,
     licenseExpDate: input.licenseExpDate,
+    employmentType: input.employmentType || null,
     bankAccountName: input.bankAccountName,
     bankAccountNumber: input.bankAccountNumber,
     bankIfscCode: input.bankIfscCode,
@@ -514,6 +518,7 @@ export async function updateDriver(
   if (input.pincode !== undefined) updateData.pincode = input.pincode;
   if (input.licenseNumber !== undefined) updateData.licenseNumber = input.licenseNumber;
   if (input.licenseExpDate !== undefined) updateData.licenseExpDate = input.licenseExpDate;
+  if (input.employmentType !== undefined) updateData.employmentType = input.employmentType;
   if (input.bankAccountName !== undefined) updateData.bankAccountName = input.bankAccountName;
   if (input.bankAccountNumber !== undefined) updateData.bankAccountNumber = input.bankAccountNumber;
   if (input.bankIfscCode !== undefined) updateData.bankIfscCode = input.bankIfscCode;

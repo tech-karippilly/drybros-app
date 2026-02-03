@@ -102,13 +102,9 @@ export async function getAttendanceByDateAndPerson(
     },
   };
 
-  if (driverId) {
-    whereClause.driverId = driverId;
-  } else if (staffId) {
-    whereClause.staffId = staffId;
-  } else if (userId) {
-    whereClause.userId = userId;
-  }
+  if (driverId) whereClause.driverId = driverId;
+  if (staffId) whereClause.staffId = staffId;
+  if (userId) whereClause.userId = userId;
 
   return prisma.attendance.findFirst({
     where: whereClause,
@@ -117,7 +113,99 @@ export async function getAttendanceByDateAndPerson(
         orderBy: { clockIn: "asc" },
       },
     },
+    orderBy: { clockIn: "asc" },
   });
+}
+
+export async function getAttendanceByAnyPersonId(date: Date, personId: string) {
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  return prisma.attendance.findFirst({
+    where: {
+      date: {
+        gte: startOfDay,
+        lte: endOfDay,
+      },
+      OR: [
+        { driverId: personId },
+        { staffId: personId },
+        { userId: personId },
+      ],
+    },
+    include: {
+      sessions: {
+        orderBy: { clockIn: "asc" },
+      },
+    },
+    orderBy: { clockIn: "desc" }, // Get latest if duplicates exist (shouldn't)
+  });
+}
+
+export async function getAttendanceMonitorLogs(date: Date, roleTypes: AttendanceRoleType[]) {
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const orConditions = [];
+  if (roleTypes.includes("DRIVER")) orConditions.push({ driverId: { not: null } });
+  if (roleTypes.includes("STAFF")) orConditions.push({ staffId: { not: null } });
+  if (roleTypes.includes("MANAGER")) {
+    orConditions.push({ 
+      userId: { not: null }, 
+      User: { role: UserRole.MANAGER } 
+    });
+  }
+  if (roleTypes.includes("ADMIN")) {
+    orConditions.push({ 
+      userId: { not: null }, 
+      User: { role: UserRole.ADMIN } 
+    });
+  }
+
+  return prisma.attendance.findMany({
+    where: {
+      date: { gte: startOfDay, lte: endOfDay },
+      ...(orConditions.length > 0 ? { OR: orConditions } : {}),
+    },
+    include: {
+      Driver: { select: { id: true, firstName: true, lastName: true, driverCode: true } },
+      Staff: { select: { id: true, name: true, email: true } },
+      User: { select: { id: true, fullName: true, role: true } },
+      sessions: { orderBy: { clockIn: "asc" } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function getActiveAttendanceCounts(date: Date) {
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const whereActive = {
+    date: { gte: startOfDay, lte: endOfDay },
+    clockIn: { not: null },
+    clockOut: null,
+  };
+
+  const [activeStaff, activeDriver, activeManager] = await Promise.all([
+    prisma.attendance.count({ where: { ...whereActive, staffId: { not: null } } }),
+    prisma.attendance.count({ where: { ...whereActive, driverId: { not: null } } }),
+    prisma.attendance.count({ 
+      where: { 
+        ...whereActive, 
+        userId: { not: null }, 
+        User: { role: UserRole.MANAGER } 
+      } 
+    }),
+  ]);
+
+  return { activeStaff, activeDriver, activeManager };
 }
 
 export async function getOpenAttendanceSession(

@@ -1,7 +1,10 @@
 // src/types/driver.dto.ts
 import { z } from "zod";
-import { CarType, DriverStatus, DriverTripStatus } from "@prisma/client";
+import { CarType, DriverStatus, DriverTripStatus, DriverEmploymentType } from "@prisma/client";
 import { DriverPerformanceCategory } from "../constants/driver";
+
+// Driver Employment Type Enum Schema
+export const driverEmploymentTypeEnum = z.nativeEnum(DriverEmploymentType);
 
 // CarType enum schema
 export const carTypeEnum = z.enum([
@@ -28,6 +31,8 @@ export const createDriverSchema = z.object({
   state: z.string().min(1, "State is required"),
   pincode: z.string().min(6, "Pincode is required"),
   licenseNumber: z.string().min(1, "License number is required"),
+  licenseType: z.string().min(1, "License type is required"),
+  employmentType: driverEmploymentTypeEnum.optional(),
   licenseExpDate: z
     .union([
       z.string().datetime("Invalid date format").transform((val) => new Date(val)),
@@ -105,6 +110,8 @@ export interface DriverResponseDTO {
   state: string;
   pincode: string;
   licenseNumber: string;
+  licenseType: string | null;
+  employmentType: DriverEmploymentType | null;
   licenseExpDate: Date;
   bankAccountName: string;
   bankAccountNumber: string;
@@ -174,6 +181,8 @@ export const updateDriverSchema = z.object({
   state: z.string().min(1, "State is required").optional(),
   pincode: z.string().min(6, "Pincode is required").optional(),
   licenseNumber: z.string().min(1, "License number is required").optional(),
+  licenseType: z.string().min(1, "License type is required").optional(),
+  employmentType: driverEmploymentTypeEnum.optional().nullable(),
   licenseExpDate: z
     .union([
       z.string().datetime("Invalid date format").transform((val) => new Date(val)),
@@ -207,7 +216,7 @@ export interface UpdateDriverResponseDTO {
 // Update Driver Status DTOs
 export const updateDriverStatusSchema = z.object({
   status: z.enum(["ACTIVE", "INACTIVE", "BLOCKED", "TERMINATED"], {
-    errorMap: () => ({ message: "Status must be one of: ACTIVE, INACTIVE, BLOCKED, TERMINATED" }),
+    message: "Status must be one of: ACTIVE, INACTIVE, BLOCKED, TERMINATED",
   }),
 });
 
@@ -236,6 +245,7 @@ export const paginationQuerySchema = z.object({
     .string()
     .uuid("Franchise ID must be a valid UUID")
     .optional(),
+  employmentType: driverEmploymentTypeEnum.optional(),
 });
 
 export type PaginationQueryDTO = z.infer<typeof paginationQuerySchema>;

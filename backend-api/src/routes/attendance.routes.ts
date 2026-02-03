@@ -9,6 +9,8 @@ import {
   updateAttendanceHandler,
   deleteAttendanceHandler,
   updateAttendanceStatusHandler,
+  getMonitorDataHandler,
+  getAttendanceStatusHandler,
 } from "../controllers/attendance.controller";
 import { authMiddleware } from "../middlewares/auth";
 import { validate, validateQuery, validateParams } from "../middlewares/validation";
@@ -43,6 +45,20 @@ router.post(
   requireRoleOrDriver(UserRole.DRIVER, UserRole.STAFF, UserRole.MANAGER, UserRole.OFFICE_STAFF),
   validate(clockOutSchema),
   clockOutHandler
+);
+
+// GET /attendance/monitor - Dashboard monitor data
+router.get(
+  "/monitor",
+  requireRole(UserRole.ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.OFFICE_STAFF),
+  getMonitorDataHandler
+);
+
+// GET /attendance/status/:id - Get attendance status by Person ID (Driver/Staff/User)
+router.get(
+  "/status/:id",
+  validateParams(z.object({ id: z.string().uuid("Invalid person ID format") })),
+  getAttendanceStatusHandler
 );
 
 // GET /attendance/all - Admin only

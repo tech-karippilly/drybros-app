@@ -117,6 +117,8 @@ export interface UpdateDriverInput{
     contactName: string | null;
     contactNumber: string | null;
     relationship: string | null;
+
+    carTypes?: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[] | null;
 }
 
 
@@ -173,6 +175,8 @@ export interface GetDriver{
     contactName: string | null;
     contactNumber: string | null;
     relationship: string | null;
+
+    carTypes: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[];
 }
 
 
@@ -197,8 +201,8 @@ export enum UserRole {
 }
 
 export enum EmploymentType {
-  FULL_TIME,
-  PART_TIME,
-  CONTRACT,
+  FULL_TIME = 'FULL_TIME',
+  PART_TIME = 'PART_TIME',
+  CONTRACT = 'CONTRACT',
 }
 

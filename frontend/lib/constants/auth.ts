@@ -2,6 +2,7 @@ export const STORAGE_KEYS = {
     ACCESS_TOKEN: 'accessToken',
     REFRESH_TOKEN: 'refreshToken',
     ACTIVE_TAB: 'activeTab',
+    USER: 'user',
 } as const;
 
 // Temporary hardcoded UUID for franchiseId (until franchise selection is implemented)

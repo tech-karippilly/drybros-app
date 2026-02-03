@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from "express";
 import { listDrivers, listDriversPaginated, getDriver, getDriverWithPerformance, getAvailableGreenDriversList, getAvailableDriversList, getDriversByFranchises, createDriver, loginDriver, updateDriver, updateDriverStatus, softDeleteDriver } from "../services/driver.service";
 import { calculateDriverPerformance } from "../services/driver-performance.service";
 import { DriverLoginDTO, UpdateDriverDTO, UpdateDriverStatusDTO } from "../types/driver.dto";
+import { DriverEmploymentType } from "@prisma/client";
 import { submitCashToCompany, submitCashForSettlement, getDriverDailyLimit } from "../services/driverCash.service";
 import { SubmitCashForSettlementDTO } from "../types/driver.dto";
 import { updateMyDriverLocation, getLiveLocations } from "../services/driverLocation.service";
@@ -18,18 +19,24 @@ export async function getDrivers(
     const franchiseId = req.query.franchiseId as string | undefined;
     const includePerformance = req.query.includePerformance === "true";
     
+    const employmentTypeStr = req.query.employmentType as string | undefined;
+    let employmentType: DriverEmploymentType | undefined;
+    if (employmentTypeStr && Object.values(DriverEmploymentType).includes(employmentTypeStr as DriverEmploymentType)) {
+      employmentType = employmentTypeStr as DriverEmploymentType;
+    }
+    
     // Check if pagination query parameters are provided
     // Use validated query from middleware (type-safe)
     const validatedQuery = (req as any).validatedQuery;
     if (validatedQuery && (validatedQuery.page || validatedQuery.limit)) {
       const result = await listDriversPaginated(
-        { ...validatedQuery, franchiseId },
+        { ...validatedQuery, franchiseId, employmentType },
         includePerformance
       );
       res.json(result);
     } else {
       // Backward compatibility: return all drivers if no pagination params
-      const data = await listDrivers(franchiseId, includePerformance);
+      const data = await listDrivers(franchiseId, includePerformance, employmentType);
       res.json({ data });
     }
   } catch (err) {

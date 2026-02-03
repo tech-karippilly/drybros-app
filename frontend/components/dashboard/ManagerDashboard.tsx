@@ -17,7 +17,14 @@ import {
     ManagerDashboardData,
     getManagerDashboardData,
 } from "@/lib/features/dashboard/dashboardApi";
-import { clockIn, clockOut, getAttendances, type AttendanceResponse } from "@/lib/features/attendance/attendanceApi";
+import { 
+    clockIn, 
+    clockOut, 
+    getAttendanceStatus, 
+    type AttendanceStatusResponse,
+    type ClockInRequest,
+    type ClockOutRequest
+} from "@/lib/features/attendance/attendanceApi";
 import { MANAGER_DASHBOARD_STRINGS } from "@/lib/constants/dashboardMetrics";
 import { useAppSelector } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
@@ -183,39 +190,28 @@ export function ManagerDashboard() {
     const { toast } = useToast();
     const [data, setData] = useState<ManagerDashboardData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [attendance, setAttendance] = useState<AttendanceResponse | null>(null);
+    // Removed redundant attendaceStatus state
+    const [attendanceDetails, setAttendanceDetails] = useState<AttendanceStatusResponse | null>(null)
     const [attendanceLoading, setAttendanceLoading] = useState(true);
     const [clockingOut, setClockingOut] = useState(false);
     const [clockingIn, setClockingIn] = useState(false);
     const [currentTime, setCurrentTime] = useState(new Date());
     const [shiftTime, setShiftTime] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
-    // Normalize API date (ISO or YYYY-MM-DD) to YYYY-MM-DD for comparison
-    const attendanceDateStr = (d: string | null | undefined): string =>
-        !d ? '' : d.includes('T') ? d.split('T')[0]! : d;
-
     // Fetch today's attendance
     useEffect(() => {
         let cancelled = false;
-        const today = new Date().toISOString().split('T')[0];
         (async () => {
             try {
                 setAttendanceLoading(true);
-                const attendances = await getAttendances({
-                    userId: user?._id ?? undefined,
-                    startDate: today,
-                    endDate: today,
-                });
-                
-                if (!cancelled) {
-                    const list = Array.isArray(attendances) ? attendances : (attendances as any)?.data ?? [];
-                    const todayAttendance = list.find((a: AttendanceResponse) => attendanceDateStr(a.date) === today);
-                    if (todayAttendance) {
-                        setAttendance(todayAttendance);
-                    } else {
-                        setAttendance(null);
+
+                if (user?._id) {
+                    const data = await getAttendanceStatus(user?._id);
+                    if (!cancelled) {
+                        setAttendanceDetails(data);
                     }
                 }
+
             } catch (error) {
                 console.error('Failed to load attendance:', error);
             } finally {
@@ -227,29 +223,40 @@ export function ManagerDashboard() {
         };
     }, [refreshTrigger, user?._id]);
 
-    // Update shift timer based on clock in time
     useEffect(() => {
-        if (!attendance?.clockIn || attendance?.clockOut) {
+        if (!attendanceDetails) {
+            setShiftTime({ hours: 0, minutes: 0, seconds: 0 });
+            return;
+        }
+
+        const { clockedIn, clockInTime } = attendanceDetails || {};
+
+        if (!clockedIn || !clockInTime) {
             setShiftTime({ hours: 0, minutes: 0, seconds: 0 });
             return;
         }
 
         const updateShiftTime = () => {
-            const clockInTime = new Date(attendance.clockIn);
-            const now = new Date();
-            const diff = Math.floor((now.getTime() - clockInTime.getTime()) / 1000); // seconds
-            
-            const hours = Math.floor(diff / 3600);
-            const minutes = Math.floor((diff % 3600) / 60);
-            const seconds = diff % 60;
-            
-            setShiftTime({ hours, minutes, seconds });
+            const start = new Date(clockInTime).getTime();
+            const now = Date.now();
+
+            if (now < start) return; // safety guard
+
+            const diff = Math.floor((now - start) / 1000);
+
+            setShiftTime({
+                hours: Math.floor(diff / 3600),
+                minutes: Math.floor((diff % 3600) / 60),
+                seconds: diff % 60,
+            });
         };
 
         updateShiftTime();
         const timer = setInterval(updateShiftTime, 1000);
+
         return () => clearInterval(timer);
-    }, [attendance]);
+    }, [attendanceDetails]);
+
 
     // Update current time
     useEffect(() => {
@@ -318,22 +325,17 @@ export function ManagerDashboard() {
 
     const refreshAttendance = async () => {
         try {
-            const today = new Date().toISOString().split('T')[0];
-            const attendances = await getAttendances({
-                userId: user?._id ?? undefined,
-                startDate: today,
-                endDate: today,
-            });
-            const list = Array.isArray(attendances) ? attendances : (attendances as any)?.data ?? [];
-            const todayAttendance = list.find((a: AttendanceResponse) => attendanceDateStr(a.date) === today);
-            setAttendance(todayAttendance ?? null);
+            if (user?._id) {
+                const data = await getAttendanceStatus(user?._id);
+                setAttendanceDetails(data);
+            }
         } catch (error) {
             console.error("Failed to refresh attendance:", error);
         }
     };
 
     const handleClockIn = async () => {
-        if (attendance?.clockIn && !attendance?.clockOut) {
+        if (attendanceDetails?.clockedIn) {
             toast({
                 title: "Already Clocked In",
                 description: "You are already clocked in for today.",
@@ -353,8 +355,11 @@ export function ManagerDashboard() {
 
         try {
             setClockingIn(true);
-            const result = await clockIn({ id: loggedUserId, notes: null });
-            setAttendance(result);
+            const payload: ClockInRequest = { id: loggedUserId, notes: null };
+            await clockIn(payload);
+            
+            await refreshAttendance();
+            
             toast({
                 title: "Clocked In Successfully",
                 description: "Your shift has started.",
@@ -388,7 +393,7 @@ export function ManagerDashboard() {
     };
 
     const handleClockOut = async () => {
-        if (!attendance?.clockIn || attendance?.clockOut) {
+        if (!attendanceDetails?.clockedIn) {
             toast({
                 title: "Cannot Clock Out",
                 description: "You must be clocked in to clock out.",
@@ -408,8 +413,11 @@ export function ManagerDashboard() {
 
         try {
             setClockingOut(true);
-            const result = await clockOut({ id: loggedUserId, notes: null });
-            setAttendance(result);
+            const payload: ClockOutRequest = { id: loggedUserId, notes: null };
+            await clockOut(payload);
+            
+            await refreshAttendance();
+            
             toast({
                 title: "Clocked Out Successfully",
                 description: "Your shift has been recorded.",
@@ -432,7 +440,7 @@ export function ManagerDashboard() {
         }
     };
 
-    const isClockedIn = attendance?.clockIn && !attendance?.clockOut;
+    const isClockedIn = attendanceDetails?.clockedIn ?? false;
 
     // Calculate attendance stats
     const totalStaff = data.metrics.totalStaff;

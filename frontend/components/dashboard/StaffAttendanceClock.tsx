@@ -1,17 +1,34 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Clock, LogIn, LogOut, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface AttendanceState {
-    clockIn: string | null;
-    clockOut: string | null;
-    date: string;
-}
+import { useAppSelector } from '@/lib/hooks';
+import {
+    clockIn,
+    clockOut,
+    getAttendanceStatus,
+    type AttendanceStatusResponse,
+    type ClockInRequest,
+    type ClockOutRequest,
+} from '@/lib/features/attendance/attendanceApi';
+import { useToast } from '@/components/ui/toast';
+import { USER_ROLES } from '@/lib/constants/roles';
 
 interface TimerDisplayProps {
     startTime: Date;
+}
+
+function getErrorMessage(err: unknown, fallback: string): string {
+    if (typeof err === 'string') return err;
+    if (err && typeof err === 'object') {
+        const r = (err as { response?: { data?: { error?: string; message?: string } } }).response?.data;
+        if (r?.error) return r.error;
+        if (r?.message) return r.message;
+        const m = (err as { message?: string }).message;
+        if (m) return m;
+    }
+    return fallback;
 }
 
 function TimerDisplay({ startTime }: TimerDisplayProps) {
@@ -52,91 +69,109 @@ function TimerDisplay({ startTime }: TimerDisplayProps) {
     );
 }
 
-const STORAGE_KEY = 'staff_attendance_dummy';
-
-function getTodayDateString(): string {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-}
-
-function getStoredAttendance(): AttendanceState | null {
-    if (typeof window === 'undefined') return null;
-    
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (!stored) return null;
-        
-        const attendance: AttendanceState = JSON.parse(stored);
-        const today = getTodayDateString();
-        
-        // Only return if it's for today
-        if (attendance.date === today) {
-            return attendance;
-        }
-        
-        // Clear old attendance
-        localStorage.removeItem(STORAGE_KEY);
-        return null;
-    } catch {
-        return null;
-    }
-}
-
-function saveAttendance(attendance: AttendanceState): void {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(attendance));
-}
-
 export function StaffAttendanceClock() {
-    const [attendance, setAttendance] = useState<AttendanceState | null>(null);
+    const { user } = useAppSelector((state) => state.auth);
+    const [status, setStatus] = useState<AttendanceStatusResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
+    const { toast } = useToast();
 
-    // Load today's attendance from localStorage
+    const fetchStatus = useCallback(async () => {
+        if (!user) return;
+
+        try {
+            setLoading(true);
+            const data = await getAttendanceStatus(user._id);
+            setStatus(data);
+        } catch (error) {
+            console.error('Failed to fetch attendance status:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, [user]);
+
+    // Load today's attendance status on mount
     useEffect(() => {
-        const stored = getStoredAttendance();
-        setAttendance(stored);
-        setLoading(false);
-    }, []);
+        if (user) {
+            fetchStatus();
+        } else {
+            setLoading(false);
+        }
+    }, [user, fetchStatus]);
 
-    const handleClockIn = () => {
-        setActionLoading(true);
+    const handleClockIn = async () => {
+        if (!user) return;
         
-        // Simulate API delay
-        setTimeout(() => {
-            const now = new Date().toISOString();
-            const today = getTodayDateString();
+        setActionLoading(true);
+        try {
+            const payload: ClockInRequest = {};
+            const userId = user._id;
+
+            if (user.role === USER_ROLES.STAFF) {
+                payload.staffId = userId;
+            } else if (user.role === USER_ROLES.DRIVER) {
+                payload.driverId = userId;
+            } else {
+                payload.userId = userId;
+            }
+
+            await clockIn(payload);
             
-            const newAttendance: AttendanceState = {
-                clockIn: now,
-                clockOut: null,
-                date: today,
-            };
+            toast({
+                title: "Clocked In",
+                description: "You have successfully clocked in.",
+                variant: "success",
+            });
             
-            saveAttendance(newAttendance);
-            setAttendance(newAttendance);
+            // Refresh status
+            fetchStatus();
+        } catch (error: unknown) {
+            const msg = getErrorMessage(error, "Failed to clock in");
+            toast({
+                title: "Clock In Failed",
+                description: msg,
+                variant: "error",
+            });
+        } finally {
             setActionLoading(false);
-        }, 500);
+        }
     };
 
-    const handleClockOut = () => {
-        if (!attendance || !attendance.clockIn) return;
+    const handleClockOut = async () => {
+        if (!user) return;
         
         setActionLoading(true);
-        
-        // Simulate API delay
-        setTimeout(() => {
-            const now = new Date().toISOString();
+        try {
+            const payload: ClockOutRequest = {};
+            const userId = user._id;
+
+            if (user.role === USER_ROLES.STAFF) {
+                payload.staffId = userId;
+            } else if (user.role === USER_ROLES.DRIVER) {
+                payload.driverId = userId;
+            } else {
+                payload.userId = userId;
+            }
+
+            await clockOut(payload);
             
-            const updatedAttendance: AttendanceState = {
-                ...attendance,
-                clockOut: now,
-            };
+            toast({
+                title: "Clocked Out",
+                description: "You have successfully clocked out.",
+                variant: "success",
+            });
             
-            saveAttendance(updatedAttendance);
-            setAttendance(updatedAttendance);
+            fetchStatus();
+        } catch (error: unknown) {
+            const msg = getErrorMessage(error, "Failed to clock out");
+            toast({
+                title: "Clock Out Failed",
+                description: msg,
+                variant: "error",
+            });
+        } finally {
             setActionLoading(false);
-        }, 500);
+        }
     };
 
     if (loading) {
@@ -150,8 +185,9 @@ export function StaffAttendanceClock() {
         );
     }
 
-    const isClockedIn = attendance?.clockIn && !attendance?.clockOut;
-    const clockInTime = attendance?.clockIn ? new Date(attendance.clockIn) : null;
+    const isClockedIn = status?.clockedIn ?? false;
+    const clockInTime = status?.clockInTime ? new Date(status.clockInTime) : null;
+    const lastClockOutTime = status?.lastClockOutTime ? new Date(status.lastClockOutTime) : null;
 
     return (
         <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
@@ -207,61 +243,30 @@ export function StaffAttendanceClock() {
                         )}
                     </button>
                 </div>
-            ) : attendance?.clockOut ? (
-                <div className="space-y-4">
-                    <div className="bg-green-50 dark:bg-green-900/20 p-6 rounded-xl border border-green-200 dark:border-green-800">
-                        <div className="flex items-center gap-3 mb-4">
-                            <CheckCircle size={24} className="text-green-600" />
-                            <div>
-                                <h4 className="font-semibold text-green-900 dark:text-green-100">
-                                    Already Clocked Out Today
-                                </h4>
-                                <p className="text-sm text-green-700 dark:text-green-300">
-                                    You have completed your attendance for today
-                                </p>
-                            </div>
-                        </div>
-                        <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                                <span className="text-green-700 dark:text-green-300">Clock In:</span>
-                                <span className="font-semibold text-green-900 dark:text-green-100">
-                                    {attendance.clockIn
-                                        ? new Date(attendance.clockIn).toLocaleTimeString('en-IN', {
-                                              hour: '2-digit',
-                                              minute: '2-digit',
-                                          })
-                                        : '—'}
-                                </span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-green-700 dark:text-green-300">Clock Out:</span>
-                                <span className="font-semibold text-green-900 dark:text-green-100">
-                                    {attendance.clockOut
-                                        ? new Date(attendance.clockOut).toLocaleTimeString('en-IN', {
-                                              hour: '2-digit',
-                                              minute: '2-digit',
-                                          })
-                                        : '—'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             ) : (
                 <div className="space-y-4">
-                    <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl text-center">
-                        <p className="text-sm text-[#49659c] dark:text-gray-400 mb-4">
-                            You haven't clocked in today. Click the button below to start tracking your work hours.
-                        </p>
-                    </div>
-
-                    {/* Clock In Button */}
+                    {lastClockOutTime && (
+                        <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-200 dark:border-green-800 flex items-center gap-3">
+                            <CheckCircle size={20} className="text-green-600" />
+                            <div className="text-sm">
+                                <span className="text-green-700 dark:text-green-300">Last clocked out at: </span>
+                                <span className="font-semibold text-green-900 dark:text-green-100">
+                                    {lastClockOutTime.toLocaleTimeString('en-IN', {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                        second: '2-digit',
+                                    })}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                    
                     <button
                         onClick={handleClockIn}
                         disabled={actionLoading}
                         className={cn(
                             'w-full py-4 px-6 rounded-xl font-semibold text-white transition-all flex items-center justify-center gap-3',
-                            'bg-[#0d59f2] hover:bg-[#0d59f2]/90 active:scale-[0.98] shadow-lg shadow-blue-500/20',
+                            'bg-[#0d59f2] hover:bg-[#0b4acc] active:scale-[0.98] shadow-lg shadow-blue-500/20',
                             'disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100'
                         )}
                     >
@@ -273,7 +278,7 @@ export function StaffAttendanceClock() {
                         ) : (
                             <>
                                 <LogIn size={20} />
-                                <span>Check In</span>
+                                <span>Clock In</span>
                             </>
                         )}
                     </button>

@@ -24,6 +24,7 @@ export interface ClockAttendanceResponseDTO {
   clockIn: Date | null;
   clockOut: Date | null;
   status: AttendanceStatus;
+  totalWorkHours?: number; // Total hours worked (Last clock out - First clock in)
 }
 
 /**
@@ -91,6 +92,40 @@ export const clockOutSchema = z.object({
 
 export type ClockOutDTO = z.infer<typeof clockOutSchema>;
 
+export interface AttendanceMonitorStats {
+  activeStaffCount: number;
+  activeDriverCount: number;
+  activeManagerCount: number;
+}
+
+export interface AttendanceMonitorRow {
+  id: string;
+  personId: string;
+  name: string;
+  role: string;
+  loginTime: Date | null;
+  clockInTime: Date | null;
+  clockOutTime: Date | null;
+  logoutTime: Date | null;
+  timeWorked: string; // "HH:mm" or null
+  status: AttendanceStatus;
+  sessions: AttendanceSessionDTO[];
+}
+
+export interface AttendanceStatusDTO {
+  clockedIn: boolean;
+  clockInTime: Date | null;
+  lastClockOutTime: Date | null;
+  status: AttendanceStatus;
+  attendanceId: string | null;
+}
+
+export interface AttendanceMonitorResponse {
+  stats: AttendanceMonitorStats;
+  logs: AttendanceMonitorRow[];
+}
+
+
 /**
  * Attendance response DTO
  */
@@ -106,6 +141,7 @@ export interface AttendanceResponseDTO {
   status: AttendanceStatus;
   notes: string | null;
   sessions: AttendanceSessionDTO[];
+  totalWorkHours?: string;
   createdAt: Date;
   updatedAt: Date;
 }

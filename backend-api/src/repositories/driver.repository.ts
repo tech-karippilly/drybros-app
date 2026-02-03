@@ -1,13 +1,13 @@
 // src/repositories/driver.repository.ts
 import prisma from "../config/prismaClient";
-import { Driver, DriverStatus } from "@prisma/client";
+import { Driver, DriverStatus, DriverEmploymentType } from "@prisma/client";
 import {
   getDriverEarningsConfigByDriver,
   getDriverEarningsConfigByFranchise,
   getDriverEarningsConfig,
 } from "./earningsConfig.repository";
 
-export async function getAllDrivers(includeInactive: boolean = false, franchiseId?: string) {
+export async function getAllDrivers(includeInactive: boolean = false, franchiseId?: string, employmentType?: DriverEmploymentType) {
   const whereClause: any = {};
   
   if (!includeInactive) {
@@ -18,17 +18,25 @@ export async function getAllDrivers(includeInactive: boolean = false, franchiseI
     whereClause.franchiseId = franchiseId;
   }
 
+  if (employmentType) {
+    whereClause.employmentType = employmentType;
+  }
+
   return prisma.driver.findMany({
     where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
     orderBy: { id: "asc" },
   });
 }
 
-export async function getDriversPaginated(skip: number, take: number, franchiseId?: string) {
+export async function getDriversPaginated(skip: number, take: number, franchiseId?: string, employmentType?: DriverEmploymentType) {
   const whereClause: any = { isActive: true };
   
   if (franchiseId) {
     whereClause.franchiseId = franchiseId;
+  }
+
+  if (employmentType) {
+    whereClause.employmentType = employmentType;
   }
 
   // Use Promise.all for parallel execution
@@ -126,7 +134,8 @@ export async function createDriver(data: {
   previousExp: boolean;
   carTypes: string; // JSON string
   createdBy?: string | null; // User UUID who created this driver
-  currentRating?: number; // Optional rating (defaults to 5 in service)
+  currentRating?: number;
+  employmentType?: DriverEmploymentType | null; // Optional rating (defaults to 5 in service)
 }): Promise<Driver> {
   return prisma.driver.create({
     data,
@@ -152,6 +161,7 @@ export async function updateDriver(
     pincode?: string;
     licenseNumber?: string;
     licenseExpDate?: Date;
+    employmentType?: DriverEmploymentType | null;
     bankAccountName?: string;
     bankAccountNumber?: string;
     bankIfscCode?: string;
@@ -164,6 +174,7 @@ export async function updateDriver(
     dailyTargetAmount?: number | null;
     incentive?: number | null;
     bonus?: number | null;
+    
   }
 ): Promise<Driver> {
   // Filter out undefined values to only update provided fields (optimization)

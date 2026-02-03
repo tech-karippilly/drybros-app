@@ -12,25 +12,91 @@ export interface AttendanceResponse {
   clockOut: string | null;
   status: string;
   notes: string | null;
+  sessions: AttendanceSession[];
+  totalWorkHours?: string;
   createdAt: string;
   updatedAt: string;
 }
 
+export interface AttendanceStatus{ 
+  "clockedIn": boolean,
+  "clockInTime": string,
+  "lastClockOutTime": string | null,
+  "status": string,
+  "attendanceId": string
+}
+
 /** Request body for clock-in. Backend expects `id` (driver, staff, or user UUID). */
 export interface ClockInRequest {
-  id: string;
+  id?: string;
+  driverId?: string;
+  staffId?: string;
+  userId?: string;
   notes?: string | null;
 }
 
 /** Request body for clock-out. Backend expects `id` (driver, staff, or user UUID). */
 export interface ClockOutRequest {
-  id: string;
+  id?: string;
+  driverId?: string;
+  staffId?: string;
+  userId?: string;
   notes?: string | null;
 }
 
 export interface PaginatedAttendanceResponse {
   data: AttendanceResponse[];
   pagination: { page: number; limit: number; total: number; totalPages: number; hasNext: boolean; hasPrev: boolean };
+}
+
+export interface AttendanceMonitorStats {
+  activeStaffCount: number;
+  activeDriverCount: number;
+  activeManagerCount: number;
+}
+
+export interface AttendanceSession {
+  id: string;
+  clockIn: string;
+  clockOut: string | null;
+  notes: string | null;
+}
+
+export interface AttendanceMonitorLog {
+  id: string;
+  personId: string;
+  name: string;
+  role: string;
+  loginTime: string | null;
+  clockInTime: string | null;
+  clockOutTime: string | null;
+  logoutTime: string | null;
+  timeWorked: string | null;
+  status: string;
+  sessions?: AttendanceSession[];
+}
+
+export interface AttendanceMonitorResponse {
+  stats: AttendanceMonitorStats;
+  logs: AttendanceMonitorLog[];
+}
+
+export interface AttendanceStatusResponse {
+  clockedIn: boolean;
+  clockInTime: string | null;
+  lastClockOutTime: string | null;
+  status: string;
+  attendanceId: string | null;
+}
+
+export async function getAttendanceStatus(userId: string): Promise<AttendanceStatusResponse> {
+  const res = await api.get<AttendanceStatusResponse>(`/attendance/status/${userId}`);
+  return res.data;
+}
+
+export async function getAttendanceMonitor(): Promise<AttendanceMonitorResponse> {
+  const res = await api.get<AttendanceMonitorResponse>('/attendance/monitor');
+  return res.data;
 }
 
 export async function getAttendances(params?: {

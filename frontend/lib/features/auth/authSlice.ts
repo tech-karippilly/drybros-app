@@ -23,12 +23,22 @@ const getInitialState = (): AuthState => {
     // Client-side: check localStorage for tokens
     const accessToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
     const refreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+    const userStr = localStorage.getItem(STORAGE_KEYS.USER);
+
+    let user = null;
+    if (userStr) {
+        try {
+            user = JSON.parse(userStr);
+        } catch (e) {
+            console.error('Failed to parse user from localStorage', e);
+        }
+    }
     
     // If tokens exist, mark as authenticated (user data will be fetched separately if needed)
     const hasTokens = !!accessToken && !!refreshToken;
 
     return {
-        user: null, // User data should be fetched from API if needed
+        user: hasTokens ? user : null,
         accessToken: accessToken,
         refreshToken: refreshToken,
         isAuthenticated: hasTokens,
@@ -65,6 +75,7 @@ const authSlice = createSlice({
             if (typeof window !== 'undefined') {
                 localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, action.payload.accessToken);
                 localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, action.payload.refreshToken);
+                localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(action.payload.user));
             }
         },
         logout: (state) => {
@@ -81,6 +92,7 @@ const authSlice = createSlice({
                 localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
                 localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
                 localStorage.removeItem(STORAGE_KEYS.ACTIVE_TAB);
+                localStorage.removeItem(STORAGE_KEYS.USER);
             }
         },
         setLoading: (state, action: PayloadAction<boolean>) => {

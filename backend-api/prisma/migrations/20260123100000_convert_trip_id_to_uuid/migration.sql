@@ -10,7 +10,7 @@ UPDATE "Trip" SET "id_new" = uuid_generate_v4() WHERE "id_new" IS NULL;
 
 -- Replace primary key
 ALTER TABLE "Trip" DROP CONSTRAINT IF EXISTS "Trip_pkey";
-ALTER TABLE "Trip" DROP COLUMN IF EXISTS "id";
+ALTER TABLE "Trip" DROP COLUMN IF EXISTS "id" CASCADE;
 ALTER TABLE "Trip" RENAME COLUMN "id_new" TO "id";
 ALTER TABLE "Trip" ADD CONSTRAINT "Trip_pkey" PRIMARY KEY ("id");
 

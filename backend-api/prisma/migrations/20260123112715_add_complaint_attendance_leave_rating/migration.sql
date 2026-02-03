@@ -1,4 +1,18 @@
 -- CreateEnum (only if it doesn't exist)
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Defensive: Ensure Trip.id is UUID if it's still integer
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Trip' AND column_name = 'id' AND data_type = 'integer') THEN
+        ALTER TABLE "Trip" ADD COLUMN IF NOT EXISTS "id_new" UUID DEFAULT uuid_generate_v4();
+        UPDATE "Trip" SET "id_new" = uuid_generate_v4() WHERE "id_new" IS NULL;
+        ALTER TABLE "Trip" DROP CONSTRAINT IF EXISTS "Trip_pkey";
+        ALTER TABLE "Trip" DROP COLUMN IF EXISTS "id" CASCADE;
+        ALTER TABLE "Trip" RENAME COLUMN "id_new" TO "id";
+        ALTER TABLE "Trip" ADD CONSTRAINT "Trip_pkey" PRIMARY KEY ("id");
+    END IF;
+END $$;
+
 DO $$ BEGIN
     CREATE TYPE "ComplaintStatus" AS ENUM ('OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED');
 EXCEPTION
@@ -91,6 +105,7 @@ CREATE TABLE IF NOT EXISTS "LeaveRequest" (
 );
 
 -- CreateTable
+DROP TABLE IF EXISTS "DriverRating" CASCADE;
 CREATE TABLE IF NOT EXISTS "DriverRating" (
     "id" UUID NOT NULL DEFAULT uuid_generate_v4(),
     "driverId" UUID NOT NULL,

@@ -11,6 +11,10 @@ import {
   getOpenAttendanceSession,
   createAttendanceSession,
   closeAttendanceSession,
+  getAttendanceMonitorLogs,
+  getActiveAttendanceCounts,
+  getAttendanceByAnyPersonId,
+  AttendanceRoleType,
 } from "../repositories/attendance.repository";
 import { getDriverById } from "../repositories/driver.repository";
 import { getStaffById } from "../repositories/staff.repository";
@@ -25,14 +29,36 @@ import {
   CreateAttendanceDTO,
   UpdateAttendanceDTO,
   UpdateAttendanceStatusDTO,
+  AttendanceMonitorResponse,
+  AttendanceMonitorRow,
+  AttendanceStatusDTO,
 } from "../types/attendance.dto";
 import { NotFoundError, BadRequestError } from "../utils/errors";
 import { ATTENDANCE_ERROR_MESSAGES, ATTENDANCE_ACTIVITY_DESCRIPTIONS } from "../constants/attendance";
 import logger from "../config/logger";
 import { logActivity } from "./activity.service";
-import { ActivityAction, ActivityEntityType, UserRole } from "@prisma/client";
+import { ActivityAction, ActivityEntityType, UserRole, AttendanceStatus } from "@prisma/client";
 
 function mapAttendanceToResponse(attendance: any): AttendanceResponseDTO {
+  let totalWorkHours: string | undefined;
+  if (attendance.clockIn) {
+    const isToday = new Date().toDateString() === new Date(attendance.date).toDateString();
+    // If clocked out, use that. If not and it's today, use now. Otherwise (past open session), ignore or treat as null.
+    const endTime = attendance.clockOut 
+      ? new Date(attendance.clockOut).getTime() 
+      : (isToday ? Date.now() : null);
+
+    if (endTime) {
+      const startTime = new Date(attendance.clockIn).getTime();
+      const diffMs = endTime - startTime;
+      if (diffMs > 0) {
+        const diffHrs = Math.floor(diffMs / 3600000);
+        const diffMins = Math.floor((diffMs % 3600000) / 60000);
+        totalWorkHours = `${diffHrs.toString().padStart(2, '0')}:${diffMins.toString().padStart(2, '0')}`;
+      }
+    }
+  }
+
   return {
     id: attendance.id,
     driverId: attendance.driverId,
@@ -50,6 +76,7 @@ function mapAttendanceToResponse(attendance: any): AttendanceResponseDTO {
       clockOut: s.clockOut ?? null,
       notes: s.notes ?? null,
     })),
+    totalWorkHours,
     createdAt: attendance.createdAt,
     updatedAt: attendance.updatedAt,
   };
@@ -216,7 +243,7 @@ export async function clockIn(
     staffId,
     userId,
     date: today,
-    clockIn: session.clockIn,
+    clockIn: existing?.clockIn ?? session.clockIn, // Keep first clock-in time
     clockOut: null,
     status: "PRESENT",
   });
@@ -689,5 +716,132 @@ export async function updateAttendanceStatus(
   return {
     message: "Attendance status updated successfully",
     data: mapAttendanceToResponse(attendance),
+  };
+}
+
+/**
+ * Get attendance monitor data for dashboard
+ */
+export async function getMonitorData(userRole: string, userId: string): Promise<AttendanceMonitorResponse> {
+  let roleTypes: AttendanceRoleType[] = [];
+
+  if (userRole === UserRole.ADMIN) {
+    roleTypes = ["DRIVER", "STAFF", "MANAGER", "ADMIN"];
+  } else if (userRole === UserRole.MANAGER) {
+    roleTypes = ["DRIVER", "STAFF"];
+  } else if (userRole === UserRole.STAFF || userRole === UserRole.OFFICE_STAFF) {
+    roleTypes = ["DRIVER"];
+  } else {
+    return {
+      stats: { activeStaffCount: 0, activeDriverCount: 0, activeManagerCount: 0 },
+      logs: []
+    };
+  }
+
+  const today = new Date();
+  const [logs, stats] = await Promise.all([
+    getAttendanceMonitorLogs(today, roleTypes),
+    getActiveAttendanceCounts(today)
+  ]);
+
+  const mappedLogs: AttendanceMonitorRow[] = logs.map((log: any) => {
+    let name = "Unknown";
+    let role = "Unknown";
+    let personId = "";
+
+    if (log.Driver) {
+      name = `${log.Driver.firstName} ${log.Driver.lastName}`;
+      role = "Driver";
+      personId = log.Driver.id;
+    } else if (log.Staff) {
+      name = log.Staff.name;
+      role = "Staff";
+      personId = log.Staff.id;
+    } else if (log.User) {
+      name = log.User.fullName;
+      role = log.User.role;
+      personId = log.User.id;
+    }
+
+    let timeWorked = "00:00";
+    if (log.clockIn) {
+        const endTime = log.clockOut ? new Date(log.clockOut).getTime() : Date.now();
+        const startTime = new Date(log.clockIn).getTime();
+        const diffMs = endTime - startTime;
+        
+        if (diffMs > 0) {
+            const diffHrs = Math.floor(diffMs / 3600000);
+            const diffMins = Math.floor((diffMs % 3600000) / 60000);
+            timeWorked = `${diffHrs.toString().padStart(2, '0')}:${diffMins.toString().padStart(2, '0')}`;
+        }
+    }
+
+    return {
+      id: log.id,
+      personId,
+      name,
+      role,
+      loginTime: log.loginTime,
+      clockInTime: log.clockIn,
+      clockOutTime: log.clockOut,
+      logoutTime: log.clockOut, 
+      timeWorked,
+      status: log.status,
+      sessions: (log.sessions ?? []).map((s: any) => ({
+        id: s.id,
+        clockIn: s.clockIn,
+        clockOut: s.clockOut ?? null,
+        notes: s.notes ?? null,
+      })),
+    };
+  });
+
+  return {
+    stats: {
+      activeStaffCount: stats.activeStaff,
+      activeDriverCount: stats.activeDriver,
+      activeManagerCount: stats.activeManager,
+    },
+    logs: mappedLogs
+  };
+}
+
+/**
+ * Get current attendance status for a person (Driver, Staff, or User)
+ */
+export async function getPersonAttendanceStatus(personId: string): Promise<AttendanceStatusDTO> {
+  const today = new Date();
+  const attendance = await getAttendanceByAnyPersonId(today, personId);
+
+  if (!attendance) {
+    return {
+      clockedIn: false,
+      clockInTime: null,
+      lastClockOutTime: null,
+      status: AttendanceStatus.ABSENT,
+      attendanceId: null,
+    };
+  }
+
+  // Check if currently clocked in
+  // Logic: if sessions exist, check last session. 
+  // If no sessions (legacy), check header clockIn/clockOut.
+  
+  let isClockedIn = false;
+  
+  if (attendance.sessions && attendance.sessions.length > 0) {
+    const lastSession = attendance.sessions[attendance.sessions.length - 1];
+    isClockedIn = lastSession.clockIn !== null && lastSession.clockOut === null;
+  } else {
+    // Fallback to header check
+    isClockedIn = attendance.clockIn !== null && attendance.clockOut === null;
+  }
+
+  return {
+    clockedIn: isClockedIn,
+    clockInTime: attendance.clockIn, // First clock in of the day
+    lastClockOutTime: attendance.clockOut, // Last clock out (or null if currently in)
+    status: attendance.status,
+    attendanceId: attendance.id,
   };
 }

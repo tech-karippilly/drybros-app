@@ -52,6 +52,8 @@ model Driver {
   pincode                  String
   licenseNumber            String
   licenseExpDate           DateTime
+  licenseType              String?
+  employmentType           DriverEmploymentType? // New field for employment type
   bankAccountName          String
   bankAccountNumber        String
   bankIfscCode             String
@@ -419,7 +421,7 @@ model Attendance {
   @@index([date])
   @@index([driverId, date])
   @@index([staffId, date])
-  @@index([userId, date])
+  @@index([userId, date], map: "Attendance_userId_date_custom_idx")
 }
 
 model AttendanceSession {
@@ -482,6 +484,12 @@ enum DriverStatus {
   INACTIVE
   BLOCKED
   TERMINATED
+}
+
+enum DriverEmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
 }
 
 enum DriverTripStatus {

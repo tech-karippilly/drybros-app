@@ -61,7 +61,9 @@ export default function DashboardRouteLayout({
                     setIsChecking(false);
                     return;
                 }
-                router.replace(AUTH_ROUTES.LOGIN);
+                // Don't redirect to login on generic errors, just log it
+                // This prevents infinite redirect loops if the API fails but token is valid
+                console.error('Failed to load user profile:', error);
             } finally {
                 setIsLoadingUser(false);
             }

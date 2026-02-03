@@ -10,6 +10,8 @@ import {
   updateAttendanceRecord,
   deleteAttendanceRecord,
   updateAttendanceStatus,
+  getMonitorData,
+  getPersonAttendanceStatus,
 } from "../services/attendance.service";
 
 export async function clockInHandler(
@@ -33,6 +35,26 @@ export async function clockOutHandler(
   try {
     const result = await clockOut(req.body);
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getMonitorDataHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const userRole = req.user?.role;
+    const userId = req.user?.userId;
+
+    if (!userRole || !userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const data = await getMonitorData(userRole, userId);
+    res.json(data);
   } catch (err) {
     next(err);
   }
@@ -220,6 +242,20 @@ export async function updateAttendanceStatusHandler(
     const id = req.params.id as string;
     const updatedBy = req.user?.userId;
     const result = await updateAttendanceStatus(id, req.body, updatedBy);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getAttendanceStatusHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const id = req.params.id as string;
+    const result = await getPersonAttendanceStatus(id);
     res.json(result);
   } catch (err) {
     next(err);

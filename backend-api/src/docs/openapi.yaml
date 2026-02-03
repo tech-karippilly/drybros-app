@@ -7,9 +7,6 @@ info:
 servers:
   - url: http://localhost:4000
 
-security:
-  - bearerAuth: []
-
 paths:
   /attendance/monitor:
     get:
@@ -244,6 +241,7 @@ paths:
         - Franchises
       security:
         - bearerAuth: []
+      x-roles: ["ADMIN"]
       requestBody:
         required: true
         content:
@@ -573,6 +571,7 @@ paths:
         - Roles
       security:
         - bearerAuth: []
+      x-roles: ["ADMIN"]
       requestBody:
         required: true
         content:
@@ -1355,6 +1354,7 @@ paths:
         - Drivers
       security:
         - bearerAuth: []
+      x-roles: ["ADMIN", "OFFICE_STAFF"]
       requestBody:
         required: true
         content:

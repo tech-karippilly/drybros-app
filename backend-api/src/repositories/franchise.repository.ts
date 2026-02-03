@@ -192,6 +192,21 @@ export async function getManagerByFranchiseId(franchiseId: string) {
   });
 }
 
+export async function calculateFranchiseAverageRating(franchiseId: string): Promise<number | null> {
+  const result = await prisma.tripReview.aggregate({
+    where: { franchiseId },
+    _avg: { rating: true },
+  });
+  return result._avg.rating ?? null;
+}
+
+export async function updateFranchiseAverageRating(franchiseId: string, averageRating: number | null) {
+  return prisma.franchise.update({
+    where: { id: franchiseId },
+    data: { averageRating },
+  });
+}
+
 /**
  * Get staff, drivers, and manager by franchise ID (combined)
  */

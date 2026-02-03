@@ -89,6 +89,7 @@ export interface FranchiseResponseDTO {
   name: string;
   city: string;
   region: string | null;
+  averageRating: number | null;
   address: string | null;
   phone: string | null;
   email: string | null;

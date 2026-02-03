@@ -31,6 +31,19 @@ export async function submitTripReview(input: CreateTripReviewDTO): Promise<{ me
     comment: input.comment,
   });
 
+  // Recalculate and update franchise average rating
+  try {
+    const average = await prisma.tripReview.aggregate({
+      where: { franchiseId: input.franchiseId },
+      _avg: { rating: true },
+    });
+    const avg = average._avg.rating ?? null;
+    await prisma.franchise.update({ where: { id: input.franchiseId }, data: { averageRating: avg } });
+  } catch (err) {
+    // Log but don't fail the request
+    console.error("Failed to update franchise average rating", err);
+  }
+
   return {
     message: "Trip review submitted successfully",
     data: {

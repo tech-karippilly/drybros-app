@@ -36,6 +36,7 @@ function mapFranchiseToResponse(franchise: any): FranchiseResponseDTO {
     name: franchise.name,
     city: franchise.city,
     region: franchise.region,
+    averageRating: franchise.averageRating ?? null,
     address: franchise.address,
     phone: franchise.phone,
     email: franchise.email ?? null,

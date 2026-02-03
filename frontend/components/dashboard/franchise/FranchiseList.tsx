@@ -291,24 +291,47 @@ export function FranchiseList() {
                 </div>
 
                 {filteredList.length === 0 && (
-                    <div className="py-20 text-center">
-                        <div className="size-16 bg-slate-100 dark:bg-[#233648] rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Search className="size-8 text-slate-400 dark:text-[#92adc9]" />
+                    // If there are no franchises at all, show onboarding/create card.
+                    list.length === 0 ? (
+                        <div className="py-20 text-center">
+                            <div className="mx-auto mb-4 w-full max-w-lg p-8 bg-white dark:bg-[#0e1720] rounded-xl border border-slate-200 dark:border-[#213240]">
+                                <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                                    {FRANCHISE_STRINGS.ONBOARDING_TITLE}
+                                </h3>
+                                <p className="text-sm text-slate-500 dark:text-[#92adc9] mb-6">
+                                    {FRANCHISE_STRINGS.ONBOARDING_SUBTITLE}
+                                </p>
+                                <div className="flex items-center justify-center">
+                                    <Link
+                                        href={DASHBOARD_ROUTES.FRANCHISES_ONBOARDING}
+                                        className="inline-flex items-center gap-2 px-4 py-2 bg-theme-blue text-white rounded-lg text-sm font-semibold shadow hover:bg-theme-blue/90"
+                                    >
+                                        <Plus className="size-5" />
+                                        {FRANCHISE_STRINGS.CREATE_NEW_FRANCHISE}
+                                    </Link>
+                                </div>
+                            </div>
                         </div>
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                            {FRANCHISE_STRINGS.NO_FRANCHISES_FOUND}
-                        </h3>
-                        <p className="text-slate-500 dark:text-[#92adc9] mt-1 max-w-sm mx-auto text-sm">
-                            {FRANCHISE_STRINGS.NO_FRANCHISES_MATCH}
-                        </p>
-                        <button
-                            type="button"
-                            onClick={clearFilters}
-                            className="mt-6 text-theme-blue font-bold text-sm hover:underline"
-                        >
-                            {FRANCHISE_STRINGS.RESET_FILTERS}
-                        </button>
-                    </div>
+                    ) : (
+                        <div className="py-20 text-center">
+                            <div className="size-16 bg-slate-100 dark:bg-[#233648] rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Search className="size-8 text-slate-400 dark:text-[#92adc9]" />
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                                {FRANCHISE_STRINGS.NO_FRANCHISES_FOUND}
+                            </h3>
+                            <p className="text-slate-500 dark:text-[#92adc9] mt-1 max-w-sm mx-auto text-sm">
+                                {FRANCHISE_STRINGS.NO_FRANCHISES_MATCH}
+                            </p>
+                            <button
+                                type="button"
+                                onClick={clearFilters}
+                                className="mt-6 text-theme-blue font-bold text-sm hover:underline"
+                            >
+                                {FRANCHISE_STRINGS.RESET_FILTERS}
+                            </button>
+                        </div>
+                    )
                 )}
 
                 {filteredList.length > 0 && (

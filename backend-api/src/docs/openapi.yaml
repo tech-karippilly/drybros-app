@@ -1584,7 +1584,7 @@ paths:
     post:
       summary: Create a new driver
       description: |
-        Create a new driver. Only ADMIN and OFFICE_STAFF roles can create drivers.
+        Create a new driver. Only ADMIN, OFFICE_STAFF, MANAGER, and STAFF roles can create drivers.
         
         **Auto-Generated Fields:**
         - `driverCode`: Automatically generated in format DRV-XXXXXX (6 random alphanumeric characters)
@@ -1610,7 +1610,7 @@ paths:
         - Drivers
       security:
         - bearerAuth: []
-      x-roles: ["ADMIN", "OFFICE_STAFF"]
+      x-roles: ["ADMIN", "OFFICE_STAFF", "MANAGER", "STAFF"]
       requestBody:
         required: true
         content:
@@ -1665,7 +1665,7 @@ paths:
         "401":
           description: Unauthorized - missing or invalid token
         "403":
-          description: Forbidden - insufficient permissions (only ADMIN and OFFICE_STAFF can create drivers)
+          description: Forbidden - insufficient permissions (only ADMIN, OFFICE_STAFF, MANAGER, and STAFF can create drivers)
   
   /drivers/available:
     get:

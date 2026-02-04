@@ -100,10 +100,10 @@ router.get(
   getDriverDailyLimitHandler
 );
 
-// POST /drivers - Create new driver (only ADMIN and OFFICE_STAFF)
+// POST /drivers - Create new driver (ADMIN, OFFICE_STAFF, MANAGER, STAFF)
 router.post(
   "/",
-  requireRole(UserRole.ADMIN, UserRole.OFFICE_STAFF),
+  requireRole(UserRole.ADMIN, UserRole.OFFICE_STAFF, UserRole.MANAGER, UserRole.STAFF),
   validate(createDriverSchema),
   createDriverHandler
 );

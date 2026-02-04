@@ -2293,59 +2293,39 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
     throw err;
   }
 
-  // Map trip type name to enum value (e.g., "City Drop" -> "CITY_DROPOFF")
-  // Normalize: remove extra spaces, convert to lowercase, handle various formats
-  const normalizeTripType = (tripType: string): string => {
-    return tripType
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, " ") // Replace multiple spaces with single space
-      .replace(/[_-]/g, " "); // Replace underscores and hyphens with spaces
-  };
-
-  const tripTypeMap: Record<string, TripType> = {
-    "city drop": TripType.CITY_DROPOFF,
-    "city dropoff": TripType.CITY_DROPOFF,
-    "city round": TripType.CITY_ROUND,
-    "city round trip": TripType.CITY_ROUND,
-    "long drop": TripType.LONG_DROPOFF,
-    "long dropoff": TripType.LONG_DROPOFF,
-    "long round": TripType.LONG_ROUND,
-    "long round trip": TripType.LONG_ROUND,
-    "city_dropoff": TripType.CITY_DROPOFF,
-    "city_round": TripType.CITY_ROUND,
-    "long_dropoff": TripType.LONG_DROPOFF,
-    "long_round": TripType.LONG_ROUND,
-  };
+  // Query TripTypeConfig from database by name (case-insensitive)
+  const normalizedInputTripType = input.tripType.trim().toUpperCase().replace(/\s+/g, " ");
   
-  let tripTypeEnum: TripType;
-  const normalizedTripType = normalizeTripType(input.tripType);
-  
-  // Check if it's already an enum value (case-insensitive)
-  const upperCaseTripType = input.tripType.trim().toUpperCase();
-  if (Object.values(TripType).includes(upperCaseTripType as TripType)) {
-    tripTypeEnum = upperCaseTripType as TripType;
-  } else if (tripTypeMap[normalizedTripType]) {
-    // Map from display name to enum
-    tripTypeEnum = tripTypeMap[normalizedTripType];
-  } else {
-    // Try to match by keywords (more flexible matching)
-    if (normalizedTripType.includes("city") && normalizedTripType.includes("drop")) {
-      tripTypeEnum = TripType.CITY_DROPOFF;
-    } else if (normalizedTripType.includes("city") && normalizedTripType.includes("round")) {
-      tripTypeEnum = TripType.CITY_ROUND;
-    } else if (normalizedTripType.includes("long") && normalizedTripType.includes("drop")) {
-      tripTypeEnum = TripType.LONG_DROPOFF;
-    } else if (normalizedTripType.includes("long") && normalizedTripType.includes("round")) {
-      tripTypeEnum = TripType.LONG_ROUND;
-    } else {
-      const err: any = new Error(
-        `${TRIP_ERROR_MESSAGES.INVALID_TRIP_TYPE}. Received: "${input.tripType}". Valid values: ${Object.values(TripType).join(", ")}`
-      );
-      err.statusCode = 400;
-      throw err;
+  // Find matching trip type config by name (case-insensitive)
+  const tripTypeConfig = await prisma.tripTypeConfig.findFirst({
+    where: {
+      name: {
+        equals: normalizedInputTripType,
+        mode: 'insensitive'
+      },
+      status: 'ACTIVE'
     }
+  });
+
+  if (!tripTypeConfig) {
+    // Fetch all active trip type names for error message
+    const activeTripTypes = await prisma.tripTypeConfig.findMany({
+      where: { status: 'ACTIVE' },
+      select: { name: true },
+      orderBy: { name: 'asc' }
+    });
+    
+    const validTripTypeNames = activeTripTypes.map(t => t.name).join(", ");
+    
+    const err: any = new Error(
+      `${TRIP_ERROR_MESSAGES.INVALID_TRIP_TYPE}. Received: "${input.tripType}". Valid values: ${validTripTypeNames || "No active trip types found"}`
+    );
+    err.statusCode = 400;
+    throw err;
   }
+
+  // Use the trip type name from database as the enum value
+  const tripTypeEnum = tripTypeConfig.name as TripType;
 
   // Find or create customer
   const { customer, isExisting } = await findOrCreateCustomer({

@@ -188,7 +188,7 @@ model Trip {
   customerId           String?   @db.Uuid
   customerName         String
   customerPhone        String
-  tripType             TripType
+  tripType             String // Changed from TripType enum to String to support dynamic trip types from TripTypeConfig
   status               TripStatus     @default(PENDING)
   pickupLocation       String
   pickupLat            Float?

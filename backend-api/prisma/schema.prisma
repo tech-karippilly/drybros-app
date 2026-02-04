@@ -109,6 +109,8 @@ model Franchise {
   inchargeName            String? // Manager name (stored for backward compatibility)
   storeImage              String? // Store image URL (optional)
   legalDocumentsCollected Boolean         @default(false) // Legal documents collected flag
+  workStartTime           String?         // e.g., "09:00"
+  workEndTime             String?         // e.g., "18:00"
   status                  FranchiseStatus @default(ACTIVE) // Franchise status
   isActive                Boolean         @default(true)
   createdAt               DateTime        @default(now())

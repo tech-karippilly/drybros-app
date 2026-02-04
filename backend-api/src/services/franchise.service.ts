@@ -43,6 +43,8 @@ function mapFranchiseToResponse(franchise: any): FranchiseResponseDTO {
     inchargeName: franchise.inchargeName,
     storeImage: franchise.storeImage,
     legalDocumentsCollected: franchise.legalDocumentsCollected,
+    workStartTime: franchise.workStartTime,
+    workEndTime: franchise.workEndTime,
     status: franchise.status,
     isActive: franchise.isActive,
     createdAt: franchise.createdAt,
@@ -243,6 +245,8 @@ export async function createFranchise(
         inchargeName: input.managerName,
         storeImage: input.storeImage || null,
         legalDocumentsCollected: input.legalDocumentsCollected ?? false,
+        workStartTime: input.workStartTime || null,
+        workEndTime: input.workEndTime || null,
       },
     });
 

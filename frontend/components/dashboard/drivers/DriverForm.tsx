@@ -188,34 +188,32 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
 
     if (!isOpen) return null;
 
-    // Common input style class
-    const inputClass = "w-full px-4 py-3 bg-[#1e2736] border border-gray-800 rounded-lg outline-none focus:ring-1 focus:ring-[#0d59f2] text-white font-medium placeholder-gray-500 transition-all";
-    const labelClass = "text-xs font-bold text-gray-400 mb-2 block";
-    const sectionTitleClass = "text-lg font-bold text-white mb-6 flex items-center gap-2";
+    // Common input style class (align with dashboard forms)
+    const inputClass = "w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium";
+    const labelClass = "text-xs font-bold text-[#49659c] dark:text-gray-400 mb-2 block";
+    const sectionTitleClass = "text-lg font-bold text-[#0d121c] dark:text-white mb-6 flex items-center gap-2";
 
     return (
-        <div className="w-full min-h-screen bg-[#0d121c] p-8 animate-in fade-in duration-300">
+        <div className="w-full min-h-screen p-8 animate-in fade-in duration-300">
             <div className="max-w-5xl mx-auto pb-20">
                 {/* Header */}
-                <div className="mb-10">
-                    <h1 className="text-3xl font-bold text-white mb-2">Driver Registration</h1>
-                    <p className="text-gray-400">Onboard a new driver to the Dybros platform.</p>
+                <div className="mb-6">
+                    <h1 className="text-3xl font-bold text-[#0d121c] dark:text-white mb-2">Driver Registration</h1>
+                    <p className="text-[#49659c] dark:text-gray-400">Onboard a new driver to the Dybros platform.</p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-10">
-                    
+                <form onSubmit={handleSubmit} className="space-y-8">
                     {/* 1. Personal Information */}
-                    <div>
-                        <h3 className="text-xl font-bold text-white mb-6">1. Personal Information</h3>
-                        
-                        <div className="flex flex-col md:flex-row gap-8 items-start mb-8">
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <h3 className={sectionTitleClass}>1. Personal Information</h3>
+                        <div className="flex flex-col md:flex-row gap-8 items-start">
                             <div className="flex-shrink-0">
-                                <div className="size-24 rounded-full bg-[#1e2736] border border-gray-800 flex items-center justify-center text-gray-400 cursor-pointer hover:border-[#0d59f2] hover:text-[#0d59f2] transition-all group">
+                                <div className="size-24 rounded-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-800 flex items-center justify-center text-gray-400 cursor-pointer hover:border-[#0d59f2] hover:text-[#0d59f2] transition-all group">
                                     <Upload size={24} />
                                 </div>
-                                <p className="text-[10px] text-gray-500 mt-2 text-center">Profile Image<br/>JPG or PNG, max 5MB</p>
+                                <p className="text-[10px] text-[#49659c] dark:text-gray-400 mt-2 text-center">Profile Image<br/>JPG or PNG, max 5MB</p>
                             </div>
-                            
+
                             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
                                 <div>
                                     <label className={labelClass}>First Name</label>
@@ -290,8 +288,8 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                     </div>
 
                     {/* 2. Emergency Contact & Address */}
-                    <div>
-                        <h3 className="text-xl font-bold text-white mb-6">2. Emergency Contact & Address</h3>
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <h3 className={sectionTitleClass}>2. Emergency Contact & Address</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                             <div>
                                 <label className={labelClass}>Contact Name</label>
@@ -329,7 +327,7 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                                 </select>
                             </div>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
                                 <label className={labelClass}>Street Address</label>
@@ -375,8 +373,8 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                     </div>
 
                     {/* 3. Professional & Banking Details */}
-                    <div>
-                        <h3 className="text-xl font-bold text-white mb-6">3. Professional & Banking Details</h3>
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <h3 className={sectionTitleClass}>3. Professional & Banking Details</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                             <div>
                                 <label className={labelClass}>License Number</label>
@@ -455,20 +453,23 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                         <div>
                             <label className={labelClass}>Car Types</label>
                             <div className="flex gap-6 mt-3">
-                                {CAR_CATEGORY.map(category => (
-                                    <label key={category.value} className="flex items-center gap-3 cursor-pointer group">
-                                        <div className={`size-5 rounded bg-[#1e2736] border border-gray-700 flex items-center justify-center transition-colors ${formData.carTypes?.includes(category.value as any) ? 'bg-[#0d59f2] border-[#0d59f2]' : 'group-hover:border-gray-500'}`}>
-                                            {formData.carTypes?.includes(category.value as any) && <CheckCircle size={12} className="text-white" />}
-                                        </div>
-                                        <input
-                                            type="checkbox"
-                                            className="hidden"
-                                            checked={formData.carTypes?.includes(category.value as any)}
-                                            onChange={() => handleCategoryToggle(category.value)}
-                                        />
-                                        <span className="text-gray-300 text-sm">{category.label}</span>
-                                    </label>
-                                ))}
+                                {CAR_CATEGORY.map(category => {
+                                    const selected = formData.carTypes?.includes(category.value as any);
+                                    return (
+                                        <label key={category.value} className="flex items-center gap-3 cursor-pointer group">
+                                            <div className={`size-5 rounded border flex items-center justify-center transition-colors ${selected ? 'bg-[#0d59f2] border-[#0d59f2]' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-800 group-hover:border-gray-300 dark:group-hover:border-gray-600'}`}>
+                                                {selected && <CheckCircle size={12} className="text-white" />}
+                                            </div>
+                                            <input
+                                                type="checkbox"
+                                                className="hidden"
+                                                checked={selected}
+                                                onChange={() => handleCategoryToggle(category.value)}
+                                            />
+                                            <span className="text-[#0d121c] dark:text-gray-300 text-sm">{category.label}</span>
+                                        </label>
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
@@ -481,14 +482,14 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                                 <label className={labelClass}>Document Checklist</label>
                                 <div className="space-y-3 mt-2">
                                     {DOCUMENT_OPTIONS.map(doc => (
-                                        <div key={doc} className="flex items-center justify-between p-3 bg-[#1e2736] border border-gray-800 rounded-lg">
-                                            <span className="text-sm text-gray-300">{doc}</span>
+                                        <div key={doc} className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg">
+                                            <span className="text-sm text-[#0d121c] dark:text-gray-300">{doc}</span>
                                             <label className="cursor-pointer">
                                                 <input
                                                     type="checkbox"
                                                     checked={formData.documentsCollected?.includes(doc)}
                                                     onChange={() => handleDocToggle(doc)}
-                                                    className="size-5 rounded border-gray-600 bg-gray-800 text-[#0d59f2] focus:ring-0 focus:ring-offset-0"
+                                                    className="h-5 w-5 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#0d59f2] focus:ring-0"
                                                 />
                                             </label>
                                         </div>

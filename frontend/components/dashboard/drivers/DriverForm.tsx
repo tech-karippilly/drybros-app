@@ -20,8 +20,9 @@ interface DriverFormProps {
 const CAR_CATEGORY = [
     { label: 'Manual', value: 'MANUAL' },
     { label: 'Automatic', value: 'AUTOMATIC' },
-    { label: 'Premium', value: 'PREMIUM' },
-    { label: 'Luxury', value: 'LUXURY' },
+    { label: 'Premium Cars', value: 'PREMIUM_CARS' },
+    { label: 'Luxury Cars', value: 'LUXURY_CARS' },
+    { label: 'Sporty Cars', value: 'SPORTY_CARS' },
 ] as const;
 
 const DOCUMENT_OPTIONS = ['Govt Identity', 'Address Proof', 'Educational Certificates', 'Previous Experience', 'Police Verification'];
@@ -62,6 +63,7 @@ const getInitialFormData = (driver: GetDriver | null): Partial<Omit<CreateDriver
         dateOfBirth: '', dateOfJoining: new Date().toISOString().split('T')[0],
         bankAccountNumber: '', accountHolderName: '', ifscCode: '', upiId: '',
         contactName: '', contactNumber: '', relationship: '', profilePhoto: null,
+        aadharCard: false, license: false, educationCert: false, previousExp: false,
         documentsCollected: [],
         franchiseId: '',
         carTypes: []
@@ -185,7 +187,34 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                 toast({ title: 'Success', description: 'Driver updated successfully', variant: 'success' });
             } else {
                 const franchiseId = typeof formData.franchiseId === 'string' ? formData.franchiseId : formData.franchiseId?.toString() || '';
-                const payload = { ...formData, franchiseId, employmentType: mapEmploymentToApi(formData.employmentType) } as CreateDriverInput;
+                const payload: CreateDriverInput = {
+                    firstName: formData.firstName || '',
+                    lastName: formData.lastName || '',
+                    phone: formData.driverPhone || '',
+                    email: formData.email || '',
+                    altPhone: formData.driverAltPhone,
+                    password: formData.password || '',
+                    emergencyContactName: formData.contactName || '',
+                    emergencyContactPhone: formData.contactNumber || '',
+                    emergencyContactRelation: formData.relationship || '',
+                    address: formData.address || '',
+                    city: formData.city || '',
+                    state: formData.state || '',
+                    pincode: formData.pincode || '',
+                    licenseNumber: formData.licenseNumber || '',
+                    licenseType: formData.licenseType || 'LMV',
+                    licenseExpDate: formData.licenseExpiryDate || '',
+                    bankAccountName: formData.accountHolderName || '',
+                    bankAccountNumber: formData.bankAccountNumber || '',
+                    bankIfscCode: formData.ifscCode || '',
+                    aadharCard: formData.aadharCard || false,
+                    license: formData.license || false,
+                    educationCert: formData.educationCert || false,
+                    previousExp: formData.previousExp || false,
+                    carTypes: (formData.carTypes || []).map(ct => ct as 'MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS'),
+                    franchiseId,
+                    employmentType: mapEmploymentToApi(formData.employmentType)
+                };
                 await dispatch(createDriver(payload)).unwrap();
                 toast({ title: 'Success', description: 'Driver onboarded successfully', variant: 'success' });
             }
@@ -488,21 +517,52 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                         <h3 className={sectionTitleClass}>4. Compliance & Franchise</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div>
-                                <label className={labelClass}>Document Checklist</label>
+                                <label className={labelClass}>Required Documents</label>
                                 <div className="space-y-3 mt-2">
-                                    {DOCUMENT_OPTIONS.map(doc => (
-                                        <div key={doc} className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg">
-                                            <span className="text-sm text-[#0d121c] dark:text-gray-300">{doc}</span>
-                                            <label className="cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={formData.documentsCollected?.includes(doc)}
-                                                    onChange={() => handleDocToggle(doc)}
-                                                    className="h-5 w-5 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#0d59f2] focus:ring-0"
-                                                />
-                                            </label>
-                                        </div>
-                                    ))}
+                                    <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg">
+                                        <span className="text-sm text-[#0d121c] dark:text-gray-300">Aadhar Card</span>
+                                        <label className="cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.aadharCard || false}
+                                                onChange={e => setFormData({ ...formData, aadharCard: e.target.checked })}
+                                                className="h-5 w-5 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#0d59f2] focus:ring-0"
+                                            />
+                                        </label>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg">
+                                        <span className="text-sm text-[#0d121c] dark:text-gray-300">License</span>
+                                        <label className="cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.license || false}
+                                                onChange={e => setFormData({ ...formData, license: e.target.checked })}
+                                                className="h-5 w-5 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#0d59f2] focus:ring-0"
+                                            />
+                                        </label>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg">
+                                        <span className="text-sm text-[#0d121c] dark:text-gray-300">Education Certificate</span>
+                                        <label className="cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.educationCert || false}
+                                                onChange={e => setFormData({ ...formData, educationCert: e.target.checked })}
+                                                className="h-5 w-5 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#0d59f2] focus:ring-0"
+                                            />
+                                        </label>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg">
+                                        <span className="text-sm text-[#0d121c] dark:text-gray-300">Previous Experience</span>
+                                        <label className="cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.previousExp || false}
+                                                onChange={e => setFormData({ ...formData, previousExp: e.target.checked })}
+                                                className="h-5 w-5 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#0d59f2] focus:ring-0"
+                                            />
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                             

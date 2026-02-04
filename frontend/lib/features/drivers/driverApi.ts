@@ -50,6 +50,7 @@ export interface CreateDriverRequest {
     previousExp?: boolean;
     carTypes: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[];
     franchiseId: string;
+    employmentType?: 'part time' | 'full time' | 'contract';
 }
 
 export interface UpdateDriverRequest {
@@ -77,6 +78,7 @@ export interface UpdateDriverRequest {
     previousExp?: boolean;
     carTypes?: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[];
     franchiseId?: string;
+    employmentType?: 'part time' | 'full time' | 'contract' | null;
     status?: 'ACTIVE' | 'INACTIVE' | 'BLOCKED' | 'TERMINATED';
 }
 

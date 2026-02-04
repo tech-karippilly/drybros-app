@@ -10832,6 +10832,11 @@ components:
           minItems: 1
           description: Types of cars the driver can drive
           example: ["MANUAL", "AUTOMATIC"]
+        employmentType:
+          type: string
+          description: Driver employment type (api-facing string)
+          enum: ["part time", "full time", "contract"]
+          example: "full time"
         franchiseId:
           type: string
           format: uuid
@@ -10875,6 +10880,12 @@ components:
           type: string
           description: Auto-generated unique driver code for app login (format: DRV-XXXXXX)
           example: "DRV-A1B2C3"
+        employmentType:
+          type: string
+          nullable: true
+          description: Driver employment type (API-facing string)
+          enum: ["part time", "full time", "contract"]
+          example: "full time"
         emergencyContactName:
           type: string
           description: Emergency contact person's name

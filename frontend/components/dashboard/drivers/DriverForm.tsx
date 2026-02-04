@@ -148,6 +148,15 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
         }
         setIsSubmitting(true);
         try {
+            // Map frontend EmploymentType (FULL_TIME / PART_TIME / CONTRACT) to API strings
+            const mapEmploymentToApi = (val: any) => {
+                if (!val) return undefined;
+                const v = String(val).toUpperCase();
+                if (v.includes('FULL')) return 'full time';
+                if (v.includes('PART')) return 'part time';
+                return 'contract';
+            };
+
             if (driver) {
                 const toNull = (val: any) => (val === '' || val === undefined) ? null : val;
 
@@ -163,7 +172,7 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                     state: toNull(formData.state), pincode: toNull(formData.pincode),
                     franchiseId: formData.franchiseId && formData.franchiseId !== '' ? (typeof formData.franchiseId === 'string' ? formData.franchiseId : formData.franchiseId.toString()) : null,
                     dateOfJoining: toNull(formData.dateOfJoining),
-                    assignedCity: toNull(formData.assignedCity), employmentType: formData.employmentType || null,
+                    assignedCity: toNull(formData.assignedCity), employmentType: mapEmploymentToApi(formData.employmentType) ?? null,
                     bankAccountNumber: toNull(formData.bankAccountNumber), accountHolderName: toNull(formData.accountHolderName),
                     ifscCode: toNull(formData.ifscCode), upiId: toNull(formData.upiId),
                     contactName: toNull(formData.contactName), contactNumber: toNull(formData.contactNumber),
@@ -176,7 +185,7 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                 toast({ title: 'Success', description: 'Driver updated successfully', variant: 'success' });
             } else {
                 const franchiseId = typeof formData.franchiseId === 'string' ? formData.franchiseId : formData.franchiseId?.toString() || '';
-                const payload = { ...formData, franchiseId } as CreateDriverInput;
+                const payload = { ...formData, franchiseId, employmentType: mapEmploymentToApi(formData.employmentType) } as CreateDriverInput;
                 await dispatch(createDriver(payload)).unwrap();
                 toast({ title: 'Success', description: 'Driver onboarded successfully', variant: 'success' });
             }

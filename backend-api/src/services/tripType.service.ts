@@ -161,6 +161,9 @@ export async function getTripTypeById(id: string) {
 
 export async function createTripType(input: CreateTripTypeInput) {
   const specialPrice = input.specialPrice || false;
+  
+  // Handle backward compatibility: accept both baseHour and baseDuration
+  const baseHour = (input as any).baseDuration ?? input.baseHour;
 
   // Validate trip type name is not empty
   if (!input.name || input.name.trim().length === 0) {
@@ -214,7 +217,7 @@ export async function createTripType(input: CreateTripTypeInput) {
       err.statusCode = 400;
       throw err;
     }
-    if (input.baseHour <= 0) {
+    if (baseHour <= 0) {
       const err: any = new Error("Base hour must be greater than 0");
       err.statusCode = 400;
       throw err;
@@ -270,7 +273,7 @@ export async function createTripType(input: CreateTripTypeInput) {
     specialPrice,
     // When specialPrice is true, ignore basePrice/baseHour/extraPerHour even if provided
     basePrice: specialPrice ? null : (input.basePrice ?? null),
-    baseDuration: specialPrice ? null : (input.baseHour ?? null), // Map baseHour to baseDuration in database
+    baseDuration: specialPrice ? null : (baseHour ?? null), // Map baseHour/baseDuration to baseDuration in database
     baseDistance: input.distance ?? null, // Map distance to baseDistance in database
     extraPerHour: specialPrice ? null : (input.extraPerHour ?? null),
     extraPerHalfHour: input.extraPerHalfHour ?? null,
@@ -288,6 +291,9 @@ export async function updateTripType(id: string, input: UpdateTripTypeInput) {
     err.statusCode = 404;
     throw err;
   }
+
+  // Handle backward compatibility: accept both baseHour and baseDuration
+  const baseHour = (input as any).baseDuration ?? input.baseHour;
 
   // Determine if we're switching to/from specialPrice mode
   const newSpecialPrice = input.specialPrice !== undefined ? input.specialPrice : existing.specialPrice;
@@ -347,8 +353,8 @@ export async function updateTripType(id: string, input: UpdateTripTypeInput) {
       }
     }
 
-    if (input.baseHour !== undefined || isSwitchingMode) {
-      const hourToValidate = input.baseHour !== undefined ? input.baseHour : (existing.baseDuration ?? null);
+    if (baseHour !== undefined || isSwitchingMode) {
+      const hourToValidate = baseHour !== undefined ? baseHour : (existing.baseDuration ?? null);
       if (hourToValidate === null || hourToValidate === undefined) {
         const err: any = new Error("baseHour is required when specialPrice is false");
         err.statusCode = 400;
@@ -402,11 +408,12 @@ export async function updateTripType(id: string, input: UpdateTripTypeInput) {
     }
   }
 
-  // Map baseHour to baseDuration for database
+  // Map baseHour/baseDuration to baseDuration for database
   const updateData: any = { ...input };
-  if (input.baseHour !== undefined) {
-    updateData.baseDuration = input.baseHour;
+  if (baseHour !== undefined) {
+    updateData.baseDuration = baseHour;
     delete updateData.baseHour;
+    delete (updateData as any).baseDuration; // Remove if it was in input as baseDuration
   }
   // Map distance to baseDistance for database
   if (input.distance !== undefined) {

@@ -605,6 +605,9 @@ export function TripBookingForm() {
                                             <option value={CAR_GEAR_TYPES.MANUAL}>
                                                 {BOOKING_STRINGS.TRANSMISSION_MANUAL}
                                             </option>
+                                            <option value={CAR_GEAR_TYPES.EV}>
+                                                {BOOKING_STRINGS.TRANSMISSION_EV}
+                                            </option>
                                         </select>
                                     </label>
                                     <div className="flex flex-col">
@@ -645,6 +648,23 @@ export function TripBookingForm() {
                                                 )}
                                             >
                                                 {BOOKING_STRINGS.VEHICLE_PREMIUM}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setFormData((prev) => ({
+                                                        ...prev,
+                                                        carType: CAR_TYPE_CATEGORIES.LUXURY,
+                                                    }))
+                                                }
+                                                className={cn(
+                                                    "flex-1 rounded-md text-sm font-medium transition-all",
+                                                    formData.carType === CAR_TYPE_CATEGORIES.LUXURY
+                                                        ? "bg-white dark:bg-theme-blue text-theme-blue dark:text-white shadow-sm font-bold"
+                                                        : "text-slate-500 dark:text-[#92adc9] hover:bg-white/10"
+                                                )}
+                                            >
+                                                {BOOKING_STRINGS.VEHICLE_LUXURY}
                                             </button>
                                         </div>
                                     </div>

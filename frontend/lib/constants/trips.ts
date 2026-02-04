@@ -5,6 +5,7 @@
 export const CAR_GEAR_TYPES = {
     MANUAL: "MANUAL",
     AUTOMATIC: "AUTOMATIC",
+    EV: "EV",
 } as const;
 
 export type CarGearType = typeof CAR_GEAR_TYPES[keyof typeof CAR_GEAR_TYPES];
@@ -94,9 +95,11 @@ export const BOOKING_STRINGS = {
     TRANSMISSION_TYPE: 'Transmission Type',
     TRANSMISSION_AUTOMATIC: 'Automatic',
     TRANSMISSION_MANUAL: 'Manual',
+    TRANSMISSION_EV: 'EV',
     VEHICLE_CATEGORY: 'Vehicle Category',
     VEHICLE_NORMAL: 'Normal',
     VEHICLE_PREMIUM: 'Premium',
+    VEHICLE_LUXURY: 'Luxury',
     TRIP_LOGISTICS: 'Trip Logistics',
     LOCATION: 'Location',
     LOCATION_PLACEHOLDER_PICKUP: 'Search for pickup location...',

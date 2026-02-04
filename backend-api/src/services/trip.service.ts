@@ -85,7 +85,11 @@ interface CreateTripInput {
   customerId: string;
   tripType: string;
   pickupLocation: string;
+  pickupLat?: number | null;
+  pickupLng?: number | null;
   dropLocation?: string | null;
+  dropLat?: number | null;
+  dropLng?: number | null;
   scheduledAt?: string | null;
   baseAmount: number;
   extraAmount?: number;
@@ -680,7 +684,11 @@ export async function createTrip(input: CreateTripInput) {
     customerPhone: customer.phone,
     tripType: input.tripType,
     pickupLocation: input.pickupLocation,
+    pickupLat: input.pickupLat ?? null,
+    pickupLng: input.pickupLng ?? null,
     dropLocation: input.dropLocation ?? null,
+    dropLat: input.dropLat ?? null,
+    dropLng: input.dropLng ?? null,
     scheduledAt: scheduledAtDate ?? null,
     baseAmount: input.baseAmount,
     extraAmount: extra,
@@ -2448,6 +2456,8 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
     dropAddress: input.destinationAddress,
     dropLat: input.destinationLat ?? null,
     dropLng: input.destinationLng ?? null,
+    destinationLat: input.destinationLat ?? null,
+    destinationLng: input.destinationLng ?? null,
     dropLocationNote: input.destinationNote,
     carType: carTypeCategory,
     carGearType: resolvedCarGearType,

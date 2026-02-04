@@ -130,6 +130,7 @@ export interface DriverResponseDTO {
   incentive: number | null;
   bonus: number | null;
   currentRating: number | null;
+  remainingDailyLimit: number | null;
   isActive: boolean;
   createdBy: string | null; // User UUID who created this driver
   createdAt: Date;

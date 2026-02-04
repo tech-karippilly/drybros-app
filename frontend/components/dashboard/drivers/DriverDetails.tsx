@@ -134,10 +134,41 @@ export function DriverDetails({ driver, onBack, onEdit }: DriverDetailsProps) {
                         <h4 className="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Daily Target</h4>
                         <div className="flex items-baseline gap-2">
                             <span className="text-3xl font-black italic">₹</span>
-                            <span className="text-4xl font-black">{driver.dailyTargetAmount.toLocaleString()}</span>
+                            <span className="text-4xl font-black">{(driver.dailyStatus?.dailyLimit?.dailyTargetAmount ?? driver.dailyTargetAmount ?? 0).toLocaleString()}</span>
                         </div>
                         <p className="text-[#49659c] text-xs font-bold mt-2">Revenue Goal</p>
+                        <div className="mt-4">
+                            <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">Remaining Today</p>
+                            <p className="text-lg font-bold text-white mt-1">₹{(driver.dailyStatus?.dailyLimit?.remainingDailyLimit ?? driver.remainingDailyLimit ?? 0).toLocaleString()}</p>
+                        </div>
                     </div>
+                    {/* Daily Status Details */}
+                    {driver.dailyStatus?.dailyLimit && (
+                        <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
+                            <div className="flex items-center gap-3">
+                                <Clock className="text-[#0d59f2]" size={20} />
+                                <h4 className="font-black text-[#0d121c] dark:text-white uppercase tracking-widest text-xs">Daily Status</h4>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl">
+                                    <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">Daily Target</p>
+                                    <p className="text-xl font-bold text-[#0d121c] dark:text-white mt-2">₹{driver.dailyStatus.dailyLimit.dailyTargetAmount.toLocaleString()}</p>
+                                </div>
+                                <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-2xl border border-green-200 dark:border-green-800">
+                                    <p className="text-[10px] font-black text-green-700 dark:text-green-400 uppercase tracking-tight">Remaining</p>
+                                    <p className="text-xl font-bold text-green-700 dark:text-green-400 mt-2">₹{driver.dailyStatus.dailyLimit.remainingDailyLimit.toLocaleString()}</p>
+                                </div>
+                                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-200 dark:border-amber-800">
+                                    <p className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-tight">Used</p>
+                                    <p className="text-xl font-bold text-amber-700 dark:text-amber-400 mt-2">₹{driver.dailyStatus.dailyLimit.usedDailyLimit.toLocaleString()}</p>
+                                </div>
+                                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-200 dark:border-blue-800">
+                                    <p className="text-[10px] font-black text-blue-700 dark:text-blue-400 uppercase tracking-tight">Cash in Hand</p>
+                                    <p className="text-xl font-bold text-blue-700 dark:text-blue-400 mt-2">₹{driver.dailyStatus.dailyLimit.cashInHand.toLocaleString()}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     {/* Actions Panel */}
                     <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
                         <div className="flex items-center gap-3 mb-6">
@@ -224,13 +255,14 @@ export function DriverDetails({ driver, onBack, onEdit }: DriverDetailsProps) {
                                 <h4 className="font-black text-[#0d121c] dark:text-white uppercase tracking-widest text-xs">Documents Verified</h4>
                             </div>
                             <div className="space-y-3">
-                                {driver.documentsCollected.map((doc, i) => (
-                                    <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800">
-                                        <FileCheck size={16} className="text-green-600" />
-                                        <span className="text-sm font-bold text-[#49659c] dark:text-gray-300">{doc}</span>
-                                    </div>
-                                ))}
-                                {driver.documentsCollected.length === 0 && (
+                                {driver.documentsCollected && driver.documentsCollected.length > 0 ? (
+                                    driver.documentsCollected.map((doc, i) => (
+                                        <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800">
+                                            <FileCheck size={16} className="text-green-600" />
+                                            <span className="text-sm font-bold text-[#49659c] dark:text-gray-300">{doc}</span>
+                                        </div>
+                                    ))
+                                ) : (
                                     <p className="text-sm text-[#49659c] italic">No documents verified yet.</p>
                                 )}
                             </div>

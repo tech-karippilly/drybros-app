@@ -74,10 +74,6 @@ function StatCard({
                 <div className={iconColor}>{icon}</div>
             </div>
 
-            {/* Recent Activities */}
-            <div className="mt-8">
-                <RecentActivities />
-            </div>
             {progressPercent != null ? (
                 <div className="flex flex-col gap-1">
                     <div className="flex items-baseline gap-2">
@@ -659,9 +655,36 @@ export function ManagerDashboard() {
                             </div>
                         ))}
                     </div>
-                    <div className="mt-auto pt-6">
+                    <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800">
+                        <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-sm font-bold text-slate-900 dark:text-white">Others</h4>
+                            <span className="text-xs font-semibold text-slate-500">
+                                {Math.max(0, totalStaff - staffList.length)} more
+                            </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {Array.from({ length: Math.max(0, totalStaff - staffList.length) }).map((_, idx) => (
+                                <div
+                                    key={idx}
+                                    className="size-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-semibold text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600"
+                                >
+                                    +{idx + 1}
+                                </div>
+                            ))}
+                        </div>
+                        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                            View all staff in {" "}
+                            <Link
+                                href={DASHBOARD_ROUTES.STAFF}
+                                className="font-semibold text-[#137fec] hover:underline"
+                            >
+                                Staff Management
+                            </Link>
+                        </p>
+                    </div>
+                    <div className="mt-auto pt-4">
                         <div className="flex gap-3 rounded-lg border border-orange-500/20 bg-orange-500/10 p-4">
-                            <AlertCircle className="h-5 w-5 text-orange-500" />
+                            <AlertCircle className="h-5 w-5 text-orange-500 shrink-0" />
                             <div>
                                 <p className="text-xs font-bold text-orange-600 dark:text-orange-400">
                                     {MANAGER_DASHBOARD_STRINGS.LATE_ARRIVALS_TITLE}

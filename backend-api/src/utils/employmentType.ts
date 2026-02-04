@@ -15,7 +15,9 @@ const prismaToApiMap: Record<DriverEmploymentType, string> = {
 
 export function toPrismaEmploymentType(apiValue?: string | null): DriverEmploymentType | null {
   if (!apiValue) return null;
-  const key = apiValue.trim().toLowerCase();
+  // Normalize input to handle API-facing strings like "full time"
+  // as well as enum-like or uppercased values from frontend (e.g. "FULL_TIME", "FULL-TIME").
+  const key = apiValue.trim().toLowerCase().replace(/[_-]+/g, " ");
   return apiToPrismaMap[key] ?? null;
 }
 

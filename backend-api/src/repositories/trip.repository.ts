@@ -171,7 +171,13 @@ export async function createTrip(data: {
   customerPhone: string;
   tripType: string;
   pickupLocation: string;
+  pickupLat?: number | null;
+  pickupLng?: number | null;
   dropLocation?: string | null;
+  dropLat?: number | null;
+  dropLng?: number | null;
+  destinationLat?: number | null;
+  destinationLng?: number | null;
   scheduledAt?: Date | null;
   baseAmount: number;
   extraAmount?: number;
@@ -187,7 +193,13 @@ export async function createTrip(data: {
       customerPhone: data.customerPhone,
       tripType: data.tripType as any,
       pickupLocation: data.pickupLocation,
+      pickupLat: data.pickupLat ?? null,
+      pickupLng: data.pickupLng ?? null,
       dropLocation: data.dropLocation ?? null,
+      dropLat: data.dropLat ?? null,
+      dropLng: data.dropLng ?? null,
+      destinationLat: data.destinationLat ?? null,
+      destinationLng: data.destinationLng ?? null,
       scheduledAt: data.scheduledAt ?? null,
       baseAmount: data.baseAmount,
       extraAmount: data.extraAmount ?? 0,
@@ -215,6 +227,8 @@ export async function createTripPhase1(data: {
   dropAddress: string;
   dropLat?: number | null;
   dropLng?: number | null;
+  destinationLat?: number | null;
+  destinationLng?: number | null;
   dropLocationNote?: string | null;
   carType: string;
   carGearType?: string | null;
@@ -245,6 +259,8 @@ export async function createTripPhase1(data: {
       dropAddress: data.dropAddress,
       dropLat: data.dropLat ?? null,
       dropLng: data.dropLng ?? null,
+      destinationLat: data.destinationLat ?? null,
+      destinationLng: data.destinationLng ?? null,
       dropLocationNote: data.dropLocationNote ?? null,
       carType: data.carType,
       carGearType: data.carGearType ?? null,

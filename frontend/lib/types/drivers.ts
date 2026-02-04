@@ -37,7 +37,9 @@ export interface CreateDriverInput{
     email: string;
     driverPhone: string;
     driverAltPhone? :string | null;
-    password: string; // Required for creating driver
+    password: string;
+    phone:string;
+    altPhone:string; // Required for creating driver
 
     // personal details
     dateOfBirth?: string; // ISO Date string (optional, not in backend DTO)
@@ -45,7 +47,7 @@ export interface CreateDriverInput{
     profilePhoto?: string | null; // Optional, not in backend DTO
     licenseNumber: string;
     licenseType?: string; // Optional, not in backend DTO
-    licenseExpiryDate: string; // ISO Date string
+    licenseExpDate: string; // ISO Date string
     documentsCollected? :string[]; // Optional, mapped to boolean flags
 
     // Address Details
@@ -62,17 +64,21 @@ export interface CreateDriverInput{
 
     // Bank Details
     bankAccountNumber: string;
-    accountHolderName: string;
-    ifscCode: string;
+    bankAccountName: string;
+    bankIfscCode: string;
     upiId?: string | null; // Optional, not in backend DTO
 
     // Emergency Contact
-    contactName: string;
-    contactNumber: string;
-    relationship: string;
+    emergencyContactName: string;
+    emergencyContactPhone: string;
+    emergencyContactRelation: string;
     
     // Car types (required for backend)
     carTypes?: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[];
+    aadharCard: boolean;
+    license: boolean;
+    educationCert: boolean;
+    previousExp: boolean;
 }
 
 // keeping the return values to null for the elements
@@ -164,6 +170,7 @@ export interface GetDriver{
     dateOfJoining: string ; // ISO Date string
     assignedCity: string ;
     employmentType:EmploymentType ;
+    remainingDailyLimit?: number | null;
 
     // Bank Details
     bankAccountNumber: string ;
@@ -177,6 +184,28 @@ export interface GetDriver{
     relationship: string | null;
 
     carTypes: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[];
+
+    // Daily Status (optional, populated from API)
+    dailyStatus?: {
+        dailyLimit: {
+            driverId: string;
+            driverName: string;
+            dailyTargetAmount: number;
+            remainingDailyLimit: number;
+            usedDailyLimit: number;
+            cashInHand: number;
+        };
+        dailyEarnings: {
+            driverId: string;
+            date: string;
+            dailyTargetAmount: number;
+            amountRunToday: number;
+            tripsCountToday: number;
+            incentiveToday: number;
+            incentiveType: string | null;
+            remainingToAchieve: number;
+        };
+    };
 }
 
 

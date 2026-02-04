@@ -8450,6 +8450,16 @@ components:
           nullable: true
           description: Drop longitude (if provided)
           example: 77.6245
+        destinationLat:
+          type: number
+          nullable: true
+          description: Destination latitude (alias for dropLat)
+          example: 12.9352
+        destinationLng:
+          type: number
+          nullable: true
+          description: Destination longitude (alias for dropLng)
+          example: 77.6245
         scheduledAt:
           type: string
           format: date-time

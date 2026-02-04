@@ -109,8 +109,6 @@ model Franchise {
   inchargeName            String? // Manager name (stored for backward compatibility)
   storeImage              String? // Store image URL (optional)
   legalDocumentsCollected Boolean         @default(false) // Legal documents collected flag
-  workStartTime           String?         // e.g., "09:00"
-  workEndTime             String?         // e.g., "18:00"
   status                  FranchiseStatus @default(ACTIVE) // Franchise status
   isActive                Boolean         @default(true)
   createdAt               DateTime        @default(now())
@@ -198,6 +196,9 @@ model Trip {
   dropLocation         String?
   dropLat              Float?
   dropLng              Float?
+  // Destination coordinates (alias for dropLat/dropLng for clarity)
+  destinationLat       Float?
+  destinationLng       Float?
   scheduledAt          DateTime?
   startedAt            DateTime?
   endedAt              DateTime?

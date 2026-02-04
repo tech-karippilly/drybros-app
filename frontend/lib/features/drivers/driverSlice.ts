@@ -94,6 +94,9 @@ const mapBackendDriverToFrontend = (backendDriver: DriverResponse): GetDriver =>
         dateOfJoining: new Date().toISOString(), // Not in backend DTO
         assignedCity: backendDriver.city,
         employmentType: EmploymentType.FULL_TIME, // Not in backend DTO
+        remainingDailyLimit: backendDriver.remainingDailyLimit ?? null,
+        // Daily Status from API
+        dailyStatus: (backendDriver as any).dailyStatus,
         // Bank Details
         bankAccountNumber: backendDriver.bankAccountNumber,
         accountHolderName: backendDriver.bankAccountName,
@@ -103,6 +106,7 @@ const mapBackendDriverToFrontend = (backendDriver: DriverResponse): GetDriver =>
         contactName: backendDriver.emergencyContactName,
         contactNumber: backendDriver.emergencyContactPhone,
         relationship: backendDriver.emergencyContactRelation,
+        carTypes: backendDriver.carTypes || ['MANUAL'],
     };
 };
 
@@ -121,6 +125,21 @@ const normalizeFranchiseId = (franchiseId: number | string): string => {
     return typeof franchiseId === 'string' ? franchiseId : franchiseId.toString();
 };
 
+// Map frontend EmploymentType enum to API-facing string
+const mapEmploymentTypeToApi = (employmentType?: EmploymentType | null): 'part time' | 'full time' | 'contract' | undefined => {
+    if (!employmentType) return undefined;
+    switch (employmentType) {
+        case EmploymentType.FULL_TIME:
+            return 'full time';
+        case EmploymentType.PART_TIME:
+            return 'part time';
+        case EmploymentType.CONTRACT:
+            return 'contract';
+        default:
+            return undefined;
+    }
+};
+
 // Helper function to map frontend CreateDriverInput to backend CreateDriverRequest
 const mapFrontendDriverToBackend = (frontendDriver: CreateDriverInput): CreateDriverRequest => {
     // Extract documents from array
@@ -136,111 +155,27 @@ const mapFrontendDriverToBackend = (frontendDriver: CreateDriverInput): CreateDr
         email: frontendDriver.email,
         altPhone: frontendDriver.driverAltPhone || undefined,
         password: frontendDriver.password || '', // Password is required
-        emergencyContactName: frontendDriver.contactName,
-        emergencyContactPhone: frontendDriver.contactNumber,
-        emergencyContactRelation: frontendDriver.relationship,
+        emergencyContactName: frontendDriver.emergencyContactName,
+        emergencyContactPhone: frontendDriver.emergencyContactPhone,
+        emergencyContactRelation: frontendDriver.emergencyContactRelation,
         address: frontendDriver.address,
         city: frontendDriver.city,
         state: frontendDriver.state,
         pincode: frontendDriver.pincode,
         licenseNumber: frontendDriver.licenseNumber,
-        licenseExpDate: new Date(frontendDriver.licenseExpiryDate),
-        bankAccountName: frontendDriver.accountHolderName,
+        licenseExpDate: new Date(frontendDriver.licenseExpDate),
+        bankAccountName: frontendDriver.bankAccountName,
         bankAccountNumber: frontendDriver.bankAccountNumber,
-        bankIfscCode: frontendDriver.ifscCode,
+        bankIfscCode: frontendDriver.bankIfscCode,
         ...docFlags,
         carTypes: frontendDriver.carTypes || ['MANUAL'], // Use provided or default
         franchiseId, // UUID string
+        licenseType: frontendDriver.licenseType || null,
+        employmentType: mapEmploymentTypeToApi(frontendDriver.employmentType),
     };
 };
 
-// Dummy Data (kept for fallback, will be removed once fully migrated)
-const DUMMY_DRIVERS: GetDriver[] = [
-    {
-        _id: 101,
-        userId: 1001,
-        firstName: "Rajesh",
-        lastName: "Kumar",
-        driverPhone: "9876543210",
-        driverAltPhone: "9876543211",
-        email: "some@example.com",
-        status: DriverStatus.ACTIVE,
-        complaintCount: 0,
-        bannedGlobally: false,
-        dailyTargetAmount: 1500,
-        currentRating: 4.8,
-        createdAt: "2024-01-01T10:00:00Z",
-        updatedAt: "2024-01-15T10:00:00Z",
-        // trips: [], // Can populate with dummy trips if needed
-        dateOfBirth: "1990-05-15",
-        gender: GenderType.MALE,
-        profilePhoto: "",
-        licenseNumber: "DL-1420110012345",
-        licenseType: "LMV",
-        licenseFront: "",
-        licenseBack: "",
-        licenseExpiryDate: "2030-05-15",
-        documentsCollected: ["Govt Identity", "Address Proof"],
-        address: "123, Main Street, MG Road",
-        city: "Bangalore",
-        state: "Karnataka",
-        pincode: "560001",
-        franchiseId: 1,
-        franchiseName: "Bangalore Central",
-        dateOfJoining: "2023-01-01",
-        assignedCity: "Bangalore",
-        employmentType: EmploymentType.FULL_TIME,
-        bankAccountNumber: "1234567890",
-        accountHolderName: "Rajesh Kumar",
-        ifscCode: "SBIN0001234",
-        upiId: "rajesh@upi",
-        contactName: "Suresh Kumar",
-        contactNumber: "9988776655",
-        relationship: "Brother"
-    },
-    {
-        _id: 102,
-        userId: 1002,
-        firstName: "Suresh",
-        lastName: "Singh",
-        driverPhone: "9123456789",
-        driverAltPhone: null,
-        email: "some@example.com",
-        status: DriverStatus.INACTIVE,
-        complaintCount: 1,
-        bannedGlobally: false,
-        dailyTargetAmount: 1200,
-        currentRating: 4.2,
-        createdAt: "2024-02-01T10:00:00Z",
-        updatedAt: "2024-02-01T10:00:00Z",
-        // trips: [],
-        dateOfBirth: "1988-08-20",
-        gender: GenderType.MALE,
-        profilePhoto: "",
-        licenseNumber: "DL-1420110054321",
-        licenseType: "LMV",
-        licenseFront: "",
-        licenseBack: "",
-        licenseExpiryDate: "2028-08-20",
-        documentsCollected: ["Govt Identity"],
-        address: "456, Lake View, Indiranagar",
-        city: "Bangalore",
-        state: "Karnataka",
-        pincode: "560038",
-        franchiseId: 1,
-        franchiseName: "Bangalore Central",
-        dateOfJoining: "2023-06-01",
-        assignedCity: "Bangalore",
-        employmentType: EmploymentType.CONTRACT,
-        bankAccountNumber: "0987654321",
-        accountHolderName: "Suresh Singh",
-        ifscCode: "HDFC0001234",
-        upiId: null,
-        contactName: null,
-        contactNumber: null,
-        relationship: null
-    }
-];
+
 
 interface DriversState {
     drivers: GetDriver[];
@@ -350,6 +285,10 @@ export const updateDriver = createAsyncThunk(
             
             if (data.franchiseId !== null && data.franchiseId !== undefined) {
                 updateRequest.franchiseId = data.franchiseId.toString();
+            }
+            // Map employment type if provided
+            if (data.employmentType !== null && data.employmentType !== undefined) {
+                updateRequest.employmentType = mapEmploymentTypeToApi(data.employmentType as EmploymentType) || null;
             }
             
             // Convert id to UUID string

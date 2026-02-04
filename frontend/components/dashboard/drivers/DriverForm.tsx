@@ -17,6 +17,21 @@ interface DriverFormProps {
     driver: GetDriver | null;
 }
 
+// Form state type extends frontend CreateDriverInput with UI-only fields
+type FormState = CreateDriverInput & {
+    driverPhone?: string;
+    driverAltPhone?: string | null;
+    accountHolderName?: string;
+    licenseExpiryDate?: string; // UI field, mapped to licenseExpDate for backend
+    documentsCollected?: string[];
+    password?: string;
+    carTypes?: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[];
+    contactName?: string;
+    contactNumber?: string;
+    relationship?: string;
+    status?: DriverStatus;
+};
+
 const CAR_CATEGORY = [
     { label: 'Manual', value: 'MANUAL' },
     { label: 'Automatic', value: 'AUTOMATIC' },
@@ -28,7 +43,7 @@ const CAR_CATEGORY = [
 const DOCUMENT_OPTIONS = ['Govt Identity', 'Address Proof', 'Educational Certificates', 'Previous Experience', 'Police Verification'];
 
 // Moved outside component to prevent recreation on every render
-const getInitialFormData = (driver: GetDriver | null): Partial<Omit<CreateDriverInput, 'franchiseId'>> & { franchiseId?: string | number, password?: string, email?: string, status?: DriverStatus } => {
+const getInitialFormData = (driver: GetDriver | null): FormState => {
     if (driver) {
         return {
             ...driver,
@@ -98,7 +113,7 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
         return initialData;
     }, [franchiseList]);
 
-    const [formData, setFormData] = useState(getInitialFormDataWithFranchise(driver));
+    const [formData, setFormData] = useState<FormState>(getInitialFormDataWithFranchise(driver));
 
     React.useEffect(() => {
         if (isOpen) {
@@ -107,14 +122,14 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
     }, [isOpen, driver, getInitialFormDataWithFranchise]);
 
     const handleGeneratePassword = React.useCallback(() => {
-        setFormData(prev => ({ ...prev, password: generateDriverPassword() }));
+        setFormData((prev: FormState) => ({ ...prev, password: generateDriverPassword() }));
     }, []);
 
     const handleDocToggle = React.useCallback((doc: string) => {
-        setFormData(prev => {
+        setFormData((prev: FormState) => {
             const docs = prev.documentsCollected || [];
             if (docs.includes(doc)) {
-                return { ...prev, documentsCollected: docs.filter(d => d !== doc) };
+                return { ...prev, documentsCollected: docs.filter((d: string) => d !== doc) };
             } else {
                 return { ...prev, documentsCollected: [...docs, doc] };
             }
@@ -122,10 +137,10 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
     }, []);
 
     const handleCategoryToggle = React.useCallback((category: any) => {
-        setFormData(prev => {
+        setFormData((prev: FormState) => {
             const types = prev.carTypes || [];
             if (types.includes(category)) {
-                return { ...prev, carTypes: types.filter(t => t !== category) };
+                return { ...prev, carTypes: types.filter((t) => t !== category) };
             } else {
                 return { ...prev, carTypes: [...types, category] };
             }
@@ -174,7 +189,7 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                     state: toNull(formData.state), pincode: toNull(formData.pincode),
                     franchiseId: formData.franchiseId && formData.franchiseId !== '' ? (typeof formData.franchiseId === 'string' ? formData.franchiseId : formData.franchiseId.toString()) : null,
                     dateOfJoining: toNull(formData.dateOfJoining),
-                    assignedCity: toNull(formData.assignedCity), employmentType: mapEmploymentToApi(formData.employmentType) ?? null,
+                    assignedCity: toNull(formData.assignedCity), employmentType: (mapEmploymentToApi(formData.employmentType) ?? null) as any,
                     bankAccountNumber: toNull(formData.bankAccountNumber), accountHolderName: toNull(formData.accountHolderName),
                     ifscCode: toNull(formData.ifscCode), upiId: toNull(formData.upiId),
                     contactName: toNull(formData.contactName), contactNumber: toNull(formData.contactNumber),
@@ -188,32 +203,46 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
             } else {
                 const franchiseId = typeof formData.franchiseId === 'string' ? formData.franchiseId : formData.franchiseId?.toString() || '';
                 const payload: CreateDriverInput = {
+                    // Base fields (ensure required values exist)
                     firstName: formData.firstName || '',
                     lastName: formData.lastName || '',
-                    phone: formData.driverPhone || '',
                     email: formData.email || '',
-                    altPhone: formData.driverAltPhone,
+                    driverPhone: formData.driverPhone || formData.phone || '',
+                    driverAltPhone: formData.driverAltPhone ?? formData.altPhone ?? undefined,
                     password: formData.password || '',
-                    emergencyContactName: formData.contactName || '',
-                    emergencyContactPhone: formData.contactNumber || '',
-                    emergencyContactRelation: formData.relationship || '',
+
+                    // Emergency contact
+                    emergencyContactName: formData.contactName || formData.emergencyContactName || '',
+                    emergencyContactPhone: formData.contactNumber || formData.emergencyContactPhone || '',
+                    emergencyContactRelation: formData.relationship || formData.emergencyContactRelation || '',
+
+                    // Address & professional
                     address: formData.address || '',
                     city: formData.city || '',
                     state: formData.state || '',
                     pincode: formData.pincode || '',
                     licenseNumber: formData.licenseNumber || '',
-                    licenseType: formData.licenseType || 'LMV',
-                    licenseExpDate: formData.licenseExpiryDate || '',
-                    bankAccountName: formData.accountHolderName || '',
+                    licenseType: formData.licenseType || '',
+                    // Map UI field to backend create DTO field
+                    licenseExpDate: formData.licenseExpiryDate || (formData as any).licenseExpDate || '',
+
+                    // Bank
+                    bankAccountName: formData.accountHolderName || formData.bankAccountName || '',
                     bankAccountNumber: formData.bankAccountNumber || '',
                     bankIfscCode: formData.ifscCode || '',
-                    aadharCard: formData.aadharCard || false,
-                    license: formData.license || false,
-                    educationCert: formData.educationCert || false,
-                    previousExp: formData.previousExp || false,
-                    carTypes: (formData.carTypes || []).map(ct => ct as 'MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS'),
+
+                    // Document flags
+                    aadharCard: !!formData.aadharCard,
+                    license: !!formData.license,
+                    educationCert: !!formData.educationCert,
+                    previousExp: !!formData.previousExp,
+
+                    // Car types
+                    carTypes: formData.carTypes || [],
+
+                    // Franchise and employment
                     franchiseId,
-                    employmentType: mapEmploymentToApi(formData.employmentType)
+                    employmentType: formData.employmentType as any,
                 };
                 await dispatch(createDriver(payload)).unwrap();
                 toast({ title: 'Success', description: 'Driver onboarded successfully', variant: 'success' });

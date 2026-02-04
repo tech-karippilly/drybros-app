@@ -47,10 +47,14 @@ interface TripBookingFormData {
     pickupLocation: string;
     pickupLocationSearch: string;
     pickupAddress: string;
+    pickupLat?: number | null;
+    pickupLng?: number | null;
     pickupLocationNote: string;
     destinationLocation: string;
     destinationLocationSearch: string;
     destinationAddress: string;
+    destinationLat?: number | null;
+    destinationLng?: number | null;
     destinationNote: string;
     franchiseId: string;
     tripType: string;
@@ -84,10 +88,14 @@ export function TripBookingForm() {
         pickupLocation: "",
         pickupLocationSearch: "",
         pickupAddress: "",
+        pickupLat: null,
+        pickupLng: null,
         pickupLocationNote: "",
         destinationLocation: "",
         destinationLocationSearch: "",
         destinationAddress: "",
+        destinationLat: null,
+        destinationLng: null,
         destinationNote: "",
         franchiseId: selectedFranchise?._id || user?.franchise_id || "",
         tripType: "",
@@ -171,6 +179,10 @@ export function TripBookingForm() {
             ...(placeDetails.placeId
                 ? { pickupAddress: placeDetails.formattedAddress || "" }
                 : {}),
+            // set geometry if available
+            ...(placeDetails.geometry && placeDetails.geometry.location
+                ? { pickupLat: placeDetails.geometry.location.lat, pickupLng: placeDetails.geometry.location.lng }
+                : {}),
         }));
         setError(null);
         setSuccess(null);
@@ -185,6 +197,9 @@ export function TripBookingForm() {
             // Only update destination address when a place was actually selected (has placeId).
             ...(placeDetails.placeId
                 ? { destinationAddress: placeDetails.formattedAddress || "" }
+                : {}),
+            ...(placeDetails.geometry && placeDetails.geometry.location
+                ? { destinationLat: placeDetails.geometry.location.lat, destinationLng: placeDetails.geometry.location.lng }
                 : {}),
         }));
         setError(null);
@@ -234,16 +249,61 @@ export function TripBookingForm() {
         if (!validateForm()) return;
         setIsSubmitting(true);
         try {
+            // Helper: geocode address via Google Geocoding API if geometry not present
+            const geocodeAddress = async (address: string) => {
+                try {
+                    const key = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY;
+                    if (!key) return null;
+                    const res = await fetch(
+                        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${key}`
+                    );
+                    const data = await res.json();
+                    if (data && data.results && data.results.length > 0) {
+                        const loc = data.results[0].geometry.location;
+                        return { lat: loc.lat, lng: loc.lng };
+                    }
+                    return null;
+                } catch (err) {
+                    return null;
+                }
+            };
+
+            // Ensure we have lat/lng for pickup/destination (try existing geometry first, then geocode address)
+            let pickupLat = formData.pickupLat ?? null;
+            let pickupLng = formData.pickupLng ?? null;
+            let destinationLat = formData.destinationLat ?? null;
+            let destinationLng = formData.destinationLng ?? null;
+
+            if ((pickupLat == null || pickupLng == null) && formData.pickupAddress) {
+                const g = await geocodeAddress(formData.pickupAddress);
+                if (g) {
+                    pickupLat = g.lat;
+                    pickupLng = g.lng;
+                }
+            }
+
+            if ((destinationLat == null || destinationLng == null) && formData.destinationAddress) {
+                const g = await geocodeAddress(formData.destinationAddress);
+                if (g) {
+                    destinationLat = g.lat;
+                    destinationLng = g.lng;
+                }
+            }
+
             const payload = {
                 customerName: formData.customerName.trim(),
                 customerPhone: formData.customerPhone.trim(),
                 customerEmail: formData.customerEmail.trim() || undefined,
                 pickupLocation: formData.pickupLocation || formData.pickupAddress,
                 pickupAddress: formData.pickupAddress,
+                pickupLat,
+                pickupLng,
                 pickupLocationNote: formData.pickupLocationNote.trim() || undefined,
                 destinationLocation:
                     formData.destinationLocation || formData.destinationAddress,
                 destinationAddress: formData.destinationAddress,
+                destinationLat,
+                destinationLng,
                 destinationNote: formData.destinationNote.trim() || undefined,
                 franchiseId: formData.franchiseId,
                 tripType: formData.tripType,

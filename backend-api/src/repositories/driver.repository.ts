@@ -125,6 +125,7 @@ export async function createDriver(data: {
   pincode: string;
   licenseNumber: string;
   licenseExpDate: Date;
+  licenseType?: string | null;
   bankAccountName: string;
   bankAccountNumber: string;
   bankIfscCode: string;
@@ -161,6 +162,7 @@ export async function updateDriver(
     pincode?: string;
     licenseNumber?: string;
     licenseExpDate?: Date;
+      licenseType?: string | null;
     employmentType?: DriverEmploymentType | null;
     bankAccountName?: string;
     bankAccountNumber?: string;

@@ -42,6 +42,7 @@ export interface CreateDriverRequest {
     pincode: string;
     licenseNumber: string;
     licenseExpDate: Date | string;
+    licenseType:string|null;
     bankAccountName: string;
     bankAccountNumber: string;
     bankIfscCode: string;
@@ -95,6 +96,9 @@ export interface DriverLoginRequest {
 export interface PaginationQuery {
     page?: number;
     limit?: number;
+    franchiseId?: string;
+    employmentType?: string; // e.g. FULL_TIME or "full time"
+    includePerformance?: boolean;
 }
 
 // Response DTOs (matching backend)
@@ -128,6 +132,7 @@ export interface DriverResponse {
     complaintCount: number;
     bannedGlobally: boolean;
     dailyTargetAmount: number | null;
+    remainingDailyLimit?: number | null;
     currentRating: number | null;
     cashInHand?: number | string; // Cash amount in driver's hand
     isActive: boolean;
@@ -189,12 +194,14 @@ export interface DriverLoginResponse {
 export async function getDriverList(
     pagination?: PaginationQuery
 ): Promise<DriverResponse[] | PaginatedDriverResponse> {
-    const params = pagination
-        ? {
-              page: pagination.page?.toString() || '1',
-              limit: pagination.limit?.toString() || '10',
-          }
-        : {};
+    const params: Record<string, string> = {};
+    if (pagination) {
+        if (pagination.page != null) params.page = String(pagination.page);
+        if (pagination.limit != null) params.limit = String(pagination.limit);
+        if (pagination.franchiseId) params.franchiseId = pagination.franchiseId;
+        if (pagination.employmentType) params.employmentType = pagination.employmentType;
+        if (pagination.includePerformance) params.includePerformance = 'true';
+    }
 
     const response = await api.get<DriverListResponse | PaginatedDriverResponse>(
         DRIVER_ENDPOINTS.BASE,
@@ -347,6 +354,7 @@ export async function getDriversPaginated(params: {
     limit?: number;
     franchiseId?: string;
     includePerformance?: boolean;
+    employmentType?: string;
 }): Promise<{
     data: Driver[];
     pagination: {
@@ -360,6 +368,7 @@ export async function getDriversPaginated(params: {
     queryParams.set('page', String(params.page ?? 1));
     queryParams.set('limit', String(params.limit ?? 10));
     if (params.franchiseId) queryParams.append('franchiseId', params.franchiseId);
+    if (params.employmentType) queryParams.append('employmentType', params.employmentType);
     if (params.includePerformance) queryParams.append('includePerformance', 'true');
     const response = await api.get<{
         data: Driver[];

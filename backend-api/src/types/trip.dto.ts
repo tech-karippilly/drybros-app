@@ -2,6 +2,29 @@
 import { z } from "zod";
 
 /**
+ * Zod schema for creating a trip
+ */
+export const createTripSchema = z.object({
+  franchiseId: z.number().int("Franchise ID must be an integer"),
+  driverId: z.number().int("Driver ID must be an integer"),
+  customerId: z.string().uuid("Customer ID must be a valid UUID"),
+  tripType: z.string().min(1, "Trip type is required"),
+  pickupLocation: z.string().min(1, "Pickup location is required"),
+  pickupLat: z.number().optional().nullable(),
+  pickupLng: z.number().optional().nullable(),
+  dropLocation: z.string().optional().nullable(),
+  dropLat: z.number().optional().nullable(),
+  dropLng: z.number().optional().nullable(),
+  destinationLat: z.number().optional().nullable(),
+  destinationLng: z.number().optional().nullable(),
+  scheduledAt: z.string().optional().nullable(),
+  baseAmount: z.number().int("Base amount must be an integer"),
+  extraAmount: z.number().int("Extra amount must be an integer").optional(),
+});
+
+export type CreateTripDTO = z.infer<typeof createTripSchema>;
+
+/**
  * Zod schema for rescheduling a trip
  */
 export const rescheduleTripSchema = z.object({

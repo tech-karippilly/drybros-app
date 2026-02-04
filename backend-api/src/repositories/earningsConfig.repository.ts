@@ -115,23 +115,36 @@ export async function getDriverEarningsConfigByDriver(driverId: string) {
  */
 export async function upsertDriverEarningsConfig(data: DriverEarningsConfigData) {
   try {
+    const payload = configPayload(data);
+
     await prisma.driverEarningsConfig.updateMany({
       where: { isActive: true, franchiseId: null, driverId: null },
       data: { isActive: false },
     });
 
-    return await prisma.driverEarningsConfig.create({
+    const created = await prisma.driverEarningsConfig.create({
       data: {
-        ...configPayload(data),
+        ...payload,
         franchiseId: null,
         driverId: null,
         isActive: true,
       },
     });
+
+    // Initialize remainingDailyLimit for active drivers that don't have it set
+    if (payload.dailyTargetDefault != null) {
+      await prisma.driver.updateMany({
+        where: { isActive: true, remainingDailyLimit: null },
+        data: { remainingDailyLimit: payload.dailyTargetDefault },
+      });
+    }
+
+    return created;
   } catch (error: any) {
     handleConfigError(error);
   }
 }
+
 
 /**
  * Set earnings config for a franchise
@@ -141,19 +154,31 @@ export async function upsertFranchiseEarningsConfig(
   data: DriverEarningsConfigData
 ) {
   try {
+    const payload = configPayload(data);
+
     await prisma.driverEarningsConfig.updateMany({
       where: { isActive: true, franchiseId, driverId: null },
       data: { isActive: false },
     });
 
-    return await prisma.driverEarningsConfig.create({
+    const created = await prisma.driverEarningsConfig.create({
       data: {
-        ...configPayload(data),
+        ...payload,
         franchiseId,
         driverId: null,
         isActive: true,
       },
     });
+
+    // Initialize remainingDailyLimit for active drivers in this franchise that don't have it set
+    if (payload.dailyTargetDefault != null) {
+      await prisma.driver.updateMany({
+        where: { isActive: true, franchiseId, remainingDailyLimit: null },
+        data: { remainingDailyLimit: payload.dailyTargetDefault },
+      });
+    }
+
+    return created;
   } catch (error: any) {
     handleConfigError(error);
   }
@@ -186,6 +211,15 @@ export async function upsertDriverEarningsConfigForDrivers(
         })
       )
     );
+
+    // Initialize remainingDailyLimit for the specified drivers if they don't have it set
+    if (payload.dailyTargetDefault != null && driverIds.length > 0) {
+      await prisma.driver.updateMany({
+        where: { id: { in: driverIds }, isActive: true, remainingDailyLimit: null },
+        data: { remainingDailyLimit: payload.dailyTargetDefault },
+      });
+    }
+
     return created;
   } catch (error: any) {
     handleConfigError(error);

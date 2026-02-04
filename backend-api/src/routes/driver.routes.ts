@@ -108,28 +108,28 @@ router.post(
   createDriverHandler
 );
 
-// PATCH /drivers/:id - Update driver (only ADMIN and OFFICE_STAFF)
+// PATCH /drivers/:id - Update driver (ADMIN, OFFICE_STAFF, MANAGER, STAFF)
 router.patch(
   "/:id",
-  requireRole(UserRole.ADMIN, UserRole.OFFICE_STAFF),
+  requireRole(UserRole.ADMIN, UserRole.OFFICE_STAFF, UserRole.MANAGER, UserRole.STAFF),
   validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),
   validate(updateDriverSchema),
   updateDriverHandler
 );
 
-// PATCH /drivers/:id/status - Update driver status (suspend, fire, block) (only ADMIN and OFFICE_STAFF)
+// PATCH /drivers/:id/status - Update driver status (suspend, fire, block) (ADMIN, OFFICE_STAFF, MANAGER, STAFF)
 router.patch(
   "/:id/status",
-  requireRole(UserRole.ADMIN, UserRole.OFFICE_STAFF),
+  requireRole(UserRole.ADMIN, UserRole.OFFICE_STAFF, UserRole.MANAGER, UserRole.STAFF),
   validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),
   validate(updateDriverStatusSchema),
   updateDriverStatusHandler
 );
 
-// DELETE /drivers/:id - Soft delete driver (only ADMIN and OFFICE_STAFF)
+// DELETE /drivers/:id - Soft delete driver (ADMIN, OFFICE_STAFF, MANAGER, STAFF)
 router.delete(
   "/:id",
-  requireRole(UserRole.ADMIN, UserRole.OFFICE_STAFF),
+  requireRole(UserRole.ADMIN, UserRole.OFFICE_STAFF, UserRole.MANAGER, UserRole.STAFF),
   validateParams(z.object({ id: z.string().uuid("Invalid driver ID format") })),
   softDeleteDriverHandler
 );

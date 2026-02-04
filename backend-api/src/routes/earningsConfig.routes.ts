@@ -27,7 +27,7 @@ router.get(
 );
 router.post(
   "/driver-earnings/franchise/:franchiseId",
-  requireRole(UserRole.ADMIN),
+  requireRole(UserRole.ADMIN, UserRole.MANAGER),
   setFranchiseEarningsConfigHandler
 );
 
@@ -38,7 +38,7 @@ router.get(
 );
 router.post(
   "/driver-earnings/drivers",
-  requireRole(UserRole.ADMIN),
+  requireRole(UserRole.ADMIN, UserRole.MANAGER),
   setDriverEarningsConfigHandler
 );
 
@@ -46,12 +46,12 @@ router.post(
 router.get("/driver-earnings", getEarningsConfigHandler);
 router.post(
   "/driver-earnings",
-  requireRole(UserRole.ADMIN),
+  requireRole(UserRole.ADMIN, UserRole.MANAGER),
   updateEarningsConfigHandler
 );
 router.patch(
   "/driver-earnings",
-  requireRole(UserRole.ADMIN),
+  requireRole(UserRole.ADMIN, UserRole.MANAGER),
   updateEarningsConfigHandler
 );
 

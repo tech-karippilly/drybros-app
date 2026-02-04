@@ -86,8 +86,6 @@ export async function createFranchise(data: {
   inchargeName: string;
   storeImage?: string | null;
   legalDocumentsCollected?: boolean;
-  workStartTime?: string | null;
-  workEndTime?: string | null;
 }): Promise<Franchise> {
   // Generate unique franchise code
   const code = await getUniqueFranchiseCode();
@@ -103,8 +101,6 @@ export async function createFranchise(data: {
       inchargeName: data.inchargeName,
       storeImage: data.storeImage || null,
       legalDocumentsCollected: data.legalDocumentsCollected ?? false,
-      workStartTime: data.workStartTime || null,
-      workEndTime: data.workEndTime || null,
     },
   });
 }
@@ -120,8 +116,6 @@ export async function updateFranchise(
     managerName?: string;
     storeImage?: string | null;
     legalDocumentsCollected?: boolean;
-    workStartTime?: string | null;
-    workEndTime?: string | null;
   }
 ): Promise<Franchise> {
   const updateData: any = {};
@@ -137,8 +131,6 @@ export async function updateFranchise(
   if (data.managerName !== undefined) updateData.inchargeName = data.managerName;
   if (data.storeImage !== undefined) updateData.storeImage = data.storeImage;
   if (data.legalDocumentsCollected !== undefined) updateData.legalDocumentsCollected = data.legalDocumentsCollected;
-  if (data.workStartTime !== undefined) updateData.workStartTime = data.workStartTime;
-  if (data.workEndTime !== undefined) updateData.workEndTime = data.workEndTime;
 
   return prisma.franchise.update({
     where: { id },

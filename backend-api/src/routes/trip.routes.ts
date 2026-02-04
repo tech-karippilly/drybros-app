@@ -34,6 +34,7 @@ import {
   cancelTripSchema,
   reassignDriverSchema,
   assignDriverSchema,
+  createTripSchema,
 } from "../types/trip.dto";
 import { TRIP_ERROR_MESSAGES } from "../constants/trip";
 import { z } from "zod";
@@ -51,7 +52,7 @@ router.get("/my-assigned", getMyAssignedTripsHandler);
 router.get("/my", getMyTripsHandler);
 router.get("/:id/available-drivers", getAvailableDriversForTripHandler);
 router.get("/:id", getTripByIdHandler);
-router.post("/", createTripHandler);
+router.post("/", validate(createTripSchema), createTripHandler);
 router.post("/phase1", createTripPhase1Handler);
 router.post(
   "/assign-driver",

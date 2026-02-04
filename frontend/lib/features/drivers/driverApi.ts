@@ -25,6 +25,7 @@ const DRIVER_ENDPOINTS = {
 } as const;
 
 // Request DTOs (matching backend)
+// Note: employmentType uses API-facing string values: "part time" | "full time" | "contract"
 export interface CreateDriverRequest {
     firstName: string;
     lastName: string;

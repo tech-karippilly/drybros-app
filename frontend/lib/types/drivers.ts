@@ -200,6 +200,13 @@ export enum UserRole {
   DRIVER,
 }
 
+/**
+ * Frontend-facing employment type enum (Prisma format).
+ * These values are mapped to API-facing strings when calling the backend:
+ * - FULL_TIME → "full time"
+ * - PART_TIME → "part time"
+ * - CONTRACT → "contract"
+ */
 export enum EmploymentType {
   FULL_TIME = 'FULL_TIME',
   PART_TIME = 'PART_TIME',

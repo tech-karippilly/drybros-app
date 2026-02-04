@@ -514,9 +514,9 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                                     <p className="text-[10px] text-gray-500 mt-2 italic">* Assigned franchise will manage driver payroll.</p>
                                 </div>
                                 
-                                <div className="bg-[#1e2736]/50 border border-gray-800 rounded-xl p-4 flex gap-3">
+                                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 flex gap-3">
                                     <Info size={20} className="text-[#0d59f2] flex-shrink-0 mt-0.5" />
-                                    <p className="text-xs text-gray-400 leading-relaxed">
+                                    <p className="text-xs text-[#49659c] dark:text-gray-400 leading-relaxed">
                                         By submitting this form, you certify that all information provided is accurate and complies with Dybros safety guidelines.
                                     </p>
                                 </div>

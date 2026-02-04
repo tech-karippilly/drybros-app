@@ -1499,12 +1499,12 @@ paths:
 
         **Employment Type Filtering:**
         - Use `employmentType` query parameter to filter drivers by employment type (optional)
-        - Values: `FULL_TIME`, `PART_TIME`, `CONTRACT`
+        - Values: `"full time"`, `"part time"`, `"contract"`
         
         **Examples:**
         - `/drivers?page=1&limit=10` - Get first 10 drivers
         - `/drivers?franchiseId=550e8400-e29b-41d4-a716-446655440000` - Get all drivers for a specific franchise
-        - `/drivers?employmentType=FULL_TIME` - Get all full-time drivers
+        - `/drivers?employmentType=full%20time` - Get all full-time drivers
         - `/drivers?page=1&limit=20&franchiseId=550e8400-e29b-41d4-a716-446655440000` - Get paginated drivers for a specific franchise
         
         **Without Pagination:**
@@ -1544,11 +1544,11 @@ paths:
         - name: employmentType
           in: query
           required: false
-          description: Filter drivers by employment type
+          description: Filter drivers by employment type (API-facing string values)
           schema:
             type: string
-            enum: [FULL_TIME, PART_TIME, CONTRACT]
-            example: "FULL_TIME"
+            enum: ["full time", "part time", "contract"]
+            example: "full time"
       responses:
         "200":
           description: List of drivers retrieved successfully

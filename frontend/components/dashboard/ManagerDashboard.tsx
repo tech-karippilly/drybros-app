@@ -30,6 +30,8 @@ import { useAppSelector } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { DASHBOARD_ROUTES } from "@/lib/constants/routes";
 import { useToast } from "@/components/ui/toast";
+import { AttendanceClockUI } from './AttendanceClockUI';
+import { RecentActivities } from './RecentActivities';
 
 const PRIMARY = "#137fec";
 
@@ -70,6 +72,11 @@ function StatCard({
                     {label}
                 </p>
                 <div className={iconColor}>{icon}</div>
+            </div>
+
+            {/* Recent Activities */}
+            <div className="mt-8">
+                <RecentActivities />
             </div>
             {progressPercent != null ? (
                 <div className="flex flex-col gap-1">
@@ -520,72 +527,9 @@ export function ManagerDashboard() {
                             </div>
                         </div>
                         <div className="h-10 w-px bg-slate-200 dark:bg-slate-800" />
-                        {isClockedIn ? (
-                            <>
-                                <div className="flex flex-col">
-                                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-emerald-500">
-                                        <span className="size-1.5 rounded-full bg-emerald-500" />
-                                        {MANAGER_DASHBOARD_STRINGS.ON_SHIFT_LABEL}
-                                    </span>
-                                    <span className="text-2xl font-black text-[#137fec]">
-                                        {formatShiftTime(shiftTime)}
-                                    </span>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={handleClockOut}
-                                    disabled={clockingOut}
-                                    className={cn(
-                                        "flex items-center gap-2 rounded-lg bg-red-500 px-6 py-2.5 text-sm font-bold text-white transition-all hover:bg-red-600",
-                                        "disabled:opacity-50 disabled:cursor-not-allowed"
-                                    )}
-                                >
-                                    {clockingOut ? (
-                                        <>
-                                            <Loader2 className="h-5 w-5 animate-spin" />
-                                            <span>Clocking Out...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <LogOut className="h-5 w-5" />
-                                            {MANAGER_DASHBOARD_STRINGS.CLOCK_OUT}
-                                        </>
-                                    )}
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                                        Not Clocked In
-                                    </span>
-                                    <span className="text-lg font-bold text-slate-500">
-                                        Clock in to start tracking
-                                    </span>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={handleClockIn}
-                                    disabled={clockingIn}
-                                    className={cn(
-                                        "flex items-center gap-2 rounded-lg bg-[#137fec] px-6 py-2.5 text-sm font-bold text-white transition-all hover:bg-[#137fec]/90",
-                                        "disabled:opacity-50 disabled:cursor-not-allowed"
-                                    )}
-                                >
-                                    {clockingIn ? (
-                                        <>
-                                            <Loader2 className="h-5 w-5 animate-spin" />
-                                            <span>Clocking In...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <CheckCircle className="h-5 w-5" />
-                                            <span>Clock In</span>
-                                        </>
-                                    )}
-                                </button>
-                            </>
-                        )}
+                        <div className="flex-1">
+                            <AttendanceClockUI variant="compact" />
+                        </div>
                     </div>
                 </div>
             </div>

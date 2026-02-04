@@ -3,6 +3,8 @@
 import React from 'react';
 import { PlaceholderScreen } from './PlaceholderScreen';
 import { SettingsScreen } from './SettingsScreen';
+import { AttendanceClockUI } from './AttendanceClockUI';
+import { RecentActivities } from './RecentActivities';
 import { useAppSelector } from '@/lib/hooks';
 import { DashboardLayout } from './DashboardLayout';
 import {
@@ -77,7 +79,12 @@ export function DriverDashboard() {
             case 'complaints':
                 return <PlaceholderScreen icon={MessageSquare} title="Service Feedback" description="View customer ratings and feedback regarding your delivery service." />;
             case 'attendance':
-                return <PlaceholderScreen icon={CalendarCheck} title="Service Hours" description="Log your active hours and view your attendance records." />;
+                return (
+                    <div className="animate-in fade-in duration-500 space-y-8">
+                        <AttendanceClockUI variant="full" />
+                        <RecentActivities />
+                    </div>
+                );
             case 'notifications':
                 return <PlaceholderScreen icon={Bell} title="Duty Alerts" description="Receive real-time notifications for new trip assignments and updates." />;
             case 'settings':

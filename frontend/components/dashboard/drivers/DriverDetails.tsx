@@ -21,7 +21,7 @@ import {
     Ban,
     User
 } from 'lucide-react';
-import { GetDriver, DriverStatus } from '@/lib/types/drivers';
+import { GetDriver, DriverStatus, EmploymentType } from '@/lib/types/drivers';
 import { cn } from '@/lib/utils';
 import { useAppDispatch } from '@/lib/hooks';
 import { deleteDriver, banDriver, reactivateDriver } from '@/lib/features/drivers/driverSlice';
@@ -253,7 +253,7 @@ export function DriverDetails({ driver, onBack, onEdit }: DriverDetailsProps) {
                                 </div>
                                 <div>
                                     <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">Employment Type</p>
-                                    <p className="font-bold text-[#0d121c] dark:text-white mt-1 capitalize">{driver.employmentType === 0 ? 'Full Time' : driver.employmentType === 1 ? 'Part Time' : 'Contract'}</p>
+                                    <p className="font-bold text-[#0d121c] dark:text-white mt-1 capitalize">{driver.employmentType === EmploymentType.FULL_TIME ? 'Full Time' : driver.employmentType === EmploymentType.PART_TIME ? 'Part Time' : 'Contract'}</p>
                                 </div>
                                 <div>
                                     <p className="text-[10px] font-black text-[#49659c] uppercase tracking-tight">Date of Joining</p>

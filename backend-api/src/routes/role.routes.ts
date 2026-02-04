@@ -18,8 +18,6 @@ import { authMiddleware } from "../middlewares/auth";
 
 const router = express.Router();
 
-// All role routes require authentication
-router.use(authMiddleware);
 
 // GET /roles
 router.get("/", getRoles);

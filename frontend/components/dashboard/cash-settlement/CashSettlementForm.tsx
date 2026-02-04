@@ -37,7 +37,7 @@ export function CashSettlementForm({ onClose }: CashSettlementFormProps) {
                 const driversList = Array.isArray(driversData) ? driversData : [];
                 
                 // Map to DriverResponse format
-                const mappedDrivers: DriverResponse[] = driversList.map((driver: any) => ({
+                const mappedDrivers = driversList.map((driver: any) => ({
                     id: driver.id || driver._id?.toString(),
                     firstName: driver.firstName,
                     lastName: driver.lastName,
@@ -47,8 +47,8 @@ export function CashSettlementForm({ onClose }: CashSettlementFormProps) {
                     franchiseId: driver.franchiseId || '',
                     cashInHand: driver.cashInHand || 0,
                 }));
-                
-                setDrivers(mappedDrivers);
+
+                setDrivers(mappedDrivers as unknown as DriverResponse[]);
             } catch (error: any) {
                 console.error('Failed to fetch drivers:', error);
                 toast({
@@ -127,7 +127,7 @@ export function CashSettlementForm({ onClose }: CashSettlementFormProps) {
             const driversData = response.data.data || response.data;
             const driversList = Array.isArray(driversData) ? driversData : [];
             
-            const mappedDrivers: DriverResponse[] = driversList.map((driver: any) => ({
+            const mappedDrivers = driversList.map((driver: any) => ({
                 id: driver.id || driver._id?.toString(),
                 firstName: driver.firstName,
                 lastName: driver.lastName,
@@ -137,7 +137,7 @@ export function CashSettlementForm({ onClose }: CashSettlementFormProps) {
                 franchiseId: driver.franchiseId || '',
                 cashInHand: driver.cashInHand || 0,
             }));
-            setDrivers(mappedDrivers);
+            setDrivers(mappedDrivers as unknown as DriverResponse[]);
 
             if (onClose) {
                 onClose();

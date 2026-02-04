@@ -109,13 +109,15 @@ export async function getActivityLogs(
   userRole: UserRole,
   userId: string | undefined,
   userFranchiseId: string | undefined,
+  driverId: string | undefined,
+  staffId: string | undefined,
   filters?: {
     franchiseId?: string;
   }
 ): Promise<ActivityLogResponseDTO[]> {
   const whereClause: any = {};
 
-  // Role-based franchiseId filtering
+  // Role-based filtering
   switch (userRole) {
     case UserRole.ADMIN:
       // Admin can see all activities, optionally filtered by franchiseId
@@ -143,11 +145,14 @@ export async function getActivityLogs(
       break;
 
     case UserRole.DRIVER:
-      // Driver sees activities of their franchise
+      // Driver sees ONLY their own activities
+      if (!driverId) {
+        throw new Error("Driver context required for driver activity logs");
+      }
+      whereClause.driverId = driverId;
+      // Optional: also ensure franchiseId matches if strict checking is needed
       if (userFranchiseId) {
         whereClause.franchiseId = userFranchiseId;
-      } else if (filters?.franchiseId) {
-        whereClause.franchiseId = filters.franchiseId;
       }
       break;
 
@@ -164,15 +169,17 @@ export async function getActivityLogsPaginated(
   userRole: UserRole,
   userId: string | undefined,
   userFranchiseId: string | undefined,
+  driverId: string | undefined,
+  staffId: string | undefined,
   pagination: ActivityPaginationQueryDTO
 ): Promise<PaginatedActivityLogResponseDTO> {
   const { page, limit, franchiseId } = pagination;
   const skip = (page - 1) * limit;
 
-  // Build filters - only franchiseId
+  // Build filters
   const filters: any = {};
   
-  // Role-based franchiseId filtering
+  // Role-based filtering
   switch (userRole) {
     case UserRole.ADMIN:
       // Admin can see all activities, optionally filtered by franchiseId
@@ -200,11 +207,13 @@ export async function getActivityLogsPaginated(
       break;
 
     case UserRole.DRIVER:
-      // Driver sees activities of their franchise
+      // Driver sees ONLY their own activities
+      if (!driverId) {
+        throw new Error("Driver context required for driver activity logs");
+      }
+      filters.driverId = driverId;
       if (userFranchiseId) {
         filters.franchiseId = userFranchiseId;
-      } else if (franchiseId) {
-        filters.franchiseId = franchiseId;
       }
       break;
   }

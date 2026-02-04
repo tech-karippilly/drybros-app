@@ -55,11 +55,13 @@ export async function getActivityLogsHandler(
 
     // Get staffId if STAFF role
     let staffFranchiseId: string | undefined;
+    let staffId: string | undefined;
     if (user && (user.role === UserRole.OFFICE_STAFF || user.role === UserRole.STAFF)) {
       const staff = await prisma.staff.findFirst({
         where: { email: user.email },
-        select: { franchiseId: true },
+        select: { id: true, franchiseId: true },
       });
+      staffId = staff?.id;
       staffFranchiseId = staff?.franchiseId;
     }
 
@@ -69,6 +71,8 @@ export async function getActivityLogsHandler(
         role,
         user?.userId,
         userFranchiseId || staffFranchiseId || driverFranchiseId,
+        driverId,
+        staffId,
         pagination
       );
       res.json(result);
@@ -82,6 +86,8 @@ export async function getActivityLogsHandler(
         role,
         user?.userId,
         userFranchiseId || staffFranchiseId || driverFranchiseId,
+        driverId,
+        staffId,
         filters
       );
       res.json({ data });
@@ -159,11 +165,13 @@ export async function getActivityLogsStreamHandler(
 
     // Get staffId if STAFF role
     let staffFranchiseId: string | undefined;
+    let staffId: string | undefined;
     if (user && (user.role === UserRole.OFFICE_STAFF || user.role === UserRole.STAFF)) {
       const staff = await prisma.staff.findFirst({
         where: { email: user.email },
-        select: { franchiseId: true },
+        select: { id: true, franchiseId: true },
       });
+      staffId = staff?.id;
       staffFranchiseId = staff?.franchiseId;
     }
 
@@ -187,6 +195,8 @@ export async function getActivityLogsStreamHandler(
           role,
           user?.userId,
           userFranchiseId || staffFranchiseId || driverFranchiseId,
+          driverId,
+          staffId,
           filters
         );
 

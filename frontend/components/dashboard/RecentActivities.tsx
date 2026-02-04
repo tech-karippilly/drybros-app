@@ -48,6 +48,7 @@ export function RecentActivities() {
   const [activities, setActivities] = useState<ActivityLogResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | 'staff' | 'driver'>('all');
 
   useEffect(() => {
     let cancelled = false;
@@ -73,7 +74,29 @@ export function RecentActivities() {
 
   return (
     <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm flex-1">
-      <h4 className="text-lg font-bold mb-4 dark:text-white">Recent Activities</h4>
+      <div className="flex items-center justify-between mb-4">
+        <h4 className="text-lg font-bold dark:text-white">Recent Activities</h4>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setFilter('all')}
+            className={cn('text-sm px-3 py-1 rounded', filter === 'all' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900' : 'text-slate-500')}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setFilter('staff')}
+            className={cn('text-sm px-3 py-1 rounded', filter === 'staff' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500')}
+          >
+            Staff
+          </button>
+          <button
+            onClick={() => setFilter('driver')}
+            className={cn('text-sm px-3 py-1 rounded', filter === 'driver' ? 'bg-blue-50 text-[#0d59f2]' : 'text-slate-500')}
+          >
+            Driver
+          </button>
+        </div>
+      </div>
       {loading ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="size-6 animate-spin text-[#0d59f2]" />
@@ -84,7 +107,14 @@ export function RecentActivities() {
         <p className="text-sm text-[#49659c] dark:text-gray-400">No recent activities.</p>
       ) : (
         <div className="space-y-6">
-          {activities.map((activity) => {
+          {activities
+            .filter((a) => {
+              if (filter === 'all') return true;
+              if (filter === 'staff') return Boolean(a.staffId || a.staff || a.user?.role === 'STAFF' || a.user?.role === 'OFFICE_STAFF');
+              if (filter === 'driver') return Boolean(a.driverId || a.driver || a.user?.role === 'DRIVER');
+              return true;
+            })
+            .map((activity) => {
             const { icon: Icon, iconBg, iconColor } = getActivityStyle(activity.action, activity.entityType);
             return (
               <div key={activity.id} className="flex gap-4">
@@ -96,6 +126,9 @@ export function RecentActivities() {
                   <p className="text-xs text-[#49659c] dark:text-gray-400">
                     {formatTimeAgo(activity.createdAt)}
                   </p>
+                  {activity.user && (
+                    <p className="text-xs text-slate-400 mt-1">By: {activity.user.fullName} ({activity.user.role})</p>
+                  )}
                 </div>
               </div>
             );

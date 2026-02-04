@@ -18,7 +18,8 @@ import {
     StaffDashboardData,
     getStaffDashboardData,
 } from '@/lib/features/dashboard/dashboardApi';
-import { StaffAttendanceClock } from './StaffAttendanceClock';
+import { AttendanceClockUI } from './AttendanceClockUI';
+import { RecentActivities } from './RecentActivities';
 import { cn } from '@/lib/utils';
 import { useAppSelector } from '@/lib/hooks';
 import { WelcomeMessage } from './WelcomeMessage';
@@ -78,13 +79,13 @@ export function StaffDashboard() {
 
     return (
         <div className="animate-in fade-in duration-500 space-y-8">
-            {/* Welcome Message and Attendance Card */}
+            {/* Welcome Message and Attendance Clock */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
                     <WelcomeMessage />
                 </div>
                 <div className="lg:col-span-1">
-                    <AttendanceCard />
+                    <AttendanceClockUI variant="full" />
                 </div>
             </div>
 
@@ -240,6 +241,9 @@ export function StaffDashboard() {
                         <h3 className="text-3xl font-bold text-[#0d121c] dark:text-white">{data.productivity.pendingBacklog}</h3>
                     </div>
                 </div>
+            </div>
+            <div className="mt-8">
+                <RecentActivities />
             </div>
         </div>
     );

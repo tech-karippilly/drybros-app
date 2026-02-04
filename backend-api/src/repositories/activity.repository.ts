@@ -36,19 +36,31 @@ export async function createActivityLog(data: CreateActivityLogData): Promise<Ac
   });
 }
 
+export interface ActivityLogFilters {
+  franchiseId?: string;
+  driverId?: string;
+  staffId?: string;
+  userId?: string;
+  tripId?: string;
+  entityType?: ActivityEntityType;
+  action?: ActivityAction;
+}
+
 export async function getActivityLogsPaginated(
   skip: number,
   take: number,
-  filters?: {
-    franchiseId?: string;
-  }
+  filters?: ActivityLogFilters
 ) {
-  // Build where clause - only filter by franchiseId
+  // Build where clause
   const whereClause: any = {};
   
-  if (filters?.franchiseId) {
-    whereClause.franchiseId = filters.franchiseId;
-  }
+  if (filters?.franchiseId) whereClause.franchiseId = filters.franchiseId;
+  if (filters?.driverId) whereClause.driverId = filters.driverId;
+  if (filters?.staffId) whereClause.staffId = filters.staffId;
+  if (filters?.userId) whereClause.userId = filters.userId;
+  if (filters?.tripId) whereClause.tripId = filters.tripId;
+  if (filters?.entityType) whereClause.entityType = filters.entityType;
+  if (filters?.action) whereClause.action = filters.action;
 
   const [data, total] = await Promise.all([
     prisma.activityLog.findMany({
@@ -102,15 +114,17 @@ export async function getActivityLogsPaginated(
   return { data, total };
 }
 
-export async function getAllActivityLogs(filters?: {
-  franchiseId?: string;
-}) {
-  // Build where clause - only filter by franchiseId
+export async function getAllActivityLogs(filters?: ActivityLogFilters) {
+  // Build where clause
   const whereClause: any = {};
   
-  if (filters?.franchiseId) {
-    whereClause.franchiseId = filters.franchiseId;
-  }
+  if (filters?.franchiseId) whereClause.franchiseId = filters.franchiseId;
+  if (filters?.driverId) whereClause.driverId = filters.driverId;
+  if (filters?.staffId) whereClause.staffId = filters.staffId;
+  if (filters?.userId) whereClause.userId = filters.userId;
+  if (filters?.tripId) whereClause.tripId = filters.tripId;
+  if (filters?.entityType) whereClause.entityType = filters.entityType;
+  if (filters?.action) whereClause.action = filters.action;
 
   return prisma.activityLog.findMany({
     where: whereClause,

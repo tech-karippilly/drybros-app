@@ -102,7 +102,7 @@ model Franchise {
   name                    String
   city                    String // Keep for backward compatibility
   region                  String? // New field
-  averageRating           Float?          @default(null)
+  averageRating           Float?
   address                 String? // Physical address
   phone                   String? // Franchise contact number
   email                   String? // Franchise contact email

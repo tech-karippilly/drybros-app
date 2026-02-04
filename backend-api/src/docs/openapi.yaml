@@ -924,9 +924,6 @@ paths:
         "401":
           description: Unauthorized
 
-
-
-
   /staff:
     get:
       summary: List staff members with franchise details
@@ -3410,7 +3407,6 @@ paths:
           description: Not authenticated (missing or invalid token)
         "403":
           description: Forbidden - only ADMIN
-
 
   /customers:
     get:

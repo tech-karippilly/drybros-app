@@ -34,7 +34,6 @@ import {
   cancelTripSchema,
   reassignDriverSchema,
   assignDriverSchema,
-  createTripSchema,
 } from "../types/trip.dto";
 import { TRIP_ERROR_MESSAGES } from "../constants/trip";
 import { z } from "zod";
@@ -52,7 +51,7 @@ router.get("/my-assigned", getMyAssignedTripsHandler);
 router.get("/my", getMyTripsHandler);
 router.get("/:id/available-drivers", getAvailableDriversForTripHandler);
 router.get("/:id", getTripByIdHandler);
-router.post("/", validate(createTripSchema), createTripHandler);
+router.post("/", createTripHandler);
 router.post("/phase1", createTripPhase1Handler);
 router.post(
   "/assign-driver",
@@ -73,16 +72,25 @@ const requestTripDriversSchema = z
       if (v.mode === "LIST") return Array.isArray(v.driverIds) && v.driverIds.length > 0;
       return true;
     },
-    (v) => ({
-      message:
-        v.mode === "SPECIFIC"
-          ? TRIP_ERROR_MESSAGES.DISPATCH_MISSING_DRIVER_ID
-          : v.mode === "LIST"
-            ? TRIP_ERROR_MESSAGES.DISPATCH_MISSING_DRIVER_IDS
-            : "Invalid request",
-      path: ["mode"],
-    })
-  );
+    // Use superRefine so we can add dynamic, contextual issues
+  )
+  .superRefine((v, ctx) => {
+    if (v.mode === "SPECIFIC" && !v.driverId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: TRIP_ERROR_MESSAGES.DISPATCH_MISSING_DRIVER_ID,
+        path: ["driverId"],
+      });
+    }
+
+    if (v.mode === "LIST" && (!Array.isArray(v.driverIds) || v.driverIds.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: TRIP_ERROR_MESSAGES.DISPATCH_MISSING_DRIVER_IDS,
+        path: ["driverIds"],
+      });
+    }
+  });
 
 router.post(
   "/:id/request-drivers",

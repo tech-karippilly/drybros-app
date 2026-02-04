@@ -1640,6 +1640,7 @@ paths:
               license: true
               educationCert: false
               previousExp: true
+              employmentType: "full time"
               carTypes: ["MANUAL", "AUTOMATIC"]
               franchiseId: "74ce561e-fa14-47d1-b9b0-e991db4ced48"
       responses:
@@ -9737,6 +9738,16 @@ components:
           type: boolean
           description: Flag indicating if legal documents have been collected
           example: false
+        workStartTime:
+          type: string
+          nullable: true
+          description: Working hours start time (HH:MM)
+          example: "09:00"
+        workEndTime:
+          type: string
+          nullable: true
+          description: Working hours end time (HH:MM)
+          example: "18:00"
         status:
           type: string
           enum: [ACTIVE, BLOCKED, TEMPORARILY_CLOSED]
@@ -9823,6 +9834,18 @@ components:
           description: Flag indicating if legal documents have been collected
           example: false
           default: false
+        workStartTime:
+          type: string
+          description: Working hours start time (HH:MM)
+          example: "09:00"
+          pattern: "^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
+          nullable: true
+        workEndTime:
+          type: string
+          description: Working hours end time (HH:MM)
+          example: "18:00"
+          pattern: "^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
+          nullable: true
 
     CreateFranchiseResponse:
       type: object
@@ -9880,6 +9903,18 @@ components:
           type: boolean
           description: Flag indicating if legal documents have been collected
           example: true
+        workStartTime:
+          type: string
+          description: Working hours start time (HH:MM)
+          example: "09:00"
+          pattern: "^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
+          nullable: true
+        workEndTime:
+          type: string
+          description: Working hours end time (HH:MM)
+          example: "18:00"
+          pattern: "^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
+          nullable: true
 
     UpdateFranchiseStatusRequest:
       type: object

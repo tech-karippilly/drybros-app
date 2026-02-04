@@ -10,6 +10,7 @@ export const TRIPS_STRINGS = {
   FILTER_UPCOMING: 'Upcoming',
   FILTER_ONGOING: 'Ongoing',
   FILTER_COMPLETED: 'Completed',
+  FILTER_REQUESTED: 'Requested',
 
   // Common labels
   TRIP_ID_LABEL: 'Trip ID',
@@ -70,6 +71,8 @@ export const TRIPS_COLORS = {
   STATUS_UPCOMING_TEXT: '#D97706',
   STATUS_COMPLETED_BG: '#DDF2D4',
   STATUS_COMPLETED_TEXT: '#2E7D32',
+  STATUS_REQUESTED_BG: '#E0E7FF',
+  STATUS_REQUESTED_TEXT: '#4338CA',
 
   // Route dots
   PICKUP_DOT: '#3F51B5',
@@ -96,6 +99,7 @@ export const TRIP_START_STRINGS = {
   ODOMETER_VALUE_HELPER: 'Example: 12345.5',
 
   PHOTO_SECTION_TITLE: 'Upload Photos',
+  SELFIE_PHOTO_LABEL: 'Driver Selfie',
   ODOMETER_PHOTO_LABEL: 'Odometer Photo',
   CAR_FRONT_PHOTO_LABEL: 'Car Front Photo',
   CAR_BACK_PHOTO_LABEL: 'Car Back Photo',
@@ -122,6 +126,7 @@ export const TRIP_START_STRINGS = {
   // Validation / errors
   ERROR_ODOMETER_REQUIRED: 'Please enter odometer value',
   ERROR_ODOMETER_INVALID: 'Please enter a valid odometer value',
+  ERROR_SELFIE_PHOTO_REQUIRED: 'Please add driver selfie',
   ERROR_ODOMETER_PHOTO_REQUIRED: 'Please add odometer photo',
   ERROR_CAR_FRONT_PHOTO_REQUIRED: 'Please add car front photo',
   ERROR_CAR_BACK_PHOTO_REQUIRED: 'Please add car back photo',
@@ -356,7 +361,7 @@ export const TRIPS_LAYOUT = {
   METRIC_CARD_PADDING: 16,
 } as const;
 
-export type TripStatus = 'ongoing' | 'upcoming' | 'completed';
+export type TripStatus = 'ongoing' | 'upcoming' | 'completed' | 'requested';
 export type TripFilter = 'all' | TripStatus;
 
 export type TripItem = {

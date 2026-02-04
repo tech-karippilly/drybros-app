@@ -12,7 +12,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { Text } from '../typography';
-import { SwipeButton } from '../components/ui';
+import { SwipeButton, PrimaryButton } from '../components/ui';
 import { openPhoneDialer } from '../utils/linking';
 import {
   COLORS,
@@ -29,6 +29,8 @@ import type { TripStackParamList } from '../navigation/TripStackNavigator';
 import { useToast } from '../contexts';
 import { getTripByIdApi } from '../services/api/trips';
 import { mapBackendTripToTripItem } from '../services/mappers/trips';
+import { getPendingTripOffers, removePendingTripOffer } from '../services/storage/tripStorage';
+import { acceptTripOfferApi, rejectTripOfferApi } from '../services/api/tripOffers';
 
 type Props = NativeStackScreenProps<TripStackParamList, typeof TRIP_STACK_ROUTES.TRIP_DETAILS>;
 
@@ -38,6 +40,8 @@ function getStatusPill(status: TripItem['status']) {
       return { bg: TRIPS_COLORS.STATUS_ONGOING_BG, text: TRIPS_COLORS.STATUS_ONGOING_TEXT, label: TRIPS_STRINGS.FILTER_ONGOING.toUpperCase() };
     case 'completed':
       return { bg: TRIPS_COLORS.STATUS_COMPLETED_BG, text: TRIPS_COLORS.STATUS_COMPLETED_TEXT, label: TRIPS_STRINGS.FILTER_COMPLETED.toUpperCase() };
+    case 'requested':
+      return { bg: TRIPS_COLORS.STATUS_REQUESTED_BG, text: TRIPS_COLORS.STATUS_REQUESTED_TEXT, label: TRIPS_STRINGS.FILTER_REQUESTED.toUpperCase() };
     case 'upcoming':
     default:
       return { bg: TRIPS_COLORS.STATUS_UPCOMING_BG, text: TRIPS_COLORS.STATUS_UPCOMING_TEXT, label: TRIPS_STRINGS.FILTER_UPCOMING.toUpperCase() };
@@ -73,6 +77,8 @@ export function TripDetailsScreen({ navigation, route }: Props) {
   const [trip, setTrip] = React.useState<TripItem | undefined>(initialTrip);
   const [elapsedLabel, setElapsedLabel] = React.useState<string>('');
   const [swipeResetSeed, setSwipeResetSeed] = React.useState(0);
+  const [offerId, setOfferId] = React.useState<string | null>(null);
+  const [actionLoading, setActionLoading] = React.useState(false);
 
   if (!trip) {
     return (
@@ -99,6 +105,15 @@ export function TripDetailsScreen({ navigation, route }: Props) {
       const detailed = await getTripByIdApi(initialTrip.id);
       const mapped = mapBackendTripToTripItem(detailed);
       setTrip((prev) => ({ ...(prev ?? mapped), ...mapped }));
+
+      // If trip is requested, load the offerId from storage
+      if (initialTrip.status === 'requested') {
+        const offers = await getPendingTripOffers();
+        const offer = offers.find((o) => o.tripId === initialTrip.id);
+        if (offer) {
+          setOfferId(offer.offerId);
+        }
+      }
     } catch (error: any) {
       const errorMessage =
         error?.response?.data?.message ||
@@ -107,7 +122,7 @@ export function TripDetailsScreen({ navigation, route }: Props) {
         'Failed to load trip details';
       showToast({ message: errorMessage, type: 'error', position: 'top' });
     }
-  }, [initialTrip?.id, showToast]);
+  }, [initialTrip?.id, initialTrip?.status, showToast]);
 
   React.useEffect(() => {
     load();
@@ -153,10 +168,46 @@ export function TripDetailsScreen({ navigation, route }: Props) {
     return () => clearInterval(id);
   }, [trip.startedAtISO, trip.status]);
 
+  const handleAccept = React.useCallback(async () => {
+    if (!offerId || actionLoading) return;
+    setActionLoading(true);
+    try {
+      await acceptCurrentOffer();
+      // Remove frTripOfferApi(offerId);
+      // Remove from storage
+      await removePendingTripOffer(offerId);
+      showToast({ message: 'Trip accepted successfully', type: 'success', position: 'top' });
+      navigation.goBack();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to accept trip';
+      showToast({ message: errorMessage, type: 'error', position: 'top' });
+    } finally {
+      setActionLoading(false);
+    }
+  }, [offerId, actionLoading, navigation, showToast]);
+
+  const handleReject = React.useCallback(async () => {
+    if (!offerId || actionLoading) return;
+    setActionLoading(true);
+    try {
+      await rejectTripOfferApi(offerId);
+      // Remove from storage
+      await removePendingTripOffer(offerId);
+      showToast({ message: 'Trip rejected', type: 'info', position: 'top' });
+      navigation.goBack();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to reject trip';
+      showToast({ message: errorMessage, type: 'error', position: 'top' });
+    } finally {
+      setActionLoading(false);
+    }
+  }, [offerId, actionLoading, navigation, showToast]);
+
   const status = getStatusPill(trip.status);
   const backendStatus = (trip.backendStatus ?? '').trim().toUpperCase();
   const isPaymentPending = backendStatus === BACKEND_TRIP_STATUSES.TRIP_PROGRESS;
   const isOngoing = trip.status === 'ongoing' && !isPaymentPending;
+  const isRequested = trip.status === 'requested';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -230,27 +281,54 @@ export function TripDetailsScreen({ navigation, route }: Props) {
               </View>
             ) : null}
 
-            <View style={styles.swipeWrap}>
-              <SwipeButton
-                key={`${trip.id}-${trip.status}-${swipeResetSeed}`}
-                label={
-                  isPaymentPending
-                    ? TRIPS_STRINGS.SWIPE_COLLECT_PAYMENT
-                    : isOngoing
-                      ? TRIPS_STRINGS.SWIPE_END_TRIP
-                      : TRIPS_STRINGS.SWIPE_START_TRIP
-                }
-                onSwipeComplete={() =>
-                  isPaymentPending
-                    ? navigation.navigate(TRIP_STACK_ROUTES.TRIP_PAYMENT, { trip })
-                    : isOngoing
-                      ? navigation.navigate(TRIP_STACK_ROUTES.TRIP_END, { trip })
-                      : navigation.navigate(TRIP_STACK_ROUTES.TRIP_START, { trip })
-                }
-                height={normalizeHeight(TRIPS_LAYOUT.DETAILS_SWIPE_HEIGHT)}
-                trackColor={TRIPS_COLORS.SWIPE_TRACK_BG}
-              />
-            </View>
+            {isRequested ? (
+              <View style={styles.requestedActions}>
+                <View style={styles.requestedButtonRow}>
+                  <View style={styles.requestedButtonFlex}>
+                    <PrimaryButton
+                      label="Accept"
+                      onPress={handleAccept}
+                      backgroundColor={COLORS.success}
+                      textColor={COLORS.white}
+                      height={normalizeHeight(58)}
+                      disabled={actionLoading}
+                    />
+                  </View>
+                  <View style={styles.requestedButtonFlex}>
+                    <PrimaryButton
+                      label="Reject"
+                      onPress={handleReject}
+                      backgroundColor="#FAD1D1"
+                      textColor={COLORS.error}
+                      height={normalizeHeight(58)}
+                      disabled={actionLoading}
+                    />
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.swipeWrap}>
+                <SwipeButton
+                  key={`${trip.id}-${trip.status}-${swipeResetSeed}`}
+                  label={
+                    isPaymentPending
+                      ? TRIPS_STRINGS.SWIPE_COLLECT_PAYMENT
+                      : isOngoing
+                        ? TRIPS_STRINGS.SWIPE_END_TRIP
+                        : TRIPS_STRINGS.SWIPE_START_TRIP
+                  }
+                  onSwipeComplete={() =>
+                    isPaymentPending
+                      ? navigation.navigate(TRIP_STACK_ROUTES.TRIP_PAYMENT, { trip })
+                      : isOngoing
+                        ? navigation.navigate(TRIP_STACK_ROUTES.TRIP_END, { trip })
+                        : navigation.navigate(TRIP_STACK_ROUTES.TRIP_START, { trip })
+                  }
+                  height={normalizeHeight(TRIPS_LAYOUT.DETAILS_SWIPE_HEIGHT)}
+                  trackColor={TRIPS_COLORS.SWIPE_TRACK_BG}
+                />
+              </View>
+            )}
           </View>
         </View>
 
@@ -418,6 +496,10 @@ const styles = StyleSheet.create({
   actionText: { color: TRIPS_COLORS.ACTION_TEXT },
   swipeWrap: { marginTop: normalizeHeight(14) },
   timerRow: { marginTop: normalizeHeight(12), gap: normalizeHeight(4) },
+
+  requestedActions: { marginTop: normalizeHeight(14) },
+  requestedButtonRow: { flexDirection: 'row', gap: normalizeWidth(14) },
+  requestedButtonFlex: { flex: 1 },
 
   sectionBlock: { backgroundColor: TRIPS_COLORS.CARD_BG, borderRadius: normalizeWidth(18), padding: normalizeWidth(18) },
   sectionTitle: { color: COLORS.textPrimary, marginBottom: normalizeHeight(12) },

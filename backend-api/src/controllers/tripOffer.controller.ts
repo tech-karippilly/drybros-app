@@ -97,6 +97,9 @@ export async function rejectTripOfferHandler(req: Request, res: Response, next: 
       metadata: { offerId, tripId: updated.tripId },
     }).catch(() => {});
 
+    // Dispatch to next available driver (non-blocking)
+    tripDispatchService.notifyOfferRejected(updated.tripId, driverId).catch(() => {});
+
     res.json({ data: updated });
   } catch (err) {
     next(err);

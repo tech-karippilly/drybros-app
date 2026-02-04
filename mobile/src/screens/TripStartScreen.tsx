@@ -37,13 +37,14 @@ import { startTripInitiateApi, startTripVerifyApi } from '../services/api/trips'
 
 type Props = NativeStackScreenProps<TripStackParamList, typeof TRIP_STACK_ROUTES.TRIP_START>;
 
-type PhotoKey = 'odometerPic' | 'carFrontPic' | 'carBackPic';
+type PhotoKey = 'odometerPic' | 'carFrontPic' | 'carBackPic' | 'selfiePic';
 
 export type TripStartPayload = {
   odometerValue: number;
   odometerPic: string;
   carFrontPic: string;
   carBackPic: string;
+  selfiePic: string;
 };
 
 function getPhotoLabel(key: PhotoKey): string {
@@ -53,8 +54,10 @@ function getPhotoLabel(key: PhotoKey): string {
     case 'carFrontPic':
       return TRIP_START_STRINGS.CAR_FRONT_PHOTO_LABEL;
     case 'carBackPic':
-    default:
       return TRIP_START_STRINGS.CAR_BACK_PHOTO_LABEL;
+    case 'selfiePic':
+    default:
+      return TRIP_START_STRINGS.SELFIE_PHOTO_LABEL;
   }
 }
 
@@ -105,7 +108,8 @@ export function TripStartScreen({ navigation, route }: Props) {
       value > 0 &&
       Boolean(photos.odometerPic?.uri) &&
       Boolean(photos.carFrontPic?.uri) &&
-      Boolean(photos.carBackPic?.uri)
+      Boolean(photos.carBackPic?.uri) &&
+      Boolean(photos.selfiePic?.uri)
     );
   }, [odometerText, photos]);
 
@@ -136,12 +140,17 @@ export function TripStartScreen({ navigation, route }: Props) {
       showToast({ message: TRIP_START_STRINGS.ERROR_CAR_BACK_PHOTO_REQUIRED, type: 'error', position: 'top' });
       return;
     }
+    if (!photos.selfiePic?.uri) {
+      showToast({ message: TRIP_START_STRINGS.ERROR_SELFIE_PHOTO_REQUIRED, type: 'error', position: 'top' });
+      return;
+    }
 
     const payload: TripStartPayload = {
       odometerValue: value,
       odometerPic: photos.odometerPic.uri,
       carFrontPic: photos.carFrontPic.uri,
       carBackPic: photos.carBackPic.uri,
+      selfiePic: photos.selfiePic.uri,
     };
 
     if (submitting) return;
@@ -248,6 +257,11 @@ export function TripStartScreen({ navigation, route }: Props) {
               </Text>
 
               <View style={styles.photoGrid}>
+                <PhotoTile
+                  label={TRIP_START_STRINGS.SELFIE_PHOTO_LABEL}
+                  asset={photos.selfiePic}
+                  onPress={() => openPicker('selfiePic')}
+                />
                 <PhotoTile
                   label={TRIP_START_STRINGS.ODOMETER_PHOTO_LABEL}
                   asset={photos.odometerPic}

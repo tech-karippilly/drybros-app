@@ -119,6 +119,41 @@ class TripDispatchService {
     this.decisionTimers.set(tripId, timer);
   }
 
+  /**
+   * Called after a driver rejects an offer.
+   * Dispatches the trip to the next available driver who hasn't been offered yet.
+   */
+  async notifyOfferRejected(tripId: string, rejectedByDriverId: string): Promise<void> {
+    const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+    if (!trip) return;
+    if (trip.driverId) return; // already assigned
+
+    // Get all drivers who have already been offered this trip
+    const existingOffers = await prisma.tripOffer.findMany({
+      where: { tripId },
+      select: { driverId: true },
+    });
+    const offeredDriverIds = new Set(existingOffers.map((o) => o.driverId));
+
+    // Get candidate drivers from dispatch state or rebuild list
+    let candidateDriverIds = this.dispatchStates.get(tripId)?.candidateDriverIds;
+    if (!candidateDriverIds) {
+      candidateDriverIds = await this.listCandidateDriverIdsByRatingTiers(trip.franchiseId);
+      this.dispatchStates.set(tripId, { candidateDriverIds, startedAt: new Date() });
+    }
+
+    // Find next driver who hasn't been offered yet
+    const nextDriver = candidateDriverIds.find((id) => !offeredDriverIds.has(id));
+    
+    if (nextDriver) {
+      // Offer to next driver immediately
+      await this.offerTripToDriver(tripId, nextDriver);
+    } else {
+      // No more drivers available - all have been offered
+      // Could optionally update trip status or log this scenario
+    }
+  }
+
   private async listCandidateDrivers(franchiseId: string) {
     // NOTE: Kept as a separate method for reuse, but eligibility checks are intentionally minimal.
     return prisma.driver.findMany({

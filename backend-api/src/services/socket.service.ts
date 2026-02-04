@@ -395,6 +395,114 @@ class SocketService {
           }
         });
 
+        // Driver trip offer reject (real-time)
+        socket.on(SOCKET_EVENTS.TRIP_OFFER_REJECT, async (payload: TripOfferAcceptPayload) => {
+          try {
+            const offerId = payload?.offerId;
+            if (!offerId) {
+              this.consoleLog("trip_offer_reject_missing_offerId", {
+                socketId: socket.id,
+                driverId: userData.driverId,
+              });
+              socket.emit(SOCKET_EVENTS.TRIP_OFFER_RESULT, {
+                offerId: "",
+                result: "rejected",
+                reason: "Missing offerId",
+              } satisfies TripOfferResultPayload);
+              return;
+            }
+
+            this.consoleLog("trip_offer_reject_requested", {
+              socketId: socket.id,
+              driverId: userData.driverId,
+              offerId,
+            });
+
+            const { getTripOfferById, updateTripOfferStatus } = require("../repositories/tripOffer.repository");
+            const existing = await getTripOfferById(offerId);
+            
+            if (!existing || existing.driverId !== userData.driverId) {
+              this.consoleLog("trip_offer_reject_offer_not_found", {
+                socketId: socket.id,
+                driverId: userData.driverId,
+                offerId,
+              });
+              socket.emit(SOCKET_EVENTS.TRIP_OFFER_RESULT, {
+                offerId,
+                result: "rejected",
+                reason: "Offer not found",
+              } satisfies TripOfferResultPayload);
+              return;
+            }
+
+            // If already terminal (rejected/expired/cancelled), return as-is for idempotency.
+            if (existing.status !== "OFFERED") {
+              this.consoleLog("trip_offer_reject_already_processed", {
+                socketId: socket.id,
+                driverId: userData.driverId,
+                offerId,
+                status: existing.status,
+              });
+              socket.emit(SOCKET_EVENTS.TRIP_OFFER_RESULT, {
+                offerId,
+                result: "rejected",
+              } satisfies TripOfferResultPayload);
+              return;
+            }
+
+            const { TripOfferStatus } = require("@prisma/client");
+            const updated = await updateTripOfferStatus(offerId, TripOfferStatus.REJECTED);
+            const tripId = updated.tripId;
+
+            this.consoleLog("trip_offer_reject_success", {
+              socketId: socket.id,
+              driverId: userData.driverId,
+              offerId,
+              tripId,
+            });
+
+            // Log activity (non-blocking)
+            const { logActivity } = require("../services/activity.service");
+            const { ActivityAction, ActivityEntityType } = require("@prisma/client");
+            logActivity({
+              action: ActivityAction.TRIP_REJECTED,
+              entityType: ActivityEntityType.TRIP,
+              entityId: tripId,
+              driverId: userData.driverId,
+              tripId,
+              description: `Driver rejected trip offer ${offerId} for trip ${tripId}`,
+              metadata: { offerId, tripId },
+            }).catch(() => {});
+
+            // Send result to driver
+            socket.emit(SOCKET_EVENTS.TRIP_OFFER_RESULT, {
+              offerId,
+              result: "rejected",
+            } satisfies TripOfferResultPayload);
+
+            // Dispatch to next available driver
+            tripDispatchService.notifyOfferRejected(tripId, userData.driverId).catch((err) => {
+              logger.error("Failed to dispatch to next driver after rejection", {
+                error: err instanceof Error ? err.message : String(err),
+                tripId,
+                rejectedBy: userData.driverId,
+              });
+            });
+          } catch (error) {
+            logger.error("Trip offer reject failed", {
+              error: error instanceof Error ? error.message : String(error),
+              driverId: userData.driverId,
+              socketId: socket.id,
+            });
+            this.consoleLog("trip_offer_reject_failed", {
+              socketId: socket.id,
+              driverId: userData.driverId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            socket.emit(SOCKET_EVENTS.ERROR, { message: "Trip offer reject failed" });
+          }
+        });
+
         /**
          * Driver app: fetch "my assigned trips" via socket with ack callback.
          *

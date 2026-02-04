@@ -324,22 +324,20 @@ export function TripList({ onViewTrip }: TripListProps) {
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800">
-                                        <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Trip ID</th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Customer</th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Pickup</th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Drop</th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Driver</th>
-                                        <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Status</th>
-                                        <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Payment</th>
+                                        <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Trip Status</th>
+                                        <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Payment Status</th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Amount</th>
-                                        <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Date</th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                     {paginatedTrips.length === 0 ? (
                                         <tr>
-                                            <td colSpan={10} className="px-6 py-20 text-center">
+                                            <td colSpan={8} className="px-6 py-20 text-center">
                                                 <div className="flex flex-col items-center gap-2">
                                                     <Search
                                                         size={32}
@@ -362,11 +360,6 @@ export function TripList({ onViewTrip }: TripListProps) {
                                                 key={trip.id}
                                                 className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors group"
                                             >
-                                                <td className="px-6 py-4">
-                                                    <span className="text-xs font-mono text-[#49659c] dark:text-gray-400">
-                                                        {trip.id.substring(0, 8)}...
-                                                    </span>
-                                                </td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex flex-col">
                                                         <span className="text-sm font-bold text-[#0d121c] dark:text-white">
@@ -434,11 +427,6 @@ export function TripList({ onViewTrip }: TripListProps) {
                                                 <td className="px-6 py-4">
                                                     <span className="text-sm font-bold text-[#0d121c] dark:text-white">
                                                         ₹{trip.finalAmount.toLocaleString()}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="text-xs text-[#49659c] dark:text-gray-400">
-                                                        {new Date(trip.createdAt).toLocaleDateString()}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4">

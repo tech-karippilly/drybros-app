@@ -15,7 +15,7 @@ import {
   type TripFilters,
 } from "../repositories/trip.repository";
 import { getActivityLogsByTripId } from "../repositories/activity.repository";
-import { TripStatus, PaymentStatus, PaymentMode, TripType } from "@prisma/client";
+import { TripStatus, PaymentStatus, PaymentMode, ActivityAction, ActivityEntityType } from "@prisma/client";
 
 import { getCustomerById } from "../repositories/customer.repository";
 import { 
@@ -48,7 +48,7 @@ import {
 } from "./driver-performance.service";
 import prisma from "../config/prismaClient";
 import { logActivity } from "./activity.service";
-import { ActivityAction, ActivityEntityType } from "@prisma/client";
+import { socketService } from "./socket.service";
 import logger from "../config/logger";
 import { sendTripStartOtpEmail, sendTripEndOtpEmail, sendTripEndConfirmationEmail } from "./email.service";
 import {
@@ -619,7 +619,7 @@ export async function assignDriverToTrip(
   // Update driver trip status to ON_TRIP
   await updateDriverTripStatus(driverId, "ON_TRIP");
 
-  // Log activity (non-blocking)
+  // Log activity (non-blocking) - This will appear in driver alerts
   logActivity({
     action: ActivityAction.TRIP_ASSIGNED,
     entityType: ActivityEntityType.TRIP,
@@ -638,6 +638,23 @@ export async function assignDriverToTrip(
   }).catch((err) => {
     logger.error("Failed to log trip assignment activity", { error: err });
   });
+
+  // Emit real-time socket notification to driver
+  try {
+    socketService.emitTripAssigned(driverId, {
+      tripId: tripId,
+    });
+    logger.info("Socket notification sent for trip assignment", {
+      driverId,
+      tripId,
+    });
+  } catch (err) {
+    logger.error("Failed to emit socket notification for trip assignment", {
+      error: err,
+      driverId,
+      tripId,
+    });
+  }
   
   return updatedTrip;
 }
@@ -1002,6 +1019,24 @@ export async function reassignDriverToTrip(
       franchiseId,
     },
   }).catch((err) => logger.error("Failed to log reassign activity", { error: err }));
+
+  // Emit real-time socket notification to new driver
+  try {
+    socketService.emitTripAssigned(input.driverId, {
+      tripId: tripId,
+    });
+    logger.info("Socket notification sent for trip reassignment", {
+      driverId: input.driverId,
+      tripId,
+      previousDriverId,
+    });
+  } catch (err) {
+    logger.error("Failed to emit socket notification for trip reassignment", {
+      error: err,
+      driverId: input.driverId,
+      tripId,
+    });
+  }
 
   return updatedTrip;
 }
@@ -1539,21 +1574,27 @@ export async function verifyAndEndTrip(input: VerifyEndTripInput) {
   }
 
   // Calculate time taken (in hours)
-  const now = new Date();
-  const timeTakenMs = now.getTime() - trip.startedAt.getTime();
+  // Use current time as the end time for calculation
+  const endTime = new Date();
+  const timeTakenMs = endTime.getTime() - trip.startedAt.getTime();
   const timeTakenHours = timeTakenMs / (1000 * 60 * 60); // Convert milliseconds to hours
 
-  // Get trip type
-  const tripType = trip.tripType as TripType;
+  // Get trip type as string for pricing calculation
+  const tripType = trip.tripType as any;
 
   // Get car type from driver if available
   let carType: "PREMIUM" | "LUXURY" | "NORMAL" | undefined;
-  if (trip.Driver?.carType) {
-    // Map driver car type to pricing car type category
-    const driverCarType = trip.Driver.carType.toUpperCase();
-    if (driverCarType === "PREMIUM" || driverCarType === "LUXURY") {
-      carType = driverCarType as "PREMIUM" | "LUXURY";
-    } else {
+  if (trip.Driver?.carTypes) {
+    try {
+      const carTypes = JSON.parse(trip.Driver.carTypes);
+      const firstCarType = Array.isArray(carTypes) ? carTypes[0] : carTypes;
+      const driverCarType = String(firstCarType).toUpperCase();
+      if (driverCarType === "PREMIUM" || driverCarType === "LUXURY") {
+        carType = driverCarType as "PREMIUM" | "LUXURY";
+      } else {
+        carType = "NORMAL";
+      }
+    } catch (e) {
       carType = "NORMAL";
     }
   }
@@ -1570,6 +1611,17 @@ export async function verifyAndEndTrip(input: VerifyEndTripInput) {
     });
     calculatedAmount = priceResult.totalPrice;
     priceBreakdown = priceResult.breakdown;
+
+    logger.info("Trip price calculated successfully", {
+      tripId,
+      tripType,
+      distanceTraveled,
+      timeTakenHours,
+      calculatedAmount,
+      basePrice: priceResult.basePrice,
+      extraCharges: priceResult.extraCharges,
+      breakdown: priceBreakdown,
+    });
   } catch (error) {
     logger.error("Failed to calculate trip price", {
       error: error instanceof Error ? error.message : String(error),
@@ -1590,7 +1642,7 @@ export async function verifyAndEndTrip(input: VerifyEndTripInput) {
     status: TripStatus.TRIP_PROGRESS, // Keep trip in progress until payment is verified
   });
 
-  // Return only calculated values and total amount
+  // Return calculated values with detailed breakdown
   return {
     totalAmount: calculatedAmount,
     distanceTraveled: Math.round(distanceTraveled * 100) / 100, // Round to 2 decimal places
@@ -1598,6 +1650,7 @@ export async function verifyAndEndTrip(input: VerifyEndTripInput) {
     timeTakenMinutes: Math.round((timeTakenHours * 60) * 100) / 100,
     tripType,
     calculatedAmount,
+    priceBreakdown, // Include breakdown for frontend display
   };
 }
 
@@ -1877,6 +1930,167 @@ export async function verifyPaymentAndEndTrip(input: VerifyPaymentAndEndTripInpu
     status: "TRIP_ENDED",
     message: "Trip ended successfully. Confirmation email sent to customer.",
     emailSent: !!trip.customerEmail,
+  };
+}
+
+/**
+ * End trip directly with price calculation (for testing purposes)
+ * This endpoint allows ending a trip and calculates the final amount based on odometer readings
+ */
+interface EndTripDirectInput {
+  tripId: string;
+  driverId: string;
+  endOdometer: number;
+  endTime?: Date; // Optional custom end time for testing
+  carImageFront?: string; // Optional front car image URL
+  carImageBack?: string; // Optional back car image URL
+}
+
+export async function endTripDirect(input: EndTripDirectInput) {
+  const { tripId, driverId, endOdometer, endTime, carImageFront, carImageBack } = input;
+
+  // Validate trip exists
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error("Trip not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Validate driver matches
+  if (trip.driverId !== driverId) {
+    const err: any = new Error("This trip is not assigned to this driver");
+    err.statusCode = 403;
+    throw err;
+  }
+
+  // Validate trip has been started
+  if (!trip.startedAt) {
+    const err: any = new Error("Trip has not been started yet");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate start odometer exists
+  if (!trip.startOdometer) {
+    const err: any = new Error("Start odometer reading is missing");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate end odometer
+  if (endOdometer < trip.startOdometer) {
+    const err: any = new Error("End odometer reading cannot be less than start odometer reading");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Calculate distance traveled (in km)
+  const distanceTraveled = endOdometer - trip.startOdometer;
+
+  // Calculate time taken (in hours)
+  const endDateTime = endTime || new Date();
+  const timeTakenMs = endDateTime.getTime() - trip.startedAt.getTime();
+  const timeTakenHours = timeTakenMs / (1000 * 60 * 60);
+
+  // Get trip type
+  const tripType = trip.tripType as any; // Use string type for compatibility
+
+  // Get car type from driver if available
+  let carType: "PREMIUM" | "LUXURY" | "NORMAL" | undefined;
+  if (trip.Driver?.carTypes) {
+    try {
+      const carTypes = JSON.parse(trip.Driver.carTypes);
+      const firstCarType = Array.isArray(carTypes) ? carTypes[0] : carTypes;
+      const driverCarType = String(firstCarType).toUpperCase();
+      if (driverCarType === "PREMIUM" || driverCarType === "LUXURY") {
+        carType = driverCarType as "PREMIUM" | "LUXURY";
+      } else {
+        carType = "NORMAL";
+      }
+    } catch (e) {
+      carType = "NORMAL";
+    }
+  }
+
+  // Calculate trip amount using pricing service
+  let calculatedAmount = 0;
+  let priceBreakdown: any = null;
+  try {
+    const priceResult = await calculateTripPrice({
+      tripType,
+      distance: distanceTraveled,
+      duration: timeTakenHours,
+      carType,
+    });
+    calculatedAmount = priceResult.totalPrice;
+    priceBreakdown = priceResult.breakdown;
+  } catch (error) {
+    logger.error("Failed to calculate trip price", {
+      error: error instanceof Error ? error.message : String(error),
+      tripId,
+      tripType,
+      distanceTraveled,
+      timeTakenHours,
+    });
+    // Use existing totalAmount as fallback
+    calculatedAmount = trip.totalAmount;
+  }
+
+  // Update trip with end details and calculated amount
+  const updateData: any = {
+    endOdometer,
+    endedAt: endDateTime,
+    finalAmount: calculatedAmount,
+    totalAmount: calculatedAmount,
+    status: TripStatus.TRIP_ENDED,
+    paymentStatus: PaymentStatus.COMPLETED, // Mark as completed for testing
+  };
+
+  if (carImageFront) {
+    updateData.carImageFront = carImageFront;
+  }
+  if (carImageBack) {
+    updateData.carImageBack = carImageBack;
+  }
+
+  const updatedTrip = await updateTrip(tripId, updateData);
+
+  // Update driver trip status to AVAILABLE
+  await updateDriverTripStatus(driverId, "AVAILABLE");
+
+  // Log activity (non-blocking)
+  logActivity({
+    action: ActivityAction.TRIP_ENDED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: tripId,
+    franchiseId: trip.franchiseId,
+    driverId: driverId,
+    tripId: tripId,
+    description: `Trip ${tripId} ended directly (testing endpoint)`,
+    metadata: {
+      tripId,
+      driverId,
+      distanceTraveled,
+      timeTakenHours,
+      calculatedAmount,
+      endOdometer,
+    },
+  }).catch((err) => {
+    logger.error("Failed to log trip end activity", { error: err });
+  });
+
+  return {
+    tripId,
+    status: updatedTrip.status,
+    finalAmount: calculatedAmount,
+    distanceTraveled: Math.round(distanceTraveled * 100) / 100,
+    timeTakenHours: Math.round(timeTakenHours * 100) / 100,
+    timeTakenMinutes: Math.round((timeTakenHours * 60) * 100) / 100,
+    priceBreakdown,
+    tripType,
+    carType,
+    message: "Trip ended successfully with price calculation",
   };
 }
 
@@ -2222,7 +2436,7 @@ interface CreateTripPhase1Input {
   
   // Trip details
   franchiseId: string;
-  tripType: TripType;
+  tripType: string; // Use string instead of TripType enum
   distance?: number;
   distanceScope?: string;
   duration?: number;
@@ -2307,6 +2521,8 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
     }
   });
 
+  
+
   if (!tripTypeConfig) {
     // Fetch all active trip type names for error message
     const activeTripTypes = await prisma.tripTypeConfig.findMany({
@@ -2325,7 +2541,7 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
   }
 
   // Use the trip type name from database as the enum value
-  const tripTypeEnum = tripTypeConfig.name as TripType;
+  const tripTypeEnum = tripTypeConfig.name as string;
 
   // Find or create customer
   const { customer, isExisting } = await findOrCreateCustomer({
@@ -2394,30 +2610,12 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
 
   // Calculate pricing (optional - if distance/duration provided)
   let calculatedPrice = null;
-  let baseAmount = 0;
+  let baseAmount = tripTypeConfig.basePrice;
   let extraAmount = 0;
-  let totalAmount = 0;
-  let finalAmount = 0;
+  let totalAmount = baseAmount;
+  let finalAmount = baseAmount;
 
-  if (input.distance !== undefined || input.duration !== undefined) {
-    try {
-      calculatedPrice = await calculateTripPrice({
-        tripType: tripTypeEnum,
-        distance: input.distance,
-        duration: input.duration,
-        carType: input.carType,
-      });
-
-      baseAmount = calculatedPrice.basePrice;
-      extraAmount = calculatedPrice.extraCharges;
-      totalAmount = calculatedPrice.totalPrice;
-      finalAmount = calculatedPrice.totalPrice;
-    } catch (error: any) {
-      // If pricing calculation fails, log but don't fail trip creation
-      // Pricing can be calculated later or manually set
-      console.warn("Pricing calculation failed:", error.message);
-    }
-  }
+ 
 
   // Create trip in phase 1 (PENDING status, no driver assigned yet)
   const trip = await repoCreateTripPhase1({

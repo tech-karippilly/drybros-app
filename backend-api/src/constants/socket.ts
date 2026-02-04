@@ -9,6 +9,7 @@ export const SOCKET_EVENTS = {
   // Trip dispatch events (driver app)
   TRIP_OFFER: "trip_offer",
   TRIP_OFFER_ACCEPT: "trip_offer_accept",
+  TRIP_OFFER_REJECT: "trip_offer_reject",
   TRIP_OFFER_RESULT: "trip_offer_result",
   TRIP_ASSIGNED: "trip_assigned",
   TRIP_OFFER_CANCELLED: "trip_offer_cancelled",

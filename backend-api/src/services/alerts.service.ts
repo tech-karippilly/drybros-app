@@ -23,6 +23,8 @@ export type DriverAlertItem = {
 
 function mapActivityActionToAlertType(action: ActivityAction): AlertType | null {
   switch (action) {
+    case ActivityAction.TRIP_ASSIGNED:
+      return ALERT_TYPES.TRIP_ASSIGNED;
     case ActivityAction.TRIP_ACCEPTED:
       return ALERT_TYPES.TRIP_ACCEPTED;
     case ActivityAction.TRIP_REJECTED:
@@ -82,22 +84,26 @@ export async function getDriverAlerts(driverId: string, limitEvents?: number) {
       if (!type) return null;
 
       const title =
-        type === ALERT_TYPES.TRIP_ACCEPTED
-          ? ALERT_TITLES.TRIP_ACCEPTED
-          : type === ALERT_TYPES.TRIP_REJECTED
-            ? ALERT_TITLES.TRIP_REJECTED
-            : type === ALERT_TYPES.RIDE_STARTED
-              ? ALERT_TITLES.RIDE_STARTED
-              : ALERT_TITLES.RIDE_ENDED;
+        type === ALERT_TYPES.TRIP_ASSIGNED
+          ? ALERT_TITLES.TRIP_ASSIGNED
+          : type === ALERT_TYPES.TRIP_ACCEPTED
+            ? ALERT_TITLES.TRIP_ACCEPTED
+            : type === ALERT_TYPES.TRIP_REJECTED
+              ? ALERT_TITLES.TRIP_REJECTED
+              : type === ALERT_TYPES.RIDE_STARTED
+                ? ALERT_TITLES.RIDE_STARTED
+                : ALERT_TITLES.RIDE_ENDED;
 
       const message =
-        type === ALERT_TYPES.TRIP_ACCEPTED
-          ? ALERT_MESSAGES.TRIP_ACCEPTED
-          : type === ALERT_TYPES.TRIP_REJECTED
-            ? ALERT_MESSAGES.TRIP_REJECTED
-            : type === ALERT_TYPES.RIDE_STARTED
-              ? ALERT_MESSAGES.RIDE_STARTED
-              : ALERT_MESSAGES.RIDE_ENDED;
+        type === ALERT_TYPES.TRIP_ASSIGNED
+          ? ALERT_MESSAGES.TRIP_ASSIGNED
+          : type === ALERT_TYPES.TRIP_ACCEPTED
+            ? ALERT_MESSAGES.TRIP_ACCEPTED
+            : type === ALERT_TYPES.TRIP_REJECTED
+              ? ALERT_MESSAGES.TRIP_REJECTED
+              : type === ALERT_TYPES.RIDE_STARTED
+                ? ALERT_MESSAGES.RIDE_STARTED
+                : ALERT_MESSAGES.RIDE_ENDED;
 
       return {
         id: log.id,

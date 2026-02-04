@@ -13,6 +13,7 @@ import {
   CarTypeCategory,
   DistanceSlab,
 } from "../constants/pricing";
+import logger from "../config/logger";
 
 export interface CalculatePriceInput {
   tripType: TripType;
@@ -280,6 +281,21 @@ export async function calculateTripPrice(
   }
 
   const totalPrice = basePrice + extraCharges + premiumAdjustment;
+
+  // Log pricing calculation details
+  logger.debug("Price calculation completed", {
+    tripType,
+    distance,
+    duration,
+    carType,
+    basePrice,
+    extraCharges,
+    premiumAdjustment,
+    totalPrice: Math.round(totalPrice),
+    breakdown,
+    usedDatabaseConfig: useDatabaseConfig,
+    configName: config?.name,
+  });
 
   return {
     basePrice,

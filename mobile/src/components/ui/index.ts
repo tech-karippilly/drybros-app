@@ -15,3 +15,4 @@ export * from './PrimaryButton';
 export * from './Badge';
 export * from './IconCircle';
 export * from './TripRequestModal';
+export * from './TripDetailsModal';

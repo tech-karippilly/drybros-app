@@ -34,5 +34,6 @@ export const API_ENDPOINTS ={
     TRIP_OFFERS: {
         MY_PENDING: '/trip-offers/my-pending',
         ACCEPT: '/trip-offers/:id/accept',
+        REJECT: '/trip-offers/:id/reject',
     },
 }as const;

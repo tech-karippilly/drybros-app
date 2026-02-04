@@ -1,17 +1,21 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { TripRequestModal } from '../components/ui/TripRequestModal';
+import { TripDetailsModal } from '../components/ui/TripDetailsModal';
 import { useToast } from './ToastContext';
 import { SOCKET_EVENTS } from '../constants/socket';
 import {
   connectDriverSocket,
   disconnectDriverSocket,
   emitTripOfferAccept,
+  emitTripOfferReject,
   getDriverSocket,
   type TripAssignedEventPayload,
   type TripOfferEventPayload,
   type TripOfferResultEventPayload,
 } from '../services/realtime/socket';
-import { acceptTripOfferApi } from '../services/api/tripOffers';
+import { acceptTripOfferApi, rejectTripOfferApi } from '../services/api/tripOffers';
+import { savePendingTripOffer, removePendingTripOffer } from '../services/storage/tripStorage';
+import { useAuth } from './AuthContext';
 
 type TripOfferState = {
   offerId: string;
@@ -26,6 +30,7 @@ type TripRealtimeContextValue = {
   enableRealtime: () => void;
   disableRealtime: () => void;
   acceptCurrentOffer: () => void;
+  rejectCurrentOffer: () => void;
   dismissOffer: () => void;
 };
 
@@ -39,15 +44,27 @@ export function useTripRealtime(): TripRealtimeContextValue {
 
 export function TripRealtimeProvider({ children }: { children: React.ReactNode }) {
   const { showToast } = useToast();
+  const { isLoggedIn } = useAuth();
   const [currentOffer, setCurrentOffer] = useState<TripOfferState | null>(null);
   const [lastAssignedTripId, setLastAssignedTripId] = useState<string | null>(null);
   const [isRealtimeEnabled, setIsRealtimeEnabled] = useState<boolean>(false);
+  const [showTripDetails, setShowTripDetails] = useState<boolean>(false);
   const acceptingRef = useRef(false);
+  const rejectingRef = useRef(false);
   const currentOfferRef = useRef<TripOfferState | null>(null);
 
   useEffect(() => {
     currentOfferRef.current = currentOffer;
   }, [currentOffer]);
+
+  // Auto-connect socket when user logs in
+  useEffect(() => {
+    if (isLoggedIn) {
+      setIsRealtimeEnabled(true);
+    } else {
+      setIsRealtimeEnabled(false);
+    }
+  }, [isLoggedIn]);
 
   useEffect(() => {
     let mounted = true;
@@ -148,9 +165,53 @@ export function TripRealtimeProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const dismissOffer = useCallback(() => {
+    // Save to storage before dismissing so it shows in Trips screen
+    if (currentOffer) {
+      savePendingTripOffer({
+        offerId: currentOffer.offerId,
+        tripId: currentOffer.tripId,
+        expiresAt: currentOffer.expiresAt,
+      }).catch((err) => console.error('Failed to save pending trip offer:', err));
+    }
     setCurrentOffer(null);
+    setShowTripDetails(false);
     acceptingRef.current = false;
-  }, []);
+    rejectingRef.current = false;
+  }, [currentOffer]);
+
+  const rejectCurrentOffer = useCallback(async () => {
+    if (!currentOffer) return;
+    if (rejectingRef.current || acceptingRef.current) return;
+    rejectingRef.current = true;
+
+    try {
+      // Emit socket event for real-time rejection (triggers next driver assignment)
+      const s = getDriverSocket();
+      if (s) {
+        emitTripOfferReject(currentOffer.offerId);
+      }
+
+      // Also call REST API for persistence
+      const updated = await rejectTripOfferApi(currentOffer.offerId);
+      
+      showToast({
+        type: 'info',
+        position: 'top',
+        message: 'Trip offer rejected',
+      });
+
+      // Remove from pending storage
+      await removePendingTripOffer(currentOffer.offerId);
+      
+      setCurrentOffer(null);
+      setShowTripDetails(false);
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Failed to reject trip offer';
+      showToast({ type: 'error', position: 'top', message: msg });
+    } finally {
+      rejectingRef.current = false;
+    }
+  }, [currentOffer, showToast]);
 
   const acceptCurrentOffer = useCallback(async () => {
     if (!currentOffer) return;
@@ -172,6 +233,7 @@ export function TripRealtimeProvider({ children }: { children: React.ReactNode }
           message: `Offer ${updated.status.toLowerCase()}`,
         });
         setCurrentOffer(null);
+        setShowTripDetails(false);
         acceptingRef.current = false;
         return;
       }
@@ -182,12 +244,15 @@ export function TripRealtimeProvider({ children }: { children: React.ReactNode }
         position: 'top',
         message: 'Trip accepted. Waiting for assignment...',
       });
+
+      // Remove from pending storage since it's accepted
+      await removePendingTripOffer(currentOffer.offerId);
     } catch (e: any) {
       const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Failed to accept trip offer';
       showToast({ type: 'error', position: 'top', message: msg });
       acceptingRef.current = false;
     }
-  }, [currentOffer]);
+  }, [currentOffer, showToast]);
 
   const value = useMemo<TripRealtimeContextValue>(
     () => ({
@@ -197,22 +262,43 @@ export function TripRealtimeProvider({ children }: { children: React.ReactNode }
       enableRealtime,
       disableRealtime,
       acceptCurrentOffer,
+      rejectCurrentOffer,
       dismissOffer,
     }),
-    [currentOffer, lastAssignedTripId, isRealtimeEnabled, enableRealtime, disableRealtime, acceptCurrentOffer, dismissOffer]
+    [currentOffer, lastAssignedTripId, isRealtimeEnabled, enableRealtime, disableRealtime, acceptCurrentOffer, rejectCurrentOffer, dismissOffer]
   );
+
+  const handleViewTrip = useCallback(() => {
+    setShowTripDetails(true);
+  }, []);
+
+  const handleCloseTripDetails = useCallback(() => {
+    setShowTripDetails(false);
+  }, []);
 
   return (
     <TripRealtimeContext.Provider value={value}>
       {children}
+      
+      {/* Initial notification modal */}
       <TripRequestModal
-        visible={Boolean(currentOffer)}
+        visible={Boolean(currentOffer) && !showTripDetails}
         tripId={currentOffer?.tripId ?? ''}
         onClose={dismissOffer}
         onAccept={acceptCurrentOffer}
-        onReject={dismissOffer}
-        onViewTrip={dismissOffer}
-        disabled={acceptingRef.current}
+        onReject={rejectCurrentOffer}
+        onViewTrip={handleViewTrip}
+        disabled={acceptingRef.current || rejectingRef.current}
+      />
+
+      {/* Full trip details modal */}
+      <TripDetailsModal
+        visible={Boolean(currentOffer) && showTripDetails}
+        tripId={currentOffer?.tripId ?? ''}
+        onClose={handleCloseTripDetails}
+        onAccept={acceptCurrentOffer}
+        onReject={rejectCurrentOffer}
+        disabled={acceptingRef.current || rejectingRef.current}
       />
     </TripRealtimeContext.Provider>
   );

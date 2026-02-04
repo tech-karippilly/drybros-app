@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { clearAuthStorage } from '../services/api/client';
 import { logoutApi } from '../services/api/auth';
+import { disconnectDriverSocket } from '../services/realtime/socket';
 
 type AuthContextValue = {
   isHydrated: boolean;
@@ -56,6 +57,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // Always clear local auth even if backend logout fails (offline, token expired, etc.).
     } finally {
+      // Disconnect socket before clearing auth
+      disconnectDriverSocket();
       await clearAuthStorage();
       setIsLoggedIn(false);
     }

@@ -5494,6 +5494,196 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /trips/{id}/end-direct:
+    post:
+      summary: End trip directly with price calculation (Testing API)
+      description: |
+        **Testing Endpoint:** End a trip directly and calculate the final amount based on odometer readings.
+        This endpoint is designed for testing the price calculation functionality.
+        
+        **What it does:**
+        - Ends the trip immediately without OTP verification
+        - Calculates price based on distance (end odometer - start odometer) and time taken
+        - Uses the pricing service to calculate final amount
+        - Marks payment as completed automatically (for testing)
+        - Returns detailed breakdown of price calculation
+        
+        **Prerequisites:**
+        - Trip must have been started (startedAt and startOdometer must exist)
+        - End odometer must be >= start odometer
+        - Trip must be assigned to the specified driver
+        
+        **Price Calculation:**
+        - Distance: end odometer - start odometer (in km)
+        - Duration: current time - started time (in hours)
+        - Applies trip type pricing rules (CITY_ROUND, LONG_DROP, etc.)
+        - Considers car type (PREMIUM, LUXURY, NORMAL) for premium multiplier
+        
+        **After Ending:**
+        - Trip status changes to TRIP_ENDED
+        - Driver status changes to AVAILABLE
+        - Payment status set to COMPLETED
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip UUID
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                driverId:
+                  type: string
+                  format: uuid
+                  description: Driver ID (UUID)
+                  example: "779a77f6-5704-4b00-8561-2892c58946a2"
+                endOdometer:
+                  type: number
+                  description: End odometer reading in km
+                  example: 1250.5
+                endTime:
+                  type: string
+                  format: date-time
+                  description: Optional custom end time for testing (defaults to current time)
+                  example: "2026-02-05T15:30:00Z"
+                carImageFront:
+                  type: string
+                  description: Optional front car image URL
+                  example: "https://example.com/images/car-front.jpg"
+                carImageBack:
+                  type: string
+                  description: Optional back car image URL
+                  example: "https://example.com/images/car-back.jpg"
+              required:
+                - driverId
+                - endOdometer
+            example:
+              driverId: "779a77f6-5704-4b00-8561-2892c58946a2"
+              endOdometer: 1250.5
+              endTime: "2026-02-05T15:30:00Z"
+      responses:
+        "200":
+          description: Trip ended successfully with price calculation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      tripId:
+                        type: string
+                        format: uuid
+                        example: "550e8400-e29b-41d4-a716-446655440000"
+                      status:
+                        type: string
+                        example: "TRIP_ENDED"
+                      finalAmount:
+                        type: number
+                        description: Calculated final amount
+                        example: 1250.75
+                      distanceTraveled:
+                        type: number
+                        description: Distance traveled in km
+                        example: 45.5
+                      timeTakenHours:
+                        type: number
+                        description: Time taken in hours
+                        example: 2.5
+                      timeTakenMinutes:
+                        type: number
+                        description: Time taken in minutes
+                        example: 150
+                      priceBreakdown:
+                        type: object
+                        description: Detailed price breakdown
+                        properties:
+                          base:
+                            type: number
+                            example: 1000
+                          durationExtra:
+                            type: number
+                            example: 200
+                          distanceExtra:
+                            type: number
+                            example: 50.75
+                          premiumAdjustment:
+                            type: number
+                            example: 0
+                      tripType:
+                        type: string
+                        example: "CITY_ROUND"
+                      carType:
+                        type: string
+                        example: "NORMAL"
+                      message:
+                        type: string
+                        example: "Trip ended successfully with price calculation"
+              example:
+                data:
+                  tripId: "550e8400-e29b-41d4-a716-446655440000"
+                  status: "TRIP_ENDED"
+                  finalAmount: 1250.75
+                  distanceTraveled: 45.5
+                  timeTakenHours: 2.5
+                  timeTakenMinutes: 150
+                  priceBreakdown:
+                    base: 1000
+                    durationExtra: 200
+                    distanceExtra: 50.75
+                  tripType: "CITY_ROUND"
+                  carType: "NORMAL"
+                  message: "Trip ended successfully with price calculation"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingDriverId:
+                  summary: Missing driverId
+                  value:
+                    error: "driverId is required"
+                missingEndOdometer:
+                  summary: Missing end odometer
+                  value:
+                    error: "endOdometer is required"
+                tripNotStarted:
+                  summary: Trip not started
+                  value:
+                    error: "Trip has not been started yet"
+                invalidOdometer:
+                  summary: Invalid odometer reading
+                  value:
+                    error: "End odometer reading cannot be less than start odometer reading"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - trip not assigned to this driver
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trip not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /trips/{id}/history:
     get:
       summary: Get trip history for driver

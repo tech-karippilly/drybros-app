@@ -28,6 +28,7 @@ import {
   collectPayment,
   verifyPaymentAndEndTrip,
   getTripHistory,
+  endTripDirect,
 } from "../services/trip.service";
 import { PaymentStatus, PaymentMode } from "@prisma/client";
 import { requireValidUUID, validateAndGetUUID } from "../utils/validation";
@@ -708,6 +709,45 @@ export async function getTripHistoryHandler(
     );
 
     const result = await getTripHistory(tripId, driverId);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * End trip directly with price calculation (testing endpoint)
+ */
+export async function endTripDirectHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
+    const { driverId, endOdometer, endTime, carImageFront, carImageBack } = req.body;
+
+    if (!driverId) {
+      return res.status(400).json({
+        error: "driverId is required",
+      });
+    }
+
+    if (!endOdometer && endOdometer !== 0) {
+      return res.status(400).json({
+        error: "endOdometer is required",
+      });
+    }
+
+    const result = await endTripDirect({
+      tripId,
+      driverId: validateAndGetUUID(driverId, "Driver ID"),
+      endOdometer: parseFloat(endOdometer),
+      endTime: endTime ? new Date(endTime) : undefined,
+      carImageFront,
+      carImageBack,
+    });
+
     res.json({ data: result });
   } catch (err) {
     next(err);

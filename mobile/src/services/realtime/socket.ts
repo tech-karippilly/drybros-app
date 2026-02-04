@@ -5,9 +5,20 @@ import { STORAGE_KEYS } from '../../constants/storageKeys';
 import { SOCKET_EVENTS, SOCKET_TIMINGS_MS } from '../../constants/socket';
 import type { BackendTrip } from '../api/trips';
 
+/* =======================
+   Event payload types
+======================= */
+
 export type TripOfferEventPayload = {
   offerId: string;
-  trip: { id: string };
+  trip: {
+    id: string;
+    pickupAddress?: string;
+    dropAddress?: string;
+    pickupLat?: number;
+    pickupLng?: number;
+    scheduledAt?: string | null;
+  };
   expiresAt: string;
 };
 
@@ -25,7 +36,15 @@ export type TripsMyAssignedAck =
   | { data: BackendTrip[] }
   | { error: string; message?: string };
 
+/* =======================
+   Socket instance
+======================= */
+
 let socket: Socket | null = null;
+
+/* =======================
+   Connection helpers
+======================= */
 
 export async function connectDriverSocket(): Promise<Socket> {
   if (socket) return socket;
@@ -58,10 +77,77 @@ export function getDriverSocket(): Socket | null {
   return socket;
 }
 
+/* =======================
+   Emit events
+======================= */
+
 export function emitTripOfferAccept(offerId: string): void {
   if (!socket) return;
   socket.emit(SOCKET_EVENTS.TRIP_OFFER_ACCEPT, { offerId });
 }
+
+export function emitTripOfferReject(offerId: string): void {
+  if (!socket) return;
+  socket.emit(SOCKET_EVENTS.TRIP_OFFER_REJECT, { offerId });
+}
+
+/* =======================
+   Listen: trip offers (NEW)
+======================= */
+
+export async function listenForTripOffers(
+  handler: (payload: TripOfferEventPayload) => void
+): Promise<void> {
+  const s = await connectDriverSocket();
+  s.on(SOCKET_EVENTS.TRIP_OFFER, handler);
+}
+
+export async function stopListeningForTripOffers(
+  handler: (payload: TripOfferEventPayload) => void
+): Promise<void> {
+  if (!socket) return;
+  socket.off(SOCKET_EVENTS.TRIP_OFFER, handler);
+}
+
+/* =======================
+   Listen: trip assigned
+======================= */
+
+export async function listenForTripAssigned(
+  handler: (payload: TripAssignedEventPayload) => void
+): Promise<void> {
+  const s = await connectDriverSocket();
+  s.on(SOCKET_EVENTS.TRIP_ASSIGNED, handler);
+}
+
+export async function stopListeningForTripAssigned(
+  handler: (payload: TripAssignedEventPayload) => void
+): Promise<void> {
+  if (!socket) return;
+  socket.off(SOCKET_EVENTS.TRIP_ASSIGNED, handler);
+}
+
+/* =======================
+   Listen: offer result / cancelled
+======================= */
+
+export async function listenForTripOfferResult(
+  handler: (payload: TripOfferResultEventPayload) => void
+): Promise<void> {
+  const s = await connectDriverSocket();
+  s.on(SOCKET_EVENTS.TRIP_OFFER_RESULT, handler);
+}
+
+export async function stopListeningForTripOfferResult(
+  handler: (payload: TripOfferResultEventPayload) => void
+): Promise<void> {
+  if (!socket) return;
+  socket.off(SOCKET_EVENTS.TRIP_OFFER_RESULT, handler);
+}
+
+/* =======================
+   Fetch assigned trips (ACK-based)
+======================= */
 
 export async function fetchMyAssignedTripsViaSocket(): Promise<BackendTrip[]> {
   const s = await connectDriverSocket();
@@ -89,8 +175,8 @@ export async function fetchMyAssignedTripsViaSocket(): Promise<BackendTrip[]> {
         (ack && 'message' in ack && typeof ack.message === 'string' && ack.message) ||
         (ack && 'error' in ack && typeof ack.error === 'string' && ack.error) ||
         'Failed to fetch assigned trips';
+
       reject(new Error(message));
     });
   });
 }
-

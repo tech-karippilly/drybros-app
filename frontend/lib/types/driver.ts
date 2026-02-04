@@ -52,6 +52,7 @@ export interface AvailableDriver {
   currentRating: number | null;
   performance: DriverPerformanceMetrics;
   matchScore: number; // Car type match score
+  remainingDailyLimit:number | null;
 }
 
 /**

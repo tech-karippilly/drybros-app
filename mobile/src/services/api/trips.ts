@@ -39,6 +39,7 @@ export type TripStartInitiatePayload = {
   odometerPic: string;
   carFrontPic: string;
   carBackPic: string;
+  selfiePic: string;
 };
 
 export type TripStartInitiateResponse = {
@@ -86,6 +87,13 @@ export type TripEndVerifyResponse = {
     timeTakenMinutes: number;
     tripType: string;
     calculatedAmount: number;
+    priceBreakdown?: {
+      base?: number;
+      durationExtra?: number;
+      distanceExtra?: number;
+      premiumAdjustment?: number;
+      slabBased?: number;
+    };
   };
 };
 

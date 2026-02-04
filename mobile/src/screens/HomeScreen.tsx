@@ -46,7 +46,7 @@ import { getMyAssignedTripsApi } from '../services/api/trips';
 import { mapBackendTripToHomeUpcomingTrip } from '../services/mappers/trips';
 import { useLocation } from '../hooks/useLocation';
 import { updateMyDriverLocationApi } from '../services/api/driverLocation';
-import { fetchMyAssignedTripsViaSocket } from '../services/realtime/socket';
+import { fetchMyAssignedTripsViaSocket, listenForTripOffers, stopListeningForTripOffers } from '../services/realtime/socket';
 import { haversineDistanceMeters } from '../utils/geo';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -94,6 +94,11 @@ export function HomeScreen() {
   const [target, setTarget] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [upcomingTrips, setUpcomingTrips] = useState<HomeUpcomingTrip[]>([]);
   const upcomingCount = upcomingTrips.length;
+
+
+  const handleTripOffer = useCallback((offer) => {
+     console.log('Incoming trip offer:', offer);
+  },[]);
 
   const syncAssignedTripsViaSocket = useCallback(async () => {
     // Only meaningful when clocked-in and not on an ongoing trip.
@@ -178,8 +183,20 @@ export function HomeScreen() {
   }, [loadHomeData, refreshing]);
 
   useEffect(() => {
+  if (!isCheckedIn) return;
+
+  listenForTripOffers(handleTripOffer);
+
+  return () => {
+    stopListeningForTripOffers(handleTripOffer);
+  };    
+}, [isCheckedIn, handleTripOffer]);
+
+  useEffect(() => {
     loadHomeData();
   }, [loadHomeData]);
+
+
 
   useEffect(() => {
     if (lastAssignedTripId) {

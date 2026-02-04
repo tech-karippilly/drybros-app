@@ -8,7 +8,7 @@ import { View, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Text } from '../typography';
 import {
@@ -25,8 +25,9 @@ import {
 import { normalizeWidth, normalizeHeight } from '../utils/responsive';
 import type { TripStackParamList } from '../navigation/TripStackNavigator';
 import { useToast, useTripRealtime } from '../contexts';
-import { getMyTripsApi } from '../services/api/trips';
+import { getMyTripsApi, getTripByIdApi } from '../services/api/trips';
 import { mapBackendTripToTripItem } from '../services/mappers/trips';
+import { getPendingTripOffers, removePendingTripOffer } from '../services/storage/tripStorage';
 
 export function TripScreen() {
   const insets = useSafeAreaInsets();
@@ -35,7 +36,36 @@ export function TripScreen() {
   const { lastAssignedTripId } = useTripRealtime();
   const [filter, setFilter] = React.useState<TripFilter>('all');
   const [trips, setTrips] = React.useState<TripItem[]>([]);
+  const [pendingTrips, setPendingTrips] = React.useState<TripItem[]>([]);
   const [loading, setLoading] = React.useState(false);
+
+  const loadPendingOffers = React.useCallback(async () => {
+    try {
+      const offers = await getPendingTripOffers();
+      const pendingTripItems: TripItem[] = [];
+
+      // Load trip details for each pending offer
+      for (const offer of offers) {
+        try {
+          const trip = await getTripByIdApi(offer.tripId);
+          const tripItem = mapBackendTripToTripItem(trip);
+          // Override status to 'requested'
+          pendingTripItems.push({
+            ...tripItem,
+            status: 'requested',
+            footerLabel: `Offer received`,
+          });
+        } catch (err) {
+          // If trip doesn't exist anymore, remove from storage
+          await removePendingTripOffer(offer.offerId);
+        }
+      }
+
+      setPendingTrips(pendingTripItems);
+    } catch (error) {
+      console.error('Failed to load pending offers:', error);
+    }
+  }, []);
 
   const loadTrips = React.useCallback(async () => {
     setLoading(true);
@@ -54,20 +84,35 @@ export function TripScreen() {
     }
   }, [showToast]);
 
+  // Load trips on mount
   React.useEffect(() => {
     loadTrips();
   }, [loadTrips]);
 
+  // Reload trips when new trip is assigned
   React.useEffect(() => {
     if (lastAssignedTripId) {
       loadTrips();
+      loadPendingOffers(); // Also refresh pending offers
     }
-  }, [lastAssignedTripId, loadTrips]);
+  }, [lastAssignedTripId, loadTrips, loadPendingOffers]);
+
+  // Reload pending offers when screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      loadPendingOffers();
+    }, [loadPendingOffers])
+  );
+
+  // Merge trips and pending trips
+  const allTrips = React.useMemo(() => {
+    return [...pendingTrips, ...trips];
+  }, [pendingTrips, trips]);
 
   const filtered = React.useMemo(() => {
-    if (filter === 'all') return trips;
-    return trips.filter((x) => x.status === filter);
-  }, [filter, trips]);
+    if (filter === 'all') return allTrips;
+    return allTrips.filter((x) => x.status === filter);
+  }, [filter, allTrips]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -91,6 +136,11 @@ export function TripScreen() {
       >
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
           <FilterPill label={TRIPS_STRINGS.FILTER_ALL} isActive={filter === 'all'} onPress={() => setFilter('all')} />
+          <FilterPill
+            label={TRIPS_STRINGS.FILTER_REQUESTED}
+            isActive={filter === 'requested'}
+            onPress={() => setFilter('requested')}
+          />
           <FilterPill
             label={TRIPS_STRINGS.FILTER_UPCOMING}
             isActive={filter === 'upcoming'}
@@ -156,6 +206,12 @@ function getStatusMeta(status: TripStatus) {
         bg: TRIPS_COLORS.STATUS_COMPLETED_BG,
         text: TRIPS_COLORS.STATUS_COMPLETED_TEXT,
         label: TRIPS_STRINGS.FILTER_COMPLETED.toUpperCase(),
+      };
+    case 'requested':
+      return {
+        bg: TRIPS_COLORS.STATUS_REQUESTED_BG,
+        text: TRIPS_COLORS.STATUS_REQUESTED_TEXT,
+        label: TRIPS_STRINGS.FILTER_REQUESTED.toUpperCase(),
       };
     case 'upcoming':
     default:

@@ -96,11 +96,12 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
                             complaintCount: 0,
                             totalTrips: 0,
                             completedTrips: 0,
-                            rejectedTrips: 0,
+                            rejectedTrips: 0, 
                             completionRate: 0,
                             rejectionRate: 0,
                         },
                         matchScore: 0,
+                        remainingDailyLimit:d.remainingDailyLimit ?? null,
                     };
                 });
                 setDrivers(mapped);
@@ -119,6 +120,8 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
     const filteredDrivers = useMemo(() => {
         if (!searchTerm.trim()) return drivers;
         const q = searchTerm.toLowerCase();
+
+        console.log("drivers",drivers)
         return drivers.filter(
             (d) =>
                 `${d.firstName} ${d.lastName}`.toLowerCase().includes(q) ||

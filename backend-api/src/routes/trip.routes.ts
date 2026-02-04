@@ -26,6 +26,7 @@ import {
   getTripHistoryHandler,
   getTripLogsHandler,
   requestTripDriversHandler,
+  endTripDirectHandler,
 } from "../controllers/trip.controller";
 import { authMiddleware } from "../middlewares/auth";
 import { validate, validateParams } from "../middlewares/validation";
@@ -137,6 +138,8 @@ router.post("/:id/end-verify", verifyAndEndTripHandler);
 
 router.post("/:id/collect-payment", collectPaymentHandler);
 router.post("/:id/verify-payment", verifyPaymentAndEndTripHandler);
+
+router.post("/:id/end-direct", endTripDirectHandler);
 
 router.get("/:id/history", getTripHistoryHandler);
 router.get("/:id/logs", getTripLogsHandler);

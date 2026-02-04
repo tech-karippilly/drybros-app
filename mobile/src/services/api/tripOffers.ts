@@ -29,3 +29,14 @@ export async function acceptTripOfferApi(offerId: string): Promise<BackendTripOf
   return (payload?.data ?? payload) as BackendTripOffer;
 }
 
+export type RejectTripOfferResponse = {
+  data: BackendTripOffer;
+};
+
+export async function rejectTripOfferApi(offerId: string): Promise<BackendTripOffer> {
+  const url = replacePathParam(API_ENDPOINTS.TRIP_OFFERS.REJECT, offerId);
+  const res = await apiClient.post<RejectTripOfferResponse>(url);
+  const payload = (res.data as any)?.data ?? res.data;
+  return (payload?.data ?? payload) as BackendTripOffer;
+}
+

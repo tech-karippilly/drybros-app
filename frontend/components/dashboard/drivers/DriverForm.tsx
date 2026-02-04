@@ -475,8 +475,8 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                     </div>
 
                     {/* 4. Compliance & Franchise */}
-                    <div>
-                        <h3 className="text-xl font-bold text-white mb-6">4. Compliance & Franchise</h3>
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <h3 className={sectionTitleClass}>4. Compliance & Franchise</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div>
                                 <label className={labelClass}>Document Checklist</label>
@@ -525,11 +525,11 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="flex items-center justify-end gap-4 pt-10 border-t border-gray-800">
+                    <div className="flex items-center justify-end gap-4 pt-10 border-t border-gray-200 dark:border-gray-800">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-6 py-3 rounded-lg border border-gray-700 text-white text-sm font-medium hover:bg-gray-800 transition-colors"
+                            className="px-6 py-3 rounded-lg border border-gray-200 dark:border-gray-800 text-[#0d121c] dark:text-white text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                         >
                             Cancel
                         </button>

@@ -14,22 +14,28 @@ export const TRIP_TYPE_ENDPOINTS = {
 // Request DTOs (matching backend)
 export interface CreateTripTypeRequest {
     name: string;
-    basePrice: number;
-    basePricePerHour?: number;
+    specialPrice?: boolean;
+    basePrice?: number;
+    baseHour?: number;
     baseDuration?: number;
-    extraPerHour: number;
+    distance?: number;
+    extraPerHour?: number;
     extraPerHalfHour?: number;
     description?: string;
+    distanceSlabs?: any[];
 }
 
 export interface UpdateTripTypeRequest {
     name?: string;
+    specialPrice?: boolean;
     basePrice?: number;
-    basePricePerHour?: number;
+    baseHour?: number;
     baseDuration?: number;
+    distance?: number;
     extraPerHour?: number;
     extraPerHalfHour?: number;
     description?: string;
+    distanceSlabs?: any[];
 }
 
 // Response DTOs (matching backend)
@@ -37,11 +43,14 @@ export interface TripTypeResponse {
     id: string;
     name: string;
     description?: string | null;
-    basePrice: number;
+    specialPrice?: boolean;
+    basePrice?: number | null;
     basePricePerHour?: number | null;
     baseDuration?: number | null;
+    baseHour?: number | null;
     baseDistance?: number | null;
-    extraPerHour: number;
+    distance?: number | null;
+    extraPerHour?: number | null;
     extraPerHalfHour?: number | null;
     extraPerKm?: number | null;
     premiumCarMultiplier?: number | null;

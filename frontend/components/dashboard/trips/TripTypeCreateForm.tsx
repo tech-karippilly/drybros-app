@@ -22,8 +22,10 @@ export function TripTypeCreateForm({
     const dispatch = useAppDispatch();
     const [formData, setFormData] = useState({
         name: '',
+        specialPrice: false,
         basePrice: '',
-        baseHours: '1',
+        baseHour: '1',
+        distance: '',
         extraPerHour: '',
         extraPerHalfHour: '',
         description: '',
@@ -33,16 +35,14 @@ export function TripTypeCreateForm({
 
     useEffect(() => {
         if (tripType) {
-            // Calculate base hours if basePricePerHour exists, otherwise default to 1
-            const calculatedBaseHours = tripType.basePricePerHour
-                ? (tripType.basePrice / tripType.basePricePerHour).toString()
-                : tripType.baseDuration?.toString() || '1';
-            
+            // Use baseHour (baseDuration) directly
             setFormData({
                 name: tripType.name,
-                basePrice: tripType.basePrice.toString(),
-                baseHours: calculatedBaseHours,
-                extraPerHour: tripType.extraPerHour.toString(),
+                specialPrice: tripType.specialPrice ?? false,
+                basePrice: tripType.basePrice?.toString() || '',
+                baseHour: (tripType.baseDuration ?? tripType.baseHour ?? '1').toString(),
+                distance: (tripType.baseDistance ?? tripType.distance ?? '').toString(),
+                extraPerHour: tripType.extraPerHour?.toString() || '',
                 extraPerHalfHour: tripType.extraPerHalfHour?.toString() || '',
                 description: tripType.description || '',
             });
@@ -62,13 +62,19 @@ export function TripTypeCreateForm({
             setError('Trip type name is required');
             return false;
         }
-        if (!formData.basePrice || parseFloat(formData.basePrice) <= 0) {
-            setError('Base price must be greater than 0');
-            return false;
-        }
-        if (!formData.extraPerHour || parseFloat(formData.extraPerHour) < 0) {
-            setError('Extra per hour must be 0 or greater');
-            return false;
+        if (!formData.specialPrice) {
+            if (!formData.basePrice || parseFloat(formData.basePrice) <= 0) {
+                setError('Base price must be greater than 0');
+                return false;
+            }
+            if (!formData.baseHour || parseFloat(formData.baseHour) <= 0) {
+                setError('Base hour must be greater than 0');
+                return false;
+            }
+            if (!formData.extraPerHour || parseFloat(formData.extraPerHour) < 0) {
+                setError('Extra per hour must be 0 or greater');
+                return false;
+            }
         }
         if (
             formData.extraPerHalfHour &&
@@ -91,21 +97,26 @@ export function TripTypeCreateForm({
         setIsSubmitting(true);
 
         try {
-            const basePricePerHour = parseFloat(formData.basePrice);
-            const baseHours = parseFloat(formData.baseHours);
-            const totalBasePrice = basePricePerHour * baseHours;
-
-            const payload = {
+            const payload: any = {
                 name: formData.name.trim(),
-                basePrice: totalBasePrice,
-                basePricePerHour: basePricePerHour,
-                baseDuration: baseHours,
-                extraPerHour: parseFloat(formData.extraPerHour) || 0,
-                extraPerHalfHour: formData.extraPerHalfHour
-                    ? parseFloat(formData.extraPerHalfHour)
-                    : undefined,
+                specialPrice: formData.specialPrice,
                 description: formData.description.trim() || undefined,
             };
+
+            // Add pricing fields only if not specialPrice
+            if (!formData.specialPrice) {
+                payload.basePrice = parseFloat(formData.basePrice) || 0;
+                payload.baseHour = parseFloat(formData.baseHour) || 1;
+                payload.extraPerHour = parseFloat(formData.extraPerHour) || 0;
+            }
+
+            // Add optional fields
+            if (formData.distance) {
+                payload.distance = parseFloat(formData.distance);
+            }
+            if (formData.extraPerHalfHour) {
+                payload.extraPerHalfHour = parseFloat(formData.extraPerHalfHour);
+            }
 
             if (tripType) {
                 await dispatch(updateTripType({ id: tripType.id, data: payload })).unwrap();
@@ -195,109 +206,166 @@ export function TripTypeCreateForm({
                             />
                         </div>
 
-                        {/* Base Price per Hour Section */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Base Price per Hour */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-[#49659c] uppercase tracking-widest flex items-center gap-2">
-                                    <DollarSign size={14} />
-                                    Base Price / Hour (INR)
-                                </label>
-                                <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#49659c] dark:text-gray-400 font-medium">
-                                        ₹
-                                    </span>
+                        {/* Pricing Type Toggle */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-black text-[#49659c] uppercase tracking-widest">
+                                Pricing Type
+                            </label>
+                            <div className="flex gap-4">
+                                <label className="flex items-center gap-2 cursor-pointer">
                                     <input
-                                        required
-                                        type="number"
-                                        name="basePrice"
-                                        value={formData.basePrice}
-                                        onChange={handleChange}
-                                        placeholder="0.00"
-                                        min="0"
-                                        step="0.01"
-                                        className="w-full pl-8 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
+                                        type="radio"
+                                        name="specialPrice"
+                                        checked={!formData.specialPrice}
+                                        onChange={() => setFormData((prev) => ({ ...prev, specialPrice: false }))}
+                                        className="w-4 h-4"
                                         disabled={isSubmitting}
                                     />
-                                </div>
-                            </div>
-
-                            {/* Base Hours Selector */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-[#49659c] uppercase tracking-widest flex items-center gap-2">
-                                    <Clock size={14} />
-                                    Base Hours
+                                    <span className="text-sm font-medium dark:text-white">Standard Pricing</span>
                                 </label>
-                                <select
-                                    name="baseHours"
-                                    value={formData.baseHours}
-                                    onChange={handleChange}
-                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
-                                    disabled={isSubmitting}
-                                >
-                                    {Array.from({ length: 24 }, (_, i) => i + 1).map((hour) => (
-                                        <option key={hour} value={hour}>
-                                            {hour} {hour === 1 ? 'Hour' : 'Hours'}
-                                        </option>
-                                    ))}
-                                </select>
-                                <p className="text-xs text-[#49659c]">
-                                    Total base price: ₹{((parseFloat(formData.basePrice) || 0) * (parseFloat(formData.baseHours) || 1)).toFixed(2)}
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="specialPrice"
+                                        checked={formData.specialPrice}
+                                        onChange={() => setFormData((prev) => ({ ...prev, specialPrice: true }))}
+                                        className="w-4 h-4"
+                                        disabled={isSubmitting}
+                                    />
+                                    <span className="text-sm font-medium dark:text-white">Special Price (Distance Slabs)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* Standard Pricing Section */}
+                        {!formData.specialPrice && (
+                            <>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {/* Base Price */}
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-[#49659c] uppercase tracking-widest flex items-center gap-2">
+                                            <DollarSign size={14} />
+                                            Base Price (INR)
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#49659c] dark:text-gray-400 font-medium">
+                                                ₹
+                                            </span>
+                                            <input
+                                                required
+                                                type="number"
+                                                name="basePrice"
+                                                value={formData.basePrice}
+                                                onChange={handleChange}
+                                                placeholder="0.00"
+                                                min="0"
+                                                step="0.01"
+                                                className="w-full pl-8 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
+                                                disabled={isSubmitting}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Base Hour */}
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-[#49659c] uppercase tracking-widest flex items-center gap-2">
+                                            <Clock size={14} />
+                                            Base Hour(s)
+                                        </label>
+                                        <input
+                                            required
+                                            type="number"
+                                            name="baseHour"
+                                            value={formData.baseHour}
+                                            onChange={handleChange}
+                                            placeholder="1"
+                                            min="0.5"
+                                            step="0.5"
+                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
+                                            disabled={isSubmitting}
+                                        />
+                                    </div>
+
+                                    {/* Distance (Optional) */}
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-[#49659c] uppercase tracking-widest">
+                                            Distance (km) - Optional
+                                        </label>
+                                        <input
+                                            type="number"
+                                            name="distance"
+                                            value={formData.distance}
+                                            onChange={handleChange}
+                                            placeholder="0"
+                                            min="0"
+                                            step="0.1"
+                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
+                                            disabled={isSubmitting}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Extra per Hour */}
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-[#49659c] uppercase tracking-widest flex items-center gap-2">
+                                            <Clock size={14} />
+                                            Extra per Hour (INR)
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#49659c] dark:text-gray-400 font-medium">
+                                                ₹
+                                            </span>
+                                            <input
+                                                required
+                                                type="number"
+                                                name="extraPerHour"
+                                                value={formData.extraPerHour}
+                                                onChange={handleChange}
+                                                placeholder="0.00"
+                                                min="0"
+                                                step="0.01"
+                                                className="w-full pl-8 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
+                                                disabled={isSubmitting}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Extra per 30 Min */}
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-[#49659c] uppercase tracking-widest flex items-center gap-2">
+                                            <Clock size={14} />
+                                            Extra per 30 Min (INR) (Optional)
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#49659c] dark:text-gray-400 font-medium">
+                                                ₹
+                                            </span>
+                                            <input
+                                                type="number"
+                                                name="extraPerHalfHour"
+                                                value={formData.extraPerHalfHour}
+                                                onChange={handleChange}
+                                                placeholder="0.00"
+                                                min="0"
+                                                step="0.01"
+                                                className="w-full pl-8 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
+                                                disabled={isSubmitting}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {/* Special Price Mode Info */}
+                        {formData.specialPrice && (
+                            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
+                                <p className="text-sm text-blue-600 dark:text-blue-400">
+                                    Special Price mode uses distance-slab based pricing. Distance slabs can be configured separately after creation.
                                 </p>
                             </div>
-                        </div>
-
-                        {/* Extra Pricing Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Extra per Hour */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-[#49659c] uppercase tracking-widest flex items-center gap-2">
-                                    <Clock size={14} />
-                                    Extra per Hour (INR)
-                                </label>
-                                <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#49659c] dark:text-gray-400 font-medium">
-                                        ₹
-                                    </span>
-                                    <input
-                                        required
-                                        type="number"
-                                        name="extraPerHour"
-                                        value={formData.extraPerHour}
-                                        onChange={handleChange}
-                                        placeholder="0.00"
-                                        min="0"
-                                        step="0.01"
-                                        className="w-full pl-8 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
-                                        disabled={isSubmitting}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Extra per 30 Min */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-black text-[#49659c] uppercase tracking-widest flex items-center gap-2">
-                                    <Clock size={14} />
-                                    Extra per 30 Min (INR) (Optional)
-                                </label>
-                                <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#49659c] dark:text-gray-400 font-medium">
-                                        ₹
-                                    </span>
-                                    <input
-                                        type="number"
-                                        name="extraPerHalfHour"
-                                        value={formData.extraPerHalfHour}
-                                        onChange={handleChange}
-                                        placeholder="0.00"
-                                        min="0"
-                                        step="0.01"
-                                        className="w-full pl-8 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium"
-                                        disabled={isSubmitting}
-                                    />
-                                </div>
-                            </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Actions */}

@@ -568,19 +568,10 @@ export async function getAvailableDriversSortedByRating(tripId: string) {
       if (!hasMatchingTransmission) return false;
     }
 
-    // Check car category match
+    // Check car category match - driver must have the exact category required
     if (tripCarCategory) {
-      // Map trip car category to driver car categories
-      const categoryMapping: Record<string, string[]> = {
-        PREMIUM: ["PREMIUM", "LUXURY"],
-        LUXURY: ["LUXURY", "PREMIUM"],
-        NORMAL: ["ECONOMY", "NORMAL"],
-        ECONOMY: ["ECONOMY", "NORMAL"],
-      };
-
-      const acceptableCategories = categoryMapping[tripCarCategory] || [tripCarCategory];
       const hasMatchingCategory = driver.carCategories.some((cat: string) => 
-        acceptableCategories.includes(cat)
+        cat === tripCarCategory
       );
       
       if (!hasMatchingCategory) return false;

@@ -518,6 +518,128 @@ export async function getAvailableDriversForTrip(tripId: string) {
 }
 
 /**
+ * Get available drivers for a trip sorted by average rating and suitability
+ * 1. Get trip details and franchise
+ * 2. Get drivers from franchise
+ * 3. Filter by carCategory and transmissionType match
+ * 4. Get average ratings from TripReview
+ * 5. Sort by rating (higher first) and suitability
+ */
+export async function getAvailableDriversSortedByRating(tripId: string) {
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error("Trip not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Get franchise ID from trip
+  const franchiseId = trip.franchiseId;
+
+  // Get all active drivers from the franchise
+  const { getAllDrivers } = await import("../repositories/driver.repository");
+  const allDrivers = await getAllDrivers(false, franchiseId);
+
+  // Extract trip requirements
+  const tripGearType = (trip as any).carGearType || extractCarGearTypeFromLegacyCarType(trip.carType);
+  const tripCarType = trip.carType;
+  
+  // Parse trip car category from legacy format or direct value
+  let tripCarCategory: string | null = null;
+  if (tripCarType) {
+    try {
+      const parsed = JSON.parse(tripCarType);
+      tripCarCategory = parsed.category || tripCarType;
+    } catch {
+      tripCarCategory = tripCarType;
+    }
+  }
+
+  // Filter drivers based on suitability
+  const suitableDrivers = allDrivers.filter((driver) => {
+    // Basic eligibility
+    if (driver.status !== "ACTIVE" || !driver.isActive) return false;
+    if (driver.bannedGlobally) return false;
+    if (driver.licenseExpDate < new Date()) return false;
+
+    // Check transmission type match (carGearType)
+    if (tripGearType) {
+      const hasMatchingTransmission = driver.transmissionTypes.includes(tripGearType as any);
+      if (!hasMatchingTransmission) return false;
+    }
+
+    // Check car category match
+    if (tripCarCategory) {
+      // Map trip car category to driver car categories
+      const categoryMapping: Record<string, string[]> = {
+        PREMIUM: ["PREMIUM", "LUXURY"],
+        LUXURY: ["LUXURY", "PREMIUM"],
+        NORMAL: ["ECONOMY", "NORMAL"],
+        ECONOMY: ["ECONOMY", "NORMAL"],
+      };
+
+      const acceptableCategories = categoryMapping[tripCarCategory] || [tripCarCategory];
+      const hasMatchingCategory = driver.carCategories.some((cat: string) => 
+        acceptableCategories.includes(cat)
+      );
+      
+      if (!hasMatchingCategory) return false;
+    }
+
+    return true;
+  });
+
+  // Get average ratings for all suitable drivers
+  const driverIds = suitableDrivers.map((d) => d.id);
+  const { getAverageRatingsByDriverIds } = await import("../repositories/tripReview.repository");
+  const ratingsMap = await getAverageRatingsByDriverIds(driverIds);
+
+  // Map drivers with their ratings
+  const driversWithRatings = suitableDrivers.map((driver) => ({
+    id: driver.id,
+    firstName: driver.firstName,
+    lastName: driver.lastName,
+    phone: driver.phone,
+    email: driver.email,
+    driverCode: driver.driverCode,
+    status: driver.status,
+    driverTripStatus: driver.driverTripStatus,
+    currentRating: driver.currentRating,
+    averageRating: ratingsMap.get(driver.id) || 0,
+    transmissionTypes: driver.transmissionTypes,
+    carCategories: driver.carCategories,
+    franchiseId: driver.franchiseId,
+  }));
+
+  // Sort by average rating (descending) - drivers with higher ratings first
+  driversWithRatings.sort((a, b) => {
+    // Primary: Average rating (higher is better)
+    const ratingDiff = b.averageRating - a.averageRating;
+    if (ratingDiff !== 0) return ratingDiff;
+
+    // Secondary: Current rating (higher is better)
+    const currentRatingA = a.currentRating || 0;
+    const currentRatingB = b.currentRating || 0;
+    const currentRatingDiff = currentRatingB - currentRatingA;
+    if (currentRatingDiff !== 0) return currentRatingDiff;
+
+    // Tertiary: Driver code (for consistent ordering)
+    return a.driverCode.localeCompare(b.driverCode);
+  });
+
+  return {
+    tripId: trip.id,
+    franchiseId: trip.franchiseId,
+    tripRequirements: {
+      carType: tripCarType,
+      carGearType: tripGearType,
+      carCategory: tripCarCategory,
+    },
+    availableDrivers: driversWithRatings,
+  };
+}
+
+/**
  * Assign a driver to a trip with explicit franchise validation
  */
 export async function assignDriverToTripWithFranchise(

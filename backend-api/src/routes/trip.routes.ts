@@ -12,6 +12,7 @@ import {
   getUnassignedTripsHandler,
   getAssignedTripsHandler,
   getAvailableDriversForTripHandler,
+  getAvailableDriversSortedByRatingHandler,
   assignDriverToTripHandler,
   assignDriverToTripWithFranchiseHandler,
   getDriverAssignedTripsHandler,
@@ -51,6 +52,7 @@ router.get("/driver/assigned", getDriverAssignedTripsHandler);
 router.get("/my-assigned", getMyAssignedTripsHandler);
 router.get("/my", getMyTripsHandler);
 router.get("/:id/available-drivers", getAvailableDriversForTripHandler);
+router.get("/:id/available", getAvailableDriversSortedByRatingHandler);
 router.get("/:id", getTripByIdHandler);
 router.post("/", createTripHandler);
 router.post("/phase1", createTripPhase1Handler);

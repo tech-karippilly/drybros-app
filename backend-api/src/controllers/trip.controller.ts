@@ -314,6 +314,25 @@ export async function getAvailableDriversForTripHandler(
 }
 
 /**
+ * Get available drivers for a trip sorted by rating and suitability
+ * GET /trip/:id/available
+ */
+export async function getAvailableDriversSortedByRatingHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const id = validateAndGetUUID(req.params.id, "Trip ID");
+    const { getAvailableDriversSortedByRating } = await import("../services/trip.service");
+    const result = await getAvailableDriversSortedByRating(id);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * Get trips assigned to the authenticated driver
  */
 export async function getDriverAssignedTripsHandler(

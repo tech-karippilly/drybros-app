@@ -52,3 +52,26 @@ export async function getTripReviewById(id: string): Promise<any> {
     },
   });
 }
+
+export async function getAverageRatingsByDriverIds(driverIds: string[]): Promise<Map<string, number>> {
+  const result = await (prisma as any).tripReview.groupBy({
+    by: ['driverId'],
+    where: {
+      driverId: {
+        in: driverIds,
+      },
+    },
+    _avg: {
+      driverRating: true,
+    },
+  });
+
+  const ratingsMap = new Map<string, number>();
+  for (const item of result) {
+    if (item._avg.driverRating !== null) {
+      ratingsMap.set(item.driverId, item._avg.driverRating);
+    }
+  }
+  
+  return ratingsMap;
+}

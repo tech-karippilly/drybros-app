@@ -3,8 +3,8 @@
  * User account and settings – header with banner + pattern, content below
  */
 
-import React from 'react';
-import { View, StyleSheet, ScrollView, Image, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Text } from '../typography';
 import { useToast, useAuth } from '../contexts';
+import { getMyDriverProfile, type DriverProfileWithEarnings } from '../services/api/auth';
 import {
   COLORS,
   TAB_BAR_SCENE_PADDING_BOTTOM,
@@ -22,8 +23,6 @@ import {
   PROFILE_CARD,
   PROFILE_SCREEN_GRADIENT,
   PROFILE_STRINGS,
-  PROFILE_MOCK_USER,
-  PROFILE_MOCK_EARNINGS,
 } from '../constants';
 import { PROFILE_STACK_ROUTES } from '../constants/routes';
 import type { ProfileStackParamList } from '../navigation/ProfileStackNavigator';
@@ -66,10 +65,47 @@ export function ProfileScreen() {
   const { logout } = useAuth();
   const headerHeight = heightPercentage(LAYOUT.PROFILE_HEADER_HEIGHT_PERCENT);
   const outerSize = normalizeWidth(PROFILE_CIRCLE.SIZE);
-  const hasProfileImage = Boolean(PROFILE_MOCK_USER.imageUri);
-  const initials = getInitials(PROFILE_MOCK_USER.name);
+  
+  const [profileData, setProfileData] = useState<DriverProfileWithEarnings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch profile data on mount
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getMyDriverProfile();
+      setProfileData(data);
+    } catch (err: any) {
+      console.error('Failed to fetch profile:', err);
+      setError(err?.message || 'Failed to load profile');
+      showToast({ message: 'Failed to load profile data', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fullName = profileData 
+    ? `${profileData.firstName} ${profileData.lastName}` 
+    : '';
+  const phone = profileData?.phone || '';
+  const hasProfileImage = false; // No image URI in API response yet
+  const initials = getInitials(fullName);
   const innerSize = outerSize - PROFILE_CIRCLE.BORDER_WIDTH * 2;
   const initialsFontSize = normalizeFont(PROFILE_CIRCLE.INITIALS_FONT_SIZE);
+
+  // Format earnings for display
+  const todayEarnings = profileData 
+    ? `₹ ${profileData.earnings.monthlyEarnings.toLocaleString('en-IN')}` 
+    : '₹ 0';
+  const monthlyEarnings = profileData 
+    ? `₹ ${profileData.earnings.totalEarnings.toLocaleString('en-IN')}` 
+    : '₹ 0';
 
   const handleLogout = async () => {
     try {
@@ -170,67 +206,97 @@ export function ProfileScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Profile info: name, phone */}
-          <View style={styles.profileInfo}>
-            <Text variant="h5" weight="bold" style={styles.profileName}>
-              {PROFILE_MOCK_USER.name}
-            </Text>
-            <Text variant="caption" style={styles.profilePhone}>
-              {PROFILE_MOCK_USER.phone}
-            </Text>
-          </View>
-
-          {/* HR: 1px gradient line (transparent → #DDDDDD → transparent) */}
-          <View style={styles.hrWrap}>
-            <LinearGradient
-              colors={[...PROFILE_CARD.HR_GRADIENT_COLORS]}
-              locations={[...PROFILE_CARD.HR_GRADIENT_LOCATIONS]}
-              style={styles.hrLine}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-            />
-          </View>
-
-          {/* Earnings section */}
-          <Text variant="body" weight="semiBold" style={styles.sectionTitle}>
-            {PROFILE_STRINGS.EARNINGS}
-          </Text>
-          <View style={styles.earningsRow}>
-            <View style={styles.earningsBox}>
-              <Text variant="body" weight="bold" style={styles.earningsAmount}>
-                {PROFILE_MOCK_EARNINGS.today}
-              </Text>
-              <Text variant="caption" style={styles.earningsLabel}>
-                {PROFILE_STRINGS.TODAY_EARNINGS}
-              </Text>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={COLORS.tomatoRed} />
+              <Text variant="caption" style={styles.loadingText}>Loading profile...</Text>
             </View>
-            <View style={styles.earningsBox}>
-              <Text variant="body" weight="bold" style={styles.earningsAmount}>
-                {PROFILE_MOCK_EARNINGS.monthly}
-              </Text>
-              <Text variant="caption" style={styles.earningsLabel}>
-                {PROFILE_STRINGS.MONTHLY_EARNINGS}
-              </Text>
+          ) : error ? (
+            <View style={styles.errorContainer}>
+              <MaterialCommunityIcons name="alert-circle-outline" size={normalizeWidth(48)} color={COLORS.error} />
+              <Text variant="body" style={styles.errorText}>{error}</Text>
+              <TouchableOpacity onPress={fetchProfile} style={styles.retryButton}>
+                <Text variant="caption" weight="semiBold" style={styles.retryText}>Retry</Text>
+              </TouchableOpacity>
             </View>
-          </View>
-          <View style={styles.listSection}>
-            <ProfileListItem
-              label={PROFILE_STRINGS.EARNINGS_HISTORY_TITLE}
-              onPress={() => navigation.navigate(PROFILE_STACK_ROUTES.EARNINGS)}
-            />
-            <ProfileListItem
-              label={PROFILE_STRINGS.COMPLAINTS_HISTORY_TITLE}
-              onPress={() => navigation.navigate(PROFILE_STACK_ROUTES.COMPLAINTS)}
-              showDivider={false}
-            />
-          </View>
+          ) : (
+            <>
+              <View style={styles.profileInfo}>
+                <Text variant="h5" weight="bold" style={styles.profileName}>
+                  {fullName}
+                </Text>
+                <Text variant="caption" style={styles.profilePhone}>
+                  {phone}
+                </Text>
+                {profileData?.currentRating && (
+                  <View style={styles.ratingContainer}>
+                    <MaterialCommunityIcons name="star" size={normalizeWidth(16)} color={COLORS.warning} />
+                    <Text variant="caption" style={styles.ratingText}>
+                      {profileData.currentRating.toFixed(1)}
+                    </Text>
+                  </View>
+                )}
+              </View>
 
-          {/* Logout */}
-          <TouchableOpacity activeOpacity={0.8} onPress={handleLogout} style={styles.logoutButton}>
-            <MaterialCommunityIcons name="logout" size={normalizeWidth(18)} color={COLORS.textSecondary} />
-            <Text variant="caption" weight="medium" style={styles.logoutText}>
-              {PROFILE_STRINGS.LOGOUT}
-            </Text>
-          </TouchableOpacity>
+              {/* HR: 1px gradient line (transparent → #DDDDDD → transparent) */}
+              <View style={styles.hrWrap}>
+                <LinearGradient
+                  colors={[...PROFILE_CARD.HR_GRADIENT_COLORS]}
+                  locations={[...PROFILE_CARD.HR_GRADIENT_LOCATIONS]}
+                  style={styles.hrLine}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                />
+              </View>
+
+              {/* Earnings section */}
+              <Text variant="body" weight="semiBold" style={styles.sectionTitle}>
+                {PROFILE_STRINGS.EARNINGS}
+              </Text>
+              <View style={styles.earningsRow}>
+                <View style={styles.earningsBox}>
+                  <Text variant="body" weight="bold" style={styles.earningsAmount}>
+                    {monthlyEarnings}
+                  </Text>
+                  <Text variant="caption" style={styles.earningsLabel}>
+                    {PROFILE_STRINGS.MONTHLY_EARNINGS}
+                  </Text>
+                  {profileData?.earnings && (
+                    <Text variant="caption" style={styles.earningsSubLabel}>
+                      {profileData.earnings.tripsCount} trips
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.earningsBox}>
+                  <Text variant="body" weight="bold" style={styles.earningsAmount}>
+                    {todayEarnings}
+                  </Text>
+                  <Text variant="caption" style={styles.earningsLabel}>
+                    Total Earnings
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.listSection}>
+                <ProfileListItem
+                  label={PROFILE_STRINGS.EARNINGS_HISTORY_TITLE}
+                  onPress={() => navigation.navigate(PROFILE_STACK_ROUTES.EARNINGS)}
+                />
+                <ProfileListItem
+                  label={PROFILE_STRINGS.COMPLAINTS_HISTORY_TITLE}
+                  onPress={() => navigation.navigate(PROFILE_STACK_ROUTES.COMPLAINTS)}
+                  showDivider={false}
+                />
+              </View>
+
+              {/* Logout */}
+              <TouchableOpacity activeOpacity={0.8} onPress={handleLogout} style={styles.logoutButton}>
+                <MaterialCommunityIcons name="logout" size={normalizeWidth(18)} color={COLORS.textSecondary} />
+                <Text variant="caption" weight="medium" style={styles.logoutText}>
+                  {PROFILE_STRINGS.LOGOUT}
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
         </ScrollView>
       </View>
     </View>
@@ -342,6 +408,47 @@ const styles = StyleSheet.create({
     marginTop: normalizeHeight(4),
     textAlign: 'center',
   },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: normalizeWidth(4),
+    marginTop: normalizeHeight(8),
+    paddingHorizontal: normalizeWidth(12),
+    paddingVertical: normalizeHeight(4),
+    backgroundColor: COLORS.gray100,
+    borderRadius: normalizeWidth(16),
+  },
+  ratingText: {
+    color: COLORS.textPrimary,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: normalizeHeight(40),
+  },
+  loadingText: {
+    color: COLORS.textSecondary,
+    marginTop: normalizeHeight(12),
+  },
+  errorContainer: {
+    alignItems: 'center',
+    paddingVertical: normalizeHeight(40),
+  },
+  errorText: {
+    color: COLORS.error,
+    textAlign: 'center',
+    marginTop: normalizeHeight(12),
+  },
+  retryButton: {
+    marginTop: normalizeHeight(16),
+    paddingHorizontal: normalizeWidth(24),
+    paddingVertical: normalizeHeight(10),
+    backgroundColor: COLORS.tomatoRed,
+    borderRadius: normalizeWidth(8),
+  },
+  retryText: {
+    color: COLORS.white,
+  },
   hrWrap: {
     width: '100%',
     height: 1,
@@ -372,6 +479,11 @@ const styles = StyleSheet.create({
   earningsLabel: {
     color: COLORS.textSecondary,
     marginTop: normalizeHeight(4),
+  },
+  earningsSubLabel: {
+    color: COLORS.textTertiary,
+    marginTop: normalizeHeight(2),
+    fontSize: normalizeFont(11),
   },
   listSection: {
     marginTop: normalizeHeight(12),

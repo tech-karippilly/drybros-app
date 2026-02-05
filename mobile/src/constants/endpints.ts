@@ -19,6 +19,7 @@ export const API_ENDPOINTS ={
         DRIVER_DETAILS:'/drivers/:id',
         DAILY_STATS:'/drivers/:id/daily-stats',
         ME_LOCATION: '/drivers/me/location',
+        ME_PROFILE: '/drivers/me/profile',
     },
     TRIPS: {
         MY_ASSIGNED: '/trips/my-assigned',
@@ -30,6 +31,7 @@ export const API_ENDPOINTS ={
         END_VERIFY: '/trips/:id/end-verify',
         COLLECT_PAYMENT: '/trips/:id/collect-payment',
         VERIFY_PAYMENT: '/trips/:id/verify-payment',
+        LIVE_LOCATION: '/trips/:id/live-location',
     },
     TRIP_OFFERS: {
         MY_PENDING: '/trip-offers/my-pending',

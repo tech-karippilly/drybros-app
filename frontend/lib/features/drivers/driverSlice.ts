@@ -106,6 +106,8 @@ const mapBackendDriverToFrontend = (backendDriver: DriverResponse): GetDriver =>
         contactName: backendDriver.emergencyContactName,
         contactNumber: backendDriver.emergencyContactPhone,
         relationship: backendDriver.emergencyContactRelation,
+        transmissionTypes: backendDriver.transmissionTypes || [],
+        carCategories: backendDriver.carCategories || [],
         carTypes: backendDriver.carTypes || ['MANUAL'],
     };
 };
@@ -168,6 +170,8 @@ const mapFrontendDriverToBackend = (frontendDriver: CreateDriverInput): CreateDr
         bankAccountNumber: frontendDriver.bankAccountNumber,
         bankIfscCode: frontendDriver.bankIfscCode,
         ...docFlags,
+        transmissionTypes: frontendDriver.transmissionTypes || [],
+        carCategories: frontendDriver.carCategories || [],
         carTypes: frontendDriver.carTypes || ['MANUAL'], // Use provided or default
         franchiseId, // UUID string
         licenseType: frontendDriver.licenseType || null,
@@ -289,6 +293,17 @@ export const updateDriver = createAsyncThunk(
             // Map employment type if provided
             if (data.employmentType !== null && data.employmentType !== undefined) {
                 updateRequest.employmentType = mapEmploymentTypeToApi(data.employmentType as EmploymentType) || null;
+            }
+            
+            // Map transmissionTypes and carCategories
+            if (data.transmissionTypes !== null && data.transmissionTypes !== undefined) {
+                updateRequest.transmissionTypes = data.transmissionTypes;
+            }
+            if (data.carCategories !== null && data.carCategories !== undefined) {
+                updateRequest.carCategories = data.carCategories;
+            }
+            if (data.carTypes !== null && data.carTypes !== undefined) {
+                updateRequest.carTypes = data.carTypes;
             }
             
             // Convert id to UUID string

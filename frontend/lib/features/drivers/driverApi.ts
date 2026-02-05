@@ -50,6 +50,8 @@ export interface CreateDriverRequest {
     license?: boolean;
     educationCert?: boolean;
     previousExp?: boolean;
+    transmissionTypes?: ('MANUAL' | 'AUTOMATIC' | 'EV')[];
+    carCategories?: ('NORMAL' | 'PREMIUM' | 'LUXURY' | 'SPORTS')[];
     carTypes: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[];
     franchiseId: string;
     employmentType?: 'part time' | 'full time' | 'contract';
@@ -78,6 +80,8 @@ export interface UpdateDriverRequest {
     license?: boolean;
     educationCert?: boolean;
     previousExp?: boolean;
+    transmissionTypes?: ('MANUAL' | 'AUTOMATIC' | 'EV')[];
+    carCategories?: ('NORMAL' | 'PREMIUM' | 'LUXURY' | 'SPORTS')[];
     carTypes?: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[];
     franchiseId?: string;
     employmentType?: 'part time' | 'full time' | 'contract' | null;
@@ -127,6 +131,8 @@ export interface DriverResponse {
     license: boolean;
     educationCert: boolean;
     previousExp: boolean;
+    transmissionTypes?: ('MANUAL' | 'AUTOMATIC' | 'EV')[];
+    carCategories?: ('NORMAL' | 'PREMIUM' | 'LUXURY' | 'SPORTS')[];
     carTypes: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[];
     status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED' | 'TERMINATED';
     complaintCount: number;

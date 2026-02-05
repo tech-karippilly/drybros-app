@@ -101,4 +101,41 @@ export async function refreshTokenApi(refreshToken: string): Promise<RefreshToke
   };
 }
 
+export type DriverEarnings = {
+  totalEarnings: number;
+  month: number;
+  year: number;
+  monthlyEarnings: number;
+  tripsCount: number;
+};
+
+export type DriverProfileWithEarnings = {
+  id: string;
+  driverCode: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  altPhone?: string | null;
+  status?: string;
+  currentRating?: number | null;
+  dailyTargetAmount?: number | null;
+  cashInHand?: number | null;
+  earnings: DriverEarnings;
+};
+
+export type GetMyDriverProfileResponse = {
+  data: DriverProfileWithEarnings;
+};
+
+/**
+ * Get the authenticated driver's profile with earnings
+ * GET /drivers/me/profile
+ */
+export async function getMyDriverProfile(): Promise<DriverProfileWithEarnings> {
+  const res = await apiClient.get<GetMyDriverProfileResponse>(API_ENDPOINTS.DRIVER.ME_PROFILE);
+  const data = (res.data as any)?.data ?? res.data;
+  return data;
+}
+
 

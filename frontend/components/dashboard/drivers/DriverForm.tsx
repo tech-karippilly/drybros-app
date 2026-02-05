@@ -25,19 +25,26 @@ type FormState = CreateDriverInput & {
     licenseExpiryDate?: string; // UI field, mapped to licenseExpDate for backend
     documentsCollected?: string[];
     password?: string;
-    carTypes?: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[];
+    carTypes?: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[]; // Legacy field
+    transmissionTypes?: ('MANUAL' | 'AUTOMATIC' | 'EV')[];
+    carCategories?: ('NORMAL' | 'PREMIUM' | 'LUXURY' | 'SPORTS')[];
     contactName?: string;
     contactNumber?: string;
     relationship?: string;
     status?: DriverStatus;
 };
 
-const CAR_CATEGORY = [
+const TRANSMISSION_TYPES = [
     { label: 'Manual', value: 'MANUAL' },
     { label: 'Automatic', value: 'AUTOMATIC' },
-    { label: 'Premium Cars', value: 'PREMIUM_CARS' },
-    { label: 'Luxury Cars', value: 'LUXURY_CARS' },
-    { label: 'Sporty Cars', value: 'SPORTY_CARS' },
+    { label: 'EV', value: 'EV' },
+] as const;
+
+const CAR_CATEGORIES = [
+    { label: 'Normal Cars', value: 'NORMAL' },
+    { label: 'Premium Cars', value: 'PREMIUM' },
+    { label: 'Luxury Cars', value: 'LUXURY' },
+    { label: 'Sporty Cars', value: 'SPORTS' },
 ] as const;
 
 const DOCUMENT_OPTIONS = ['Govt Identity', 'Address Proof', 'Educational Certificates', 'Previous Experience', 'Police Verification'];
@@ -66,7 +73,8 @@ const getInitialFormData = (driver: GetDriver | null): FormState => {
             // Ensure email and password are always defined for controlled inputs
             email: (driver as any).email || '',
             password: '',
-            carTypes: (driver as any).carTypes || []
+            transmissionTypes: (driver as any).transmissionTypes || [],
+            carCategories: (driver as any).carCategories || []
         };
     }
     return {
@@ -81,7 +89,8 @@ const getInitialFormData = (driver: GetDriver | null): FormState => {
         aadharCard: false, license: false, educationCert: false, previousExp: false,
         documentsCollected: [],
         franchiseId: '',
-        carTypes: []
+        transmissionTypes: [],
+        carCategories: []
     };
 };
 
@@ -136,13 +145,24 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
         });
     }, []);
 
+    const handleTransmissionToggle = React.useCallback((type: any) => {
+        setFormData((prev: FormState) => {
+            const types = prev.transmissionTypes || [];
+            if (types.includes(type)) {
+                return { ...prev, transmissionTypes: types.filter((t) => t !== type) };
+            } else {
+                return { ...prev, transmissionTypes: [...types, type] };
+            }
+        });
+    }, []);
+
     const handleCategoryToggle = React.useCallback((category: any) => {
         setFormData((prev: FormState) => {
-            const types = prev.carTypes || [];
-            if (types.includes(category)) {
-                return { ...prev, carTypes: types.filter((t) => t !== category) };
+            const categories = prev.carCategories || [];
+            if (categories.includes(category)) {
+                return { ...prev, carCategories: categories.filter((c) => c !== category) };
             } else {
-                return { ...prev, carTypes: [...types, category] };
+                return { ...prev, carCategories: [...categories, category] };
             }
         });
     }, []);
@@ -195,7 +215,8 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                     contactName: toNull(formData.contactName), contactNumber: toNull(formData.contactNumber),
                     relationship: toNull(formData.relationship),
                     documentsCollected: formData.documentsCollected && formData.documentsCollected.length > 0 ? formData.documentsCollected : null,
-                    carTypes: formData.carTypes && formData.carTypes.length > 0 ? formData.carTypes : null
+                    transmissionTypes: formData.transmissionTypes && formData.transmissionTypes.length > 0 ? formData.transmissionTypes : null,
+                    carCategories: formData.carCategories && formData.carCategories.length > 0 ? formData.carCategories : null
                 };
                 const driverId = (driver as any).id || driver._id;
                 await dispatch(updateDriver({ id: driverId, data: updatePayload })).unwrap();
@@ -237,8 +258,9 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                     educationCert: !!formData.educationCert,
                     previousExp: !!formData.previousExp,
 
-                    // Car types
-                    carTypes: formData.carTypes || [],
+                    // Transmission types and car categories
+                    transmissionTypes: formData.transmissionTypes || [],
+                    carCategories: formData.carCategories || [],
 
                     // Franchise and employment
                     franchiseId,
@@ -518,10 +540,33 @@ export function DriverForm({ isOpen, onClose, driver }: DriverFormProps) {
                         </div>
                         
                         <div>
-                            <label className={labelClass}>Car Types</label>
+                            <label className={labelClass}>Transmission Types</label>
                             <div className="flex gap-6 mt-3">
-                                {CAR_CATEGORY.map(category => {
-                                    const selected = formData.carTypes?.includes(category.value as any);
+                                {TRANSMISSION_TYPES.map(type => {
+                                    const selected = formData.transmissionTypes?.includes(type.value as any);
+                                    return (
+                                        <label key={type.value} className="flex items-center gap-3 cursor-pointer group">
+                                            <div className={`size-5 rounded border flex items-center justify-center transition-colors ${selected ? 'bg-[#0d59f2] border-[#0d59f2]' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-800 group-hover:border-gray-300 dark:group-hover:border-gray-600'}`}>
+                                                {selected && <CheckCircle size={12} className="text-white" />}
+                                            </div>
+                                            <input
+                                                type="checkbox"
+                                                className="hidden"
+                                                checked={selected}
+                                                onChange={() => handleTransmissionToggle(type.value)}
+                                            />
+                                            <span className="text-[#0d121c] dark:text-gray-300 text-sm">{type.label}</span>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className={labelClass}>Car Categories</label>
+                            <div className="flex gap-6 mt-3">
+                                {CAR_CATEGORIES.map(category => {
+                                    const selected = formData.carCategories?.includes(category.value as any);
                                     return (
                                         <label key={category.value} className="flex items-center gap-3 cursor-pointer group">
                                             <div className={`size-5 rounded border flex items-center justify-center transition-colors ${selected ? 'bg-[#0d59f2] border-[#0d59f2]' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-800 group-hover:border-gray-300 dark:group-hover:border-gray-600'}`}>

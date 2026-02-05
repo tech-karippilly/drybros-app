@@ -26,6 +26,8 @@ export interface Driver {
     currentRating : number | null;
     createdAt :string; // ISO string
     updatedAt :string; // ISO string
+    transmissionTypes?: ('MANUAL' | 'AUTOMATIC' | 'EV')[];
+    carCategories?: ('NORMAL' | 'PREMIUM' | 'LUXURY' | 'SPORTS')[];
     // trips : Trip[];
 
 }
@@ -73,8 +75,13 @@ export interface CreateDriverInput{
     emergencyContactPhone: string;
     emergencyContactRelation: string;
     
-    // Car types (required for backend)
+    // Transmission types and car categories (required for backend)
+    transmissionTypes?: ('MANUAL' | 'AUTOMATIC' | 'EV')[];
+    carCategories?: ('NORMAL' | 'PREMIUM' | 'LUXURY' | 'SPORTS')[];
+    
+    // Legacy car types field (kept for backward compatibility)
     carTypes?: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[];
+    
     aadharCard: boolean;
     license: boolean;
     educationCert: boolean;
@@ -124,6 +131,11 @@ export interface UpdateDriverInput{
     contactNumber: string | null;
     relationship: string | null;
 
+    // Transmission types and car categories
+    transmissionTypes?: ('MANUAL' | 'AUTOMATIC' | 'EV')[] | null;
+    carCategories?: ('NORMAL' | 'PREMIUM' | 'LUXURY' | 'SPORTS')[] | null;
+    
+    // Legacy car types field (kept for backward compatibility)
     carTypes?: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[] | null;
 }
 
@@ -183,6 +195,11 @@ export interface GetDriver{
     contactNumber: string | null;
     relationship: string | null;
 
+    // Transmission types and car categories
+    transmissionTypes?: ('MANUAL' | 'AUTOMATIC' | 'EV')[];
+    carCategories?: ('NORMAL' | 'PREMIUM' | 'LUXURY' | 'SPORTS')[];
+    
+    // Legacy car types field (kept for backward compatibility)
     carTypes: ('MANUAL' | 'AUTOMATIC' | 'PREMIUM_CARS' | 'LUXURY_CARS' | 'SPORTY_CARS')[];
 
     // Daily Status (optional, populated from API)

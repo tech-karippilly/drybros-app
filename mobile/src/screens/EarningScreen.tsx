@@ -3,14 +3,20 @@
  * Matches the provided design (custom header, tabs, summary cards, history list).
  */
 
-import React from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Text } from '../typography';
 import { normalizeHeight, normalizeWidth } from '../utils/responsive';
-import { COLORS, EARNINGS_COLORS, EARNINGS_LAYOUT, EARNINGS_MOCK_HISTORY, EARNINGS_MOCK_SUMMARY, EARNINGS_STRINGS } from '../constants';
+import { COLORS, EARNINGS_COLORS, EARNINGS_LAYOUT, EARNINGS_STRINGS } from '../constants';
+import { getDriverDailyStatsApi } from '../services/api/driverDailyStats';
+import { getDriverMonthlyStatsApi } from '../services/api/driverEarnings';
+import { getDriverTransactionsApi, getDriverTransactionSummaryApi } from '../services/api/driverTransactions';
+import type { DriverDailyStats } from '../services/api/driverDailyStats';
+import type { DriverMonthlyStats } from '../services/api/driverEarnings';
+import type { DriverTransaction } from '../services/api/driverTransactions';
 
 type EarningsPeriod = 'daily' | 'monthly' | 'yearly';
 
@@ -80,16 +86,66 @@ function EarningsTabs({ value, onChange }: TabsProps) {
   );
 }
 
-function SummaryCard() {
+type SummaryCardProps = {
+  period: EarningsPeriod;
+  dailyStats?: DriverDailyStats | null;
+  monthlyStats?: DriverMonthlyStats | null;
+  loading: boolean;
+};
+
+function SummaryCard({ period, dailyStats, monthlyStats, loading }: SummaryCardProps) {
+  const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN')}`;
+
+  const getPeriodLabel = () => {
+    if (period === 'daily') return EARNINGS_STRINGS.TODAY;
+    if (period === 'monthly') return 'This Month';
+    return 'This Year';
+  };
+
+  const getTotalEarnings = () => {
+    if (period === 'daily' && dailyStats) {
+      return formatCurrency(dailyStats.amountRunToday);
+    }
+    if (period === 'monthly' && monthlyStats) {
+      return formatCurrency(monthlyStats.totalAmount);
+    }
+    return '₹ 0';
+  };
+
+  const getIncentives = () => {
+    if (period === 'daily' && dailyStats) {
+      return formatCurrency(dailyStats.incentiveToday);
+    }
+    if (period === 'monthly' && monthlyStats) {
+      return formatCurrency(monthlyStats.totalIncentive);
+    }
+    return '₹ 0';
+  };
+
+  const getPenalties = () => {
+    if (period === 'monthly' && monthlyStats) {
+      return formatCurrency(monthlyStats.totalPenalties);
+    }
+    return '₹ 0';
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.card, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.card}>
       <Text variant="body" weight="semiBold" style={styles.sectionTitle}>
-        {EARNINGS_STRINGS.TODAY}
+        {getPeriodLabel()}
       </Text>
 
       <View style={styles.totalBox}>
         <Text variant="h4" weight="semiBold" style={styles.totalAmount}>
-          {EARNINGS_MOCK_SUMMARY.total}
+          {getTotalEarnings()}
         </Text>
         <Text variant="caption" style={styles.subLabel}>
           {EARNINGS_STRINGS.TOTAL_EARNINGS}
@@ -99,7 +155,7 @@ function SummaryCard() {
       <View style={styles.twoColRow}>
         <View style={[styles.smallBox, styles.incentiveBox]}>
           <Text variant="h4" weight="semiBold" style={styles.smallAmount}>
-            {EARNINGS_MOCK_SUMMARY.incentives}
+            {getIncentives()}
           </Text>
           <Text variant="caption" style={styles.subLabel}>
             {EARNINGS_STRINGS.INCENTIVES}
@@ -108,10 +164,10 @@ function SummaryCard() {
 
         <View style={[styles.smallBox, styles.bonusBox]}>
           <Text variant="h4" weight="semiBold" style={styles.smallAmount}>
-            {EARNINGS_MOCK_SUMMARY.bonus}
+            {getPenalties()}
           </Text>
           <Text variant="caption" style={styles.subLabel}>
-            {EARNINGS_STRINGS.BONUS}
+            Penalties
           </Text>
         </View>
       </View>
@@ -119,59 +175,249 @@ function SummaryCard() {
   );
 }
 
-function EarningsHistoryCard() {
+type EarningsHistoryCardProps = {
+  period: EarningsPeriod;
+  transactions: DriverTransaction[];
+  monthlyStats?: DriverMonthlyStats | null;
+  loading: boolean;
+};
+
+function EarningsHistoryCard({ period, transactions, monthlyStats, loading }: EarningsHistoryCardProps) {
+  const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN')}`;
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.card, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
+  // For daily view, show transactions
+  if (period === 'daily') {
+    if (transactions.length === 0) {
+      return (
+        <View style={styles.card}>
+          <Text variant="body" weight="semiBold" style={styles.sectionTitle}>
+            Recent Transactions
+          </Text>
+          <Text variant="caption" style={[styles.subLabel, { textAlign: 'center', marginTop: 20 }]}>
+            No transactions found
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.card}>
+        <Text variant="body" weight="semiBold" style={styles.sectionTitle}>
+          Recent Transactions
+        </Text>
+
+        {transactions.slice(0, 10).map((transaction, idx) => (
+          <View key={transaction.id} style={[styles.historyRow, idx > 0 && styles.historyRowDivider]}>
+            <View style={styles.transactionHeader}>
+              <Text variant="caption" style={styles.historyDate}>
+                {formatDate(transaction.createdAt)}
+              </Text>
+              <Text
+                variant="caption"
+                style={[
+                  styles.transactionType,
+                  transaction.transactionType === 'CREDIT' ? styles.creditText : styles.debitText,
+                ]}
+              >
+                {transaction.type}
+              </Text>
+            </View>
+
+            <View style={styles.historyCols}>
+              <View style={[styles.historyCol, { flex: 2 }]}>
+                <Text variant="caption" style={styles.historyColLabel}>
+                  Description
+                </Text>
+                <Text variant="body" weight="semiBold" style={styles.historyValue}>
+                  {transaction.description || transaction.type}
+                </Text>
+              </View>
+
+              <View style={styles.historyCol}>
+                <Text variant="caption" style={styles.historyColLabel}>
+                  Amount
+                </Text>
+                <Text
+                  variant="body"
+                  weight="semiBold"
+                  style={[
+                    styles.historyValue,
+                    transaction.transactionType === 'CREDIT' ? styles.creditText : styles.debitText,
+                  ]}
+                >
+                  {transaction.transactionType === 'CREDIT' ? '+' : '-'}
+                  {formatCurrency(transaction.amount)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ))}
+      </View>
+    );
+  }
+
+  // For monthly view, show daily stats
+  if (period === 'monthly' && monthlyStats?.dailyStats) {
+    if (monthlyStats.dailyStats.length === 0) {
+      return (
+        <View style={styles.card}>
+          <Text variant="body" weight="semiBold" style={styles.sectionTitle}>
+            {EARNINGS_STRINGS.HISTORY_TITLE}
+          </Text>
+          <Text variant="caption" style={[styles.subLabel, { textAlign: 'center', marginTop: 20 }]}>
+            No earnings data found
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.card}>
+        <Text variant="body" weight="semiBold" style={styles.sectionTitle}>
+          {EARNINGS_STRINGS.HISTORY_TITLE}
+        </Text>
+
+        {monthlyStats.dailyStats.slice(0, 10).map((row, idx) => (
+          <View key={row.date} style={[styles.historyRow, idx > 0 && styles.historyRowDivider]}>
+            <Text variant="caption" style={styles.historyDate}>
+              {formatDate(row.date)}
+            </Text>
+
+            <View style={styles.historyCols}>
+              <View style={styles.historyCol}>
+                <Text variant="caption" style={styles.historyColLabel}>
+                  {EARNINGS_STRINGS.COL_EARNINGS}
+                </Text>
+                <Text variant="body" weight="semiBold" style={styles.historyValue}>
+                  {formatCurrency(row.totalAmount)}
+                </Text>
+              </View>
+
+              <View style={styles.historyCol}>
+                <Text variant="caption" style={styles.historyColLabel}>
+                  {EARNINGS_STRINGS.COL_INCENTIVE}
+                </Text>
+                <Text variant="body" weight="semiBold" style={styles.historyValue}>
+                  {formatCurrency(row.incentive)}
+                </Text>
+              </View>
+
+              <View style={styles.historyCol}>
+                <Text variant="caption" style={styles.historyColLabel}>
+                  Trips
+                </Text>
+                <Text variant="body" weight="semiBold" style={styles.historyValue}>
+                  {row.tripsCount}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ))}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.card}>
       <Text variant="body" weight="semiBold" style={styles.sectionTitle}>
         {EARNINGS_STRINGS.HISTORY_TITLE}
       </Text>
-
-      {EARNINGS_MOCK_HISTORY.map((row, idx) => (
-        <View key={`${row.dateLabel}-${idx}`} style={[styles.historyRow, idx > 0 && styles.historyRowDivider]}>
-          <Text variant="caption" style={styles.historyDate}>
-            {row.dateLabel}
-          </Text>
-
-          <View style={styles.historyCols}>
-            <View style={styles.historyCol}>
-              <Text variant="caption" style={styles.historyColLabel}>
-                {EARNINGS_STRINGS.COL_EARNINGS}
-              </Text>
-              <Text variant="body" weight="semiBold" style={styles.historyValue}>
-                {row.earnings}
-              </Text>
-            </View>
-
-            <View style={styles.historyCol}>
-              <Text variant="caption" style={styles.historyColLabel}>
-                {EARNINGS_STRINGS.COL_INCENTIVE}
-              </Text>
-              <Text variant="body" weight="semiBold" style={styles.historyValue}>
-                {row.incentive}
-              </Text>
-            </View>
-
-            <View style={styles.historyCol}>
-              <Text variant="caption" style={styles.historyColLabel}>
-                {EARNINGS_STRINGS.COL_BONUS}
-              </Text>
-              <Text variant="body" weight="semiBold" style={styles.historyValue}>
-                {row.bonus}
-              </Text>
-            </View>
-          </View>
-        </View>
-      ))}
+      <Text variant="caption" style={[styles.subLabel, { textAlign: 'center', marginTop: 20 }]}>
+        No data available
+      </Text>
     </View>
   );
 }
 
 export function EarningScreen({ navigation }: { navigation: { goBack: () => void } }) {
   const insets = useSafeAreaInsets();
-  const [period, setPeriod] = React.useState<EarningsPeriod>('daily');
+  const [period, setPeriod] = useState<EarningsPeriod>('daily');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // TODO: When wired, switch summary/history based on `period`
-  void period;
+  // State for daily data
+  const [dailyStats, setDailyStats] = useState<DriverDailyStats | null>(null);
+  
+  // State for monthly data
+  const [monthlyStats, setMonthlyStats] = useState<DriverMonthlyStats | null>(null);
+  
+  // State for transactions
+  const [transactions, setTransactions] = useState<DriverTransaction[]>([]);
+
+  const fetchDailyData = useCallback(async () => {
+    try {
+      const stats = await getDriverDailyStatsApi();
+      setDailyStats(stats);
+
+      // Fetch recent transactions for daily view
+      const today = new Date();
+      const startDate = new Date(today);
+      startDate.setDate(today.getDate() - 7); // Last 7 days
+      
+      const txResponse = await getDriverTransactionsApi({
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: today.toISOString().split('T')[0],
+        limit: 50,
+      });
+      setTransactions(txResponse.data);
+    } catch (error) {
+      console.error('Error fetching daily data:', error);
+    }
+  }, []);
+
+  const fetchMonthlyData = useCallback(async () => {
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1;
+
+      const stats = await getDriverMonthlyStatsApi({ year, month });
+      setMonthlyStats(stats);
+    } catch (error) {
+      console.error('Error fetching monthly data:', error);
+    }
+  }, []);
+
+  const fetchData = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setLoading(true);
+    }
+
+    try {
+      if (period === 'daily') {
+        await fetchDailyData();
+      } else if (period === 'monthly') {
+        await fetchMonthlyData();
+      }
+    } catch (error) {
+      console.error('Error fetching earnings data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [period, fetchDailyData, fetchMonthlyData]);
+
+  useEffect(() => {
+    fetchData();
+  }, [period]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchData(false);
+  }, [fetchData]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -181,10 +427,19 @@ export function EarningScreen({ navigation }: { navigation: { goBack: () => void
       <EarningsHeader title={EARNINGS_STRINGS.TITLE} onBack={() => navigation.goBack()} />
       <View style={styles.headerDivider} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         <EarningsTabs value={period} onChange={setPeriod} />
-        <SummaryCard />
-        <EarningsHistoryCard />
+        <SummaryCard period={period} dailyStats={dailyStats} monthlyStats={monthlyStats} loading={loading} />
+        <EarningsHistoryCard
+          period={period}
+          transactions={transactions}
+          monthlyStats={monthlyStats}
+          loading={loading}
+        />
       </ScrollView>
     </View>
   );
@@ -322,6 +577,30 @@ const styles = StyleSheet.create({
   },
   historyValue: {
     color: COLORS.textPrimary,
+  },
+  loadingContainer: {
+    minHeight: normalizeHeight(200),
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  transactionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: normalizeHeight(8),
+  },
+  transactionType: {
+    paddingHorizontal: normalizeWidth(8),
+    paddingVertical: normalizeHeight(4),
+    borderRadius: normalizeWidth(4),
+    fontSize: normalizeWidth(10),
+    fontWeight: '600',
+  },
+  creditText: {
+    color: '#10B981',
+  },
+  debitText: {
+    color: '#EF4444',
   },
 });
 

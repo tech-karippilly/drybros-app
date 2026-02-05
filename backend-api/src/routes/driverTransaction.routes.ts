@@ -21,6 +21,118 @@ router.use(authMiddleware);
 // All routes accessible by ADMIN, MANAGER, STAFF
 const allowedRoles = [UserRole.ADMIN, UserRole.MANAGER, UserRole.STAFF, UserRole.OFFICE_STAFF];
 
+// Driver-specific routes (must come before admin routes to avoid conflicts)
+/**
+ * @swagger
+ * /api/driver-transactions/me:
+ *   get:
+ *     summary: Get my transactions (driver accessing their own data)
+ *     tags: [Driver Transactions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: transactionType
+ *         schema:
+ *           type: string
+ *           enum: [CREDIT, DEBIT]
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [PENALTY, TRIP, GIFT]
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Transactions retrieved successfully
+ *       401:
+ *         description: Unauthorized - Not authenticated or not a driver
+ */
+router.get(
+  "/me",
+  validateQuery(
+    z.object({
+      page: z.string().regex(/^\d+$/).optional(),
+      limit: z.string().regex(/^\d+$/).optional(),
+      transactionType: z.enum(["CREDIT", "DEBIT"]).optional(),
+      type: z.enum(["PENALTY", "TRIP", "GIFT"]).optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    })
+  ),
+  async (req, res, next) => {
+    // Check if user is a driver (has driver token)
+    if (!(req as any).driver) {
+      return res.status(403).json({ error: "Only drivers can access their own transactions" });
+    }
+    // Set driverId from authenticated driver
+    req.query.driverId = (req as any).driver.driverId;
+    return getDriverTransactionsList(req, res, next);
+  }
+);
+
+/**
+ * @swagger
+ * /api/driver-transactions/me/summary:
+ *   get:
+ *     summary: Get my transaction summary (driver accessing their own data)
+ *     tags: [Driver Transactions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Summary retrieved successfully
+ *       401:
+ *         description: Unauthorized - Not authenticated or not a driver
+ */
+router.get(
+  "/me/summary",
+  validateQuery(
+    z.object({
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    })
+  ),
+  async (req, res, next) => {
+    // Check if user is a driver (has driver token)
+    if (!(req as any).driver) {
+      return res.status(403).json({ error: "Only drivers can access their own summary" });
+    }
+    // Set driverId from authenticated driver
+    req.params.driverId = (req as any).driver.driverId;
+    return getDriverTransactionSummary(req, res, next);
+  }
+);
+
+
 /**
  * @swagger
  * /api/driver-transactions:

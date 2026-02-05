@@ -18,8 +18,16 @@ export const API_ENDPOINTS ={
     DRIVER:{
         DRIVER_DETAILS:'/drivers/:id',
         DAILY_STATS:'/drivers/:id/daily-stats',
+        MONTHLY_STATS:'/drivers/:id/monthly-stats',
+        SETTLEMENT:'/drivers/:id/settlement',
         ME_LOCATION: '/drivers/me/location',
         ME_PROFILE: '/drivers/me/profile',
+    },
+    DRIVER_TRANSACTIONS: {
+        LIST: '/driver-transactions',
+        ME: '/driver-transactions/me',
+        ME_SUMMARY: '/driver-transactions/me/summary',
+        DRIVER_SUMMARY: '/driver-transactions/driver/:driverId/summary',
     },
     TRIPS: {
         MY_ASSIGNED: '/trips/my-assigned',

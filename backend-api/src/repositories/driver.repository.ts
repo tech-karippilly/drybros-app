@@ -1,6 +1,6 @@
 // src/repositories/driver.repository.ts
 import prisma from "../config/prismaClient";
-import { Driver, DriverStatus, DriverEmploymentType } from "@prisma/client";
+import { Driver, DriverStatus, DriverEmploymentType, TransmissionType, CarCategory } from "@prisma/client";
 import {
   getDriverEarningsConfigByDriver,
   getDriverEarningsConfigByFranchise,
@@ -133,6 +133,8 @@ export async function createDriver(data: {
   license: boolean;
   educationCert: boolean;
   previousExp: boolean;
+  transmissionTypes?: TransmissionType[]; // Array of TransmissionType enum values
+  carCategories?: CarCategory[]; // Array of CarCategory enum values
   carTypes: string; // JSON string
   createdBy?: string | null; // User UUID who created this driver
   currentRating?: number;
@@ -171,6 +173,8 @@ export async function updateDriver(
     license?: boolean;
     educationCert?: boolean;
     previousExp?: boolean;
+    transmissionTypes?: TransmissionType[]; // Array of TransmissionType enum values
+    carCategories?: CarCategory[]; // Array of CarCategory enum values
     carTypes?: string; // JSON string
     status?: string;
     dailyTargetAmount?: number | null;

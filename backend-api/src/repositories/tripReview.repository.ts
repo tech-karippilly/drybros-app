@@ -5,7 +5,9 @@ export async function createTripReview(data: {
   driverId: string;
   franchiseId: string;
   customerId: string;
-  rating: number;
+  tripRating: number;
+  driverRating: number;
+  overallRating: number;
   comment: string;
 }): Promise<any> {
   return (prisma as any).tripReview.create({

@@ -7,8 +7,9 @@ import { DefaultTheme as NavigationDefaultTheme, NavigationContainer } from '@re
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 /** Load typography first so FONT_FAMILY is never undefined (avoids "regular of undefined" crash) */
 import './src/constants/typography';
-import { ToastProvider } from './src/contexts';
+import { ToastProvider, useToast } from './src/contexts';
 import { COLORS } from './src/constants';
+import { REFRESH_TOKEN_EXPIRED_MESSAGE } from './src/constants/auth';
 import { loadFonts } from './src/utils/fonts';
 import { SplashScreen, LoginScreen, ForgotPasswordScreen } from './src/screens';
 import { MainTabNavigator } from './src/navigation';
@@ -102,7 +103,21 @@ type AppShellProps = {
 };
 
 function AppShell({ navTheme, showForgotPassword, setShowForgotPassword }: AppShellProps) {
-  const { isHydrated, isLoggedIn, markLoggedIn } = useAuth();
+  const { isHydrated, isLoggedIn, markLoggedIn, sessionExpired, clearSessionExpired } = useAuth();
+  const { showToast } = useToast();
+
+  // Show toast when session expires
+  useEffect(() => {
+    if (sessionExpired && !isLoggedIn) {
+      showToast({
+        message: REFRESH_TOKEN_EXPIRED_MESSAGE,
+        type: 'error',
+        duration: 5000,
+        position: 'top',
+      });
+      clearSessionExpired();
+    }
+  }, [sessionExpired, isLoggedIn, showToast, clearSessionExpired]);
 
   if (!isHydrated) {
     return <LoadingScreen />;

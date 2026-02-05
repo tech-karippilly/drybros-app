@@ -7,6 +7,7 @@ import { TripStatus } from "@prisma/client";
 export const CAR_GEAR_TYPES = {
   MANUAL: "MANUAL",
   AUTOMATIC: "AUTOMATIC",
+  EV: "EV",
 } as const;
 
 export type CarGearType = typeof CAR_GEAR_TYPES[keyof typeof CAR_GEAR_TYPES];

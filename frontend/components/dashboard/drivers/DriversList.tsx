@@ -19,7 +19,8 @@ import {
     Trash2,
     Ban,
     Eye,
-    ArrowUpDown
+    ArrowUpDown,
+    RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GetDriver, DriverStatus } from '@/lib/types/drivers';
@@ -71,6 +72,7 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
     // Local state for drivers with performance
     const [driversWithPerformance, setDriversWithPerformance] = useState<Record<string, Driver['performance']>>({});
     const [isLoadingPerformance, setIsLoadingPerformance] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     
     // Local filters state matching StaffList pattern
     const [filters, setFilters] = useState({
@@ -249,6 +251,34 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
         }
     }, [banTarget, dispatch]);
 
+    const handleRefresh = React.useCallback(async () => {
+        setIsRefreshing(true);
+        try {
+            // Refresh drivers list
+            await dispatch(fetchDrivers());
+            
+            // Refresh performance data
+            const driversWithPerf = await getDrivers({
+                includePerformance: true,
+            });
+            
+            // Update performance map
+            const performanceMap: Record<string, Driver['performance']> = {};
+            driversWithPerf.forEach(driver => {
+                if (driver.id && driver.performance) {
+                    const idNum = parseInt(driver.id.replace(/-/g, '').substring(0, 10), 16) || 0;
+                    performanceMap[driver.id] = driver.performance;
+                    performanceMap[idNum.toString()] = driver.performance;
+                }
+            });
+            setDriversWithPerformance(performanceMap);
+        } catch (error) {
+            console.error("Failed to refresh drivers:", error);
+        } finally {
+            setIsRefreshing(false);
+        }
+    }, [dispatch]);
+
 
 
     return (
@@ -259,13 +289,23 @@ export function DriversList({ onCreateClick, onEditClick, onViewClick }: Drivers
                      <h2 className="text-2xl font-bold text-[#0d121c] dark:text-white">Drivers Directory</h2>
                     <p className="text-[#49659c] dark:text-gray-400">Manage your fleet drivers, track status, and employment.</p>
                 </div>
-                <button
-                    onClick={onCreateClick}
-                    className="flex items-center justify-center gap-2 px-4 py-2 bg-[#0d59f2] text-white rounded-lg font-bold hover:bg-[#0d59f2]/90 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
-                >
-                    <Plus size={18} />
-                    <span>Onboard Driver</span>
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleRefresh}
+                        disabled={isRefreshing}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-[#0d121c] dark:text-white rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                    >
+                        <RefreshCw size={18} className={cn(isRefreshing && "animate-spin")} />
+                        <span>Refresh</span>
+                    </button>
+                    <button
+                        onClick={onCreateClick}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-[#0d59f2] text-white rounded-lg font-bold hover:bg-[#0d59f2]/90 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                    >
+                        <Plus size={18} />
+                        <span>Onboard Driver</span>
+                    </button>
+                </div>
             </div>
 
             {/* Controls */}

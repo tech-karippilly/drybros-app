@@ -8,7 +8,7 @@ datasource db {
 }
 
 model Customer {
-  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id          String      @id @default(uuid()) @db.Uuid
   fullName    String
   phone       String      @unique
   email       String?
@@ -24,7 +24,7 @@ model Customer {
 }
 
 model DistanceScope {
-  id             String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id             String              @id @default(uuid()) @db.Uuid
   name           String
   description    String?
   status         DistanceScopeStatus @default(ACTIVE)
@@ -33,8 +33,23 @@ model DistanceScope {
   TripTypeConfig TripTypeConfig[]
 }
 
+
+enum TransmissionType {
+  MANUAL
+  AUTOMATIC
+  EV
+}
+
+enum CarCategory {
+  NORMAL
+  PREMIUM
+  LUXURY
+  SPORTS
+}
+
+
 model Driver {
-  id                       String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id                       String           @id @default(uuid()) @db.Uuid
   franchiseId              String           @db.Uuid
   firstName                String
   lastName                 String
@@ -61,6 +76,8 @@ model Driver {
   license                  Boolean          @default(false)
   educationCert            Boolean          @default(false)
   previousExp              Boolean          @default(false)
+  transmissionTypes TransmissionType[] @default([])
+ carCategories     CarCategory[] @default([])
   carTypes                 String // JSON array of CarType enum values
   status                   DriverStatus     @default(ACTIVE)
   driverTripStatus         DriverTripStatus @default(AVAILABLE)
@@ -97,7 +114,7 @@ model Driver {
 }
 
 model Franchise {
-  id                      String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id                      String          @id @default(uuid()) @db.Uuid
   code                    String          @unique
   name                    String
   city                    String // Keep for backward compatibility
@@ -128,11 +145,11 @@ model Role {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id          String   @id @default(uuid()) @db.Uuid
 }
 
 model Staff {
-  id                       String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id                       String         @id @default(uuid()) @db.Uuid
   name                     String
   phone                    String         @unique
   password                 String
@@ -168,7 +185,7 @@ model Staff {
 }
 
 model StaffHistory {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id          String   @id @default(uuid()) @db.Uuid
   staffId     String   @db.Uuid
   action      String
   description String?
@@ -189,7 +206,7 @@ model Trip {
   customerName         String
   customerPhone        String
   tripType             String // Changed from TripType enum to String to support dynamic trip types from TripTypeConfig
-  status               TripStatus     @default(PENDING)
+  status               TripStatus     @default(NOT_ASSIGNED)
   pickupLocation       String
   pickupLat            Float?
   pickupLng            Float?
@@ -224,7 +241,7 @@ model Trip {
   isFareDiscussed      Boolean        @default(false)
   isPriceAccepted      Boolean        @default(false)
   pickupLocationNote   String?
-  id                   String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id                   String         @id @default(uuid()) @db.Uuid
   tripPlacedDate       DateTime       @default(now())
   createdBy            String?        @db.Uuid
   dropAddress          String?
@@ -254,7 +271,7 @@ enum TripOfferStatus {
 }
 
 model TripOffer {
-  id          String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id          String          @id @default(uuid()) @db.Uuid
   tripId      String          @db.Uuid
   driverId    String          @db.Uuid
   status      TripOfferStatus @default(OFFERED)
@@ -275,7 +292,7 @@ model TripOffer {
 }
 
 model TripPattern {
-  id             String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id             String            @id @default(uuid()) @db.Uuid
   name           String
   description    String?
   createdAt      DateTime          @default(now())
@@ -285,7 +302,7 @@ model TripPattern {
 }
 
 model TripTypeConfig {
-  id              String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id              String  @id @default(uuid()) @db.Uuid
   name            String // e.g., "CITY_ROUND", "CITY_DROPOFF"
   description     String?
   distanceScopeId String  @db.Uuid
@@ -330,7 +347,7 @@ model User {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   phone          String?
-  id             String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id             String          @id @default(uuid()) @db.Uuid
   failedAttempts Int             @default(0)
   lockedUntil    DateTime?
   franchiseId    String?         @db.Uuid // For MANAGER role to associate with franchise
@@ -347,7 +364,7 @@ model User {
 }
 
 model DriverEarningsConfig {
-  id                    String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id                    String   @id @default(uuid()) @db.Uuid
   // Scope: null = global, franchiseId set = franchise-level, driverId set = driver-level
   franchiseId           String?  @db.Uuid
   driverId              String?  @db.Uuid
@@ -374,7 +391,7 @@ model DriverEarningsConfig {
 }
 
 model Complaint {
-  id          String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id          String            @id @default(uuid()) @db.Uuid
   driverId    String?           @db.Uuid
   staffId     String?           @db.Uuid
   customerId  String?           @db.Uuid // Customer who raised the complaint
@@ -402,7 +419,7 @@ model Complaint {
 }
 
 model Attendance {
-  id        String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id        String           @id @default(uuid()) @db.Uuid
   driverId  String?          @db.Uuid
   staffId   String?          @db.Uuid
   userId    String?          @db.Uuid // For managers (User table)
@@ -429,7 +446,7 @@ model Attendance {
 }
 
 model AttendanceSession {
-  id           String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id           String     @id @default(uuid()) @db.Uuid
   attendanceId String     @db.Uuid
   clockIn      DateTime   @default(now())
   clockOut     DateTime?
@@ -444,7 +461,7 @@ model AttendanceSession {
 }
 
 model LeaveRequest {
-  id              String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id              String             @id @default(uuid()) @db.Uuid
   driverId        String?            @db.Uuid
   staffId         String?            @db.Uuid
   userId          String?            @db.Uuid // For managers (User table)
@@ -546,7 +563,6 @@ enum TripTypeConfigStatus {
 }
 
 enum TripStatus {
-  PENDING
   NOT_ASSIGNED
   ASSIGNED
   TRIP_STARTED
@@ -629,7 +645,7 @@ enum LeaveRequestStatus {
 }
 
 model DriverRating {
-  id                 String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id                 String   @id @default(uuid()) @db.Uuid
   driverId           String   @db.Uuid
   tripId             String?  @db.Uuid
   customerName       String
@@ -654,14 +670,16 @@ model DriverRating {
 }
 
 model TripReview {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  tripId      String   @db.Uuid
-  driverId    String   @db.Uuid
-  franchiseId String   @db.Uuid
-  customerId  String   @db.Uuid
-  rating      Int
-  comment     String
-  createdAt   DateTime @default(now())
+  id            String   @id @default(uuid()) @db.Uuid
+  tripId        String   @db.Uuid
+  driverId      String   @db.Uuid
+  franchiseId   String   @db.Uuid
+  customerId    String   @db.Uuid
+  tripRating    Int
+  overallRating Int
+  driverRating  Int
+  comment       String
+  createdAt     DateTime @default(now())
 
   Trip       Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
   Driver     Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
@@ -675,7 +693,7 @@ model TripReview {
 }
 
 model ActivityLog {
-  id          String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id          String             @id @default(uuid()) @db.Uuid
   action      ActivityAction
   entityType  ActivityEntityType
   entityId    String? // ID of the related entity (trip, driver, staff, etc.)
@@ -768,7 +786,7 @@ enum ActivityEntityType {
 }
 
 model Penalty {
-  id              String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id              String          @id @default(uuid()) @db.Uuid
   name            String
   description     String?
   amount          Int // Default penalty amount
@@ -788,7 +806,7 @@ enum PenaltyType {
 }
 
 model DriverPenalty {
-  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id            String   @id @default(uuid()) @db.Uuid
   driverId      String   @db.Uuid
   penaltyId     String   @db.Uuid
   amount        Int // Actual amount applied (can override default)
@@ -811,7 +829,7 @@ model DriverPenalty {
 
 // Driver Daily Metrics - Historical daily snapshots of driver performance
 model DriverDailyMetrics {
-  id                    String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id                    String   @id @default(uuid()) @db.Uuid
   driverId              String   @db.Uuid
   date                  DateTime @db.Date // Date for which metrics are recorded
   
@@ -859,7 +877,7 @@ enum TripEventType {
 }
 
 model TripStatusHistory {
-  id            String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id            String        @id @default(uuid()) @db.Uuid
   tripId        String        @db.Uuid
   driverId      String?       @db.Uuid
   eventType     TripEventType

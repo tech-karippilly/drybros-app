@@ -17,7 +17,7 @@ import {
 } from "../repositories/driver.repository";
 import { getFranchiseById } from "../repositories/franchise.repository";
 import { CreateDriverDTO, CreateDriverResponseDTO, DriverResponseDTO, DriverLoginDTO, DriverLoginResponseDTO, UpdateDriverDTO, UpdateDriverResponseDTO, UpdateDriverStatusDTO, UpdateDriverStatusResponseDTO, PaginationQueryDTO, PaginatedDriverResponseDTO } from "../types/driver.dto";
-import { CarType, DriverEmploymentType } from "@prisma/client";
+import { DriverEmploymentType, TransmissionType, CarCategory } from "@prisma/client";
 import { toPrismaEmploymentType, toApiEmploymentType } from "../utils/employmentType";
 import { ConflictError, NotFoundError, BadRequestError } from "../utils/errors";
 import { sendDriverWelcomeEmail } from "./email.service";
@@ -90,7 +90,7 @@ async function getUniqueDriverCode(): Promise<string> {
  */
 function mapDriverToResponse(driver: any): DriverResponseDTO {
   // Optimize JSON parsing with safe fallback
-  let carTypes: CarType[] = [];
+  let carTypes: string[] = [];
   if (driver.carTypes) {
     try {
       // If already parsed (array), use directly; otherwise parse JSON string
@@ -134,6 +134,8 @@ function mapDriverToResponse(driver: any): DriverResponseDTO {
     license: driver.license,
     educationCert: driver.educationCert,
     previousExp: driver.previousExp,
+    transmissionTypes: driver.transmissionTypes || [],
+    carCategories: driver.carCategories || [],
     carTypes,
     status: driver.status,
     driverTripStatus: driver.driverTripStatus || "AVAILABLE", // Default to AVAILABLE if not set
@@ -337,7 +339,9 @@ export async function createDriver(
     license: input.license,
     educationCert: input.educationCert,
     previousExp: input.previousExp,
-    carTypes: JSON.stringify(input.carTypes),
+    transmissionTypes: input.transmissionTypes || [],
+    carCategories: input.carCategories || [],
+    carTypes: JSON.stringify(input.carTypes || []), // Legacy field - default to empty array
     createdBy: createdBy || null,
     currentRating: 5.0, // Set default rating to 5 for new drivers
   });
@@ -529,6 +533,8 @@ export async function updateDriver(
   if (input.license !== undefined) updateData.license = input.license;
   if (input.educationCert !== undefined) updateData.educationCert = input.educationCert;
   if (input.previousExp !== undefined) updateData.previousExp = input.previousExp;
+  if (input.transmissionTypes !== undefined) updateData.transmissionTypes = input.transmissionTypes;
+  if (input.carCategories !== undefined) updateData.carCategories = input.carCategories;
   if (input.carTypes !== undefined) updateData.carTypes = JSON.stringify(input.carTypes);
   if (input.franchiseId !== undefined) updateData.franchiseId = input.franchiseId;
   if (input.status !== undefined) updateData.status = input.status;

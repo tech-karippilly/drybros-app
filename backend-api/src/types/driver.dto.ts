@@ -1,12 +1,19 @@
 // src/types/driver.dto.ts
 import { z } from "zod";
-import { CarType, DriverStatus, DriverTripStatus } from "@prisma/client";
+import { DriverStatus, DriverTripStatus, TransmissionType, CarCategory } from "@prisma/client";
 import { DriverPerformanceCategory } from "../constants/driver";
 
 // Driver Employment Type Enum Schema (API-facing string values)
-export const driverEmploymentTypeEnum = z.enum(["part time", "full time", "contract"]);
+// "all" is a special value to fetch drivers of all employment types
+export const driverEmploymentTypeEnum = z.enum(["part time", "full time", "contract", "all"]);
 
-// CarType enum schema
+// TransmissionType enum schema (from Prisma)
+export const transmissionTypeEnum = z.enum(["MANUAL", "AUTOMATIC", "EV"]);
+
+// CarCategory enum schema (from Prisma)
+export const carCategoryEnum = z.enum(["NORMAL", "PREMIUM", "LUXURY", "SPORTS"]);
+
+// CarType enum schema (legacy - kept for backward compatibility)
 export const carTypeEnum = z.enum([
   "MANUAL",
   "AUTOMATIC",
@@ -48,7 +55,8 @@ export const createDriverSchema = z.object({
   license: z.boolean().default(false),
   educationCert: z.boolean().default(false),
   previousExp: z.boolean().default(false),
-  carTypes: z.array(carTypeEnum).min(1, "At least one car type is required"),
+  transmissionTypes: z.array(transmissionTypeEnum).min(1, "At least one transmission type is required"),
+  carCategories: z.array(carCategoryEnum).min(1, "At least one car category is required"),
   franchiseId: z.string().uuid("Franchise ID must be a valid UUID"),
 });
 
@@ -120,7 +128,9 @@ export interface DriverResponseDTO {
   license: boolean;
   educationCert: boolean;
   previousExp: boolean;
-  carTypes: CarType[];
+  transmissionTypes: TransmissionType[]; // Array of TransmissionType enum values
+  carCategories: CarCategory[]; // Array of CarCategory enum values
+  carTypes: string[]; // Legacy field - JSON string array
   status: DriverStatus;
   driverTripStatus: DriverTripStatus;
   complaintCount: number;
@@ -197,6 +207,8 @@ export const updateDriverSchema = z.object({
   license: z.boolean().optional(),
   educationCert: z.boolean().optional(),
   previousExp: z.boolean().optional(),
+  transmissionTypes: z.array(transmissionTypeEnum).min(1, "At least one transmission type is required").optional(),
+  carCategories: z.array(carCategoryEnum).min(1, "At least one car category is required").optional(),
   carTypes: z.array(carTypeEnum).min(1, "At least one car type is required").optional(),
   franchiseId: z.string().uuid("Franchise ID must be a valid UUID").optional(),
   status: z.enum(["ACTIVE", "INACTIVE", "BLOCKED", "TERMINATED"]).optional(),

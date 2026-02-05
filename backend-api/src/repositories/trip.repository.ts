@@ -19,7 +19,7 @@ export async function getUnassignedTrips() {
   return prisma.trip.findMany({
     where: {
       status: {
-        in: ["PENDING", "NOT_ASSIGNED"],
+        in: ["NOT_ASSIGNED", "NOT_ASSIGNED"],
       },
     },
     orderBy: { createdAt: "desc" },
@@ -269,7 +269,7 @@ export async function createTripPhase1(data: {
       isFareDiscussed: data.isFareDiscussed,
       isPriceAccepted: data.isPriceAccepted,
       createdBy: data.createdBy ?? null,
-      status: "PENDING",
+      status: "REQUESTED",
       baseAmount: data.baseAmount ?? 0,
       extraAmount: data.extraAmount ?? 0,
       totalAmount: data.totalAmount ?? 0,

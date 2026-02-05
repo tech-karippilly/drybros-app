@@ -5,7 +5,9 @@ export interface CreateTripReviewRequest {
   driverId: string;
   franchiseId: string;
   customerId: string;
-  rating: number;
+  tripRating: number;
+  driverRating: number;
+  overallRating: number;
   comment: string;
 }
 
@@ -15,7 +17,9 @@ export interface TripReviewResponse {
   driverId: string;
   franchiseId: string;
   customerId: string;
-  rating: number;
+  tripRating: number;
+  driverRating: number;
+  overallRating: number;
   comment: string;
   createdAt: string;
 }

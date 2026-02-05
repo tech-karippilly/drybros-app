@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { submitTripReviewPublic } from "@/lib/features/reviews/reviewApi";
+import { Star } from "lucide-react";
 
 export default function TripReviewPage() {
   const params = useParams();
@@ -17,7 +18,9 @@ export default function TripReviewPage() {
   const franchiseId = search.get("franchiseId") || "";
   const customerId = search.get("customerId") || "";
 
-  const [rating, setRating] = useState<number>(5);
+  const [tripRating, setTripRating] = useState<number>(5);
+  const [driverRating, setDriverRating] = useState<number>(5);
+  const [overallRating, setOverallRating] = useState<number>(5);
   const [comment, setComment] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +29,33 @@ export default function TripReviewPage() {
   const isReady = useMemo(() => {
     return Boolean(tripId && driverId && franchiseId && customerId);
   }, [tripId, driverId, franchiseId, customerId]);
+
+  const StarRating = ({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) => {
+    return (
+      <div className="space-y-2">
+        <label className="block text-sm font-medium">{label}</label>
+        <div className="flex gap-2 items-center">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <button
+              key={star}
+              type="button"
+              onClick={() => onChange(star)}
+              className="focus:outline-none transition-transform hover:scale-110"
+            >
+              <Star
+                className={`w-8 h-8 ${
+                  star <= value
+                    ? "fill-yellow-400 text-yellow-400"
+                    : "fill-gray-200 text-gray-200"
+                }`}
+              />
+            </button>
+          ))}
+          <span className="ml-2 text-sm font-medium text-gray-700">{value}/5</span>
+        </div>
+      </div>
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,12 +76,16 @@ export default function TripReviewPage() {
         driverId,
         franchiseId,
         customerId,
-        rating,
+        tripRating,
+        driverRating,
+        overallRating,
         comment: comment.trim(),
       });
       setSuccess("Thank you! Your review has been submitted.");
       setComment("");
-      setRating(5);
+      setTripRating(5);
+      setDriverRating(5);
+      setOverallRating(5);
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || "Failed to submit review");
     } finally {
@@ -60,12 +94,16 @@ export default function TripReviewPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
-      <div className="w-full max-w-xl border rounded-lg shadow-sm p-6">
-        <Text as="h1" className="text-2xl font-semibold mb-2">Trip Review</Text>
-        <Text as="p" className="text-sm text-gray-600 mb-6">
-          Share your experience for Trip #{tripId.slice(0, 8).toUpperCase()}.
-        </Text>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl bg-white border rounded-lg shadow-lg p-8">
+        <div className="text-center mb-6">
+          <Text as="h1" className="text-3xl font-bold text-gray-800 mb-2">
+            How was your trip?
+          </Text>
+          <Text as="p" className="text-sm text-gray-600">
+            Trip #{tripId.slice(0, 8).toUpperCase()}
+          </Text>
+        </div>
 
         {!isReady && (
           <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 p-3 rounded mb-4">
@@ -78,39 +116,67 @@ export default function TripReviewPage() {
         )}
 
         {success && (
-          <div className="bg-green-50 border border-green-200 text-green-700 p-3 rounded mb-4">{success}</div>
+          <div className="bg-green-50 border border-green-200 text-green-700 p-4 rounded mb-4 text-center">
+            <p className="font-semibold text-lg">{success}</p>
+            <p className="text-sm mt-1">We appreciate your feedback!</p>
+          </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Overall Rating (1–5)</label>
-            <Input
-              type="number"
-              min={1}
-              max={5}
-              value={rating}
-              onChange={(e) => setRating(parseInt(e.target.value || "5", 10))}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Trip Rating */}
+          <div className="p-4 bg-blue-50 rounded-lg">
+            <StarRating
+              value={tripRating}
+              onChange={setTripRating}
+              label="How was your trip experience?"
             />
           </div>
 
+          {/* Driver Rating */}
+          <div className="p-4 bg-green-50 rounded-lg">
+            <StarRating
+              value={driverRating}
+              onChange={setDriverRating}
+              label="How was your driver?"
+            />
+          </div>
+
+          {/* Overall Rating */}
+          <div className="p-4 bg-purple-50 rounded-lg">
+            <StarRating
+              value={overallRating}
+              onChange={setOverallRating}
+              label="Overall rating"
+            />
+          </div>
+
+          {/* Comment */}
           <div>
-            <label className="block text-sm font-medium mb-1">Description</label>
+            <label className="block text-sm font-medium mb-2">Tell us more about your experience</label>
             <textarea
-              className="w-full border rounded-md p-2 min-h-[120px]"
+              className="w-full border border-gray-300 rounded-lg p-3 min-h-[120px] focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Tell us about the trip and driver experience"
+              placeholder="Share your feedback about the trip, driver, and overall service..."
             />
           </div>
 
-          <Button type="submit" disabled={!isReady || loading} className="w-full">
+          <Button 
+            type="submit" 
+            disabled={!isReady || loading} 
+            className="w-full py-3 text-lg font-semibold"
+          >
             {loading ? "Submitting..." : "Submit Review"}
           </Button>
         </form>
 
-        <div className="mt-6 text-center">
-          <Button variant="ghost" onClick={() => router.push("/")}>Back to Home</Button>
-        </div>
+        {success && (
+          <div className="mt-6 text-center">
+            <Button variant="ghost" onClick={() => router.push("/")}>
+              Close
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

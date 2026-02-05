@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {apiClient} from './client';
+import {apiClient, refreshClient} from './client';
 import {API_ENDPOINTS} from '../../constants/endpints';
 import {STORAGE_KEYS} from '../../constants/storageKeys';
 
@@ -69,6 +69,36 @@ export type LogoutResponse = {
 export async function logoutApi(): Promise<LogoutResponse> {
   const res = await apiClient.post<LogoutResponse>(API_ENDPOINTS.AUTH.LOGOUT);
   return res.data;
+}
+
+export type RefreshTokenRequest = {
+  refreshToken: string;
+};
+
+export type RefreshTokenResponse = {
+  accessToken: string;
+  refreshToken?: string;
+};
+
+/**
+ * Call the refresh token API to get a new access token
+ */
+export async function refreshTokenApi(refreshToken: string): Promise<RefreshTokenResponse> {
+  const res = await refreshClient.post<RefreshTokenResponse>(
+    API_ENDPOINTS.AUTH.REFRESH_TOKEN,
+    { refreshToken }
+  );
+  
+  const data = (res.data as any)?.data ?? res.data;
+  
+  if (!data?.accessToken) {
+    throw new Error('Refresh token response missing accessToken');
+  }
+  
+  return {
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+  };
 }
 
 

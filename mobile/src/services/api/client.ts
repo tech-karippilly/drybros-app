@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../../constants/config';
 import { API_ENDPOINTS } from '../../constants/endpints';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
+import { authEvents } from './authEvents';
 
 let isRefreshing = false;
 let failedQueue: {
@@ -97,6 +98,8 @@ apiClient.interceptors.response.use(
           const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
           if (!refreshToken) {
             await clearAuthStorage();
+            // Emit event to notify app that session expired
+            authEvents.emit('TOKEN_EXPIRED', { message: 'No refresh token available' });
             return Promise.reject(error);
           }
 
@@ -111,6 +114,8 @@ apiClient.interceptors.response.use(
 
           if (!accessToken) {
             await clearAuthStorage();
+            // Emit event to notify app that session expired
+            authEvents.emit('TOKEN_EXPIRED', { message: 'Invalid token response' });
             return Promise.reject(error);
           }
 
@@ -122,6 +127,9 @@ apiClient.interceptors.response.use(
           const authHeaderValue = `${API_CONFIG.AUTH_PREFIX} ${accessToken}`;
           apiClient.defaults.headers.common[API_CONFIG.AUTH_HEADER] = authHeaderValue;
 
+          // Emit successful token refresh
+          authEvents.emit('TOKEN_REFRESHED', { accessToken });
+          
           processQueue(null, accessToken);
 
           originalRequest.headers = originalRequest.headers ?? {};
@@ -130,6 +138,13 @@ apiClient.interceptors.response.use(
         } catch (refreshError: any) {
           processQueue(refreshError as AxiosError, null);
           await clearAuthStorage();
+          
+          // Emit event to notify app that refresh token expired
+          authEvents.emit('TOKEN_EXPIRED', { 
+            message: 'Refresh token expired or invalid',
+            error: refreshError
+          });
+          
           return Promise.reject(refreshError);
         } finally {
           isRefreshing = false;

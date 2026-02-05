@@ -503,7 +503,7 @@ paths:
         - `region`: Region where franchise is located (required)
         - `address`: Physical address of the franchise (required)
         - `phone`: Contact number (required, validated format)
-        - `inchargeName`: Name of the person in charge (required)
+        - `managerName`: Name of the manager (required)
         - `managerEmail`: Email address of the manager (required, will be used to create manager user account)
         - `managerPhone`: Phone number of the manager (required, validated format)
         - `storeImage`: Store image URL (optional)
@@ -529,7 +529,7 @@ paths:
               address: "123 Main Street, New York, NY 10001"
               phone: "+1234567890"
               franchiseEmail: "contact.downtown@drybros.com"
-              inchargeName: "John Smith"
+              managerName: "John Smith"
               managerEmail: "john.smith@drybros.com"
               managerPhone: "+1234567891"
               storeImage: "https://example.com/images/store.jpg"
@@ -614,7 +614,7 @@ paths:
               region: "New York City"
               address: "456 Updated Street, New York, NY 10002"
               phone: "+1234567891"
-              inchargeName: "Jane Doe"
+              managerName: "Jane Doe"
               storeImage: "https://example.com/images/store-updated.jpg"
               legalDocumentsCollected: true
       responses:
@@ -1541,10 +1541,10 @@ paths:
         - name: employmentType
           in: query
           required: false
-          description: Filter drivers by employment type (API-facing string values)
+          description: Filter drivers by employment type (API-facing string values). Use "all" to return drivers of all employment types.
           schema:
             type: string
-            enum: ["full time", "part time", "contract"]
+            enum: ["full time", "part time", "contract", "all"]
             example: "full time"
       responses:
         "200":
@@ -1638,7 +1638,8 @@ paths:
               educationCert: false
               previousExp: true
               employmentType: "full time"
-              carTypes: ["MANUAL", "AUTOMATIC"]
+              transmissionTypes: ["MANUAL", "AUTOMATIC"]
+              carCategories: ["NORMAL", "PREMIUM"]
               franchiseId: "74ce561e-fa14-47d1-b9b0-e991db4ced48"
       responses:
         "201":
@@ -4246,15 +4247,22 @@ paths:
               customerEmail: "john.doe@example.com"
               pickupLocation: "ChIJN1t_tDeuEmsRUsoyG83frY4"
               pickupAddress: "123 Main Street, New York, NY 10001"
+              pickupLat: 40.7484
+              pickupLng: -73.9857
               pickupLocationNote: "Near the blue building, entrance on the right"
               destinationLocation: "ChIJN1t_tDeuEmsRUsoyG83frY5"
               destinationAddress: "456 Oak Avenue, New York, NY 10002"
+              destinationLat: 40.7614
+              destinationLng: -73.9776
               destinationNote: "Building entrance, ring doorbell"
               franchiseId: "550e8400-e29b-41d4-a716-446655440000"
               tripType: "CITY_ROUND"
+              distance: 15.5
+              distanceScope: "LOCAL"
+              duration: 30
               carGearType: "MANUAL"
               carType: "PREMIUM"
-              tripDate: "2024-01-20"
+              tripDate: "2026-02-10"
               tripTime: "14:30"
               isDetailsReconfirmed: true
               isFareDiscussed: true
@@ -4279,12 +4287,21 @@ paths:
                     status: "REQUESTED"
                     pickupLocation: "ChIJN1t_tDeuEmsRUsoyG83frY4"
                     pickupAddress: "123 Main Street, New York, NY 10001"
+                    pickupLat: 40.7484
+                    pickupLng: -73.9857
                     pickupLocationNote: "Near the blue building, entrance on the right"
                     dropLocation: "ChIJN1t_tDeuEmsRUsoyG83frY5"
                     dropAddress: "456 Oak Avenue, New York, NY 10002"
+                    destinationLat: 40.7614
+                    destinationLng: -73.9776
                     dropLocationNote: "Building entrance, ring doorbell"
+                    distance: 15.5
+                    distanceScope: "LOCAL"
+                    duration: 30
                     carType: '{"gearType":"MANUAL","category":"PREMIUM"}'
-                    scheduledAt: "2024-01-20T14:30:00Z"
+                    carGearType: "MANUAL"
+                    transmissionType: "MANUAL"
+                    scheduledAt: "2026-02-10T14:30:00Z"
                     isDetailsReconfirmed: true
                     isFareDiscussed: true
                     isPriceAccepted: true
@@ -4293,8 +4310,8 @@ paths:
                     totalAmount: 0
                     finalAmount: 0
                     paymentStatus: "PENDING"
-                    createdAt: "2024-01-20T10:00:00Z"
-                    updatedAt: "2024-01-20T10:00:00Z"
+                    createdAt: "2026-02-05T10:00:00Z"
+                    updatedAt: "2026-02-05T10:00:00Z"
                   customer:
                     id: 1
                     name: "John Doe"
@@ -8042,6 +8059,102 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /reviews/link/create:
+    post:
+      summary: Create review link for a trip
+      description: |
+        Generate a review link that can be sent to customers. 
+        The link contains a JWT token valid for 30 days.
+        Only managers and office staff can create review links.
+      tags:
+        - Reviews
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReviewLinkRequest"
+      responses:
+        "200":
+          description: Review link created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Review link created successfully
+                  data:
+                    $ref: "#/components/schemas/ReviewLinkResponse"
+        "400":
+          description: Bad request - validation error or missing trip data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trip not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /reviews/submit:
+    post:
+      summary: Submit review using token
+      description: |
+        Public endpoint for customers to submit reviews using the token from the review link.
+        The token is validated and review is saved to the database.
+      tags:
+        - Reviews
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitReviewWithTokenRequest"
+      responses:
+        "200":
+          description: Review submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Review submitted successfully
+                  reviewId:
+                    type: string
+                    format: uuid
+        "400":
+          description: Bad request - validation error, invalid token, or review already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Related entity not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         
 components:
   schemas:
@@ -8171,6 +8284,65 @@ components:
           maximum: 5
         comment:
           type: string
+
+    CreateReviewLinkRequest:
+      type: object
+      required:
+        - tripId
+      properties:
+        tripId:
+          type: string
+          format: uuid
+          description: ID of the trip to create review link for
+
+    ReviewLinkResponse:
+      type: object
+      properties:
+        reviewLink:
+          type: string
+          description: Complete URL with token that can be sent to customer
+          example: "http://localhost:3000/review/submit?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        token:
+          type: string
+          description: JWT token containing trip details
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        expiresAt:
+          type: string
+          format: date-time
+          description: Token expiration date (30 days from creation)
+
+    SubmitReviewWithTokenRequest:
+      type: object
+      required:
+        - token
+        - tripRating
+        - overallRating
+        - driverRating
+        - comment
+      properties:
+        token:
+          type: string
+          description: JWT token from the review link
+        tripRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Rating for the trip experience
+        overallRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Overall rating
+        driverRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Rating for the driver
+        comment:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Customer's review comment
 
     CustomerDetailsResponse:
       type: object
@@ -8385,8 +8557,8 @@ components:
           nullable: true
         carGearType:
           type: string
-          enum: [MANUAL, AUTOMATIC]
-          description: Car gear type preference
+          enum: [MANUAL, AUTOMATIC, EV]
+          description: Car gear type preference (MANUAL, AUTOMATIC, or EV for Electric Vehicle)
           example: "MANUAL"
         carType:
           type: string
@@ -9971,7 +10143,7 @@ components:
         - region
         - address
         - phone
-        - inchargeName
+        - managerName
         - managerEmail
         - managerPhone
       properties:
@@ -9999,9 +10171,9 @@ components:
           example: "+1234567890"
           minLength: 10
           maxLength: 20
-        inchargeName:
+        managerName:
           type: string
-          description: Name of the person in charge
+          description: Name of the manager
           example: "John Smith"
           minLength: 1
           maxLength: 100
@@ -10082,9 +10254,9 @@ components:
           pattern: "^[+]?[(]?[0-9]{1,4}[)]?[-\\s.]?[(]?[0-9]{1,4}[)]?[-\\s.]?[0-9]{1,9}$"
           minLength: 10
           maxLength: 20
-        inchargeName:
+        managerName:
           type: string
-          description: Name of the person in charge
+          description: Name of the manager
           example: "Jane Doe"
           minLength: 1
           maxLength: 100
@@ -10956,7 +11128,8 @@ components:
         - bankAccountName
         - bankAccountNumber
         - bankIfscCode
-        - carTypes
+        - transmissionTypes
+        - carCategories
         - franchiseId
       properties:
         firstName:
@@ -11055,14 +11228,22 @@ components:
           default: false
           description: Previous experience certificate collected
           example: true
-        carTypes:
+        transmissionTypes:
           type: array
           items:
             type: string
-            enum: [MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS]
+            enum: [MANUAL, AUTOMATIC, EV]
           minItems: 1
-          description: Types of cars the driver can drive
+          description: Transmission types the driver can handle
           example: ["MANUAL", "AUTOMATIC"]
+        carCategories:
+          type: array
+          items:
+            type: string
+            enum: [NORMAL, PREMIUM, LUXURY, SPORTS]
+          minItems: 1
+          description: Car categories the driver can handle
+          example: ["NORMAL", "PREMIUM"]
         employmentType:
           type: string
           description: Driver employment type (api-facing string)

@@ -328,6 +328,8 @@ export function TripList({ onViewTrip }: TripListProps) {
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Pickup</th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Drop</th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Driver</th>
+                                        <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Car Type</th>
+                                        <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Transmission</th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Trip Status</th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Payment Status</th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">Amount</th>
@@ -337,7 +339,7 @@ export function TripList({ onViewTrip }: TripListProps) {
                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                     {paginatedTrips.length === 0 ? (
                                         <tr>
-                                            <td colSpan={8} className="px-6 py-20 text-center">
+                                            <td colSpan={10} className="px-6 py-20 text-center">
                                                 <div className="flex flex-col items-center gap-2">
                                                     <Search
                                                         size={32}
@@ -403,6 +405,16 @@ export function TripList({ onViewTrip }: TripListProps) {
                                                     ) : (
                                                         <span className="text-xs text-gray-400">Unassigned</span>
                                                     )}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-xs font-medium text-[#0d121c] dark:text-white">
+                                                        {trip.carType || '-'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-xs font-medium text-[#0d121c] dark:text-white">
+                                                        {trip.carGearType || trip.transmissionType || '-'}
+                                                    </span>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span

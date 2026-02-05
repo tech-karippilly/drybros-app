@@ -61,6 +61,7 @@ router.post(
 );
 router.post("/:id/assign-driver", assignDriverToTripHandler);
 
+
 const requestTripDriversSchema = z
   .object({
     mode: z.enum(["ALL", "SPECIFIC", "LIST"]).optional().default("ALL"),

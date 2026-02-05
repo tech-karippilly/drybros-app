@@ -22,10 +22,11 @@ export async function getDrivers(
     
     const employmentTypeStr = req.query.employmentType as string | undefined;
     let employmentType: DriverEmploymentType | undefined;
-    if (employmentTypeStr) {
+    if (employmentTypeStr && employmentTypeStr !== "all") {
       const mapped = toPrismaEmploymentType(employmentTypeStr);
       if (mapped) employmentType = mapped;
     }
+    // If employmentTypeStr is "all" or undefined, employmentType remains undefined (no filtering)
     
     // Check if pagination query parameters are provided
     // Use validated query from middleware (type-safe)

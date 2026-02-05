@@ -20,7 +20,7 @@ export interface CreateTransactionDTO {
   amount: number;
   transactionType: "CREDIT" | "DEBIT";
   tripId?: string;
-  type: "PENALTY" | "TRIP";
+  type: "PENALTY" | "TRIP" | "GIFT";
   description?: string;
 }
 
@@ -29,7 +29,7 @@ export interface GetTransactionsQueryDTO {
   limit?: number;
   driverId?: string;
   transactionType?: "CREDIT" | "DEBIT";
-  type?: "PENALTY" | "TRIP";
+  type?: "PENALTY" | "TRIP" | "GIFT";
   tripId?: string;
   startDate?: string;
   endDate?: string;
@@ -69,9 +69,7 @@ export async function createTransaction(data: CreateTransactionDTO) {
   }
 
   // Validate type and tripId consistency
-  if (data.type === "TRIP" && !data.tripId) {
-    throw new BadRequestError("Trip ID is required for TRIP type transactions");
-  }
+  // Note: tripId is optional for TRIP type as well (e.g., manual earnings, gifts)
 
   const input: CreateDriverTransactionInput = {
     driverId: data.driverId,

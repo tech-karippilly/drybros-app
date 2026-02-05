@@ -921,6 +921,7 @@ enum TransactionType {
 enum DriverTransactionType {
   PENALTY
   TRIP
+  GIFT
 }
 
 model DriverTransaction {

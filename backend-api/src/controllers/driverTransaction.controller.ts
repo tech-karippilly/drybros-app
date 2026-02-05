@@ -43,8 +43,16 @@ export async function createDriverTransaction(
     if (!["CREDIT", "DEBIT"].includes(data.transactionType)) {
       throw new BadRequestError("Transaction type must be CREDIT or DEBIT");
     }
-    if (!["PENALTY", "TRIP"].includes(data.type)) {
-      throw new BadRequestError("Type must be PENALTY or TRIP");
+    if (!["PENALTY", "TRIP", "GIFT"].includes(data.type)) {
+      throw new BadRequestError("Type must be PENALTY, TRIP, or GIFT");
+    }
+
+    // Convert empty strings to undefined for optional fields
+    if (data.tripId === "") {
+      data.tripId = undefined;
+    }
+    if (data.description === "") {
+      data.description = undefined;
     }
 
     const transaction = await createTransaction(data);
@@ -83,8 +91,8 @@ export async function getDriverTransactionsList(
     if (query.transactionType && !["CREDIT", "DEBIT"].includes(query.transactionType)) {
       throw new BadRequestError("Transaction type must be CREDIT or DEBIT");
     }
-    if (query.type && !["PENALTY", "TRIP"].includes(query.type)) {
-      throw new BadRequestError("Type must be PENALTY or TRIP");
+    if (query.type && !["PENALTY", "TRIP", "GIFT"].includes(query.type)) {
+      throw new BadRequestError("Type must be PENALTY, TRIP, or GIFT");
     }
 
     const result = await getTransactions(query);

@@ -76,7 +76,7 @@ router.post(
       amount: z.number().positive("Amount must be positive"),
       transactionType: z.enum(["CREDIT", "DEBIT"]),
       tripId: z.string().uuid("Invalid trip ID format").optional(),
-      type: z.enum(["PENALTY", "TRIP"]),
+      type: z.enum(["PENALTY", "TRIP", "GIFT"]),
       description: z.string().optional(),
     })
   ),
@@ -145,7 +145,7 @@ router.get(
       limit: z.string().regex(/^\d+$/).optional(),
       driverId: z.string().uuid("Invalid driver ID format").optional(),
       transactionType: z.enum(["CREDIT", "DEBIT"]).optional(),
-      type: z.enum(["PENALTY", "TRIP"]).optional(),
+      type: z.enum(["PENALTY", "TRIP", "GIFT"]).optional(),
       tripId: z.string().uuid("Invalid trip ID format").optional(),
       startDate: z.string().optional(),
       endDate: z.string().optional(),

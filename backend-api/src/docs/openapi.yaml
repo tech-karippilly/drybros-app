@@ -8357,7 +8357,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [PENALTY, TRIP]
+            enum: [PENALTY, TRIP, GIFT]
         - name: tripId
           in: query
           required: false
@@ -12964,7 +12964,7 @@ components:
           nullable: true
         type:
           type: string
-          enum: [PENALTY, TRIP]
+          enum: [PENALTY, TRIP, GIFT]
         description:
           type: string
           maxLength: 500
@@ -12990,7 +12990,7 @@ components:
           nullable: true
         type:
           type: string
-          enum: [PENALTY, TRIP]
+          enum: [PENALTY, TRIP, GIFT]
         description:
           type: string
           nullable: true

@@ -13,6 +13,8 @@ import { TransactionType, DriverTransactionType } from "@prisma/client";
 import { NotFoundError, BadRequestError } from "../utils/errors";
 import { getDriverById } from "../repositories/driver.repository";
 import { getTripById } from "../repositories/trip.repository";
+import { reduceRemainingDailyLimit } from "../repositories/driver.repository";
+import { calculateAndSaveDailyMetrics } from "./driver-daily-metrics.service";
 import logger from "../config/logger";
 
 export interface CreateTransactionDTO {
@@ -89,6 +91,36 @@ export async function createTransaction(data: CreateTransactionDTO) {
     type: data.type,
     transactionType: data.transactionType,
   });
+
+  // If it's a CREDIT transaction, update driver's daily limit and metrics
+  if (data.transactionType === "CREDIT") {
+    try {
+      // Reduce remaining daily limit
+      await reduceRemainingDailyLimit(data.driverId, data.amount);
+      logger.info("Daily limit reduced for driver", {
+        driverId: data.driverId,
+        amount: data.amount,
+        transactionId: transaction.id,
+      });
+
+      // Update daily metrics and calculate incentive
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      await calculateAndSaveDailyMetrics(data.driverId, today);
+      logger.info("Daily metrics updated for driver", {
+        driverId: data.driverId,
+        date: today.toISOString(),
+        transactionId: transaction.id,
+      });
+    } catch (error) {
+      // Log error but don't fail the transaction creation
+      logger.error("Failed to update driver daily limit or metrics", {
+        error: error instanceof Error ? error.message : String(error),
+        driverId: data.driverId,
+        transactionId: transaction.id,
+      });
+    }
+  }
 
   return transaction;
 }

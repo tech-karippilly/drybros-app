@@ -75,9 +75,9 @@ router.post(
       driverId: z.string().uuid("Invalid driver ID format"),
       amount: z.number().positive("Amount must be positive"),
       transactionType: z.enum(["CREDIT", "DEBIT"]),
-      tripId: z.string().uuid("Invalid trip ID format").optional(),
+      tripId: z.string().uuid("Invalid trip ID format").optional().or(z.literal("")),
       type: z.enum(["PENALTY", "TRIP", "GIFT"]),
-      description: z.string().optional(),
+      description: z.string().optional().or(z.literal("")),
     })
   ),
   createDriverTransaction

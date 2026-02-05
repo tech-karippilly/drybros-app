@@ -28,6 +28,7 @@ import {
   getTripLogsHandler,
   requestTripDriversHandler,
   endTripDirectHandler,
+  updateTripLiveLocationHandler,
 } from "../controllers/trip.controller";
 import { authMiddleware } from "../middlewares/auth";
 import { validate, validateParams } from "../middlewares/validation";
@@ -143,6 +144,12 @@ router.post("/:id/collect-payment", collectPaymentHandler);
 router.post("/:id/verify-payment", verifyPaymentAndEndTripHandler);
 
 router.post("/:id/end-direct", endTripDirectHandler);
+
+router.post(
+  "/:id/live-location",
+  validateParams(z.object({ id: z.string().uuid("Invalid trip ID format") })),
+  updateTripLiveLocationHandler
+);
 
 router.get("/:id/history", getTripHistoryHandler);
 router.get("/:id/logs", getTripLogsHandler);

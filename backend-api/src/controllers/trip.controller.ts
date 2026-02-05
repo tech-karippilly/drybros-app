@@ -29,6 +29,7 @@ import {
   verifyPaymentAndEndTrip,
   getTripHistory,
   endTripDirect,
+  updateTripLiveLocation,
 } from "../services/trip.service";
 import { PaymentStatus, PaymentMode } from "@prisma/client";
 import { requireValidUUID, validateAndGetUUID } from "../utils/validation";
@@ -425,7 +426,7 @@ export async function initiateStartTripHandler(
 ) {
   try {
     const tripId = validateAndGetUUID(req.params.id, "Trip ID");
-    const { odometerValue, odometerPic, carFrontPic, carBackPic } = req.body;
+    const { odometerValue, odometerPic, carFrontPic, carBackPic, driverSelfie, startTime } = req.body;
 
     if (odometerValue === undefined || odometerValue === null) {
       return res.status(400).json({
@@ -451,12 +452,26 @@ export async function initiateStartTripHandler(
       });
     }
 
+    if (!driverSelfie) {
+      return res.status(400).json({
+        error: "driverSelfie is required",
+      });
+    }
+
+    if (!startTime) {
+      return res.status(400).json({
+        error: "startTime is required",
+      });
+    }
+
     const result = await initiateStartTrip({
       tripId,
       odometerValue: parseFloat(odometerValue),
       odometerPic,
       carFrontPic,
       carBackPic,
+      driverSelfie,
+      startTime: new Date(startTime),
     });
 
     res.json({ data: result });
@@ -582,7 +597,7 @@ export async function initiateEndTripHandler(
 ) {
   try {
     const tripId = validateAndGetUUID(req.params.id, "Trip ID");
-    const { odometerValue, odometerImage } = req.body;
+    const { odometerValue, odometerImage, endTime } = req.body;
 
     if (odometerValue === undefined || odometerValue === null) {
       return res.status(400).json({
@@ -596,10 +611,17 @@ export async function initiateEndTripHandler(
       });
     }
 
+    if (!endTime) {
+      return res.status(400).json({
+        error: "endTime is required",
+      });
+    }
+
     const result = await initiateEndTrip({
       tripId,
       odometerValue: parseFloat(odometerValue),
       odometerImage,
+      endTime: new Date(endTime),
     });
 
     res.json({ data: result });
@@ -848,6 +870,58 @@ export async function reassignDriverToTripHandler(
       userId
     );
     res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Update trip live location from driver
+ */
+export async function updateTripLiveLocationHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
+    const { lat, long } = req.body;
+
+    if (lat === undefined || lat === null) {
+      return res.status(400).json({
+        error: "lat is required",
+      });
+    }
+
+    if (long === undefined || long === null) {
+      return res.status(400).json({
+        error: "long is required",
+      });
+    }
+
+    // Validate lat/long ranges
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(long);
+
+    if (latitude < -90 || latitude > 90) {
+      return res.status(400).json({
+        error: "lat must be between -90 and 90",
+      });
+    }
+
+    if (longitude < -180 || longitude > 180) {
+      return res.status(400).json({
+        error: "long must be between -180 and 180",
+      });
+    }
+
+    const result = await updateTripLiveLocation({
+      tripId,
+      lat: latitude,
+      long: longitude,
+    });
+
+    res.json({ data: result });
   } catch (err) {
     next(err);
   }

@@ -4935,6 +4935,8 @@ paths:
               odometerPic: "https://example.com/images/odometer.jpg"
               carFrontPic: "https://example.com/images/car-front.jpg"
               carBackPic: "https://example.com/images/car-back.jpg"
+              driverSelfie: "https://example.com/images/driver-selfie.jpg"
+              startTime: "2026-02-05T10:30:00.000Z"
       responses:
         "200":
           description: Token generated and OTP sent to customer successfully
@@ -5175,6 +5177,7 @@ paths:
             example:
               odometerValue: 12350.2
               odometerImage: "https://example.com/images/odometer-end.jpg"
+              endTime: "2026-02-05T12:30:00.000Z"
       responses:
         "200":
           description: OTP generated and sent successfully
@@ -5868,6 +5871,114 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trip not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trips/{id}/live-location:
+    post:
+      summary: Update trip live location from driver
+      description: |
+        Update the live location of a trip while it's in progress. This endpoint is called by the driver's mobile app to send real-time location updates.
+        
+        **Purpose:**
+        - Track driver's real-time location during an active trip
+        - Enable live tracking for customers and dispatchers
+        - Store location breadcrumb trail
+        
+        **When to use:**
+        - During active trips (TRIP_STARTED, TRIP_PROGRESS, IN_PROGRESS status)
+        - Should be called periodically (e.g., every 10-30 seconds) by mobile app
+        
+        **Location Data:**
+        - Latitude: -90 to 90 degrees
+        - Longitude: -180 to 180 degrees
+        
+        **Note:** This endpoint updates the trip's live location fields only. It does not affect trip status or other trip data.
+      tags:
+        - Trips
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trip ID (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTripLiveLocationRequest"
+            example:
+              lat: 12.9716
+              long: 77.5946
+      responses:
+        "200":
+          description: Live location updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      tripId:
+                        type: string
+                        format: uuid
+                        description: Trip ID
+                        example: "550e8400-e29b-41d4-a716-446655440000"
+                      liveLocationLat:
+                        type: number
+                        description: Updated latitude
+                        example: 12.9716
+                      liveLocationLng:
+                        type: number
+                        description: Updated longitude
+                        example: 77.5946
+                      message:
+                        type: string
+                        description: Success message
+                        example: "Live location updated successfully"
+              example:
+                data:
+                  tripId: "550e8400-e29b-41d4-a716-446655440000"
+                  liveLocationLat: 12.9716
+                  liveLocationLng: 77.5946
+                  message: "Live location updated successfully"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missingLat:
+                  summary: Missing latitude
+                  value:
+                    error: "lat is required"
+                missingLong:
+                  summary: Missing longitude
+                  value:
+                    error: "long is required"
+                invalidLat:
+                  summary: Invalid latitude
+                  value:
+                    error: "lat must be between -90 and 90"
+                invalidLong:
+                  summary: Invalid longitude
+                  value:
+                    error: "long must be between -180 and 180"
+        "401":
+          description: Not authenticated (missing or invalid token)
         "404":
           description: Trip not found
           content:
@@ -9097,11 +9208,23 @@ components:
           format: uri
           description: URL to back car image
           example: "https://example.com/images/car-back.jpg"
+        driverSelfie:
+          type: string
+          format: uri
+          description: URL to driver selfie image
+          example: "https://example.com/images/driver-selfie.jpg"
+        startTime:
+          type: string
+          format: date-time
+          description: Timestamp when driver initiated the trip start
+          example: "2026-02-05T10:30:00.000Z"
       required:
         - odometerValue
         - odometerPic
         - carFrontPic
         - carBackPic
+        - driverSelfie
+        - startTime
 
     VerifyStartTripRequest:
       type: object
@@ -9158,9 +9281,15 @@ components:
           format: uri
           description: URL to odometer image at trip end
           example: "https://example.com/images/odometer-end.jpg"
+        endTime:
+          type: string
+          format: date-time
+          description: Timestamp when driver initiated the trip end
+          example: "2026-02-05T12:30:00.000Z"
       required:
         - odometerValue
         - odometerImage
+        - endTime
 
     VerifyEndTripRequest:
       type: object
@@ -9237,6 +9366,28 @@ components:
             required:
               - upiAmount
               - cashAmount
+
+    UpdateTripLiveLocationRequest:
+      type: object
+      description: |
+        Request body for updating trip live location from driver.
+        Latitude and longitude are required and must be within valid ranges.
+      properties:
+        lat:
+          type: number
+          description: Latitude coordinate (-90 to 90)
+          example: 12.9716
+          minimum: -90
+          maximum: 90
+        long:
+          type: number
+          description: Longitude coordinate (-180 to 180)
+          example: 77.5946
+          minimum: -180
+          maximum: 180
+      required:
+        - lat
+        - long
 
     TripTypeConfig:
       type: object

@@ -219,6 +219,8 @@ model Trip {
   scheduledAt          DateTime?
   startedAt            DateTime?
   endedAt              DateTime?
+  startTime            DateTime? // Time when driver initiated trip start
+  endTime              DateTime? // Time when driver initiated trip end
   startOtp             String?
   endOtp               String?
   baseAmount           Int
@@ -251,6 +253,13 @@ model Trip {
   endOdometer          Float?
   carImageFront        String? // URL to front car image
   carImageBack         String? // URL to back car image
+  // Driver selfie and odometer images
+  driverSelfieUrl      String? // URL to driver selfie image
+  odometerStartImageUrl String? // URL to odometer start image
+  odometerEndImageUrl  String? // URL to odometer end image
+  // Live location coordinates
+  liveLocationLat      Float? // Live location latitude
+  liveLocationLng      Float? // Live location longitude
   User                 User?          @relation(fields: [createdBy], references: [id])
   Customer             Customer?      @relation(fields: [customerId], references: [id])
   Driver               Driver?        @relation(fields: [driverId], references: [id])

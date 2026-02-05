@@ -1270,10 +1270,12 @@ interface InitiateStartTripInput {
   odometerPic: string;
   carFrontPic: string;
   carBackPic: string;
+  driverSelfie: string;
+  startTime: Date;
 }
 
 export async function initiateStartTrip(input: InitiateStartTripInput) {
-  const { tripId, odometerValue, odometerPic, carFrontPic, carBackPic } = input;
+  const { tripId, odometerValue, odometerPic, carFrontPic, carBackPic, driverSelfie, startTime } = input;
   
   // Validate trip exists
   const trip = await repoGetTripById(tripId);
@@ -1316,15 +1318,15 @@ export async function initiateStartTrip(input: InitiateStartTripInput) {
     expiresIn: "10m", // Token expires in 10 minutes
   });
 
-  // Store OTP and temporary data in trip (before status change)
-  // Note: odometerPic is stored in alternativePhone field temporarily
-  // TODO: Add odometerPic field to Trip schema in future migration
+  // Store OTP and image data in trip
   await updateTrip(tripId, {
     startOtp: otp,
     startOdometer: odometerValue,
     carImageFront: carFrontPic,
     carImageBack: carBackPic,
-    alternativePhone: odometerPic, // Temporary storage - TODO: Add proper field
+    odometerStartImageUrl: odometerPic,
+    driverSelfieUrl: driverSelfie,
+    startTime: startTime,
   });
 
   // Send OTP to customer via email
@@ -1482,10 +1484,11 @@ interface InitiateEndTripInput {
   tripId: string;
   odometerValue: number;
   odometerImage: string;
+  endTime: Date;
 }
 
 export async function initiateEndTrip(input: InitiateEndTripInput) {
-  const { tripId, odometerValue, odometerImage } = input;
+  const { tripId, odometerValue, odometerImage, endTime } = input;
   
   // Validate trip exists
   const trip = await repoGetTripById(tripId);
@@ -1542,13 +1545,12 @@ export async function initiateEndTrip(input: InitiateEndTripInput) {
     expiresIn: "10m", // Token expires in 10 minutes
   });
 
-  // Store OTP and temporary end odometer data (before status change)
-  // Note: odometerImage is stored in alternativePhone field temporarily
-  // TODO: Add odometerImage field to Trip schema in future migration
+  // Store OTP and end odometer data
   await updateTrip(tripId, {
     endOtp: otp,
     endOdometer: odometerValue,
-    alternativePhone: odometerImage, // Temporary storage - TODO: Add proper field
+    odometerEndImageUrl: odometerImage,
+    endTime: endTime,
   });
 
   // Send OTP to customer via email
@@ -2785,5 +2787,39 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
           calculated: false,
           message: "Pricing not calculated. Distance or duration required.",
         },
+  };
+}
+
+/**
+ * Update trip live location from driver
+ */
+interface UpdateTripLiveLocationInput {
+  tripId: string;
+  lat: number;
+  long: number;
+}
+
+export async function updateTripLiveLocation(input: UpdateTripLiveLocationInput) {
+  const { tripId, lat, long } = input;
+
+  // Validate trip exists
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error("Trip not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Update trip with live location
+  const updatedTrip = await updateTrip(tripId, {
+    liveLocationLat: lat,
+    liveLocationLng: long,
+  });
+
+  return {
+    tripId: updatedTrip.id,
+    liveLocationLat: updatedTrip.liveLocationLat,
+    liveLocationLng: updatedTrip.liveLocationLng,
+    message: "Live location updated successfully",
   };
 }

@@ -50,7 +50,8 @@ export function CreateFranchiseForm({ onClose }: CreateFranchiseFormProps) {
         region: "",
         address: "",
         phone: "",
-        inchargeName: "",
+        franchiseEmail: "",
+        managerName: "",
         managerEmail: "",
         managerPhone: "",
         storeImage: null as string | null,
@@ -304,8 +305,8 @@ export function CreateFranchiseForm({ onClose }: CreateFranchiseFormProps) {
                                             <input
                                                 required
                                                 type="email"
-                                                name="managerEmail"
-                                                value={formData.managerEmail}
+                                                name="franchiseEmail"
+                                                value={formData.franchiseEmail}
                                                 onChange={handleChange}
                                                 placeholder={FRANCHISE_STRINGS.PLACEHOLDER_BUSINESS_EMAIL}
                                                 className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg focus:ring-2 focus:ring-theme-blue text-sm p-3 text-slate-900 dark:text-white placeholder:text-slate-400"
@@ -346,8 +347,8 @@ export function CreateFranchiseForm({ onClose }: CreateFranchiseFormProps) {
                                         </label>
                                         <input
                                             required
-                                            name="inchargeName"
-                                            value={formData.inchargeName}
+                                            name="managerName"
+                                            value={formData.managerName}
                                             onChange={handleChange}
                                             placeholder={FRANCHISE_STRINGS.PLACEHOLDER_MANAGER_NAME}
                                             type="text"

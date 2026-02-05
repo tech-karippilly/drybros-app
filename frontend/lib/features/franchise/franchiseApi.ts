@@ -32,7 +32,8 @@ export interface CreateFranchiseRequest {
     region: string;
     address: string;
     phone: string;
-    inchargeName: string;
+    franchiseEmail: string;
+    managerName: string;
     managerEmail: string;
     managerPhone: string;
     storeImage?: string | null;

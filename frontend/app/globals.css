@@ -54,12 +54,37 @@ body {
 
 /* Dybros Super Admin–style scrollbar for dashboard */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
+  width: 8px;
+  height: 8px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #111a22;
+  background: #f1f5f9;
+  border-radius: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #233648;
+  background: #cbd5e1;
   border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Dark theme scrollbar */
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* For Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+.dark .custom-scrollbar {
+  scrollbar-color: #334155 #1e293b;
 }

@@ -89,6 +89,8 @@ export function mapBackendTripToTripItem(trip: BackendTrip): TripItem {
     vehicleModel: pickNonEmpty(trip.tripType),
     serviceType: pickNonEmpty(trip.tripType),
     specialRequests: 'N/A',
+    liveLocationLat: trip.liveLocationLat ?? null,
+    liveLocationLng: trip.liveLocationLng ?? null,
   };
 }
 

@@ -29,6 +29,7 @@ import {
 import { normalizeHeight, normalizeWidth } from '../utils/responsive';
 import type { TripStackParamList } from '../navigation/TripStackNavigator';
 import { endTripInitiateApi, endTripVerifyApi } from '../services/api/trips';
+import { stopTripLocationTracking } from '../services/tripLocationTracking';
 
 type Props = NativeStackScreenProps<TripStackParamList, typeof TRIP_STACK_ROUTES.TRIP_END>;
 
@@ -128,6 +129,8 @@ export function TripEndScreen({ navigation, route }: Props) {
     setSubmitting(true);
     try {
       const result = await endTripVerifyApi(trip.id, { token, otp: otpText.trim() });
+      // Stop location tracking when trip ends
+      stopTripLocationTracking();
       // Move to payment collection as the next mandatory step.
       showToast({ message: TRIP_END_STRINGS.END_VERIFIED_GO_TO_PAYMENT, type: 'success', position: 'top' });
       navigation.navigate(TRIP_STACK_ROUTES.TRIP_PAYMENT, { trip, amount: result.calculatedAmount });

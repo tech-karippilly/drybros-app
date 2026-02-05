@@ -31,6 +31,7 @@ import { getTripByIdApi } from '../services/api/trips';
 import { mapBackendTripToTripItem } from '../services/mappers/trips';
 import { getPendingTripOffers, removePendingTripOffer } from '../services/storage/tripStorage';
 import { acceptTripOfferApi, rejectTripOfferApi } from '../services/api/tripOffers';
+import { startTripLocationTracking, stopTripLocationTracking } from '../services/tripLocationTracking';
 
 type Props = NativeStackScreenProps<TripStackParamList, typeof TRIP_STACK_ROUTES.TRIP_DETAILS>;
 
@@ -124,6 +125,18 @@ export function TripDetailsScreen({ navigation, route }: Props) {
     }
   }, [initialTrip?.id, initialTrip?.status, showToast]);
 
+  // Polling for live location updates every 5 minutes for ongoing trips
+  React.useEffect(() => {
+    if (!trip?.id || trip.status !== 'ongoing') return;
+
+    const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
+    const intervalId = setInterval(() => {
+      load();
+    }, POLL_INTERVAL);
+
+    return () => clearInterval(intervalId);
+  }, [trip?.id, trip?.status, load]);
+
   React.useEffect(() => {
     load();
   }, [load]);
@@ -134,6 +147,27 @@ export function TripDetailsScreen({ navigation, route }: Props) {
       setSwipeResetSeed((s) => s + 1);
     }, [load])
   );
+
+  // Start/stop location tracking based on trip status
+  React.useEffect(() => {
+    if (!trip?.id) return;
+
+    const backendStatus = (trip.backendStatus ?? '').trim().toUpperCase();
+    const isPaymentPending = backendStatus === BACKEND_TRIP_STATUSES.TRIP_PROGRESS;
+    const isOngoing = trip.status === 'ongoing' && !isPaymentPending;
+
+    if (isOngoing) {
+      // Start location tracking when trip is ongoing
+      startTripLocationTracking(trip.id);
+      return () => {
+        // Stop tracking when component unmounts or trip status changes
+        stopTripLocationTracking();
+      };
+    } else {
+      // Stop tracking if trip is no longer ongoing
+      stopTripLocationTracking();
+    }
+  }, [trip?.id, trip?.status, trip?.backendStatus]);
 
   React.useEffect(() => {
     if (trip.status !== 'ongoing') {
@@ -345,6 +379,34 @@ export function TripDetailsScreen({ navigation, route }: Props) {
           </View>
         </View>
 
+        {trip.liveLocationLat != null && trip.liveLocationLng != null && isOngoing ? (
+          <View style={styles.sectionBlock}>
+            <View style={styles.liveLocationHeader}>
+              <Text variant="body" weight="semiBold" style={styles.sectionTitle}>Driver Live Location</Text>
+              <View style={styles.liveIndicator}>
+                <View style={styles.liveDot} />
+                <Text variant="caption" style={styles.liveText}>LIVE</Text>
+              </View>
+            </View>
+            <View style={styles.locationRow}>
+              <MaterialCommunityIcons name="map-marker" size={normalizeWidth(20)} color={COLORS.primary} />
+              <View style={styles.locationTextCol}>
+                <Text variant="caption" style={styles.kvLabel}>Latitude</Text>
+                <Text variant="body" weight="semiBold" style={styles.kvValue}>{trip.liveLocationLat.toFixed(6)}</Text>
+              </View>
+            </View>
+            <View style={styles.locationSpacer} />
+            <View style={styles.locationRow}>
+              <MaterialCommunityIcons name="map-marker" size={normalizeWidth(20)} color={COLORS.primary} />
+              <View style={styles.locationTextCol}>
+                <Text variant="caption" style={styles.kvLabel}>Longitude</Text>
+                <Text variant="body" weight="semiBold" style={styles.kvValue}>{trip.liveLocationLng.toFixed(6)}</Text>
+              </View>
+            </View>
+            <Text variant="caption" style={styles.locationUpdateText}>Updates every 5 minutes</Text>
+          </View>
+        ) : null}
+
         <View style={styles.sectionBlock}>
           <Text variant="body" weight="semiBold" style={styles.sectionTitle}>{TRIPS_STRINGS.TRIP_METRICS_TITLE}</Text>
           <View style={styles.metricsRow}>
@@ -530,6 +592,51 @@ const styles = StyleSheet.create({
   kvValue: { color: COLORS.textPrimary },
   kvTwoCol: { flexDirection: 'row', gap: normalizeWidth(14) },
   kvHalf: { flex: 1 },
+
+  liveLocationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: normalizeHeight(12),
+  },
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: normalizeWidth(6),
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: normalizeWidth(10),
+    paddingVertical: normalizeHeight(4),
+    borderRadius: normalizeWidth(12),
+  },
+  liveDot: {
+    width: normalizeWidth(6),
+    height: normalizeWidth(6),
+    borderRadius: normalizeWidth(3),
+    backgroundColor: '#4CAF50',
+  },
+  liveText: {
+    color: '#4CAF50',
+    fontSize: normalizeWidth(10),
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: normalizeWidth(12),
+  },
+  locationTextCol: {
+    flex: 1,
+    gap: normalizeHeight(4),
+  },
+  locationSpacer: {
+    height: normalizeHeight(12),
+  },
+  locationUpdateText: {
+    color: TRIPS_COLORS.SUBTEXT,
+    marginTop: normalizeHeight(12),
+    textAlign: 'center',
+  },
 
   emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });

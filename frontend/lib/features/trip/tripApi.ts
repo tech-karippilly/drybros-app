@@ -85,13 +85,27 @@ export interface TripResponse {
     pickupLocation: string;
     pickupAddress?: string | null;
     pickupLocationNote?: string | null;
+    pickupLat?: number | null;
+    pickupLng?: number | null;
     dropLocation: string | null;
     dropAddress?: string | null;
     dropLocationNote?: string | null;
+    dropLat?: number | null;
+    dropLng?: number | null;
     carType?: string | null;
+    carGearType?: string | null;
     scheduledAt: Date | string | null;
     startedAt: Date | string | null;
     endedAt: Date | string | null;
+    startOdometer?: number | null;
+    endOdometer?: number | null;
+    carImageFront?: string | null;
+    carImageBack?: string | null;
+    driverSelfieUrl?: string | null;
+    odometerStartImageUrl?: string | null;
+    odometerEndImageUrl?: string | null;
+    liveLocationLat?: number | null;
+    liveLocationLng?: number | null;
     baseAmount: number;
     extraAmount: number;
     totalAmount: number;
@@ -226,6 +240,15 @@ export async function getUnassignedTrips(): Promise<TripResponse[]> {
 export async function getAvailableDriversForTrip(tripId: string): Promise<any[]> {
     const response = await api.get<{ data: any[] }>(`/trips/${tripId}/available-drivers`);
     return response.data.data;
+}
+
+/**
+ * Get available drivers for a trip (sorted by rating)
+ * Used for REQUESTED trip status to show available drivers
+ */
+export async function getAvailableDriversByRating(tripId: string): Promise<any[]> {
+    const response = await api.get<{ data: { availableDrivers: any[] } }>(`/trips/${tripId}/available`);
+    return response.data.data.availableDrivers;
 }
 
 /**

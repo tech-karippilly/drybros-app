@@ -20,6 +20,8 @@ export type BackendTrip = {
   paymentMode?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  liveLocationLat?: number | null;
+  liveLocationLng?: number | null;
 };
 
 export type ListMyAssignedTripsResponse = {
@@ -39,7 +41,7 @@ export type TripStartInitiatePayload = {
   odometerPic: string;
   carFrontPic: string;
   carBackPic: string;
-  selfiePic: string;
+  driverSelfie: string;
 };
 
 export type TripStartInitiateResponse = {
@@ -201,5 +203,25 @@ export async function verifyPaymentApi(tripId: string, body: VerifyPaymentPayloa
   const res = await apiClient.post<VerifyPaymentResponse>(url, body);
   const payload = (res.data as any)?.data ?? res.data;
   return (payload?.data ?? payload) as VerifyPaymentResponse['data'];
+}
+
+export type UpdateTripLiveLocationPayload = {
+  lat: number;
+  long: number;
+};
+
+export type UpdateTripLiveLocationResponse = {
+  data: {
+    liveLocationLat: number;
+    liveLocationLng: number;
+    updatedAt: string;
+  };
+};
+
+export async function updateTripLiveLocationApi(tripId: string, body: UpdateTripLiveLocationPayload): Promise<UpdateTripLiveLocationResponse['data']> {
+  const url = replacePathParam(API_ENDPOINTS.TRIPS.LIVE_LOCATION, tripId);
+  const res = await apiClient.post<UpdateTripLiveLocationResponse>(url, body);
+  const payload = (res.data as any)?.data ?? res.data;
+  return (payload?.data ?? payload) as UpdateTripLiveLocationResponse['data'];
 }
 

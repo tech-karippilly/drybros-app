@@ -5,7 +5,9 @@ import { ArrowLeft, Loader2, AlertCircle, MapPin, User, Calendar, Clock, DollarS
 import {
     getTripById,
     getAvailableDriversForTrip,
+    getAvailableDriversByRating,
     assignDriverToTrip,
+    requestTripDrivers,
     rescheduleTrip as rescheduleTripApi,
     cancelTrip as cancelTripApi,
     reassignDriverToTrip as reassignDriverToTripApi,
@@ -17,6 +19,7 @@ import { AvailableDriver } from '@/lib/types/driver';
 import { RESCHEDULABLE_TRIP_STATUSES, CANCELLABLE_TRIP_STATUSES, REASSIGNABLE_TRIP_STATUSES, ASSIGN_DRIVER_STRINGS } from '@/lib/constants/trips';
 import { cn, formatCarType } from '@/lib/utils';
 import { TripLog } from './TripLog';
+import { TripMap } from './TripMap';
 
 interface TripDetailsScreenProps {
     tripId: string;
@@ -40,6 +43,9 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
     const [cancelBy, setCancelBy] = useState<'OFFICE' | 'CUSTOMER'>('OFFICE');
     const [cancelReason, setCancelReason] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [requestedDrivers, setRequestedDrivers] = useState<AvailableDriver[]>([]);
+    const [loadingRequestedDrivers, setLoadingRequestedDrivers] = useState(false);
+    const [requestingDriver, setRequestingDriver] = useState<string | null>(null);
 
     useEffect(() => {
         fetchTripDetails();
@@ -90,6 +96,47 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
             });
         return () => { cancelled = true; };
     }, [trip?.id, trip?.driverId, trip?.franchiseId]);
+
+    // For REQUESTED trips: load available drivers sorted by rating
+    useEffect(() => {
+        if (!trip || trip.status !== 'REQUESTED') return;
+        let cancelled = false;
+        setLoadingRequestedDrivers(true);
+        getAvailableDriversByRating(tripId)
+            .then((drivers) => {
+                if (cancelled) return;
+                const mapped: AvailableDriver[] = (drivers || []).map((d: any) => ({
+                    id: d.id,
+                    firstName: d.firstName ?? '',
+                    lastName: d.lastName ?? '',
+                    phone: d.phone ?? '',
+                    driverCode: d.driverCode ?? '',
+                    status: d.status ?? '',
+                    currentRating: d.currentRating ?? null,
+                    performance: d.performance ?? {
+                        category: 'GREEN' as const,
+                        score: 0,
+                        rating: null,
+                        complaintCount: 0,
+                        totalTrips: 0,
+                        completedTrips: 0,
+                        rejectedTrips: 0,
+                        completionRate: 0,
+                        rejectionRate: 0,
+                    },
+                    matchScore: d.matchScore || 0,
+                    remainingDailyLimit: d.remainingDailyLimit ?? null,
+                }));
+                setRequestedDrivers(mapped);
+            })
+            .catch(() => {
+                if (!cancelled) setRequestedDrivers([]);
+            })
+            .finally(() => {
+                if (!cancelled) setLoadingRequestedDrivers(false);
+            });
+        return () => { cancelled = true; };
+    }, [trip?.id, trip?.status, tripId]);
 
     const fetchTripDetails = async () => {
         try {
@@ -183,6 +230,8 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
                     currentRating: d.currentRating,
                     performance: d.performance,
                     matchScore: d.matchScore || 0,
+                    remainingDailyLimit: d.remainingDailyLimit ?? null,
+                    remainingDailyLimit: d.remainingDailyLimit ?? null,
                 }));
             setAvailableDrivers(greenDrivers);
             setShowReassignDriver(true);
@@ -207,6 +256,23 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
             alert(err?.response?.data?.error || err?.message || 'Failed to reassign driver');
         } finally {
             setReassigningDriver(null);
+        }
+    };
+
+    const handleRequestDriver = async (driverId: string) => {
+        try {
+            setRequestingDriver(driverId);
+            await requestTripDrivers(tripId, {
+                mode: 'SPECIFIC',
+                driverId: driverId,
+            });
+            alert('Trip request sent to driver successfully!');
+            await fetchTripDetails();
+        } catch (err: any) {
+            const errorMsg = err?.response?.data?.error || err?.message || 'Failed to request driver';
+            alert(errorMsg);
+        } finally {
+            setRequestingDriver(null);
         }
     };
 
@@ -333,12 +399,254 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
         );
     }, [availableDrivers, searchTerm]);
 
+    const filteredRequestedDrivers = useMemo(() => {
+        if (!searchTerm.trim()) return requestedDrivers;
+        const q = searchTerm.toLowerCase();
+        return requestedDrivers.filter(
+            (d) =>
+                `${d.firstName} ${d.lastName}`.toLowerCase().includes(q) ||
+                d.driverCode?.toLowerCase().includes(q) ||
+                d.phone?.includes(searchTerm)
+        );
+    }, [requestedDrivers, searchTerm]);
+
+    // REQUESTED trip: show available drivers sorted by rating
+    if (trip && trip.status === 'REQUESTED') {
+        return (
+            <div className="flex flex-1 overflow-hidden bg-slate-50 dark:bg-[#101922] animate-in fade-in duration-500">
+                {/* Left Sidebar: Trip Summary */}
+                <aside className="w-80 border-r border-slate-200 dark:border-slate-800 flex-shrink-0 bg-white dark:bg-[#101922] overflow-y-auto hidden xl:flex flex-col custom-scrollbar">
+                    <div className="p-6 space-y-6">
+                        <div>
+                            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-4">
+                                Trip Details #{tripId.slice(0, 8)}
+                            </h3>
+                            <div className="rounded-xl bg-slate-50 dark:bg-[#192633] overflow-hidden border border-slate-200 dark:border-slate-700">
+                                <div className="h-32 bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
+                                    <MapPin className="size-10 text-slate-400 dark:text-slate-500" />
+                                </div>
+                                <div className="p-4 space-y-4">
+                                    <div className="relative pl-6 border-l-2 border-theme-blue/30 py-1">
+                                        <div className="absolute -left-[5px] top-0 w-2 h-2 rounded-full bg-theme-blue" />
+                                        <div className="absolute -left-[5px] bottom-0 w-2 h-2 rounded-full bg-slate-400" />
+                                        <div className="mb-4">
+                                            <p className="text-[10px] text-slate-400 uppercase font-bold">Pickup</p>
+                                            <p className="text-xs font-medium text-slate-900 dark:text-slate-200 truncate">
+                                                {trip.pickupAddress || trip.pickupLocation || '—'}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-slate-400 uppercase font-bold">Destination</p>
+                                            <p className="text-xs font-medium text-slate-900 dark:text-slate-200 truncate">
+                                                {trip.dropAddress || trip.dropLocation || '—'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                        <div>
+                                            <p className="text-[10px] text-slate-400 uppercase font-bold">Date</p>
+                                            <p className="text-xs font-semibold text-slate-900 dark:text-white">{scheduledDateUnassigned}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-slate-400 uppercase font-bold">Time</p>
+                                            <p className="text-xs font-semibold text-slate-900 dark:text-white">{scheduledTimeUnassigned}</p>
+                                        </div>
+                                    </div>
+                                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                                        <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Status</p>
+                                        <span
+                                            className={cn(
+                                                'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold',
+                                                getStatusColor(trip.status)
+                                            )}
+                                        >
+                                            {trip.status}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="space-y-4">
+                            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                Trip Information
+                            </h3>
+                            <div className="space-y-3 text-sm">
+                                <div>
+                                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Customer</p>
+                                    <p className="text-xs font-medium text-slate-900 dark:text-white">{trip.customerName}</p>
+                                    <p className="text-xs text-slate-500">{trip.customerPhone}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Car Type</p>
+                                    <p className="text-xs font-medium text-slate-900 dark:text-white">{formatCarType(trip.carType || 'N/A')}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Trip Type</p>
+                                    <p className="text-xs font-medium text-slate-900 dark:text-white">{trip.tripType}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+
+                {/* Main: Available Drivers */}
+                <section className="flex-1 flex flex-col overflow-y-auto custom-scrollbar">
+                    <div className="px-8 pt-8 pb-4">
+                        <div className="flex flex-wrap justify-between items-end gap-4 mb-8">
+                            <div className="flex items-center gap-4">
+                                <button
+                                    type="button"
+                                    onClick={onBack}
+                                    className="p-2 text-slate-500 hover:text-theme-blue hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                                >
+                                    <ArrowLeft className="size-6" />
+                                </button>
+                                <div>
+                                    <h1 className="text-slate-900 dark:text-white text-3xl font-black leading-tight tracking-tight">
+                                        Available Drivers for Requested Trip
+                                    </h1>
+                                    <p className="text-slate-500 dark:text-slate-400 text-base mt-0.5">
+                                        Drivers sorted by rating - select a driver to assign
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-500 px-3 py-1 rounded-full text-xs font-bold uppercase">
+                                    REQUESTED
+                                </span>
+                                <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-3 py-1 rounded-full text-xs font-bold uppercase">
+                                    Trip #{tripId.slice(0, 8)}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col md:flex-row gap-4 bg-white dark:bg-[#192633] p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    placeholder="Search by name, code, or phone..."
+                                    className="w-full bg-slate-100 dark:bg-[#101922] border-none rounded-lg pl-10 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-theme-blue"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="px-8 pb-10 space-y-4">
+                        <h2 className="text-slate-900 dark:text-white text-lg font-bold px-1">
+                            Available Drivers ({filteredRequestedDrivers.length})
+                        </h2>
+
+                        {loadingRequestedDrivers ? (
+                            <div className="flex flex-col items-center justify-center py-20 gap-4">
+                                <Loader2 className="size-10 animate-spin text-theme-blue" />
+                                <p className="text-slate-500 dark:text-slate-400">Loading available drivers...</p>
+                            </div>
+                        ) : filteredRequestedDrivers.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-20 gap-4 bg-white dark:bg-[#192633] rounded-xl border border-slate-200 dark:border-slate-800">
+                                <AlertCircle className="size-12 text-slate-400" />
+                                <p className="text-slate-600 dark:text-slate-300 font-medium">No available drivers found</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {filteredRequestedDrivers.map((driver) => (
+                                    <div
+                                        key={driver.id}
+                                        className="group flex items-center justify-between p-4 bg-white dark:bg-[#192633] rounded-xl border border-slate-200 dark:border-slate-800 hover:border-theme-blue transition-colors shadow-sm"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="relative">
+                                                <div className="size-14 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-lg">
+                                                    {driver.firstName?.[0]}
+                                                    {driver.lastName?.[0]}
+                                                </div>
+                                                <div
+                                                    className={cn(
+                                                        'absolute bottom-0 right-0 size-4 rounded-full border-2 border-white dark:border-[#192633]',
+                                                        driver.performance?.category === 'GREEN' ? 'bg-green-500' :
+                                                        driver.performance?.category === 'YELLOW' ? 'bg-amber-500' : 'bg-slate-400'
+                                                    )}
+                                                />
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-slate-900 dark:text-white font-bold">
+                                                        {driver.firstName} {driver.lastName}
+                                                    </p>
+                                                    <div className="flex items-center gap-1 text-xs text-yellow-500 font-bold">
+                                                        <Star className="size-3.5 fill-current" />
+                                                        {driver.currentRating?.toFixed(1) ?? '—'}
+                                                    </div>
+                                                    {driver.performance && (
+                                                        <PerformanceBadge
+                                                            category={driver.performance.category}
+                                                            score={driver.performance.score}
+                                                            showScore={false}
+                                                            size="sm"
+                                                        />
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-3 mt-1">
+                                                    <span className="px-2 py-0.5 bg-slate-100 dark:bg-[#101922] text-[10px] text-slate-500 dark:text-slate-400 rounded font-bold uppercase">
+                                                        {driver.driverCode}
+                                                    </span>
+                                                    <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                                                        <Phone size={12} />
+                                                        {driver.phone}
+                                                    </div>
+                                                    {driver.performance && (
+                                                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                                                            {driver.performance.completedTrips} trips
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRequestDriver(driver.id)}
+                                                disabled={requestingDriver === driver.id}
+                                                className="flex min-w-[140px] items-center justify-center rounded-lg h-10 px-6 bg-theme-blue text-white text-sm font-bold hover:bg-theme-blue/90 transition-all shadow-lg shadow-theme-blue/20 disabled:opacity-50 disabled:cursor-not-allowed gap-2"
+                                            >
+                                                {requestingDriver === driver.id ? (
+                                                    <>
+                                                        <Loader2 className="size-4 animate-spin" />
+                                                        Requesting...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <CheckCircle className="size-4" />
+                                                        Request Driver
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {error && (
+                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-center gap-2">
+                                <AlertCircle className="size-5 text-red-500 shrink-0" />
+                                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                            </div>
+                        )}
+                    </div>
+                </section>
+            </div>
+        );
+    }
+
     // Unassigned trip: same design as Assign Driver screen (sidebar + driver list)
     if (trip && !trip.driverId) {
         return (
             <div className="flex flex-1 overflow-hidden bg-slate-50 dark:bg-[#101922] animate-in fade-in duration-500">
                 {/* Left Sidebar: Trip Summary */}
-                <aside className="w-80 border-r border-slate-200 dark:border-slate-800 flex-shrink-0 bg-white dark:bg-[#101922] overflow-y-auto hidden xl:flex flex-col">
+                <aside className="w-80 border-r border-slate-200 dark:border-slate-800 flex-shrink-0 bg-white dark:bg-[#101922] overflow-y-auto hidden xl:flex flex-col custom-scrollbar">
                     <div className="p-6 space-y-6">
                         <div>
                             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-4">
@@ -408,7 +716,7 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
                 </aside>
 
                 {/* Main: Driver Selection */}
-                <section className="flex-1 flex flex-col overflow-y-auto">
+                <section className="flex-1 flex flex-col overflow-y-auto custom-scrollbar">
                     <div className="px-8 pt-8 pb-4">
                         <div className="flex flex-wrap justify-between items-end gap-4 mb-8">
                             <div className="flex items-center gap-4">
@@ -622,7 +930,7 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-900/50">
+            <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-900/50 custom-scrollbar">
                 {isLoading ? (
                     <div className="py-20 text-center">
                         <Loader2 className="size-8 animate-spin text-[#0d59f2] mx-auto mb-4" />
@@ -893,6 +1201,18 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
                             </div>
                         </div>
 
+                        {/* Trip Route Map with Live Location */}
+                        <TripMap
+                            pickupLat={trip.pickupLat}
+                            pickupLng={trip.pickupLng}
+                            dropLat={trip.dropLat}
+                            dropLng={trip.dropLng}
+                            pickupLocation={trip.pickupAddress || trip.pickupLocation}
+                            dropLocation={trip.dropAddress || trip.dropLocation}
+                            liveLocationLat={trip.status !== 'COMPLETED' && trip.status !== 'CANCELLED' && trip.startedAt ? trip.liveLocationLat : null}
+                            liveLocationLng={trip.status !== 'COMPLETED' && trip.status !== 'CANCELLED' && trip.startedAt ? trip.liveLocationLng : null}
+                        />
+
                         {/* Trip Details */}
                         <div className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm">
                             <h3 className="text-lg font-bold text-[#0d121c] dark:text-white mb-4 flex items-center gap-2">
@@ -955,6 +1275,151 @@ export function TripDetailsScreen({ tripId, onBack }: TripDetailsScreenProps) {
                                     </div>
                                 )}
                             </div>
+                        </div>
+
+                        {/* Odometer & Trip Images */}
+                        <div className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <h3 className="text-lg font-bold text-[#0d121c] dark:text-white mb-4 flex items-center gap-2">
+                                <FileText size={20} />
+                                Odometer & Trip Images
+                            </h3>
+                            
+                            {/* Odometer Readings & Distance */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                {trip.startOdometer && (
+                                    <div>
+                                        <p className="text-xs font-bold uppercase text-[#49659c] dark:text-gray-400 mb-1">
+                                            Start Odometer
+                                        </p>
+                                        <p className="text-sm font-bold text-[#0d121c] dark:text-white">
+                                            {trip.startOdometer.toLocaleString()} km
+                                        </p>
+                                    </div>
+                                )}
+                                {trip.endOdometer && (
+                                    <div>
+                                        <p className="text-xs font-bold uppercase text-[#49659c] dark:text-gray-400 mb-1">
+                                            End Odometer
+                                        </p>
+                                        <p className="text-sm font-bold text-[#0d121c] dark:text-white">
+                                            {trip.endOdometer.toLocaleString()} km
+                                        </p>
+                                    </div>
+                                )}
+                                {trip.startOdometer && trip.endOdometer && (
+                                    <div>
+                                        <p className="text-xs font-bold uppercase text-[#49659c] dark:text-gray-400 mb-1">
+                                            Total Distance
+                                        </p>
+                                        <p className="text-sm font-bold text-green-600 dark:text-green-500">
+                                            {(trip.endOdometer - trip.startOdometer).toLocaleString()} km
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Odometer Images */}
+                            <div className="mb-6">
+                                <p className="text-xs font-bold uppercase text-[#49659c] dark:text-gray-400 mb-3">
+                                    Odometer Images
+                                </p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p className="text-xs font-semibold text-[#49659c] dark:text-gray-400 mb-2">
+                                            Start Odometer
+                                        </p>
+                                        <div className="relative aspect-video rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800">
+                                            <img
+                                                src={trip.odometerStartImageUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23e5e7eb" width="400" height="300"/%3E%3Ctext fill="%23909399" x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="16"%3ENo Image Available%3C/text%3E%3C/svg%3E'}
+                                                alt="Start Odometer"
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23e5e7eb" width="400" height="300"/%3E%3Ctext fill="%23909399" x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="16"%3EImage Load Failed%3C/text%3E%3C/svg%3E';
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-semibold text-[#49659c] dark:text-gray-400 mb-2">
+                                            End Odometer
+                                        </p>
+                                        <div className="relative aspect-video rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800">
+                                            <img
+                                                src={trip.odometerEndImageUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23e5e7eb" width="400" height="300"/%3E%3Ctext fill="%23909399" x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="16"%3ENo Image Available%3C/text%3E%3C/svg%3E'}
+                                                alt="End Odometer"
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23e5e7eb" width="400" height="300"/%3E%3Ctext fill="%23909399" x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="16"%3EImage Load Failed%3C/text%3E%3C/svg%3E';
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Driver Selfie */}
+                            <div className="mb-6">
+                                <p className="text-xs font-bold uppercase text-[#49659c] dark:text-gray-400 mb-3">
+                                    Driver Selfie
+                                </p>
+                                <div className="max-w-md">
+                                    <div className="relative aspect-video rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800">
+                                        <img
+                                            src={trip.driverSelfieUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23e5e7eb" width="400" height="300"/%3E%3Ctext fill="%23909399" x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="16"%3ENo Selfie Available%3C/text%3E%3C/svg%3E'}
+                                            alt="Driver Selfie"
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23e5e7eb" width="400" height="300"/%3E%3Ctext fill="%23909399" x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="16"%3EImage Load Failed%3C/text%3E%3C/svg%3E';
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Car Images */}
+                            {(trip.carImageFront || trip.carImageBack) && (
+                                <div>
+                                    <p className="text-xs font-bold uppercase text-[#49659c] dark:text-gray-400 mb-3">
+                                        Car Images
+                                    </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {trip.carImageFront && (
+                                            <div>
+                                                <p className="text-xs font-semibold text-[#49659c] dark:text-gray-400 mb-2">
+                                                    Front View
+                                                </p>
+                                                <div className="relative aspect-video rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800">
+                                                    <img
+                                                        src={trip.carImageFront}
+                                                        alt="Car Front View"
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23e5e7eb" width="400" height="300"/%3E%3Ctext fill="%23909399" x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="16"%3ENo Image%3C/text%3E%3C/svg%3E';
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                        {trip.carImageBack && (
+                                            <div>
+                                                <p className="text-xs font-semibold text-[#49659c] dark:text-gray-400 mb-2">
+                                                    Back View
+                                                </p>
+                                                <div className="relative aspect-video rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800">
+                                                    <img
+                                                        src={trip.carImageBack}
+                                                        alt="Car Back View"
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23e5e7eb" width="400" height="300"/%3E%3Ctext fill="%23909399" x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="16"%3ENo Image%3C/text%3E%3C/svg%3E';
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Confirmation Flags */}

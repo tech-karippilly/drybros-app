@@ -16,6 +16,7 @@ import {
     Building2,
     Loader2,
     X,
+    RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -166,13 +167,23 @@ export function TripList({ onViewTrip }: TripListProps) {
                     <h2 className="text-2xl font-bold text-[#0d121c] dark:text-white">All Trips</h2>
                     <p className="text-[#49659c] dark:text-gray-400">View and manage all trips</p>
                 </div>
-                <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-sm font-bold text-[#49659c] hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
-                >
-                    <Filter size={18} />
-                    <span>Filters</span>
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={fetchTrips}
+                        disabled={isLoading}
+                        className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-sm font-bold text-[#49659c] hover:bg-gray-50 dark:hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <RefreshCw size={18} className={cn(isLoading && 'animate-spin')} />
+                        <span>Refresh</span>
+                    </button>
+                    <button
+                        onClick={() => setShowFilters(!showFilters)}
+                        className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-sm font-bold text-[#49659c] hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
+                    >
+                        <Filter size={18} />
+                        <span>Filters</span>
+                    </button>
+                </div>
             </div>
 
             {/* Search Bar */}

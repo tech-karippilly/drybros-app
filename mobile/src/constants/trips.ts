@@ -388,6 +388,10 @@ export type TripItem = {
   vehicleModel: string;
   serviceType: string;
   specialRequests: string;
+  /** Driver's current live location latitude (updates every 5 minutes) */
+  liveLocationLat?: number | null;
+  /** Driver's current live location longitude (updates every 5 minutes) */
+  liveLocationLng?: number | null;
 };
 
 export const TRIPS_MOCK_LIST: TripItem[] = [

@@ -250,28 +250,28 @@ export function ProfileScreen() {
               </View>
 
               {/* Earnings section */}
-              <Text variant="body" weight="semiBold" style={styles.sectionTitle}>
+              <Text variant="caption" weight="semiBold" style={styles.sectionTitle}>
                 {PROFILE_STRINGS.EARNINGS}
               </Text>
               <View style={styles.earningsRow}>
                 <View style={styles.earningsBox}>
-                  <Text variant="body" weight="bold" style={styles.earningsAmount}>
+                  <Text variant="caption" weight="bold" style={styles.earningsAmount}>
                     {monthlyEarnings}
                   </Text>
-                  <Text variant="caption" style={styles.earningsLabel}>
+                  <Text style={styles.earningsLabel}>
                     {PROFILE_STRINGS.MONTHLY_EARNINGS}
                   </Text>
                   {profileData?.earnings && (
-                    <Text variant="caption" style={styles.earningsSubLabel}>
+                    <Text style={styles.earningsSubLabel}>
                       {profileData.earnings.tripsCount} trips
                     </Text>
                   )}
                 </View>
                 <View style={styles.earningsBox}>
-                  <Text variant="body" weight="bold" style={styles.earningsAmount}>
+                  <Text variant="caption" weight="bold" style={styles.earningsAmount}>
                     {todayEarnings}
                   </Text>
-                  <Text variant="caption" style={styles.earningsLabel}>
+                  <Text style={styles.earningsLabel}>
                     Total Earnings
                   </Text>
                 </View>
@@ -460,30 +460,32 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: COLORS.textPrimary,
-    marginBottom: normalizeHeight(12),
+    marginBottom: normalizeHeight(8),
   },
   earningsRow: {
     flexDirection: 'row',
-    gap: normalizeWidth(12),
-    marginBottom: normalizeHeight(16),
+    gap: normalizeWidth(10),
+    marginBottom: normalizeHeight(12),
   },
   earningsBox: {
     flex: 1,
     backgroundColor: COLORS.gray100,
-    borderRadius: normalizeWidth(12),
-    padding: normalizeWidth(16),
+    borderRadius: normalizeWidth(10),
+    padding: normalizeWidth(12),
   },
   earningsAmount: {
     color: COLORS.textPrimary,
+    fontSize: normalizeFont(15),
   },
   earningsLabel: {
     color: COLORS.textSecondary,
-    marginTop: normalizeHeight(4),
+    marginTop: normalizeHeight(2),
+    fontSize: normalizeFont(10),
   },
   earningsSubLabel: {
     color: COLORS.textTertiary,
     marginTop: normalizeHeight(2),
-    fontSize: normalizeFont(11),
+    fontSize: normalizeFont(9),
   },
   listSection: {
     marginTop: normalizeHeight(12),

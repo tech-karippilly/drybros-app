@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { X, Loader2, AlertCircle, MapPin, User, Calendar, Clock, DollarSign, CreditCard, FileText, CheckCircle, XCircle } from 'lucide-react';
+import { X, Loader2, AlertCircle, MapPin, User, Calendar, Clock, DollarSign, CreditCard, FileText, CheckCircle, XCircle, Image } from 'lucide-react';
 import { getTripById, TripResponse } from '@/lib/features/trip/tripApi';
 import { cn, formatCarType } from '@/lib/utils';
+import { TripMap } from './TripMap';
 
 interface TripDetailsModalProps {
     tripId: string;
@@ -17,7 +18,16 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
 
     useEffect(() => {
         fetchTripDetails();
-    }, [tripId]);
+        
+        // Poll for updates every 5 minutes if trip is in progress
+        const pollInterval = setInterval(() => {
+            if (trip && ['TRIP_STARTED', 'TRIP_PROGRESS', 'IN_PROGRESS', 'DRIVER_ON_THE_WAY'].includes(trip.status)) {
+                fetchTripDetails();
+            }
+        }, 5 * 60 * 1000); // 5 minutes
+
+        return () => clearInterval(pollInterval);
+    }, [tripId, trip?.status]);
 
     const fetchTripDetails = async () => {
         try {
@@ -249,6 +259,148 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
                                                 Note: {trip.dropLocationNote}
                                             </p>
                                         )}
+                                    </div>
+                                    {trip.liveLocationLat != null && trip.liveLocationLng != null && (
+                                        <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                            <p className="text-xs font-bold uppercase text-blue-600 dark:text-blue-400 mb-2 flex items-center gap-2">
+                                                <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+                                                Driver Live Location
+                                            </p>
+                                            <p className="text-sm font-bold text-[#0d121c] dark:text-white">
+                                                Lat: {trip.liveLocationLat.toFixed(6)}, Lng: {trip.liveLocationLng.toFixed(6)}
+                                            </p>
+                                            <p className="text-xs text-[#49659c] dark:text-gray-400 mt-1">
+                                                Updates every 5 minutes
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Map View */}
+                            {(trip.pickupLat != null && trip.pickupLng != null) || (trip.liveLocationLat != null && trip.liveLocationLng != null) ? (
+                                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6 border border-gray-200 dark:border-gray-800">
+                                    <h3 className="text-lg font-bold text-[#0d121c] dark:text-white mb-4 flex items-center gap-2">
+                                        <MapPin size={20} />
+                                        Map View
+                                        {trip.liveLocationLat != null && trip.liveLocationLng != null && (
+                                            <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded-full flex items-center gap-1">
+                                                <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+                                                LIVE
+                                            </span>
+                                        )}
+                                    </h3>
+                                    <div className="rounded-lg overflow-hidden" style={{ height: '400px' }}>
+                                        <TripMap
+                                            pickupLat={trip.pickupLat}
+                                            pickupLng={trip.pickupLng}
+                                            dropLat={trip.dropLat}
+                                            dropLng={trip.dropLng}
+                                            pickupLocation={trip.pickupAddress || trip.pickupLocation}
+                                            dropLocation={trip.dropAddress || trip.dropLocation}
+                                            liveLocationLat={trip.liveLocationLat}
+                                            liveLocationLng={trip.liveLocationLng}
+                                        />
+                                    </div>
+                                </div>
+                            ) : null}
+
+                            {/* Trip Images Section */}
+                            {(trip.odometerStartImageUrl || trip.odometerEndImageUrl || trip.driverSelfieUrl || trip.carImageFront || trip.carImageBack) && (
+                                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6 border border-gray-200 dark:border-gray-800">
+                                    <h3 className="text-lg font-bold text-[#0d121c] dark:text-white mb-4 flex items-center gap-2">
+                                        <Image size={20} />
+                                        Trip Images
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {trip.odometerStartImageUrl && (
+                                            <div className="space-y-2">
+                                                <p className="text-xs font-bold uppercase text-[#49659c] dark:text-gray-400">
+                                                    Odometer Start
+                                                </p>
+                                                <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
+                                                    <img
+                                                        src={trip.odometerStartImageUrl}
+                                                        alt="Odometer Start"
+                                                        className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                                        onClick={() => window.open(trip.odometerStartImageUrl!, '_blank')}
+                                                    />
+                                                </div>
+                                                {trip.startOdometer && (
+                                                    <p className="text-xs text-[#49659c] dark:text-gray-400">
+                                                        Reading: {trip.startOdometer} km
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+                                        {trip.odometerEndImageUrl && (
+                                            <div className="space-y-2">
+                                                <p className="text-xs font-bold uppercase text-[#49659c] dark:text-gray-400">
+                                                    Odometer End
+                                                </p>
+                                                <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
+                                                    <img
+                                                        src={trip.odometerEndImageUrl}
+                                                        alt="Odometer End"
+                                                        className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                                        onClick={() => window.open(trip.odometerEndImageUrl!, '_blank')}
+                                                    />
+                                                </div>
+                                                {trip.endOdometer && (
+                                                    <p className="text-xs text-[#49659c] dark:text-gray-400">
+                                                        Reading: {trip.endOdometer} km
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+                                        {trip.driverSelfieUrl && (
+                                            <div className="space-y-2">
+                                                <p className="text-xs font-bold uppercase text-[#49659c] dark:text-gray-400">
+                                                    Driver Selfie
+                                                </p>
+                                                <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
+                                                    <img
+                                                        src={trip.driverSelfieUrl}
+                                                        alt="Driver Selfie"
+                                                        className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                                        onClick={() => window.open(trip.driverSelfieUrl!, '_blank')}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                        {trip.carImageFront && (
+                                            <div className="space-y-2">
+                                                <p className="text-xs font-bold uppercase text-[#49659c] dark:text-gray-400">
+                                                    Car Front
+                                                </p>
+                                                <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
+                                                    <img
+                                                        src={trip.carImageFront}
+                                                        alt="Car Front"
+                                                        className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                                        onClick={() => window.open(trip.carImageFront!, '_blank')}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                        {trip.carImageBack && (
+                                            <div className="space-y-2">
+                                                <p className="text-xs font-bold uppercase text-[#49659c] dark:text-gray-400">
+                                                    Car Back
+                                                </p>
+                                                <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
+                                                    <img
+                                                        src={trip.carImageBack}
+                                                        alt="Car Back"
+                                                        className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                                        onClick={() => window.open(trip.carImageBack!, '_blank')}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                                     </div>
                                 </div>
                             </div>

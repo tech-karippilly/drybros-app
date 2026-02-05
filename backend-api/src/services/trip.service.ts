@@ -28,6 +28,7 @@ import { generateOtp } from "../utils/otp";
 import jwt from "jsonwebtoken";
 import { authConfig } from "../config/authConfig";
 import { findOrCreateCustomer } from "./customer.service";
+import { createTripEarningTransaction } from "./driverTransaction.service";
 import {
   CAR_GEAR_TYPES,
   CAR_TYPE_CATEGORIES,
@@ -1982,6 +1983,29 @@ export async function verifyPaymentAndEndTrip(input: VerifyPaymentAndEndTripInpu
 
   // Update driver trip status to AVAILABLE
   await updateDriverTripStatus(driverId, "AVAILABLE");
+
+  // Create driver transaction for trip earning
+  try {
+    const tripAmount = trip.finalAmount || trip.totalAmount;
+    await createTripEarningTransaction(
+      driverId,
+      tripId,
+      tripAmount,
+      `Trip earning for trip ${tripId}`
+    );
+    logger.info("Driver transaction created for trip earning", {
+      tripId,
+      driverId,
+      amount: tripAmount,
+    });
+  } catch (error) {
+    // Log error but don't fail the trip end - transaction creation is not critical
+    logger.error("Failed to create driver transaction for trip earning", {
+      error: error instanceof Error ? error.message : String(error),
+      tripId,
+      driverId,
+    });
+  }
 
   // Send trip end email with review form
   if (trip.customerEmail) {

@@ -108,9 +108,11 @@ model Driver {
   DriverRatings            DriverRating[]
   TripReviews              TripReview[]
   ActivityLogs             ActivityLog[]
+  Penalties                Penalty[]                @relation("DriverPenalties")
   DriverPenalties          DriverPenalty[]
   DriverDailyMetrics       DriverDailyMetrics[]
   TripStatusHistories      TripStatusHistory[]
+  DriverTransactions       DriverTransaction[]
 }
 
 model Franchise {
@@ -269,6 +271,7 @@ model Trip {
   TripStatusHistories  TripStatusHistory[]
   TripOffers           TripOffer[]
   TripReviews          TripReview[]
+  DriverTransactions   DriverTransaction[]
 }
 
 enum TripOfferStatus {
@@ -798,15 +801,18 @@ model Penalty {
   id              String          @id @default(uuid()) @db.Uuid
   name            String
   description     String?
+  driverId        String?         @db.Uuid // Optional: for driver-specific penalties
   amount          Int // Default penalty amount
   type            PenaltyType     @default(PENALTY)
   isActive        Boolean         @default(true)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+  Driver          Driver?         @relation("DriverPenalties", fields: [driverId], references: [id], onDelete: Cascade)
   DriverPenalties DriverPenalty[]
 
   @@index([isActive])
   @@index([type])
+  @@index([driverId])
 }
 
 enum PenaltyType {
@@ -904,4 +910,35 @@ model TripStatusHistory {
   @@index([driverId, occurredAt])
   @@index([eventType, occurredAt])
   @@index([occurredAt])
+}
+
+// Driver Transactions - Track all earnings and deductions for drivers
+enum TransactionType {
+  CREDIT
+  DEBIT
+}
+
+enum DriverTransactionType {
+  PENALTY
+  TRIP
+}
+
+model DriverTransaction {
+  id              String                 @id @default(uuid()) @db.Uuid
+  driverId        String                 @db.Uuid
+  amount          Decimal                @db.Decimal(10, 2)
+  transactionType TransactionType        // CREDIT or DEBIT
+  tripId          String?                @db.Uuid // Optional, null for penalties
+  type            DriverTransactionType  // PENALTY or TRIP
+  description     String?                // Optional description
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  
+  Driver          Driver                 @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Trip            Trip?                  @relation(fields: [tripId], references: [id], onDelete: SetNull)
+
+  @@index([driverId, createdAt])
+  @@index([transactionType])
+  @@index([type])
+  @@index([tripId])
 }

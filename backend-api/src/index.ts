@@ -25,6 +25,7 @@ import earningsConfigRoutes from "./routes/earningsConfig.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
 import alertsRoutes from "./routes/alerts.routes";
 import reviewRoutes from "./routes/review.routes";
+import driverTransactionRoutes from "./routes/driverTransaction.routes";
 
 import cors from "cors";
 import path from "path";
@@ -185,6 +186,7 @@ app.use("/config", earningsConfigRoutes);
 app.use("/dashboard", dashboardRoutes);
 app.use("/alerts", alertsRoutes);
 app.use("/reviews", reviewRoutes);
+app.use("/driver-transactions", driverTransactionRoutes);
 
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Drybros backend root 🚗" });

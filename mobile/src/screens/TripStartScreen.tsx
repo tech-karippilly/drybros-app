@@ -34,6 +34,7 @@ import {
 import { normalizeHeight, normalizeWidth } from '../utils/responsive';
 import type { TripStackParamList } from '../navigation/TripStackNavigator';
 import { startTripInitiateApi, startTripVerifyApi } from '../services/api/trips';
+import { startTripLocationTracking } from '../services/tripLocationTracking';
 
 type Props = NativeStackScreenProps<TripStackParamList, typeof TRIP_STACK_ROUTES.TRIP_START>;
 
@@ -44,7 +45,7 @@ export type TripStartPayload = {
   odometerPic: string;
   carFrontPic: string;
   carBackPic: string;
-  selfiePic: string;
+  driverSelfie: string;
 };
 
 function getPhotoLabel(key: PhotoKey): string {
@@ -150,8 +151,10 @@ export function TripStartScreen({ navigation, route }: Props) {
       odometerPic: photos.odometerPic.uri,
       carFrontPic: photos.carFrontPic.uri,
       carBackPic: photos.carBackPic.uri,
-      selfiePic: photos.selfiePic.uri,
+      driverSelfie: photos.selfiePic.uri,
     };
+
+    console.log('[TripStart] Payload being sent:', JSON.stringify(payload, null, 2));
 
     if (submitting) return;
     setSubmitting(true);
@@ -186,6 +189,8 @@ export function TripStartScreen({ navigation, route }: Props) {
     setSubmitting(true);
     try {
       await startTripVerifyApi(trip.id, { token, otp: otpText.trim() });
+      // Start location tracking immediately after trip starts
+      await startTripLocationTracking(trip.id);
       showToast({ message: TRIP_START_STRINGS.SUCCESS, type: 'success', position: 'top' });
       navigation.goBack();
     } catch (e: any) {

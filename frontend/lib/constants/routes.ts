@@ -19,6 +19,9 @@ export const DASHBOARD_ROUTES = {
     /** Request trip to drivers after booking: /dashboard/booking/request-drivers/[tripId] */
     REQUEST_DRIVERS: '/dashboard/booking/request-drivers',
     COMPLAINTS: '/dashboard/complaints',
+    COMPLAINTS_CREATE: '/dashboard/complaints/create',
+    PENALTIES: '/dashboard/penalties',
+    WARNINGS: '/dashboard/warnings',
     ATTENDANCE: '/dashboard/attendance',
     LEAVE: '/dashboard/leave',
     LEAVE_REQUESTS: '/dashboard/leave-requests',

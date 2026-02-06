@@ -1,20 +1,19 @@
 /**
  * Complaints UI and API constants.
- * Status: OPEN = Pending, IN_PROGRESS = On Process, RESOLVED, CLOSED.
+ * Status: RECEIVED = Complaint received, IN_PROCESS = Being investigated, RESOLVED = Resolved with action.
+ * Priority: LOW, MEDIUM, HIGH
  */
 
 export const COMPLAINT_STATUS = {
-  OPEN: 'OPEN',
-  IN_PROGRESS: 'IN_PROGRESS',
+  RECEIVED: 'RECEIVED',
+  IN_PROCESS: 'IN_PROCESS',
   RESOLVED: 'RESOLVED',
-  CLOSED: 'CLOSED',
 } as const;
 
 export const COMPLAINT_STATUS_LABELS: Record<string, string> = {
-  OPEN: 'Pending',
-  IN_PROGRESS: 'On Process',
+  RECEIVED: 'Received',
+  IN_PROCESS: 'In Process',
   RESOLVED: 'Resolved',
-  CLOSED: 'Closed',
 };
 
 export const COMPLAINT_RESOLUTION_ACTION = {
@@ -27,4 +26,10 @@ export const COMPLAINT_RESOLUTION_ACTION_LABELS: Record<string, string> = {
   FIRE: 'Fire',
 };
 
-export const COMPLAINT_SEVERITY = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
+export const COMPLAINT_PRIORITY = ['LOW', 'MEDIUM', 'HIGH'] as const;
+
+export const COMPLAINT_PRIORITY_LABELS: Record<string, string> = {
+  LOW: 'Low',
+  MEDIUM: 'Medium',
+  HIGH: 'High',
+};

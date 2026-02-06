@@ -1,18 +1,8 @@
-// src/constants/penalty.ts
-
-export const PENALTY_ERROR_MESSAGES = {
-  PENALTY_NOT_FOUND: "Penalty not found",
-  DRIVER_PENALTY_NOT_FOUND: "Driver penalty not found",
-  DRIVER_NOT_FOUND: "Driver not found",
-  INVALID_AMOUNT: "Amount must be greater than 0",
-  INVALID_DAILY_LIMIT: "Daily limit must be greater than 0",
-  FRANCHISE_REQUIRED: "Franchise ID is required for manager",
-} as const;
-
 /**
- * Standard penalty deduction types and amounts for drivers
- * All amounts are in Rupees (₹)
+ * Penalty deduction constants for drivers
+ * These values must match the backend constants
  */
+
 export const DRIVER_PENALTY_DEDUCTIONS = {
   LATE_REPORT: {
     name: "Late report",
@@ -51,7 +41,16 @@ export const DRIVER_PENALTY_DEDUCTIONS = {
   },
 } as const;
 
+export type PenaltyDeductionKey = keyof typeof DRIVER_PENALTY_DEDUCTIONS;
+
 /**
  * Get all penalty deduction types as an array
  */
 export const PENALTY_DEDUCTION_LIST = Object.values(DRIVER_PENALTY_DEDUCTIONS);
+
+/**
+ * Format currency amount in INR
+ */
+export const formatPenaltyAmount = (amount: number): string => {
+  return `₹${amount}`;
+};

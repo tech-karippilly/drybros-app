@@ -20,7 +20,48 @@ import { UserRole } from "@prisma/client";
 import prisma from "../config/prismaClient";
 
 /**
- * Create penalty
+ * @swagger
+ * /penalties:
+ *   post:
+ *     tags:
+ *       - Penalties
+ *     summary: Create a new penalty deduction type
+ *     description: Create a new penalty/deduction type with name, amount, and description (Admin/Manager only)
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - amount
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "Late report"
+ *               description:
+ *                 type: string
+ *                 example: "Penalty for reporting late to work"
+ *               amount:
+ *                 type: integer
+ *                 example: 100
+ *               type:
+ *                 type: string
+ *                 enum: [PENALTY, DEDUCTION]
+ *                 default: PENALTY
+ *               isActive:
+ *                 type: boolean
+ *                 default: true
+ *     responses:
+ *       201:
+ *         description: Penalty created successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin/Manager only
  */
 export async function createPenaltyHandler(
   req: Request,
@@ -37,7 +78,42 @@ export async function createPenaltyHandler(
 }
 
 /**
- * Get all penalties
+ * @swagger
+ * /penalties:
+ *   get:
+ *     tags:
+ *       - Penalties
+ *     summary: Get all penalty deduction types
+ *     description: Retrieve all penalty types with optional filtering
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: isActive
+ *         schema:
+ *           type: boolean
+ *         description: Filter by active status
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [PENALTY, DEDUCTION]
+ *         description: Filter by penalty type
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: List of penalties
+ *       401:
+ *         description: Unauthorized
  */
 export async function getPenaltiesHandler(
   req: Request,
@@ -45,7 +121,72 @@ export async function getPenaltiesHandler(
   next: NextFunction
 ) {
   try {
-    if (req.query.page || req.query.limit) {
+   @swagger
+ * /penalties/{id}:
+ *   patch:
+ *     tags:
+ *       - Penalties
+ *     summary: Update a penalty deduction type
+ *     description: Update penalty details like name, amount, or description (Admin/Manager only)
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Penalty ID
+ *     requestBody:
+ * @swagger
+ * /penalties/{id}:
+ *   delete:
+ *     tags:
+ *       - Penalties
+ *     summary: Delete a penalty deduction type
+ *     description: Soft delete a penalty type by setting isActive to false (Admin/Manager only)
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Penalty ID
+ *     responses:
+ *       200:
+ *         description: Penalty deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Penalty not found: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               amount:
+ *                 type: integer
+ *               isActive:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Penalty updated successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Penalty not found.page || req.query.limit) {
       const pagination = (req as any).validatedQuery;
       const result = await getPenaltiesPaginated(pagination);
       res.json(result);

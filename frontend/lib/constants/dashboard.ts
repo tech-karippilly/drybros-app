@@ -15,7 +15,8 @@ import {
     CalendarOff,
     Star,
     Wallet,
-    ClipboardList
+    ClipboardList,
+    AlertTriangle
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 import { DASHBOARD_ROUTES, APP_ROUTES } from './routes';
@@ -54,7 +55,15 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
                 { icon: PlusCircle, label: 'Booking', id: 'trip-booking', href: DASHBOARD_ROUTES.BOOKING },
             ],
         },
-        { icon: MessageSquare, label: 'Complaints', id: 'complaints', href: DASHBOARD_ROUTES.COMPLAINTS },
+        {
+            icon: AlertTriangle,
+            label: 'Complaints & Penalties',
+            id: 'complaints-penalties',
+            submenu: [
+                { icon: MessageSquare, label: 'Complaints', id: 'complaints', href: DASHBOARD_ROUTES.COMPLAINTS },
+                { icon: AlertTriangle, label: 'Penalties', id: 'penalties', href: DASHBOARD_ROUTES.PENALTIES },
+            ],
+        },
         {
             icon: CalendarCheck,
             label: 'Attendance',
@@ -92,7 +101,15 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
                 { icon: PlusCircle, label: 'Booking', id: 'trip-booking', href: DASHBOARD_ROUTES.BOOKING },
             ],
         },
-        { icon: MessageSquare, label: 'Complaints', id: 'complaints', href: DASHBOARD_ROUTES.COMPLAINTS },
+        {
+            icon: AlertTriangle,
+            label: 'Complaints & Penalties',
+            id: 'complaints-penalties',
+            submenu: [
+                { icon: MessageSquare, label: 'Complaints', id: 'complaints', href: DASHBOARD_ROUTES.COMPLAINTS },
+                { icon: AlertTriangle, label: 'Penalties', id: 'penalties', href: DASHBOARD_ROUTES.PENALTIES },
+            ],
+        },
         {
             icon: CalendarCheck,
             label: 'Attendance',
@@ -130,7 +147,15 @@ export const ROLE_MENUS: Record<string, NavItem[]> = {
                 { icon: PlusCircle, label: 'Booking', id: 'trip-booking', href: DASHBOARD_ROUTES.BOOKING },
             ],
         },
-        { icon: MessageSquare, label: 'Complaints', id: 'complaints', href: DASHBOARD_ROUTES.COMPLAINTS },
+        {
+            icon: AlertTriangle,
+            label: 'Complaints & Penalties',
+            id: 'complaints-penalties',
+            submenu: [
+                { icon: MessageSquare, label: 'Complaints', id: 'complaints', href: DASHBOARD_ROUTES.COMPLAINTS },
+                { icon: AlertTriangle, label: 'Penalties', id: 'penalties', href: DASHBOARD_ROUTES.PENALTIES },
+            ],
+        },
         {
             icon: CalendarCheck,
             label: 'Attendance',

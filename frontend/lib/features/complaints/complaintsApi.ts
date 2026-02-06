@@ -4,7 +4,8 @@
  */
 import api from '../../axios';
 
-export type ComplaintStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+export type ComplaintStatus = 'RECEIVED' | 'IN_PROCESS' | 'RESOLVED';
+export type ComplaintPriority = 'LOW' | 'MEDIUM' | 'HIGH';
 export type ComplaintResolutionAction = 'WARNING' | 'FIRE';
 
 export interface ComplaintResponse {
@@ -12,11 +13,13 @@ export interface ComplaintResponse {
   driverId: string | null;
   staffId: string | null;
   customerId: string | null;
+  customerName: string;
+  tripId: string | null;
   title: string;
   description: string;
   reportedBy: string | null;
   status: ComplaintStatus;
-  severity: string;
+  priority: ComplaintPriority;
   createdAt: string;
   updatedAt: string;
   resolvedAt: string | null;
@@ -29,10 +32,11 @@ export interface ComplaintResponse {
 export interface CreateComplaintRequest {
   driverId?: string;
   staffId?: string;
-  customerId?: string;
+  customerName: string;
+  tripId?: string;
   title: string;
   description: string;
-  severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  priority?: ComplaintPriority;
 }
 
 /** When status is RESOLVED, action and reason are required. */

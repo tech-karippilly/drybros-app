@@ -6436,6 +6436,8 @@ paths:
               distanceType:
                 summary: DISTANCE type pricing
                 value:
+                  name: "Standard Distance-Based Trip"
+                  description: "Ideal for long-distance trips with fixed base distance"
                   carCategory: "NORMAL"
                   type: "DISTANCE"
                   baseAmount: 500
@@ -6445,6 +6447,8 @@ paths:
               timeType:
                 summary: TIME type pricing
                 value:
+                  name: "Premium Time-Based Trip"
+                  description: "Perfect for hourly rentals with premium cars"
                   carCategory: "PREMIUM"
                   type: "TIME"
                   baseAmount: 800
@@ -6454,6 +6458,8 @@ paths:
               slabDistanceType:
                 summary: SLAB type with distance slabs
                 value:
+                  name: "Luxury Distance Slab Pricing"
+                  description: "Luxury car pricing based on distance ranges"
                   carCategory: "LUXURY"
                   type: "SLAB"
                   slabType: "distance"
@@ -6470,6 +6476,8 @@ paths:
               slabTimeType:
                 summary: SLAB type with time slabs
                 value:
+                  name: "Sports Car Time Slab Pricing"
+                  description: "Sports car pricing based on time of day"
                   carCategory: "SPORTS"
                   type: "SLAB"
                   slabType: "time"
@@ -10162,8 +10170,12 @@ components:
         3. **SLAB:** Slab-based pricing with different prices for different distance/time ranges
         
         **Required Fields (all types):**
+        - `name`: A descriptive name for the trip type
         - `carCategory`: NORMAL, PREMIUM, LUXURY, or SPORTS
         - `type`: DISTANCE, TIME, or SLAB
+        
+        **Optional Fields:**
+        - `description`: Additional details about this trip type
         
         **Type-specific Required Fields:**
         
@@ -10178,9 +10190,19 @@ components:
         - `distanceSlab` array (if slabType is "distance")
         - `timeSlab` array (if slabType is "time")
       required:
+        - name
         - carCategory
         - type
       properties:
+        name:
+          type: string
+          description: Name of the trip type
+          example: "Standard Distance-Based Trip"
+        description:
+          type: string
+          nullable: true
+          description: Description of the trip type
+          example: "Ideal for long-distance trips with fixed base distance"
         carCategory:
           type: string
           enum: [NORMAL, PREMIUM, LUXURY, SPORTS]
@@ -10297,27 +10319,40 @@ components:
       description: |
         Request body for updating a trip type. All fields are optional.
         
-        **Note:** When updating pricing:
-        - You can update specific car types without providing all 5
-        - If switching `pricingMode`, ensure car type pricing matches
-        - For DISTANCE_BASED mode, provide `distanceSlabs` in carTypePricing
+        **Note:** Only provide fields you want to update.
       properties:
         name:
           type: string
-          description: Trip type name (user-defined)
-          example: "City Round Trip"
-          minLength: 1
-          maxLength: 100
-        pricingMode:
+          description: Name of the trip type
+          example: "Updated Distance-Based Trip"
+        description:
           type: string
-          enum: [TIME_BASED, DISTANCE_BASED]
-          description: Pricing mode
-          example: "TIME_BASED"
+          nullable: true
+          description: Description of the trip type
+          example: "Updated description for long-distance trips"
+        baseAmount:
+          type: number
+          nullable: true
+          description: Base price/amount
+          example: 600
+          minimum: 0
         baseHour:
           type: number
           nullable: true
           description: Base hours included
-          example: 3
+          example: 4
+          minimum: 0
+        baseDistance:
+          type: number
+          nullable: true
+          description: Base distance in km
+          example: 60
+          minimum: 0
+        extraPerDistance:
+          type: number
+          nullable: true
+          description: Extra charge per km
+          example: 12
           minimum: 0
         extraPerHour:
           type: number
@@ -10331,66 +10366,33 @@ components:
           description: Extra charge for 30 minutes
           example: 60
           minimum: 0
-        baseDistance:
-          type: number
-          nullable: true
-          description: Base distance in km (for DISTANCE_BASED mode)
-          example: 200
-          minimum: 0
-        description:
-          type: string
-          nullable: true
-          description: Description of the trip type
-          maxLength: 500
-        carTypePricing:
+        distanceSlab:
           type: array
-          description: |
-            Update pricing for specific car types.
-            You can provide pricing for one or more car types (not required to provide all 5 when updating).
+          nullable: true
+          description: Distance slab array
           items:
             type: object
-            required:
-              - carType
-              - basePrice
             properties:
-              carType:
-                type: string
-                enum: [MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS]
-                description: Car type
-                example: "MANUAL"
-              basePrice:
+              from:
                 type: number
-                description: Base price for this car type
-                example: 450
-                minimum: 0
-              distanceSlabs:
-                type: array
+              to:
+                type: number
                 nullable: true
-                description: |
-                  Distance slabs (required for DISTANCE_BASED mode).
-                  Format: `[{from: 0, to: 100, price: 3000}, ...]`
-                items:
-                  type: object
-                  required:
-                    - from
-                    - price
-                  properties:
-                    from:
-                      type: number
-                      description: Starting distance in km
-                      example: 0
-                      minimum: 0
-                    to:
-                      type: number
-                      nullable: true
-                      description: Ending distance in km (null for open-ended)
-                      example: 100
-                      minimum: 0
-                    price:
-                      type: number
-                      description: Price for this distance range
-                      example: 3500
-                      minimum: 0
+              price:
+                type: number
+        timeSlab:
+          type: array
+          nullable: true
+          description: Time slab array
+          items:
+            type: object
+            properties:
+              from:
+                type: string
+              to:
+                type: string
+              price:
+                type: number
 
     CreateRoleRequest:
       type: object

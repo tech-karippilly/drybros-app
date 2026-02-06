@@ -63,6 +63,8 @@ export async function getTripTypeConfigById(id: string) {
  * Create a new TripTypeConfig
  */
 export async function createTripTypeConfig(data: {
+  name: string;
+  description?: string | null;
   type: TripPricingType;
   carCategory: CarCategory;
   baseAmount: number;
@@ -76,6 +78,8 @@ export async function createTripTypeConfig(data: {
 }) {
   return prisma.tripTypeConfig.create({
     data: {
+      name: data.name,
+      description: data.description ?? null,
       type: data.type,
       carCategory: data.carCategory,
       baseAmount: data.baseAmount,
@@ -100,6 +104,8 @@ export async function createTripTypeConfig(data: {
 export async function updateTripTypeConfig(
   id: string,
   data: Partial<{
+    name: string;
+    description: string | null;
     baseAmount: number;
     baseHour: number | null;
     baseDistance: number | null;

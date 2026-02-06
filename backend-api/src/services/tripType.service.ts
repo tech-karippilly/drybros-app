@@ -22,6 +22,8 @@ export interface TimeSlab {
 }
 
 export interface CreateTripTypeInput {
+  name: string; // Trip type name (required)
+  description?: string; // Optional description
   carCategory: CarCategory; // NORMAL, PREMIUM, LUXURY, SPORTS
   type: TripPricingType; // DISTANCE, TIME, or SLAB
   
@@ -42,6 +44,8 @@ export interface CreateTripTypeInput {
 }
 
 export interface UpdateTripTypeInput {
+  name?: string;
+  description?: string;
   baseAmount?: number;
   baseHour?: number;
   baseDistance?: number;
@@ -138,6 +142,12 @@ function validateTripTypeInput(input: CreateTripTypeInput | UpdateTripTypeInput,
   if (!isUpdate) {
     // Type-specific validation for CREATE
     const createData = input as CreateTripTypeInput;
+    
+    if (!createData.name || createData.name.trim().length === 0) {
+      const err: any = new Error("Name is required and cannot be empty");
+      err.statusCode = 400;
+      throw err;
+    }
     
     if (!createData.type) {
       const err: any = new Error("Type is required (DISTANCE, TIME, or SLAB)");
@@ -309,6 +319,8 @@ export async function createTripType(input: CreateTripTypeInput) {
 
   // Prepare data based on type
   let dataToSave: any = {
+    name: input.name,
+    description: input.description ?? null,
     type: input.type,
     carCategory: input.carCategory,
     baseAmount: input.baseAmount ?? null,
@@ -348,6 +360,8 @@ export async function updateTripType(id: string, input: UpdateTripTypeInput) {
   validateTripTypeInput(input, true);
 
   const updated = await repoUpdateTripTypeConfig(id, {
+    name: input.name,
+    description: input.description,
     baseAmount: input.baseAmount,
     baseHour: input.baseHour,
     baseDistance: input.baseDistance,

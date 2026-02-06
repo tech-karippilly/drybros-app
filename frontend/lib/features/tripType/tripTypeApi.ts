@@ -13,25 +13,24 @@ export const TRIP_TYPE_ENDPOINTS = {
 
 // Enums matching backend
 export enum PricingMode {
-    TIME_BASED = 'TIME_BASED',
-    DISTANCE_BASED = 'DISTANCE_BASED',
+    TIME = 'TIME',
+    DISTANCE = 'DISTANCE',
+    SLAB = 'SLAB',
 }
 
 export enum CarType {
-    MANUAL = 'MANUAL',
-    AUTOMATIC = 'AUTOMATIC',
-    PREMIUM_CARS = 'PREMIUM_CARS',
-    LUXURY_CARS = 'LUXURY_CARS',
-    SPORTY_CARS = 'SPORTY_CARS',
+    NORMAL = 'NORMAL',
+    PREMIUM = 'PREMIUM',
+    LUXURY = 'LUXURY',
+    SPORTS = 'SPORTS',
 }
 
 // Car type display metadata
 export const CAR_TYPE_METADATA: Record<CarType, { label: string; icon: string; color: string }> = {
-    [CarType.MANUAL]: { label: 'Manual', icon: '⚙️', color: 'bg-blue-500' },
-    [CarType.AUTOMATIC]: { label: 'Automatic', icon: '🚗', color: 'bg-green-500' },
-    [CarType.PREMIUM_CARS]: { label: 'Premium Cars', icon: '✨', color: 'bg-purple-500' },
-    [CarType.LUXURY_CARS]: { label: 'Luxury Cars', icon: '👑', color: 'bg-amber-500' },
-    [CarType.SPORTY_CARS]: { label: 'Sporty Cars', icon: '🏎️', color: 'bg-red-500' },
+    [CarType.NORMAL]: { label: 'Normal', icon: '🚗', color: 'bg-blue-500' },
+    [CarType.PREMIUM]: { label: 'Premium', icon: '✨', color: 'bg-purple-500' },
+    [CarType.LUXURY]: { label: 'Luxury', icon: '👑', color: 'bg-amber-500' },
+    [CarType.SPORTS]: { label: 'Sports', icon: '🏎️', color: 'bg-red-500' },
 };
 
 // Distance slab for DISTANCE_BASED pricing
@@ -41,55 +40,61 @@ export interface DistanceSlab {
     price: number; // Price for this distance range
 }
 
-// Car type pricing configuration
-export interface CarTypePricing {
-    id?: string;
-    carType: CarType;
-    basePrice: number;
-    distanceSlabs?: DistanceSlab[] | null;
+// Time slab for TIME_BASED slab pricing
+export interface TimeSlab {
+    from: string; // Starting time (e.g., "00:00", "06:00")
+    to: string; // Ending time (e.g., "06:00", "12:00")
+    price: number; // Price for this time range
 }
 
-// Request DTOs (matching new backend structure)
+// Request DTOs (matching backend structure)
 export interface CreateTripTypeRequest {
-    name: string;
-    description?: string;
-    pricingMode: PricingMode;
+    carCategory: CarType; // NORMAL, PREMIUM, LUXURY, SPORTS
+    type: PricingMode; // TIME, DISTANCE, or SLAB
     
-    // Common fields for both modes
-    baseHour?: number; // Base hours included
-    extraPerHour?: number; // Extra per hour
-    extraPerHalfHour?: number; // Extra per 30 min
-    
-    // Distance-based mode specific
-    baseDistance?: number; // Base distance in km
-    
-    // Car type pricing (required for all car types)
-    carTypePricing: Omit<CarTypePricing, 'id'>[];
-}
-
-export interface UpdateTripTypeRequest {
-    name?: string;
-    description?: string;
-    pricingMode?: PricingMode;
+    // For TIME type
+    baseAmount?: number; // base price
     baseHour?: number;
     extraPerHour?: number;
     extraPerHalfHour?: number;
-    baseDistance?: number;
-    carTypePricing?: Omit<CarTypePricing, 'id'>[];
+    
+    // For DISTANCE type
+    baseDistance?: number; // in km
+    extraPerDistance?: number; // per km
+    
+    // For SLAB type
+    slabType?: "distance" | "time"; // Required when type is SLAB
+    distanceSlab?: DistanceSlab[]; // Array of {from, to, price} - for SLAB with distance
+    timeSlab?: TimeSlab[]; // Array of {from, to, price} - for SLAB with time
 }
 
-// Response DTOs (matching new backend structure)
+export interface UpdateTripTypeRequest {
+    baseAmount?: number;
+    baseHour?: number;
+    baseDistance?: number;
+    extraPerHour?: number;
+    extraPerHalfHour?: number;
+    extraPerDistance?: number;
+    distanceSlab?: DistanceSlab[];
+    timeSlab?: TimeSlab[];
+}
+
+// Response DTOs (matching backend structure)
 export interface TripTypeResponse {
     id: string;
-    name: string;
-    description?: string | null;
-    pricingMode: PricingMode;
+    type: PricingMode; // TIME, DISTANCE, or SLAB
+    carCategory: CarType; // NORMAL, PREMIUM, LUXURY, SPORTS
+    
+    baseAmount?: number | null;
     baseHour?: number | null;
+    baseDistance?: number | null;
     extraPerHour?: number | null;
     extraPerHalfHour?: number | null;
-    baseDistance?: number | null;
-    carTypePricing: CarTypePricing[];
-    status: 'ACTIVE' | 'INACTIVE';
+    extraPerDistance?: number | null;
+    
+    distanceSlab?: DistanceSlab[] | null;
+    timeSlab?: TimeSlab[] | null;
+    
     createdAt: Date | string;
     updatedAt: Date | string;
 }

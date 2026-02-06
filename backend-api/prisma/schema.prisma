@@ -300,6 +300,8 @@ model TripOffer {
 
 model TripTypeConfig {
   id          String          @id @default(uuid()) @db.Uuid
+  name        String          // Trip type name (e.g., "City Round Trip", "Long Distance")
+  description String?         // Optional description
   type        TripPricingType // DISTANCE, TIME, SLAB
   carCategory CarCategory     // NORMAL, PREMIUM, LUXURY, SPORTS
 

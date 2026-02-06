@@ -372,6 +372,7 @@ model User {
   Attendances    Attendance[]
   LeaveRequests  LeaveRequest[]
   TripStatusHistories TripStatusHistory[]
+  CreatedWarnings Warning[] // Warnings created by this user
 
   @@index([lockedUntil])
   @@index([franchiseId])
@@ -791,6 +792,8 @@ enum ActivityAction {
   COMPLAINT_CREATED
   COMPLAINT_RESOLVED
   COMPLAINT_STATUS_CHANGED
+  // Warning actions
+  WARNING_ISSUED
   // Leave actions
   LEAVE_REQUESTED
   LEAVE_APPROVED

@@ -6656,7 +6656,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+            enum: [RECEIVED, IN_PROCESS, RESOLVED]
       responses:
         "200":
           description: List of complaints
@@ -6746,11 +6746,13 @@ paths:
     patch:
       summary: Update complaint status
       description: |
-        Update the status of a complaint. Status values: **OPEN** (pending), **IN_PROGRESS** (on process), **RESOLVED**, **CLOSED**.
+        Update the status of a complaint. Status values: **RECEIVED** (newly registered), **IN_PROCESS** (being processed), **RESOLVED**.
         When **status** is **RESOLVED**, you must provide **action** (WARNING or FIRE) and **reason**.
-        - **WARNING**: Issue warning to driver/staff. If they already have 2+ warnings, they are auto-fired.
+        - **WARNING**: Issue warning to driver/staff. If they already have 3+ warnings, they are auto-fired.
         - **FIRE**: Terminate driver (status=TERMINATED, blacklisted=true) or staff (status=FIRED). Fired/blacklisted cannot login or register.
         Resolved complaints include **resolutionAction** and **resolutionReason** in the response.
+        
+        **Email notifications** are sent to the customer at each status change.
       tags:
         - Complaints
       security:
@@ -6787,6 +6789,194 @@ paths:
           description: Not authenticated (missing or invalid token)
         "404":
           description: Complaint not found
+
+  /warnings:
+    get:
+      summary: List warnings
+      description: |
+        Get a list of warnings with optional pagination and filters.
+        
+        **Query Parameters:**
+        - `page` (optional): Page number (default: 1)
+        - `limit` (optional): Number of items per page (default: 10, max: 100)
+        - `driverId` (optional): Filter by driver ID
+        - `staffId` (optional): Filter by staff ID
+        
+        **Without pagination parameters:** Returns all warnings
+      tags:
+        - Warnings
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: driverId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: staffId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of warnings
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PaginatedWarningResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Warning"
+        "401":
+          description: Not authenticated (missing or invalid token)
+    post:
+      summary: Create a warning
+      description: |
+        Create a new warning for a driver or staff member.
+        
+        **Note:** Either `driverId` or `staffId` must be provided, but not both.
+        
+        **Auto-Fire Rule:** If the driver/staff receives 3 warnings total, they are automatically fired.
+        - Driver: status set to TERMINATED, blacklisted = true
+        - Staff: status set to FIRED
+        
+        **Permissions:**
+        - Manager, Admin, Staff can create warnings for drivers
+        - Only Manager and Admin can create warnings for staff
+      tags:
+        - Warnings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWarningRequest"
+            examples:
+              driverWarning:
+                summary: Warning for driver
+                value:
+                  driverId: "550e8400-e29b-41d4-a716-446655440000"
+                  reason: "Late arrival for scheduled trip"
+                  priority: "MEDIUM"
+              staffWarning:
+                summary: Warning for staff
+                value:
+                  staffId: "660e8400-e29b-41d4-a716-446655440001"
+                  reason: "Unprofessional behavior with customer"
+                  priority: "HIGH"
+      responses:
+        "201":
+          description: Warning created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Warning issued successfully"
+                  data:
+                    $ref: "#/components/schemas/Warning"
+                  autoFired:
+                    type: boolean
+                    description: True if the driver/staff was automatically fired due to 3+ warnings
+                    example: false
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated (missing or invalid token)
+
+  /warnings/{id}:
+    get:
+      summary: Get warning by ID
+      tags:
+        - Warnings
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Warning retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Warning"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Warning not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete warning
+      description: |
+        Delete a warning by ID. This does NOT decrement the warning count.
+        Use with caution.
+      tags:
+        - Warnings
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Warning deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Warning deleted successfully"
+        "401":
+          description: Not authenticated (missing or invalid token)
+        "404":
+          description: Warning not found
 
   /attendance:
     get:
@@ -10940,6 +11130,7 @@ components:
       required:
         - title
         - description
+        - customerName
       properties:
         driverId:
           type: string
@@ -10949,12 +11140,19 @@ components:
         staffId:
           type: string
           format: uuid
-          description: Staff ID (required if driverId not provided)
+          description: Staff ID (required if driverId not provided) - Only admin and manager can create complaints for staff
           example: "660e8400-e29b-41d4-a716-446655440001"
-        customerId:
+        customerName:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Customer name (must exist in customer database)
+          example: "John Doe"
+        tripId:
           type: string
           format: uuid
-          description: Customer who raised the complaint (optional, for customer history)
+          description: Optional trip ID for driver complaints
+          example: "770e8400-e29b-41d4-a716-446655440002"
         title:
           type: string
           minLength: 1
@@ -10965,9 +11163,9 @@ components:
           minLength: 1
           maxLength: 1000
           example: "Driver was rude to customer during trip"
-        severity:
+        priority:
           type: string
-          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          enum: [LOW, MEDIUM, HIGH]
           default: MEDIUM
           example: "MEDIUM"
 
@@ -10978,7 +11176,7 @@ components:
       properties:
         status:
           type: string
-          enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+          enum: [RECEIVED, IN_PROCESS, RESOLVED]
           example: "RESOLVED"
         resolution:
           type: string
@@ -10989,7 +11187,7 @@ components:
         action:
           type: string
           enum: [WARNING, FIRE]
-          description: Required when status is RESOLVED. WARNING = issue warning; 2+ warnings auto-fire. FIRE = terminate.
+          description: Required when status is RESOLVED. WARNING = issue warning; 3+ warnings auto-fire. FIRE = terminate.
         reason:
           type: string
           minLength: 1
@@ -11015,6 +11213,14 @@ components:
           format: uuid
           nullable: true
           description: Customer who raised the complaint
+        customerName:
+          type: string
+          description: Name of customer who registered the complaint
+        tripId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional trip ID for driver complaints
         title:
           type: string
         description:
@@ -11023,12 +11229,13 @@ components:
           type: string
           format: uuid
           nullable: true
+          description: User ID who created the complaint (createdBy)
         status:
           type: string
-          enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
-        severity:
+          enum: [RECEIVED, IN_PROCESS, RESOLVED]
+        priority:
           type: string
-          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          enum: [LOW, MEDIUM, HIGH]
         createdAt:
           type: string
           format: date-time
@@ -13056,6 +13263,107 @@ components:
           type: string
           format: date-time
           nullable: true
+
+    # Warning Schemas
+    Warning:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        driverId:
+          type: string
+          format: uuid
+          nullable: true
+        staffId:
+          type: string
+          format: uuid
+          nullable: true
+        reason:
+          type: string
+          description: Reason for the warning
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+          description: User ID who created the warning
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        driver:
+          type: object
+          nullable: true
+          description: Driver details (included when warning is for a driver)
+          properties:
+            id:
+              type: string
+              format: uuid
+            firstName:
+              type: string
+            lastName:
+              type: string
+            driverCode:
+              type: string
+            warningCount:
+              type: integer
+              description: Total number of warnings received
+        staff:
+          type: object
+          nullable: true
+          description: Staff details (included when warning is for staff)
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            email:
+              type: string
+            warningCount:
+              type: integer
+              description: Total number of warnings received
+
+    CreateWarningRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        driverId:
+          type: string
+          format: uuid
+          description: Driver ID (required if staffId not provided)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        staffId:
+          type: string
+          format: uuid
+          description: Staff ID (required if driverId not provided)
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: "Late arrival for scheduled trip"
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+          default: MEDIUM
+          example: "MEDIUM"
+
+    PaginatedWarningResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Warning"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
 
   securitySchemes:
     bearerAuth:

@@ -6,20 +6,24 @@ export async function createComplaint(data: {
   driverId?: string;
   staffId?: string;
   customerId?: string | null;
+  customerName: string;
+  tripId?: string | null;
   title: string;
   description: string;
   reportedBy?: string | null;
-  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  priority: "LOW" | "MEDIUM" | "HIGH";
 }): Promise<Complaint> {
   return prisma.complaint.create({
     data: {
       driverId: data.driverId || null,
       staffId: data.staffId || null,
       customerId: data.customerId ?? null,
+      customerName: data.customerName,
+      tripId: data.tripId ?? null,
       title: data.title,
       description: data.description,
       reportedBy: data.reportedBy || null,
-      severity: data.severity,
+      priority: data.priority,
     },
   });
 }
@@ -41,6 +45,14 @@ export async function getComplaintById(id: string) {
           id: true,
           name: true,
           email: true,
+        },
+      },
+      Customer: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phone: true,
         },
       },
     },

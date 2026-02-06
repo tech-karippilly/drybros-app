@@ -1466,3 +1466,124 @@ export async function sendTripEndConfirmationEmail({
     // Don't throw error - trip ending should continue even if email fails
   }
 }
+
+/**
+ * Send complaint status update email to customer
+ */
+export async function sendComplaintStatusEmail(
+  to: string,
+  customerName: string,
+  complaintId: string,
+  status: "RECEIVED" | "IN_PROCESS" | "RESOLVED",
+  complaintTitle: string
+): Promise<void> {
+  if (!transporter) {
+    logger.warn("Email transporter not configured. Skipping complaint email.");
+    return;
+  }
+
+  const statusMessages = {
+    RECEIVED: {
+      subject: "Complaint Received - Drybros",
+      header: "Complaint Registered Successfully",
+      message: "We have received your complaint and it is currently under review. Our team will process it shortly.",
+      color: "#2196F3"
+    },
+    IN_PROCESS: {
+      subject: "Complaint Under Process - Drybros",
+      header: "Your Complaint is Being Processed",
+      message: "Your complaint is currently being processed by our team. We are working to resolve it as soon as possible.",
+      color: "#FF9800"
+    },
+    RESOLVED: {
+      subject: "Complaint Resolved - Drybros",
+      header: "Your Complaint Has Been Resolved",
+      message: "We are pleased to inform you that your complaint has been resolved. Thank you for bringing this to our attention.",
+      color: "#4CAF50"
+    }
+  };
+
+  const statusInfo = statusMessages[status];
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: ${statusInfo.color}; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f9f9f9; }
+        .complaint-details { background-color: #fff; padding: 15px; border-left: 4px solid ${statusInfo.color}; margin: 15px 0; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>${statusInfo.header}</h1>
+        </div>
+        <div class="content">
+          <p>Dear ${customerName},</p>
+          <p>${statusInfo.message}</p>
+          
+          <div class="complaint-details">
+            <p><strong>Complaint ID:</strong> ${complaintId}</p>
+            <p><strong>Subject:</strong> ${complaintTitle}</p>
+            <p><strong>Status:</strong> ${status}</p>
+          </div>
+
+          <p>If you have any questions or need further assistance, please feel free to contact our support team.</p>
+          <p>Thank you for your patience and cooperation.</p>
+          <p>Best regards,<br>The Drybros Team</p>
+        </div>
+        <div class="footer">
+          <p>This is an automated message. Please do not reply to this email.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const textContent = `
+${statusInfo.header}
+
+Dear ${customerName},
+
+${statusInfo.message}
+
+Complaint Details:
+- Complaint ID: ${complaintId}
+- Subject: ${complaintTitle}
+- Status: ${status}
+
+If you have any questions or need further assistance, please feel free to contact our support team.
+
+Thank you for your patience and cooperation.
+
+Best regards,
+The Drybros Team
+
+---
+This is an automated message. Please do not reply to this email.
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: `"Drybros Support" <${emailConfig.from}>`,
+      to,
+      subject: statusInfo.subject,
+      text: textContent,
+      html: htmlContent,
+    });
+    logger.info("Complaint status email sent successfully", { to, complaintId, status });
+  } catch (error) {
+    logger.error("Failed to send complaint status email", {
+      error: error instanceof Error ? error.message : String(error),
+      email: to,
+      complaintId,
+      status
+    });
+  }
+}

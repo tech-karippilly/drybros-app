@@ -83,12 +83,12 @@ export function getDriverSocket(): Socket | null {
 
 export function emitTripOfferAccept(offerId: string): void {
   if (!socket) return;
-  socket.emit(SOCKET_EVENTS.TRIP_OFFER_ACCEPT, { offerId });
+  socket.emit(SOCKET_EVENTS.TRIP_ACCEPTED_BY_DRIVER, { offerId });
 }
 
 export function emitTripOfferReject(offerId: string): void {
   if (!socket) return;
-  socket.emit(SOCKET_EVENTS.TRIP_OFFER_REJECT, { offerId });
+  socket.emit(SOCKET_EVENTS.TRIP_REJECTED_BY_DRIVER, { offerId });
 }
 
 /* =======================

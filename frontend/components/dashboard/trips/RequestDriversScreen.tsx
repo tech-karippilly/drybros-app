@@ -10,6 +10,8 @@ import { REQUEST_DRIVERS_STRINGS } from "@/lib/constants/trips";
 import { getTripById, requestTripDrivers, TripResponse } from "@/lib/features/trip/tripApi";
 import { getDrivers } from "@/lib/features/drivers/driverApi";
 import type { AvailableDriver } from "@/lib/types/driver";
+import { useSocket } from "@/lib/hooks/useSocket";
+import { SOCKET_EVENTS } from "@/lib/constants/socket";
 
 interface RequestDriversScreenProps {
     tripId: string;
@@ -46,6 +48,25 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
     const [requestingAll, setRequestingAll] = useState(false);
     const [requestingDriverId, setRequestingDriverId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const [rejectedDriverIds, setRejectedDriverIds] = useState<Set<string>>(new Set());
+    const [acceptedDriverId, setAcceptedDriverId] = useState<string | null>(null);
+
+    // Setup socket connection and listeners
+    useSocket({
+        [SOCKET_EVENTS.TRIP_ACCEPTED_BY_DRIVER]: (payload: { tripId: string; driverId: string; status: string; acceptedAt: string }) => {
+            if (payload.tripId === tripId) {
+                setAcceptedDriverId(payload.driverId);
+                setSuccess(`Driver has accepted the trip!`);
+                console.log("Trip accepted by driver:", payload);
+            }
+        },
+        [SOCKET_EVENTS.TRIP_REJECTED_BY_DRIVER]: (payload: { tripId: string; driverId: string; status: string; rejectedAt: string }) => {
+            if (payload.tripId === tripId) {
+                setRejectedDriverIds(prev => new Set(prev).add(payload.driverId));
+                console.log("Trip rejected by driver:", payload);
+            }
+        },
+    }, [tripId]);
 
     useEffect(() => {
         let cancelled = false;
@@ -312,49 +333,66 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {filteredDrivers.map((driver) => (
-                                <div
-                                    key={driver.id}
-                                    className="group flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-theme-blue transition-colors"
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className="size-12 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold">
-                                            {driver.firstName?.[0]}
-                                            {driver.lastName?.[0]}
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <p className="text-slate-900 dark:text-white font-bold">
-                                                {driver.firstName} {driver.lastName}
-                                            </p>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                                                {driver.driverCode} {driver.phone ? `• ${driver.phone}` : ""}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => handleRequestDriver(driver.id)}
-                                        disabled={requestingDriverId === driver.id}
-                                        className={cn(
-                                            "flex items-center justify-center rounded-lg h-10 px-4 bg-theme-blue text-white text-sm font-bold hover:bg-theme-blue/90 transition-all shadow-lg shadow-theme-blue/20 disabled:opacity-50 disabled:cursor-not-allowed gap-2",
-                                            requestingDriverId === driver.id && "opacity-80"
-                                        )}
+                            {filteredDrivers.map((driver) => {
+                                const isRejected = rejectedDriverIds.has(driver.id);
+                                const isAccepted = acceptedDriverId === driver.id;
+                                
+                                return (
+                                    <div
+                                        key={driver.id}
+                                        className="group flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-theme-blue transition-colors"
                                     >
-                                        {requestingDriverId === driver.id ? (
-                                            <>
-                                                <Loader2 className="size-4 animate-spin" />
-                                                {REQUEST_DRIVERS_STRINGS.REQUESTING}
-                                            </>
+                                        <div className="flex items-center gap-4">
+                                            <div className="size-12 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold">
+                                                {driver.firstName?.[0]}
+                                                {driver.lastName?.[0]}
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <p className="text-slate-900 dark:text-white font-bold">
+                                                    {driver.firstName} {driver.lastName}
+                                                </p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                                    {driver.driverCode} {driver.phone ? `• ${driver.phone}` : ""}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {isAccepted ? (
+                                            <div className="flex items-center justify-center rounded-lg h-10 px-4 bg-green-500 text-white text-sm font-bold gap-2">
+                                                <CheckCircle className="size-4" />
+                                                Accepted
+                                            </div>
+                                        ) : isRejected ? (
+                                            <div className="flex items-center justify-center rounded-lg h-10 px-4 bg-red-500 text-white text-sm font-bold gap-2">
+                                                <AlertCircle className="size-4" />
+                                                Rejected
+                                            </div>
                                         ) : (
-                                            <>
-                                                <Send className="size-4" />
-                                                {REQUEST_DRIVERS_STRINGS.REQUEST_DRIVER}
-                                            </>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRequestDriver(driver.id)}
+                                                disabled={requestingDriverId === driver.id}
+                                                className={cn(
+                                                    "flex items-center justify-center rounded-lg h-10 px-4 bg-theme-blue text-white text-sm font-bold hover:bg-theme-blue/90 transition-all shadow-lg shadow-theme-blue/20 disabled:opacity-50 disabled:cursor-not-allowed gap-2",
+                                                    requestingDriverId === driver.id && "opacity-80"
+                                                )}
+                                            >
+                                                {requestingDriverId === driver.id ? (
+                                                    <>
+                                                        <Loader2 className="size-4 animate-spin" />
+                                                        {REQUEST_DRIVERS_STRINGS.REQUESTING}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Send className="size-4" />
+                                                        {REQUEST_DRIVERS_STRINGS.REQUEST_DRIVER}
+                                                    </>
+                                                )}
+                                            </button>
                                         )}
-                                    </button>
-                                </div>
-                            ))}
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </div>

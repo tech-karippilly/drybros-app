@@ -32,6 +32,17 @@ export async function getCustomerByPhone(phone: string) {
   });
 }
 
+export async function getCustomerByName(fullName: string) {
+  return prisma.customer.findFirst({
+    where: { 
+      fullName: {
+        equals: fullName,
+        mode: 'insensitive'
+      }
+    },
+  });
+}
+
 export async function createCustomer(data: {
   fullName: string;
   phone: string;

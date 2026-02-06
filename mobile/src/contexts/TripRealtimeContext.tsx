@@ -13,7 +13,6 @@ import {
   type TripOfferEventPayload,
   type TripOfferResultEventPayload,
 } from '../services/realtime/socket';
-import { acceptTripOfferApi, rejectTripOfferApi } from '../services/api/tripOffers';
 import { savePendingTripOffer, removePendingTripOffer } from '../services/storage/tripStorage';
 import { useAuth } from './AuthContext';
 
@@ -187,12 +186,11 @@ export function TripRealtimeProvider({ children }: { children: React.ReactNode }
     try {
       // Emit socket event for real-time rejection (triggers next driver assignment)
       const s = getDriverSocket();
-      if (s) {
-        emitTripOfferReject(currentOffer.offerId);
+      if (!s) {
+        throw new Error('Socket not connected');
       }
-
-      // Also call REST API for persistence
-      const updated = await rejectTripOfferApi(currentOffer.offerId);
+      
+      emitTripOfferReject(currentOffer.offerId);
       
       showToast({
         type: 'info',
@@ -206,7 +204,7 @@ export function TripRealtimeProvider({ children }: { children: React.ReactNode }
       setCurrentOffer(null);
       setShowTripDetails(false);
     } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Failed to reject trip offer';
+      const msg = e?.message || 'Failed to reject trip offer';
       showToast({ type: 'error', position: 'top', message: msg });
     } finally {
       rejectingRef.current = false;
@@ -218,25 +216,14 @@ export function TripRealtimeProvider({ children }: { children: React.ReactNode }
     if (acceptingRef.current) return;
     acceptingRef.current = true;
 
-    // Always send accept request to backend (socket first for realtime ack, REST as source of truth).
+    // Emit socket event for real-time acceptance
     try {
       const s = getDriverSocket();
-      if (s) {
-        emitTripOfferAccept(currentOffer.offerId);
+      if (!s) {
+        throw new Error('Socket not connected');
       }
-
-      const updated = await acceptTripOfferApi(currentOffer.offerId);
-      if (updated.status !== 'ACCEPTED') {
-        showToast({
-          type: 'error',
-          position: 'top',
-          message: `Offer ${updated.status.toLowerCase()}`,
-        });
-        setCurrentOffer(null);
-        setShowTripDetails(false);
-        acceptingRef.current = false;
-        return;
-      }
+      
+      emitTripOfferAccept(currentOffer.offerId);
 
       // Accepted: keep modal disabled; wait for TRIP_ASSIGNED (socket) or manual refresh (REST).
       showToast({
@@ -248,7 +235,7 @@ export function TripRealtimeProvider({ children }: { children: React.ReactNode }
       // Remove from pending storage since it's accepted
       await removePendingTripOffer(currentOffer.offerId);
     } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Failed to accept trip offer';
+      const msg = e?.message || 'Failed to accept trip offer';
       showToast({ type: 'error', position: 'top', message: msg });
       acceptingRef.current = false;
     }

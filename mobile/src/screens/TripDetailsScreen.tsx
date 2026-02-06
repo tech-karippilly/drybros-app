@@ -30,7 +30,7 @@ import { useToast } from '../contexts';
 import { getTripByIdApi } from '../services/api/trips';
 import { mapBackendTripToTripItem } from '../services/mappers/trips';
 import { getPendingTripOffers, removePendingTripOffer } from '../services/storage/tripStorage';
-import { acceptTripOfferApi, rejectTripOfferApi } from '../services/api/tripOffers';
+import { emitTripOfferAccept, emitTripOfferReject, getDriverSocket } from '../services/realtime/socket';
 import { startTripLocationTracking, stopTripLocationTracking } from '../services/tripLocationTracking';
 
 type Props = NativeStackScreenProps<TripStackParamList, typeof TRIP_STACK_ROUTES.TRIP_DETAILS>;
@@ -206,14 +206,18 @@ export function TripDetailsScreen({ navigation, route }: Props) {
     if (!offerId || actionLoading) return;
     setActionLoading(true);
     try {
-      await acceptCurrentOffer();
-      // Remove frTripOfferApi(offerId);
+      const socket = getDriverSocket();
+      if (!socket) {
+        throw new Error('Socket not connected');
+      }
+      
+      emitTripOfferAccept(offerId);
       // Remove from storage
       await removePendingTripOffer(offerId);
       showToast({ message: 'Trip accepted successfully', type: 'success', position: 'top' });
       navigation.goBack();
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to accept trip';
+      const errorMessage = error?.message || 'Failed to accept trip';
       showToast({ message: errorMessage, type: 'error', position: 'top' });
     } finally {
       setActionLoading(false);
@@ -224,13 +228,18 @@ export function TripDetailsScreen({ navigation, route }: Props) {
     if (!offerId || actionLoading) return;
     setActionLoading(true);
     try {
-      await rejectTripOfferApi(offerId);
+      const socket = getDriverSocket();
+      if (!socket) {
+        throw new Error('Socket not connected');
+      }
+      
+      emitTripOfferReject(offerId);
       // Remove from storage
       await removePendingTripOffer(offerId);
       showToast({ message: 'Trip rejected', type: 'info', position: 'top' });
       navigation.goBack();
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to reject trip';
+      const errorMessage = error?.message || 'Failed to reject trip';
       showToast({ message: errorMessage, type: 'error', position: 'top' });
     } finally {
       setActionLoading(false);

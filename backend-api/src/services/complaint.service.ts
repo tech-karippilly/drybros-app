@@ -18,6 +18,9 @@ import {
   incrementStaffWarningCount as repoIncrementStaffWarningCount,
 } from "../repositories/staff.repository";
 import {
+  getCustomerByName,
+} from "../repositories/customer.repository";
+import {
   CreateComplaintDTO,
   ComplaintResponseDTO,
   UpdateComplaintStatusDTO,
@@ -29,6 +32,7 @@ import { COMPLAINT_ERROR_MESSAGES, COMPLAINT_WARNING_THRESHOLD } from "../consta
 import logger from "../config/logger";
 import { logActivity } from "./activity.service";
 import { ActivityAction, ActivityEntityType } from "@prisma/client";
+import { sendComplaintStatusEmail } from "./email.service";
 
 function mapComplaintToResponse(complaint: any): ComplaintResponseDTO {
   return {
@@ -36,11 +40,13 @@ function mapComplaintToResponse(complaint: any): ComplaintResponseDTO {
     driverId: complaint.driverId,
     staffId: complaint.staffId,
     customerId: complaint.customerId ?? null,
+    customerName: complaint.customerName,
+    tripId: complaint.tripId ?? null,
     title: complaint.title,
     description: complaint.description,
     reportedBy: complaint.reportedBy,
     status: complaint.status,
-    severity: complaint.severity,
+    priority: complaint.priority,
     createdAt: complaint.createdAt,
     updatedAt: complaint.updatedAt,
     resolvedAt: complaint.resolvedAt,
@@ -58,6 +64,12 @@ export async function createComplaint(
   // Validate that either driverId or staffId is provided
   if (!input.driverId && !input.staffId) {
     throw new BadRequestError(COMPLAINT_ERROR_MESSAGES.INVALID_COMPLAINT_TYPE);
+  }
+
+  // Validate customer name exists in the database
+  const customer = await getCustomerByName(input.customerName);
+  if (!customer) {
+    throw new NotFoundError(COMPLAINT_ERROR_MESSAGES.CUSTOMER_NOT_FOUND);
   }
 
   // Verify driver or staff exists
@@ -78,11 +90,13 @@ export async function createComplaint(
   const complaint = await repoCreateComplaint({
     driverId: input.driverId,
     staffId: input.staffId,
-    customerId: input.customerId ?? null,
+    customerId: customer.id,
+    customerName: input.customerName,
+    tripId: input.tripId,
     title: input.title,
     description: input.description,
     reportedBy: reportedBy || null,
-    severity: input.severity || "MEDIUM",
+    priority: input.priority || "MEDIUM",
   });
 
   // Increment complaint count for driver
@@ -97,6 +111,19 @@ export async function createComplaint(
     driverId: input.driverId,
     staffId: input.staffId,
   });
+
+  // Send email notification to customer
+  if (customer.email) {
+    sendComplaintStatusEmail(
+      customer.email,
+      customer.fullName,
+      complaint.id,
+      "RECEIVED",
+      complaint.title
+    ).catch((err) => {
+      logger.error("Failed to send complaint registration email", { error: err });
+    });
+  }
 
   // Log activity (non-blocking)
   let franchiseId: string | undefined;
@@ -116,11 +143,11 @@ export async function createComplaint(
     driverId: input.driverId || null,
     staffId: input.staffId || null,
     userId: reportedBy || null,
-    description: `Complaint created: ${input.title} - ${input.severity} severity`,
+    description: `Complaint created: ${input.title} - ${input.priority} priority`,
     metadata: {
       complaintId: complaint.id,
       title: input.title,
-      severity: input.severity,
+      priority: input.priority,
       driverId: input.driverId,
       staffId: input.staffId,
     },
@@ -277,6 +304,19 @@ export async function updateComplaintStatus(
     newStatus: input.status,
     resolutionAction: resolutionAction ?? undefined,
   });
+
+  // Send email notification to customer if email exists
+  if (complaint.Customer?.email) {
+    sendComplaintStatusEmail(
+      complaint.Customer.email,
+      complaint.Customer.fullName,
+      complaint.id,
+      input.status,
+      complaint.title
+    ).catch((err) => {
+      logger.error("Failed to send complaint status update email", { error: err });
+    });
+  }
 
   const franchiseId: string | null = complaint.driverId
     ? (await getDriverById(complaint.driverId))?.franchiseId ?? null

@@ -13,6 +13,11 @@ export const SOCKET_EVENTS = {
    * Fetch assigned trips via socket (path-style event for parity with REST route).
    */
   TRIPS_MY_ASSIGNED: '/trips/my-assigned',
+  /**
+   * Driver accepts/rejects trip request
+   */
+  TRIP_ACCEPTED_BY_DRIVER: 'trip_accepted_by_driver',
+  TRIP_REJECTED_BY_DRIVER: 'trip_rejected_by_driver',
 } as const;
 
 export const SOCKET_TIMINGS_MS = {

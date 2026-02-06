@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAppSelector, useAppDispatch } from '@/lib/hooks';
 import {
     fetchTripTypesPaginated,
@@ -19,12 +20,13 @@ import { cn } from '@/lib/utils';
 import { TripTypeResponse } from '@/lib/features/tripType/tripTypeApi';
 
 interface TripTypeListProps {
-    onCreateClick: () => void;
-    onEditClick: (tripType: TripTypeResponse) => void;
+    onCreateClick?: () => void;
+    onEditClick?: (tripType: TripTypeResponse) => void;
 }
 
 export function TripTypeList({ onCreateClick, onEditClick }: TripTypeListProps) {
     const { list, pagination, isLoading } = useAppSelector((state) => state.tripType);
+    const router = useRouter();
     const dispatch = useAppDispatch();
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -74,7 +76,7 @@ export function TripTypeList({ onCreateClick, onEditClick }: TripTypeListProps) 
                     </p>
                 </div>
                 <button
-                    onClick={onCreateClick}
+                    onClick={() => onCreateClick ? onCreateClick() : router.push('/dashboard/trip-types/create')}
                     className="flex items-center justify-center gap-2 px-4 py-2 bg-[#0d59f2] text-white rounded-lg font-bold hover:bg-[#0d59f2]/90 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
                 >
                     <Plus size={18} />

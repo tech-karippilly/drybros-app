@@ -40,7 +40,7 @@ export async function getFranchiseById(
   next: NextFunction
 ) {
   try {
-    const id = req.params.id; // UUID string
+    const id = req.params.id as string; // UUID string
     const franchise = await getFranchise(id);
     res.json({ data: franchise });
   } catch (err) {
@@ -67,7 +67,7 @@ export async function updateFranchiseHandler(
   next: NextFunction
 ) {
   try {
-    const id = req.params.id;
+    const id = req.params.id as string;
     const result = await updateFranchise(id, req.body as UpdateFranchiseDTO);
     res.json(result);
   } catch (err) {
@@ -81,7 +81,7 @@ export async function softDeleteFranchiseHandler(
   next: NextFunction
 ) {
   try {
-    const id = req.params.id;
+    const id = req.params.id as string;
     const result = await softDeleteFranchise(id);
     res.json(result);
   } catch (err) {
@@ -95,7 +95,7 @@ export async function updateFranchiseStatusHandler(
   next: NextFunction
 ) {
   try {
-    const id = req.params.id;
+    const id = req.params.id as string;
     const result = await updateFranchiseStatus(id, req.body as UpdateFranchiseStatusDTO);
     res.json(result);
   } catch (err) {
@@ -112,7 +112,7 @@ export async function getFranchisePersonnelHandler(
   next: NextFunction
 ) {
   try {
-    const franchiseId = req.params.id;
+    const franchiseId = req.params.id as string;
     const result = await getFranchisePersonnelDetails(franchiseId);
     res.json(result);
   } catch (err) {

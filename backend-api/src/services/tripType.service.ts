@@ -1,126 +1,73 @@
-import { PricingMode, CarType } from "@prisma/client";
+import { TripPricingType, CarCategory } from "@prisma/client";
 import {
   getAllTripTypeConfigs,
   getTripTypeConfigsPaginated,
   getTripTypeConfigById,
-  getTripTypeConfigByType,
+  getTripTypeConfigByTypeAndCategory,
   createTripTypeConfig as repoCreateTripTypeConfig,
   updateTripTypeConfig as repoUpdateTripTypeConfig,
-  upsertCarTypePricing,
+  deleteTripTypeConfig as repoDeleteTripTypeConfig,
 } from "../repositories/pricing.repository";
-import prisma from "../config/prismaClient";
-
-// All available car types that must be provided
-const ALL_CAR_TYPES: CarType[] = [
-  CarType.MANUAL,
-  CarType.AUTOMATIC,
-  CarType.PREMIUM_CARS,
-  CarType.LUXURY_CARS,
-  CarType.SPORTY_CARS,
-];
 
 export interface DistanceSlab {
   from: number; // Starting distance in km
-  to: number | null; // Ending distance in km (null for open-ended)
+  to: number; // Ending distance in km
   price: number; // Price for this distance range
 }
 
-export interface CarTypePricingInput {
-  carType: CarType;
-  basePrice: number;
-  distanceSlabs?: DistanceSlab[]; // Required for DISTANCE_BASED mode
+export interface TimeSlab {
+  from: string; // Starting time (e.g., "00:00", "06:00")
+  to: string; // Ending time (e.g., "06:00", "12:00")
+  price: number; // Price for this time range
 }
 
 export interface CreateTripTypeInput {
-  name: string; // Trip type name (user-defined)
-  description?: string;
-  pricingMode: PricingMode; // TIME_BASED or DISTANCE_BASED
+  carCategory: CarCategory; // NORMAL, PREMIUM, LUXURY, SPORTS
+  type: TripPricingType; // DISTANCE, TIME, or SLAB
   
-  // Common fields for both modes
-  baseHour?: number; // Base hours included
-  extraPerHour?: number; // Extra per hour
-  extraPerHalfHour?: number; // Extra per 30 min
+  // For DISTANCE type
+  baseAmount?: number; // base price
+  baseHour?: number;
+  baseDistance?: number; // in km
+  extraPerDistance?: number; // per km
   
-  // Distance-based mode specific
-  baseDistance?: number; // Base distance in km (for DISTANCE_BASED)
+  // For TIME type
+  extraPerHour?: number;
+  extraPerHalfHour?: number;
   
-  // Optional IDs (will create defaults if not provided)
-  distanceScopeId?: string;
-  tripPatternId?: string;
-  
-  // Car type pricing (required for all car types)
-  carTypePricing: CarTypePricingInput[];
+  // For SLAB type
+  slabType?: "distance" | "time"; // Required when type is SLAB
+  distanceSlab?: DistanceSlab[]; // Array of {from, to, price} - for SLAB with distance
+  timeSlab?: TimeSlab[]; // Array of {from, to, price} - for SLAB with time
 }
 
 export interface UpdateTripTypeInput {
-  name?: string;
-  description?: string;
-  pricingMode?: PricingMode;
+  baseAmount?: number;
   baseHour?: number;
+  baseDistance?: number;
   extraPerHour?: number;
   extraPerHalfHour?: number;
-  baseDistance?: number;
-  carTypePricing?: CarTypePricingInput[];
+  extraPerDistance?: number;
+  distanceSlab?: DistanceSlab[];
+  timeSlab?: TimeSlab[];
 }
 
 /**
- * Get or create default distance scope
- */
-async function getOrCreateDefaultDistanceScope() {
-  let distanceScope = await prisma.distanceScope.findFirst({
-    where: { name: "DEFAULT", status: "ACTIVE" },
-  });
-
-  if (!distanceScope) {
-    distanceScope = await prisma.distanceScope.create({
-      data: {
-        name: "DEFAULT",
-        description: "Default distance scope",
-        status: "ACTIVE",
-        updatedAt: new Date(),
-      },
-    });
-  }
-
-  return distanceScope.id;
-}
-
-/**
- * Get or create default trip pattern
- */
-async function getOrCreateDefaultTripPattern() {
-  let tripPattern = await prisma.tripPattern.findFirst({
-    where: { name: "DEFAULT", status: "ACTIVE" },
-  });
-
-  if (!tripPattern) {
-    tripPattern = await prisma.tripPattern.create({
-      data: {
-        name: "DEFAULT",
-        description: "Default trip pattern",
-        status: "ACTIVE",
-        updatedAt: new Date(),
-      },
-    });
-  }
-
-  return tripPattern.id;
-}
-
-/**
- * Map database response to include parsed distanceSlabs in carTypePricing
+ * Map database response to include parsed JSON slabs
  */
 function mapTripTypeResponse(tripType: any) {
   return {
     ...tripType,
-    carTypePricing: tripType.carTypePricing?.map((pricing: any) => ({
-      ...pricing,
-      distanceSlabs: pricing.distanceSlabs
-        ? typeof pricing.distanceSlabs === "string"
-          ? JSON.parse(pricing.distanceSlabs)
-          : pricing.distanceSlabs
-        : null,
-    })),
+    distanceSlab: tripType.distanceSlab
+      ? typeof tripType.distanceSlab === "string"
+        ? JSON.parse(tripType.distanceSlab)
+        : tripType.distanceSlab
+      : null,
+    timeSlab: tripType.timeSlab
+      ? typeof tripType.timeSlab === "string"
+        ? JSON.parse(tripType.timeSlab)
+        : tripType.timeSlab
+      : null,
   };
 }
 
@@ -157,7 +104,6 @@ export async function listTripTypesPaginated(
 
   const { data, total } = await getTripTypeConfigsPaginated(skip, limit);
 
-  // Calculate pagination metadata
   const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
   const hasNext = page < totalPages;
   const hasPrev = page > 1;
@@ -176,110 +122,170 @@ export async function listTripTypesPaginated(
 }
 
 export async function getTripTypeById(id: string) {
-  const config = await getTripTypeConfigById(id);
-  if (!config) {
-    const err: any = new Error("Trip type not found");
-    err.statusCode = 404;
-    throw err;
+  const tripType = await getTripTypeConfigById(id);
+  if (!tripType) {
+    return null;
   }
-  return mapTripTypeResponse(config);
+  return mapTripTypeResponse(tripType);
 }
 
 /**
- * Validate car type pricing input
+ * Validate input for creating/updating trip type config
  */
-function validateCarTypePricing(
-  carTypePricing: CarTypePricingInput[],
-  pricingMode: PricingMode
-) {
-  // Check if all car types are provided
-  const providedCarTypes = carTypePricing.map((p) => p.carType);
-  const missingCarTypes = ALL_CAR_TYPES.filter(
-    (ct) => !providedCarTypes.includes(ct)
-  );
+function validateTripTypeInput(input: CreateTripTypeInput | UpdateTripTypeInput, isUpdate = false) {
+  const data = input as any;
 
-  if (missingCarTypes.length > 0) {
-    const err: any = new Error(
-      `Missing pricing for car types: ${missingCarTypes.join(", ")}. All car types must have pricing configured.`
-    );
-    err.statusCode = 400;
-    throw err;
-  }
-
-  // Check for duplicate car types
-  const carTypeSet = new Set(providedCarTypes);
-  if (carTypeSet.size !== providedCarTypes.length) {
-    const err: any = new Error("Duplicate car types found in pricing");
-    err.statusCode = 400;
-    throw err;
-  }
-
-  // Validate each car type pricing
-  for (const pricing of carTypePricing) {
-    // Validate base price
-    if (pricing.basePrice === undefined || pricing.basePrice === null) {
-      const err: any = new Error(
-        `Base price is required for car type: ${pricing.carType}`
-      );
-      err.statusCode = 400;
-      throw err;
-    }
-    if (pricing.basePrice < 0) {
-      const err: any = new Error(
-        `Base price must be a non-negative number for car type: ${pricing.carType}`
-      );
+  if (!isUpdate) {
+    // Type-specific validation for CREATE
+    const createData = input as CreateTripTypeInput;
+    
+    if (!createData.type) {
+      const err: any = new Error("Type is required (DISTANCE, TIME, or SLAB)");
       err.statusCode = 400;
       throw err;
     }
 
-    // Validate distance slabs for DISTANCE_BASED mode
-    if (pricingMode === PricingMode.DISTANCE_BASED) {
-      if (
-        !pricing.distanceSlabs ||
-        !Array.isArray(pricing.distanceSlabs) ||
-        pricing.distanceSlabs.length === 0
-      ) {
-        const err: any = new Error(
-          `Distance slabs are required for car type: ${pricing.carType} in DISTANCE_BASED mode`
-        );
+    if (!createData.carCategory) {
+      const err: any = new Error("Car category is required (NORMAL, PREMIUM, LUXURY, or SPORTS)");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // Validate based on type
+    if (createData.type === "DISTANCE") {
+      // DISTANCE type requires: baseAmount, baseHour, baseDistance, extraPerDistance
+      if (createData.baseAmount === undefined || createData.baseAmount === null) {
+        const err: any = new Error("Base amount is required for DISTANCE type");
         err.statusCode = 400;
         throw err;
       }
-
-      // Validate each slab
-      for (const slab of pricing.distanceSlabs) {
-        if (typeof slab.from !== "number" || slab.from < 0) {
-          const err: any = new Error(
-            `Slab 'from' distance must be a non-negative number for car type: ${pricing.carType}`
-          );
+      if (createData.baseHour === undefined || createData.baseHour === null) {
+        const err: any = new Error("Base hour is required for DISTANCE type");
+        err.statusCode = 400;
+        throw err;
+      }
+      if (createData.baseDistance === undefined || createData.baseDistance === null) {
+        const err: any = new Error("Base distance is required for DISTANCE type");
+        err.statusCode = 400;
+        throw err;
+      }
+      if (createData.extraPerDistance === undefined || createData.extraPerDistance === null) {
+        const err: any = new Error("Extra per distance is required for DISTANCE type");
+        err.statusCode = 400;
+        throw err;
+      }
+    } else if (createData.type === "TIME") {
+      // TIME type requires: baseAmount, baseHour, extraPerHour, extraPerHalfHour
+      if (createData.baseAmount === undefined || createData.baseAmount === null) {
+        const err: any = new Error("Base amount is required for TIME type");
+        err.statusCode = 400;
+        throw err;
+      }
+      if (createData.baseHour === undefined || createData.baseHour === null) {
+        const err: any = new Error("Base hour is required for TIME type");
+        err.statusCode = 400;
+        throw err;
+      }
+      if (createData.extraPerHour === undefined || createData.extraPerHour === null) {
+        const err: any = new Error("Extra per hour is required for TIME type");
+        err.statusCode = 400;
+        throw err;
+      }
+      if (createData.extraPerHalfHour === undefined || createData.extraPerHalfHour === null) {
+        const err: any = new Error("Extra per half hour is required for TIME type");
+        err.statusCode = 400;
+        throw err;
+      }
+    } else if (createData.type === "SLAB") {
+      // SLAB type requires: slabType and either distanceSlab or timeSlab
+      if (!createData.slabType) {
+        const err: any = new Error("Slab type is required for SLAB type (distance or time)");
+        err.statusCode = 400;
+        throw err;
+      }
+      
+      if (createData.slabType === "distance") {
+        if (!createData.distanceSlab || !Array.isArray(createData.distanceSlab) || createData.distanceSlab.length === 0) {
+          const err: any = new Error("Distance slab array is required for SLAB type with distance");
           err.statusCode = 400;
           throw err;
         }
-        if (
-          slab.to !== null &&
-          slab.to !== undefined &&
-          (typeof slab.to !== "number" || slab.to < slab.from)
-        ) {
-          const err: any = new Error(
-            `Slab 'to' distance must be greater than or equal to 'from' for car type: ${pricing.carType}`
-          );
-          err.statusCode = 400;
-          throw err;
-        }
-        if (typeof slab.price !== "number" || slab.price < 0) {
-          const err: any = new Error(
-            `Slab price must be a non-negative number for car type: ${pricing.carType}`
-          );
+      } else if (createData.slabType === "time") {
+        if (!createData.timeSlab || !Array.isArray(createData.timeSlab) || createData.timeSlab.length === 0) {
+          const err: any = new Error("Time slab array is required for SLAB type with time");
           err.statusCode = 400;
           throw err;
         }
       }
-    } else {
-      // TIME_BASED mode should not have distance slabs
-      if (pricing.distanceSlabs && pricing.distanceSlabs.length > 0) {
-        const err: any = new Error(
-          `Distance slabs should not be provided for car type: ${pricing.carType} in TIME_BASED mode`
-        );
+    }
+  }
+
+  // Validate numeric fields if provided
+  const numericFields = [
+    { key: "baseAmount", name: "Base amount" },
+    { key: "baseHour", name: "Base hour" },
+    { key: "baseDistance", name: "Base distance" },
+    { key: "extraPerHour", name: "Extra per hour" },
+    { key: "extraPerHalfHour", name: "Extra per half hour" },
+    { key: "extraPerDistance", name: "Extra per distance" },
+  ];
+
+  for (const field of numericFields) {
+    if (data[field.key] !== undefined && data[field.key] !== null && data[field.key] < 0) {
+      const err: any = new Error(`${field.name} must be a non-negative number`);
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+
+  // Validate distance slab if provided
+  if (data.distanceSlab) {
+    if (!Array.isArray(data.distanceSlab)) {
+      const err: any = new Error("Distance slab must be an array");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    for (const slab of data.distanceSlab) {
+      if (typeof slab.from !== "number" || slab.from < 0) {
+        const err: any = new Error("Slab 'from' must be a non-negative number (distance in km)");
+        err.statusCode = 400;
+        throw err;
+      }
+      if (typeof slab.to !== "number" || slab.to < slab.from) {
+        const err: any = new Error("Slab 'to' must be greater than or equal to 'from' (distance in km)");
+        err.statusCode = 400;
+        throw err;
+      }
+      if (typeof slab.price !== "number" || slab.price < 0) {
+        const err: any = new Error("Slab 'price' must be a non-negative number");
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+  }
+
+  // Validate time slab if provided
+  if (data.timeSlab) {
+    if (!Array.isArray(data.timeSlab)) {
+      const err: any = new Error("Time slab must be an array");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    for (const slab of data.timeSlab) {
+      if (typeof slab.from !== "string" || !slab.from.match(/^\d{2}:\d{2}$/)) {
+        const err: any = new Error("Slab 'from' must be a time string in HH:MM format");
+        err.statusCode = 400;
+        throw err;
+      }
+      if (typeof slab.to !== "string" || !slab.to.match(/^\d{2}:\d{2}$/)) {
+        const err: any = new Error("Slab 'to' must be a time string in HH:MM format");
+        err.statusCode = 400;
+        throw err;
+      }
+      if (typeof slab.price !== "number" || slab.price < 0) {
+        const err: any = new Error("Slab 'price' must be a non-negative number");
         err.statusCode = 400;
         throw err;
       }
@@ -288,92 +294,43 @@ function validateCarTypePricing(
 }
 
 export async function createTripType(input: CreateTripTypeInput) {
-  // Validate trip type name
-  if (!input.name || input.name.trim().length === 0) {
-    const err: any = new Error(
-      "Trip type name is required and cannot be empty"
-    );
-    err.statusCode = 400;
-    throw err;
-  }
+  // Validate input
+  validateTripTypeInput(input);
 
-  // Validate pricing mode
-  if (!input.pricingMode) {
-    const err: any = new Error("Pricing mode is required (TIME_BASED or DISTANCE_BASED)");
-    err.statusCode = 400;
-    throw err;
-  }
-
-  // Validate common fields
-  if (input.baseHour !== undefined && input.baseHour < 0) {
-    const err: any = new Error("Base hour must be a non-negative number");
-    err.statusCode = 400;
-    throw err;
-  }
-
-  if (input.extraPerHour !== undefined && input.extraPerHour < 0) {
-    const err: any = new Error("Extra per hour must be a non-negative number");
-    err.statusCode = 400;
-    throw err;
-  }
-
-  if (input.extraPerHalfHour !== undefined && input.extraPerHalfHour < 0) {
-    const err: any = new Error(
-      "Extra per half hour must be a non-negative number"
-    );
-    err.statusCode = 400;
-    throw err;
-  }
-
-  if (input.baseDistance !== undefined && input.baseDistance < 0) {
-    const err: any = new Error("Base distance must be a non-negative number");
-    err.statusCode = 400;
-    throw err;
-  }
-
-  // Validate car type pricing
-  if (!input.carTypePricing || input.carTypePricing.length === 0) {
-    const err: any = new Error(
-      "Car type pricing is required for all car types"
-    );
-    err.statusCode = 400;
-    throw err;
-  }
-
-  validateCarTypePricing(input.carTypePricing, input.pricingMode);
-
-  // Check if trip type already exists
-  const existing = await getTripTypeConfigByType(input.name);
+  // Check if config already exists for this type + carCategory combination
+  const existing = await getTripTypeConfigByTypeAndCategory(input.type, input.carCategory);
   if (existing) {
     const err: any = new Error(
-      `Trip type configuration already exists for: ${input.name}`
+      `Trip type configuration already exists for type ${input.type} and car category ${input.carCategory}`
     );
     err.statusCode = 400;
     throw err;
   }
 
-  // Get or create default distance scope and trip pattern if not provided
-  const distanceScopeId =
-    input.distanceScopeId || (await getOrCreateDefaultDistanceScope());
-  const tripPatternId =
-    input.tripPatternId || (await getOrCreateDefaultTripPattern());
-
-  const created = await repoCreateTripTypeConfig({
-    name: input.name,
-    description: input.description,
-    distanceScopeId,
-    tripPatternId,
-    pricingMode: input.pricingMode,
+  // Prepare data based on type
+  let dataToSave: any = {
+    type: input.type,
+    carCategory: input.carCategory,
+    baseAmount: input.baseAmount ?? null,
     baseHour: input.baseHour ?? null,
+    baseDistance: input.baseDistance ?? null,
     extraPerHour: input.extraPerHour ?? null,
     extraPerHalfHour: input.extraPerHalfHour ?? null,
-    baseDistance: input.baseDistance ?? null,
-    carTypePricing: input.carTypePricing.map((pricing) => ({
-      carType: pricing.carType,
-      basePrice: pricing.basePrice,
-      distanceSlabs: pricing.distanceSlabs || null,
-    })),
-  });
+    extraPerDistance: input.extraPerDistance ?? null,
+    distanceSlab: null,
+    timeSlab: null,
+  };
+
+  // Handle SLAB type - set the appropriate slab based on slabType
+  if (input.type === "SLAB") {
+    if (input.slabType === "distance") {
+      dataToSave.distanceSlab = input.distanceSlab || null;
+    } else if (input.slabType === "time") {
+      dataToSave.timeSlab = input.timeSlab || null;
+    }
+  }
+
+  const created = await repoCreateTripTypeConfig(dataToSave);
 
   return mapTripTypeResponse(created);
 }
@@ -387,88 +344,25 @@ export async function updateTripType(id: string, input: UpdateTripTypeInput) {
     throw err;
   }
 
-  // Validate trip type name if provided
-  if (input.name !== undefined) {
-    if (!input.name || input.name.trim().length === 0) {
-      const err: any = new Error("Trip type name cannot be empty");
-      err.statusCode = 400;
-      throw err;
-    }
+  // Validate input
+  validateTripTypeInput(input, true);
 
-    // Check if another config exists with the same name
-    if (input.name !== existing.name) {
-      const existingWithName = await getTripTypeConfigByType(input.name);
-      if (existingWithName && existingWithName.id !== id) {
-        const err: any = new Error(
-          `Trip type configuration already exists for: ${input.name}`
-        );
-        err.statusCode = 400;
-        throw err;
-      }
-    }
-  }
+  const updated = await repoUpdateTripTypeConfig(id, {
+    baseAmount: input.baseAmount,
+    baseHour: input.baseHour,
+    baseDistance: input.baseDistance,
+    extraPerHour: input.extraPerHour,
+    extraPerHalfHour: input.extraPerHalfHour,
+    extraPerDistance: input.extraPerDistance,
+    distanceSlab: input.distanceSlab,
+    timeSlab: input.timeSlab,
+  });
 
-  // Validate common fields if provided
-  if (input.baseHour !== undefined && input.baseHour < 0) {
-    const err: any = new Error("Base hour must be a non-negative number");
-    err.statusCode = 400;
-    throw err;
-  }
-
-  if (input.extraPerHour !== undefined && input.extraPerHour < 0) {
-    const err: any = new Error("Extra per hour must be a non-negative number");
-    err.statusCode = 400;
-    throw err;
-  }
-
-  if (input.extraPerHalfHour !== undefined && input.extraPerHalfHour < 0) {
-    const err: any = new Error(
-      "Extra per half hour must be a non-negative number"
-    );
-    err.statusCode = 400;
-    throw err;
-  }
-
-  if (input.baseDistance !== undefined && input.baseDistance < 0) {
-    const err: any = new Error("Base distance must be a non-negative number");
-    err.statusCode = 400;
-    throw err;
-  }
-
-  // Determine the pricing mode (use new value if provided, otherwise use existing)
-  const pricingMode = input.pricingMode ?? existing.pricingMode;
-
-  // Validate and update car type pricing if provided
-  if (input.carTypePricing && input.carTypePricing.length > 0) {
-    validateCarTypePricing(input.carTypePricing, pricingMode);
-
-    // Update car type pricing
-    await Promise.all(
-      input.carTypePricing.map((pricing) =>
-        upsertCarTypePricing(id, pricing.carType, {
-          basePrice: pricing.basePrice,
-          distanceSlabs: pricing.distanceSlabs || null,
-        })
-      )
-    );
-  }
-
-  // Update trip type config (excluding car type pricing)
-  const updateData: any = {};
-  if (input.name !== undefined) updateData.name = input.name;
-  if (input.description !== undefined) updateData.description = input.description;
-  if (input.pricingMode !== undefined) updateData.pricingMode = input.pricingMode;
-  if (input.baseHour !== undefined) updateData.baseHour = input.baseHour;
-  if (input.extraPerHour !== undefined) updateData.extraPerHour = input.extraPerHour;
-  if (input.extraPerHalfHour !== undefined) updateData.extraPerHalfHour = input.extraPerHalfHour;
-  if (input.baseDistance !== undefined) updateData.baseDistance = input.baseDistance;
-
-  const updated = await repoUpdateTripTypeConfig(id, updateData);
   return mapTripTypeResponse(updated);
 }
 
 export async function deleteTripType(id: string) {
-  // Soft delete by setting status to INACTIVE
+  // Check if config exists
   const existing = await getTripTypeConfigById(id);
   if (!existing) {
     const err: any = new Error("Trip type not found");
@@ -476,5 +370,6 @@ export async function deleteTripType(id: string) {
     throw err;
   }
 
-  return repoUpdateTripTypeConfig(id, { status: "INACTIVE" });
+  await repoDeleteTripTypeConfig(id);
+  return { success: true, message: "Trip type deleted successfully" };
 }

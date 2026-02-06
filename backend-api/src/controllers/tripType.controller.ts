@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { CarType } from "@prisma/client";
+import { TripPricingType, CarCategory } from "@prisma/client";
 import {
   listTripTypes,
   listTripTypesPaginated,
@@ -9,33 +9,12 @@ import {
   deleteTripType,
 } from "../services/tripType.service";
 
-/**
- * Filter trip types by car type - only return pricing for specified car type
- */
-function filterByCarType(tripTypes: any[], carType: CarType) {
-  return tripTypes.map((tripType) => ({
-    ...tripType,
-    carTypePricing: tripType.carTypePricing?.filter(
-      (pricing: any) => pricing.carType === carType
-    ),
-  }));
-}
-
 export async function listTripTypesHandler(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const carType = req.query.carType as CarType | undefined;
-
-    // Validate carType if provided
-    if (carType && !Object.values(CarType).includes(carType)) {
-      return res.status(400).json({
-        error: `Invalid car type. Must be one of: ${Object.values(CarType).join(", ")}`,
-      });
-    }
-
     // Check if pagination query parameters are provided
     if (req.query.page || req.query.limit) {
       // Parse and validate pagination parameters
@@ -58,22 +37,10 @@ export async function listTripTypesHandler(
       }
 
       const result = await listTripTypesPaginated({ page, limit });
-
-      // Filter by car type if specified
-      if (carType) {
-        result.data = filterByCarType(result.data, carType);
-      }
-
       res.json(result);
     } else {
       // Backward compatibility: return all trip types if no pagination params
-      let data = await listTripTypes();
-
-      // Filter by car type if specified
-      if (carType) {
-        data = filterByCarType(data, carType);
-      }
-
+      const data = await listTripTypes();
       res.json({ data });
     }
   } catch (err) {
@@ -88,25 +55,12 @@ export async function getTripTypeByIdHandler(
 ) {
   try {
     const { id } = req.params;
-    const carType = req.query.carType as CarType | undefined;
+    const tripType = await getTripTypeById(id);
 
-    // Validate carType if provided
-    if (carType && !Object.values(CarType).includes(carType)) {
-      return res.status(400).json({
-        error: `Invalid car type. Must be one of: ${Object.values(CarType).join(", ")}`,
+    if (!tripType) {
+      return res.status(404).json({
+        error: "Trip type not found",
       });
-    }
-
-    let tripType = await getTripTypeById(id);
-
-    // Filter by car type if specified
-    if (carType && tripType) {
-      tripType = {
-        ...tripType,
-        carTypePricing: tripType.carTypePricing?.filter(
-          (pricing: any) => pricing.carType === carType
-        ),
-      };
     }
 
     res.json({ data: tripType });
@@ -149,8 +103,8 @@ export async function deleteTripTypeHandler(
 ) {
   try {
     const { id } = req.params;
-    await deleteTripType(id);
-    res.json({ message: "Trip type deleted successfully" });
+    const result = await deleteTripType(id);
+    res.json(result);
   } catch (err) {
     next(err);
   }

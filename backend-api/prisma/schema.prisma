@@ -23,15 +23,7 @@ model Customer {
   Complaints  Complaint[]
 }
 
-model DistanceScope {
-  id             String              @id @default(uuid()) @db.Uuid
-  name           String
-  description    String?
-  status         DistanceScopeStatus @default(ACTIVE)
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime
-  TripTypeConfig TripTypeConfig[]
-}
+
 
 
 enum TransmissionType {
@@ -306,64 +298,34 @@ model TripOffer {
   @@index([expiresAt])
 }
 
-model TripPattern {
-  id             String            @id @default(uuid()) @db.Uuid
-  name           String
-  description    String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime
-  status         TripPatternStatus @default(ACTIVE)
-  TripTypeConfig TripTypeConfig[]
-}
-
 model TripTypeConfig {
-  id              String      @id @default(uuid()) @db.Uuid
-  name            String      @unique // e.g., "City Round Trip", "Long Round"
-  description     String?
-  pricingMode     PricingMode // TIME_BASED or DISTANCE_BASED
-  distanceScopeId String      @db.Uuid
-  tripPatternId   String      @db.Uuid
+  id          String          @id @default(uuid()) @db.Uuid
+  type        TripPricingType // DISTANCE, TIME, SLAB
+  carCategory CarCategory     // NORMAL, PREMIUM, LUXURY, SPORTS
 
-  // Common fields for both pricing modes
-  baseHour         Float? // Base hours included (e.g., 3 hours)
-  extraPerHour     Float? // Extra charge per hour (e.g., ₹100)
-  extraPerHalfHour Float? // Extra charge per 30 minutes (e.g., ₹50)
+  // Base pricing fields
+  baseAmount       Float // Base amount
+  baseHour         Float? // Base hours included (nullable for slab type)
+  baseDistance     Float? // Base distance in km (nullable for time/slab type)
+  extraPerHour     Float? // Extra charge per hour
+  extraPerHalfHour Float? // Extra charge per 30 minutes
+  extraPerDistance Float? // Extra charge per km
 
-  // Distance-based mode specific fields
-  baseDistance Float? // Base distance in km (only for DISTANCE_BASED mode)
+  // Slab pricing arrays
+  // distanceSlab: [{from: 0, to: 50, price: 1000}, {from: 51, to: 100, price: 1500}, ...]
+  // from and to are in km
+  distanceSlab Json? // Array of distance slab objects
 
-  status    TripTypeConfigStatus @default(ACTIVE)
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
-
-  // Relations
-  carTypePricing CarTypePricing[] // Pricing for each car type
-  DistanceScope  DistanceScope    @relation(fields: [distanceScopeId], references: [id])
-  TripPattern    TripPattern      @relation(fields: [tripPatternId], references: [id])
-}
-
-model CarTypePricing {
-  id               String  @id @default(uuid()) @db.Uuid
-  tripTypeConfigId String  @db.Uuid
-  carType          CarType // MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS
-
-  // Base price for this car type
-  basePrice Float // Base price (e.g., ₹400, ₹600, ₹1000)
-
-  // Distance slabs for DISTANCE_BASED pricing mode
-  // Format: [{from: 0, to: 50, price: 1000}, {from: 51, to: 100, price: 1500}, ...]
-  // For TIME_BASED mode, this will be null
-  distanceSlabs Json? // Required when tripTypeConfig.pricingMode = DISTANCE_BASED
+  // timeSlab: [{from: "00:00", to: "06:00", price: 500}, {from: "06:00", to: "12:00", price: 800}, ...]
+  // from and to are time strings
+  timeSlab Json? // Array of time slab objects
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  tripTypeConfig TripTypeConfig @relation(fields: [tripTypeConfigId], references: [id], onDelete: Cascade)
-
-  // One pricing per car type per trip type
-  @@unique([tripTypeConfigId, carType])
-  @@index([tripTypeConfigId])
+  @@unique([type, carCategory])
+  @@index([type])
+  @@index([carCategory])
 }
 
 model User {
@@ -538,22 +500,10 @@ model LeaveRequest {
   @@index([startDate])
 }
 
-enum DistanceScopeStatus {
-  ACTIVE
-  INACTIVE
-}
-
-enum CarType {
-  MANUAL
-  AUTOMATIC
-  PREMIUM_CARS
-  LUXURY_CARS
-  SPORTY_CARS
-}
-
-enum PricingMode {
-  TIME_BASED     // Based on hours (basePrice + extraPerHour)
-  DISTANCE_BASED // Based on distance slabs
+enum TripPricingType {
+  DISTANCE
+  TIME
+  SLAB
 }
 
 enum DriverStatus {
@@ -606,16 +556,6 @@ enum StaffStatus {
   FIRED
   SUSPENDED
   BLOCKED
-}
-
-enum TripPatternStatus {
-  ACTIVE
-  INACTIVE
-}
-
-enum TripTypeConfigStatus {
-  ACTIVE
-  INACTIVE
 }
 
 enum TripStatus {

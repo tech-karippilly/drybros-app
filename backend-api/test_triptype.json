@@ -1,0 +1,8 @@
+{
+  "carCategory": "NORMAL",
+  "type": "DISTANCE",
+  "baseAmount": 500,
+  "baseHour": 3,
+  "baseDistance": 50,
+  "extraPerDistance": 10
+}

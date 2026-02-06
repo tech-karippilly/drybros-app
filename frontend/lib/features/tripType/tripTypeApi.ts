@@ -11,51 +11,84 @@ export const TRIP_TYPE_ENDPOINTS = {
     BY_ID: (id: string) => `/trip-types/${id}`,
 } as const;
 
-// Request DTOs (matching backend)
+// Enums matching backend
+export enum PricingMode {
+    TIME_BASED = 'TIME_BASED',
+    DISTANCE_BASED = 'DISTANCE_BASED',
+}
+
+export enum CarType {
+    MANUAL = 'MANUAL',
+    AUTOMATIC = 'AUTOMATIC',
+    PREMIUM_CARS = 'PREMIUM_CARS',
+    LUXURY_CARS = 'LUXURY_CARS',
+    SPORTY_CARS = 'SPORTY_CARS',
+}
+
+// Car type display metadata
+export const CAR_TYPE_METADATA: Record<CarType, { label: string; icon: string; color: string }> = {
+    [CarType.MANUAL]: { label: 'Manual', icon: '⚙️', color: 'bg-blue-500' },
+    [CarType.AUTOMATIC]: { label: 'Automatic', icon: '🚗', color: 'bg-green-500' },
+    [CarType.PREMIUM_CARS]: { label: 'Premium Cars', icon: '✨', color: 'bg-purple-500' },
+    [CarType.LUXURY_CARS]: { label: 'Luxury Cars', icon: '👑', color: 'bg-amber-500' },
+    [CarType.SPORTY_CARS]: { label: 'Sporty Cars', icon: '🏎️', color: 'bg-red-500' },
+};
+
+// Distance slab for DISTANCE_BASED pricing
+export interface DistanceSlab {
+    from: number; // Starting distance in km
+    to: number | null; // Ending distance in km (null for open-ended)
+    price: number; // Price for this distance range
+}
+
+// Car type pricing configuration
+export interface CarTypePricing {
+    id?: string;
+    carType: CarType;
+    basePrice: number;
+    distanceSlabs?: DistanceSlab[] | null;
+}
+
+// Request DTOs (matching new backend structure)
 export interface CreateTripTypeRequest {
     name: string;
-    specialPrice?: boolean;
-    basePrice?: number;
-    baseHour?: number;
-    baseDuration?: number;
-    distance?: number;
-    extraPerHour?: number;
-    extraPerHalfHour?: number;
     description?: string;
-    distanceSlabs?: any[];
+    pricingMode: PricingMode;
+    
+    // Common fields for both modes
+    baseHour?: number; // Base hours included
+    extraPerHour?: number; // Extra per hour
+    extraPerHalfHour?: number; // Extra per 30 min
+    
+    // Distance-based mode specific
+    baseDistance?: number; // Base distance in km
+    
+    // Car type pricing (required for all car types)
+    carTypePricing: Omit<CarTypePricing, 'id'>[];
 }
 
 export interface UpdateTripTypeRequest {
     name?: string;
-    specialPrice?: boolean;
-    basePrice?: number;
+    description?: string;
+    pricingMode?: PricingMode;
     baseHour?: number;
-    baseDuration?: number;
-    distance?: number;
     extraPerHour?: number;
     extraPerHalfHour?: number;
-    description?: string;
-    distanceSlabs?: any[];
+    baseDistance?: number;
+    carTypePricing?: Omit<CarTypePricing, 'id'>[];
 }
 
-// Response DTOs (matching backend)
+// Response DTOs (matching new backend structure)
 export interface TripTypeResponse {
     id: string;
     name: string;
     description?: string | null;
-    specialPrice?: boolean;
-    basePrice?: number | null;
-    basePricePerHour?: number | null;
-    baseDuration?: number | null;
+    pricingMode: PricingMode;
     baseHour?: number | null;
-    baseDistance?: number | null;
-    distance?: number | null;
     extraPerHour?: number | null;
     extraPerHalfHour?: number | null;
-    extraPerKm?: number | null;
-    premiumCarMultiplier?: number | null;
-    forPremiumCars?: any | null;
-    distanceSlabs?: any | null;
+    baseDistance?: number | null;
+    carTypePricing: CarTypePricing[];
     status: 'ACTIVE' | 'INACTIVE';
     createdAt: Date | string;
     updatedAt: Date | string;

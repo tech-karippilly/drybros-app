@@ -17,6 +17,10 @@ export const SOCKET_EVENTS = {
   // Trip status events
   TRIP_ACCEPTED_BY_DRIVER: "trip_accepted_by_driver",
   TRIP_REJECTED_BY_DRIVER: "trip_rejected_by_driver",
+  
+  // Trip request events (from mobile)
+  TRIP_REQUEST_ACCEPT: "trip_request_accept",
+  TRIP_REQUEST_REJECT: "trip_request_reject",
 
   // Activity log events
   ACTIVITY_LOG_CREATED: "activity_log_created",

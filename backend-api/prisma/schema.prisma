@@ -317,40 +317,53 @@ model TripPattern {
 }
 
 model TripTypeConfig {
-  id              String  @id @default(uuid()) @db.Uuid
-  name            String // e.g., "CITY_ROUND", "CITY_DROPOFF"
+  id              String      @id @default(uuid()) @db.Uuid
+  name            String      @unique // e.g., "City Round Trip", "Long Round"
   description     String?
-  distanceScopeId String  @db.Uuid
-  tripPatternId   String  @db.Uuid
+  pricingMode     PricingMode // TIME_BASED or DISTANCE_BASED
+  distanceScopeId String      @db.Uuid
+  tripPatternId   String      @db.Uuid
 
-  // Special pricing flag - when true, uses slab-based distance pricing (driver-negotiable)
-  specialPrice Boolean @default(false) // If true, basePrice and extraPerHour are not required
+  // Common fields for both pricing modes
+  baseHour         Float? // Base hours included (e.g., 3 hours)
+  extraPerHour     Float? // Extra charge per hour (e.g., ₹100)
+  extraPerHalfHour Float? // Extra charge per 30 minutes (e.g., ₹50)
 
-  // Base pricing (required when specialPrice = false)
-  basePrice        Float? // Base price (₹400, ₹500, etc.) - nullable when specialPrice = true
-  basePricePerHour Float? // Base price per hour (kept for backward compatibility)
-  baseDuration     Float? // Base duration in hours (3h, 2h)
-  baseDistance     Float? // Base distance in km (20 km)
-
-  // Extra charges (required when specialPrice = false)
-  extraPerHour     Float? // ₹100 per hour - nullable when specialPrice = true
-  extraPerHalfHour Float? // ₹50 per 30 min (for CITY_DROPOFF)
-  extraPerKm       Float? // For distance-based pricing
-
-  // Premium car pricing (overrides base)
-  premiumCarMultiplier Float? // e.g., 1.5x or separate pricing
-  forPremiumCars       Json? // Separate pricing structure
-
-  // Slab-based pricing for specialPrice trip types (stored as JSON)
-  // Format: [{from: 0, to: 50, price: 1000}, {from: 51, to: 100, price: 1500}, ...]
-  distanceSlabs Json? // Required when specialPrice = true
+  // Distance-based mode specific fields
+  baseDistance Float? // Base distance in km (only for DISTANCE_BASED mode)
 
   status    TripTypeConfigStatus @default(ACTIVE)
   createdAt DateTime             @default(now())
   updatedAt DateTime             @updatedAt
 
-  DistanceScope DistanceScope @relation(fields: [distanceScopeId], references: [id])
-  TripPattern   TripPattern   @relation(fields: [tripPatternId], references: [id])
+  // Relations
+  carTypePricing CarTypePricing[] // Pricing for each car type
+  DistanceScope  DistanceScope    @relation(fields: [distanceScopeId], references: [id])
+  TripPattern    TripPattern      @relation(fields: [tripPatternId], references: [id])
+}
+
+model CarTypePricing {
+  id               String  @id @default(uuid()) @db.Uuid
+  tripTypeConfigId String  @db.Uuid
+  carType          CarType // MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS
+
+  // Base price for this car type
+  basePrice Float // Base price (e.g., ₹400, ₹600, ₹1000)
+
+  // Distance slabs for DISTANCE_BASED pricing mode
+  // Format: [{from: 0, to: 50, price: 1000}, {from: 51, to: 100, price: 1500}, ...]
+  // For TIME_BASED mode, this will be null
+  distanceSlabs Json? // Required when tripTypeConfig.pricingMode = DISTANCE_BASED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tripTypeConfig TripTypeConfig @relation(fields: [tripTypeConfigId], references: [id], onDelete: Cascade)
+
+  // One pricing per car type per trip type
+  @@unique([tripTypeConfigId, carType])
+  @@index([tripTypeConfigId])
 }
 
 model User {
@@ -536,6 +549,11 @@ enum CarType {
   PREMIUM_CARS
   LUXURY_CARS
   SPORTY_CARS
+}
+
+enum PricingMode {
+  TIME_BASED     // Based on hours (basePrice + extraPerHour)
+  DISTANCE_BASED // Based on distance slabs
 }
 
 enum DriverStatus {

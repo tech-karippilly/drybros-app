@@ -47,7 +47,17 @@ let socket: Socket | null = null;
 ======================= */
 
 export async function connectDriverSocket(): Promise<Socket> {
-  if (socket) return socket;
+  // If socket exists and is connected, return it
+  if (socket && socket.connected) {
+    return socket;
+  }
+
+  // If socket exists but is disconnected, clean it up first
+  if (socket) {
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
+  }
 
   const token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
   if (!token) {
@@ -83,12 +93,12 @@ export function getDriverSocket(): Socket | null {
 
 export function emitTripOfferAccept(offerId: string): void {
   if (!socket) return;
-  socket.emit(SOCKET_EVENTS.TRIP_ACCEPTED_BY_DRIVER, { offerId });
+  socket.emit(SOCKET_EVENTS.TRIP_OFFER_ACCEPT, { offerId });
 }
 
 export function emitTripOfferReject(offerId: string): void {
   if (!socket) return;
-  socket.emit(SOCKET_EVENTS.TRIP_REJECTED_BY_DRIVER, { offerId });
+  socket.emit(SOCKET_EVENTS.TRIP_OFFER_REJECT, { offerId });
 }
 
 /* =======================

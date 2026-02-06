@@ -50,23 +50,62 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
     const [searchTerm, setSearchTerm] = useState("");
     const [rejectedDriverIds, setRejectedDriverIds] = useState<Set<string>>(new Set());
     const [acceptedDriverId, setAcceptedDriverId] = useState<string | null>(null);
+    const [tripStatus, setTripStatus] = useState<string | null>(null);
+    const [socketConnected, setSocketConnected] = useState(false);
 
     // Setup socket connection and listeners
-    useSocket({
-        [SOCKET_EVENTS.TRIP_ACCEPTED_BY_DRIVER]: (payload: { tripId: string; driverId: string; status: string; acceptedAt: string }) => {
+    const { joinRoom, leaveRoom, isConnected, socket } = useSocket({
+        [SOCKET_EVENTS.CONNECT]: () => {
+            console.log("🔌 Socket connected with tripId:", tripId);
+            setSocketConnected(true);
+        },
+        [SOCKET_EVENTS.DISCONNECT]: () => {
+            console.log("🔌 Socket disconnected");
+            setSocketConnected(false);
+        },
+        [SOCKET_EVENTS.TRIP_REQUEST_ACCEPT]: (payload: { tripId: string; driverId: string; status: string; acceptedAt: string }) => {
+            console.log("🎯 Trip request accepted by driver:", payload);
             if (payload.tripId === tripId) {
                 setAcceptedDriverId(payload.driverId);
-                setSuccess(`Driver has accepted the trip!`);
-                console.log("Trip accepted by driver:", payload);
+                setTripStatus("ACCEPTED");
+                
+                // Find driver name
+                const driver = drivers.find(d => d.id === payload.driverId);
+                const driverName = driver ? `${driver.firstName} ${driver.lastName}` : "Driver";
+                setSuccess(`✅ ${driverName} accepted the trip!`);
+                
+                // Disconnect socket and redirect to trip details
+                setTimeout(() => {
+                    console.log("🔌 Disconnecting socket and redirecting to trip details");
+                    leaveRoom(`trip:${tripId}`);
+                    if (socket) {
+                        socket.disconnect();
+                    }
+                    router.push(`${DASHBOARD_ROUTES.TRIPS}/${tripId}`);
+                }, 1500);
             }
         },
-        [SOCKET_EVENTS.TRIP_REJECTED_BY_DRIVER]: (payload: { tripId: string; driverId: string; status: string; rejectedAt: string }) => {
+        [SOCKET_EVENTS.TRIP_REQUEST_REJECT]: (payload: { tripId: string; driverId: string; status: string; rejectedAt: string }) => {
+            console.log("❌ Trip request rejected by driver:", payload);
             if (payload.tripId === tripId) {
                 setRejectedDriverIds(prev => new Set(prev).add(payload.driverId));
-                console.log("Trip rejected by driver:", payload);
+                
+                // Find driver name
+                const driver = drivers.find(d => d.id === payload.driverId);
+                if (driver) {
+                    setError(`❌ ${driver.firstName} ${driver.lastName} rejected the trip`);
+                    // Clear error after 5 seconds
+                    setTimeout(() => setError(null), 5000);
+                }
             }
         },
-    }, [tripId]);
+        [SOCKET_EVENTS.TRIP_OFFER]: (payload: { tripId: string; driverId: string; offeredAt: string }) => {
+            console.log("📤 Trip offer sent:", payload);
+            if (payload.tripId === tripId) {
+                console.log("Trip offer sent to driver:", payload.driverId);
+            }
+        },
+    }, [tripId, drivers, router]);
 
     useEffect(() => {
         let cancelled = false;
@@ -88,7 +127,20 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
         return () => {
             cancelled = true;
         };
-    }, [tripId]);
+    }, [tripId, drivers]);
+
+    // Join trip-specific room for real-time updates
+    useEffect(() => {
+        if (tripId) {
+            console.log("🔌 Joining trip room:", `trip:${tripId}`);
+            joinRoom(`trip:${tripId}`);
+            
+            return () => {
+                console.log("🔌 Leaving trip room:", `trip:${tripId}`);
+                leaveRoom(`trip:${tripId}`);
+            };
+        }
+    }, [tripId, joinRoom, leaveRoom]);
 
     useEffect(() => {
         if (!trip?.franchiseId) {
@@ -221,8 +273,14 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
                         <h1 className="text-slate-900 dark:text-white text-3xl font-black leading-tight tracking-tight">
                             {REQUEST_DRIVERS_STRINGS.PAGE_TITLE}
                         </h1>
-                        <p className="text-slate-500 dark:text-slate-400 text-base mt-0.5">
+                        <p className="text-slate-500 dark:text-slate-400 text-base mt-0.5 flex items-center gap-2">
                             {REQUEST_DRIVERS_STRINGS.PAGE_SUBTITLE}
+                            {socketConnected && (
+                                <span className="inline-flex items-center gap-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full">
+                                    <span className="size-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                                    Live
+                                </span>
+                            )}
                         </p>
                     </div>
                 </div>
@@ -259,6 +317,33 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
             <div className="bg-white dark:bg-[#192633] rounded-xl border border-slate-200 dark:border-slate-800 p-4">
                 <p className="text-sm text-slate-600 dark:text-slate-300">{REQUEST_DRIVERS_STRINGS.DISPATCH_NOTE}</p>
             </div>
+
+            {/* Trip Request Status */}
+            {(rejectedDriverIds.size > 0 || acceptedDriverId) && (
+                <div className="bg-white dark:bg-[#192633] rounded-xl border border-slate-200 dark:border-slate-800 p-4">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">
+                        Trip Request Status
+                    </h3>
+                    <div className="flex flex-wrap gap-3">
+                        {acceptedDriverId && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-sm font-medium">
+                                <CheckCircle className="size-4" />
+                                <span>1 driver accepted</span>
+                            </div>
+                        )}
+                        {rejectedDriverIds.size > 0 && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium">
+                                <AlertCircle className="size-4" />
+                                <span>{rejectedDriverIds.size} driver{rejectedDriverIds.size > 1 ? 's' : ''} rejected</span>
+                            </div>
+                        )}
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-sm font-medium">
+                            <Loader2 className="size-4" />
+                            <span>{filteredDrivers.length - rejectedDriverIds.size - (acceptedDriverId ? 1 : 0)} drivers pending</span>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="bg-white dark:bg-[#192633] rounded-xl border border-slate-200 dark:border-slate-800 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -336,14 +421,25 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
                             {filteredDrivers.map((driver) => {
                                 const isRejected = rejectedDriverIds.has(driver.id);
                                 const isAccepted = acceptedDriverId === driver.id;
+                                const isPending = !isRejected && !isAccepted;
                                 
                                 return (
                                     <div
                                         key={driver.id}
-                                        className="group flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-theme-blue transition-colors"
+                                        className={cn(
+                                            "group flex items-center justify-between p-4 rounded-xl border transition-all",
+                                            isAccepted && "border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20",
+                                            isRejected && "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 opacity-60",
+                                            isPending && "border-slate-200 dark:border-slate-800 hover:border-theme-blue"
+                                        )}
                                     >
                                         <div className="flex items-center gap-4">
-                                            <div className="size-12 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold">
+                                            <div className={cn(
+                                                "size-12 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold",
+                                                isAccepted && "bg-green-200 dark:bg-green-800 text-green-700 dark:text-green-200",
+                                                isRejected && "bg-red-200 dark:bg-red-800 text-red-700 dark:text-red-200",
+                                                isPending && "bg-slate-200 dark:bg-slate-700"
+                                            )}>
                                                 {driver.firstName?.[0]}
                                                 {driver.lastName?.[0]}
                                             </div>
@@ -354,6 +450,16 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
                                                 <p className="text-xs text-slate-500 dark:text-slate-400">
                                                     {driver.driverCode} {driver.phone ? `• ${driver.phone}` : ""}
                                                 </p>
+                                                {isRejected && (
+                                                    <p className="text-xs text-red-600 dark:text-red-400 font-medium mt-0.5">
+                                                        Rejected trip request
+                                                    </p>
+                                                )}
+                                                {isAccepted && (
+                                                    <p className="text-xs text-green-600 dark:text-green-400 font-medium mt-0.5">
+                                                        Accepted trip request
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
 
@@ -363,7 +469,7 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
                                                 Accepted
                                             </div>
                                         ) : isRejected ? (
-                                            <div className="flex items-center justify-center rounded-lg h-10 px-4 bg-red-500 text-white text-sm font-bold gap-2">
+                                            <div className="flex items-center justify-center rounded-lg h-10 px-4 bg-red-500/80 text-white text-sm font-bold gap-2">
                                                 <AlertCircle className="size-4" />
                                                 Rejected
                                             </div>

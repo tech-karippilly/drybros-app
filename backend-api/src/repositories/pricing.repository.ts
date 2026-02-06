@@ -1,5 +1,5 @@
 import prisma from "../config/prismaClient";
-import { TripType } from "@prisma/client";
+import { TripType, CarType, PricingMode } from "@prisma/client";
 
 /**
  * Display-name aliases for each TripType (e.g. "Long Drop" for LONG_DROPOFF).
@@ -28,6 +28,7 @@ export async function getTripTypeConfigForPricing(tripType: TripType) {
       include: {
         DistanceScope: true,
         TripPattern: true,
+        carTypePricing: true,
       },
     });
     if (config) return config;
@@ -49,6 +50,7 @@ export async function getTripTypeConfigByType(tripTypeName: string) {
     include: {
       DistanceScope: true,
       TripPattern: true,
+      carTypePricing: true,
     },
   });
 }
@@ -64,6 +66,7 @@ export async function getAllTripTypeConfigs() {
     include: {
       DistanceScope: true,
       TripPattern: true,
+      carTypePricing: true,
     },
     orderBy: {
       name: "asc",
@@ -83,6 +86,7 @@ export async function getTripTypeConfigsPaginated(skip: number, take: number) {
       include: {
         DistanceScope: true,
         TripPattern: true,
+        carTypePricing: true,
       },
       orderBy: {
         name: "asc",
@@ -109,29 +113,29 @@ export async function getTripTypeConfigById(id: string) {
     include: {
       DistanceScope: true,
       TripPattern: true,
+      carTypePricing: true,
     },
   });
 }
 
 /**
- * Create a new TripTypeConfig
+ * Create a new TripTypeConfig with car type pricing
  */
 export async function createTripTypeConfig(data: {
   name: string;
   description?: string;
   distanceScopeId: string;
   tripPatternId: string;
-  specialPrice?: boolean;
-  basePrice?: number | null;
-  basePricePerHour?: number;
-  baseDuration?: number | null;
-  baseDistance?: number | null;
+  pricingMode: PricingMode;
+  baseHour?: number | null;
   extraPerHour?: number | null;
-  extraPerHalfHour?: number;
-  extraPerKm?: number;
-  premiumCarMultiplier?: number;
-  forPremiumCars?: any;
-  distanceSlabs?: any;
+  extraPerHalfHour?: number | null;
+  baseDistance?: number | null;
+  carTypePricing: Array<{
+    carType: CarType;
+    basePrice: number;
+    distanceSlabs?: any;
+  }>;
 }) {
   return prisma.tripTypeConfig.create({
     data: {
@@ -139,22 +143,26 @@ export async function createTripTypeConfig(data: {
       description: data.description,
       distanceScopeId: data.distanceScopeId,
       tripPatternId: data.tripPatternId,
-      specialPrice: data.specialPrice ?? false,
-      basePrice: data.basePrice ?? null,
-      basePricePerHour: data.basePricePerHour ?? null,
-      baseDuration: data.baseDuration ?? null,
-      baseDistance: data.baseDistance ?? null,
+      pricingMode: data.pricingMode,
+      baseHour: data.baseHour ?? null,
       extraPerHour: data.extraPerHour ?? null,
       extraPerHalfHour: data.extraPerHalfHour ?? null,
-      extraPerKm: data.extraPerKm ?? null,
-      premiumCarMultiplier: data.premiumCarMultiplier ?? null,
-      forPremiumCars: data.forPremiumCars ? JSON.parse(JSON.stringify(data.forPremiumCars)) : null,
-      distanceSlabs: data.distanceSlabs ? JSON.parse(JSON.stringify(data.distanceSlabs)) : null,
+      baseDistance: data.baseDistance ?? null,
       status: "ACTIVE",
+      carTypePricing: {
+        create: data.carTypePricing.map((pricing) => ({
+          carType: pricing.carType,
+          basePrice: pricing.basePrice,
+          distanceSlabs: pricing.distanceSlabs
+            ? JSON.parse(JSON.stringify(pricing.distanceSlabs))
+            : null,
+        })),
+      },
     },
     include: {
       DistanceScope: true,
       TripPattern: true,
+      carTypePricing: true,
     },
   });
 }
@@ -169,36 +177,91 @@ export async function updateTripTypeConfig(
     description: string;
     distanceScopeId: string;
     tripPatternId: string;
-    specialPrice: boolean;
-    basePrice: number | null;
-    basePricePerHour: number;
-    baseDuration: number | null;
-    baseDistance: number | null;
+    pricingMode: PricingMode;
+    baseHour: number | null;
     extraPerHour: number | null;
-    extraPerHalfHour: number;
-    extraPerKm: number;
-    premiumCarMultiplier: number;
-    forPremiumCars: any;
-    distanceSlabs: any;
+    extraPerHalfHour: number | null;
+    baseDistance: number | null;
     status: string;
   }>
 ) {
-  const updateData: any = { ...data };
-  
-  // Handle JSON fields
-  if (data.forPremiumCars !== undefined) {
-    updateData.forPremiumCars = data.forPremiumCars ? JSON.parse(JSON.stringify(data.forPremiumCars)) : null;
-  }
-  if (data.distanceSlabs !== undefined) {
-    updateData.distanceSlabs = data.distanceSlabs ? JSON.parse(JSON.stringify(data.distanceSlabs)) : null;
-  }
-
   return prisma.tripTypeConfig.update({
     where: { id },
-    data: updateData,
+    data: data,
     include: {
       DistanceScope: true,
       TripPattern: true,
+      carTypePricing: true,
     },
   });
 }
+
+/**
+ * Create or update car type pricing for a trip type
+ */
+export async function upsertCarTypePricing(
+  tripTypeConfigId: string,
+  carType: CarType,
+  data: {
+    basePrice: number;
+    distanceSlabs?: any;
+  }
+) {
+  return prisma.carTypePricing.upsert({
+    where: {
+      tripTypeConfigId_carType: {
+        tripTypeConfigId,
+        carType,
+      },
+    },
+    create: {
+      tripTypeConfigId,
+      carType,
+      basePrice: data.basePrice,
+      distanceSlabs: data.distanceSlabs
+        ? JSON.parse(JSON.stringify(data.distanceSlabs))
+        : null,
+    },
+    update: {
+      basePrice: data.basePrice,
+      distanceSlabs: data.distanceSlabs
+        ? JSON.parse(JSON.stringify(data.distanceSlabs))
+        : null,
+    },
+  });
+}
+
+/**
+ * Delete car type pricing
+ */
+export async function deleteCarTypePricing(
+  tripTypeConfigId: string,
+  carType: CarType
+) {
+  return prisma.carTypePricing.delete({
+    where: {
+      tripTypeConfigId_carType: {
+        tripTypeConfigId,
+        carType,
+      },
+    },
+  });
+}
+
+/**
+ * Get car type pricing for a specific trip type and car type
+ */
+export async function getCarTypePricing(
+  tripTypeConfigId: string,
+  carType: CarType
+) {
+  return prisma.carTypePricing.findUnique({
+    where: {
+      tripTypeConfigId_carType: {
+        tripTypeConfigId,
+        carType,
+      },
+    },
+  });
+}
+

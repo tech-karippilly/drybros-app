@@ -38,6 +38,15 @@ export interface PriceCalculationResult {
     fromDatabase: boolean;
     configName?: string;
   };
+  tripTypeConfig?: {
+    name: string;
+    basePrice: number | null;
+    baseDuration: number | null;
+    baseDistance: number | null;
+    extraPerHour: number | null;
+    extraPerHalfHour: number | null;
+    extraPerKm: number | null;
+  };
 }
 
 /**
@@ -66,10 +75,17 @@ export async function calculateTripPrice(
   let config = await getTripTypeConfigForPricing(tripType);
   let useDatabaseConfig = false;
 
-  // If no database config, use default constants
+  // If no config found for enum, try direct name lookup (for custom trip types like "LONG DROP SEPCAIL")
   if (!config) {
-    // Use default pricing rules
-    config = null;
+    const customConfig = await getTripTypeConfigByType(tripType as string);
+    if (customConfig) {
+      config = customConfig;
+      useDatabaseConfig = true;
+      logger.info("Using custom trip type config from database", {
+        tripType,
+        configName: config.name,
+      });
+    }
   } else {
     useDatabaseConfig = true;
   }
@@ -249,9 +265,85 @@ export async function calculateTripPrice(
     }
 
     default:
-      const err: any = new Error(PRICING_ERROR_MESSAGES.INVALID_TRIP_TYPE);
-      err.statusCode = 400;
-      throw err;
+      // Handle custom trip types from database
+      if (config) {
+        logger.info("Handling custom trip type with database config", {
+          tripType,
+          configName: config.name,
+          hasBasePrice: config.basePrice != null,
+          hasBaseDuration: config.baseDuration != null,
+          hasExtraPerHour: config.extraPerHour != null,
+        });
+
+        // Check if it's duration-based pricing
+        const hasDurationBased =
+          config.basePrice != null &&
+          config.baseDuration != null &&
+          config.extraPerHour != null;
+
+        if (hasDurationBased) {
+          basePrice = config.basePrice!;
+          breakdown.base = basePrice;
+
+          if (duration !== undefined && duration > 0) {
+            const baseDurationHours = config.baseDuration!;
+            const extraPerHour = config.extraPerHour!;
+            const extraPerHalfHour = config.extraPerHalfHour;
+
+            if (duration > baseDurationHours) {
+              const extraTime = duration - baseDurationHours;
+              let durationExtra = 0;
+
+              // Calculate full hours
+              const fullHours = Math.floor(extraTime);
+              durationExtra += fullHours * extraPerHour;
+
+              // Calculate half hours (30 min increments)
+              const remainingMinutes = (extraTime - fullHours) * 60;
+              if (remainingMinutes > 0 && extraPerHalfHour) {
+                const halfHourIncrements = Math.ceil(remainingMinutes / 30);
+                durationExtra += halfHourIncrements * extraPerHalfHour;
+                logger.info("Calculated half-hour charges", {
+                  remainingMinutes,
+                  halfHourIncrements,
+                  extraPerHalfHour,
+                  halfHourCharge: halfHourIncrements * extraPerHalfHour,
+                });
+              } else if (remainingMinutes > 0 && !extraPerHalfHour) {
+                // No half-hour rate configured, use hourly rate proportionally
+                durationExtra += (remainingMinutes / 60) * extraPerHour;
+              }
+
+              breakdown.durationExtra = durationExtra;
+              extraCharges += durationExtra;
+              logger.info("Calculated extra duration charges", {
+                duration,
+                baseDuration: baseDurationHours,
+                extraTime,
+                fullHours,
+                remainingMinutes,
+                extraPerHour,
+                extraPerHalfHour,
+                durationExtra,
+              });
+            }
+          }
+        } else {
+          // Use base price only
+          basePrice = config.basePrice ?? 0;
+          breakdown.base = basePrice;
+          logger.warn("Custom trip type config incomplete, using base price only", {
+            tripType,
+            basePrice,
+          });
+        }
+      } else {
+        // No config found at all
+        const err: any = new Error(PRICING_ERROR_MESSAGES.INVALID_TRIP_TYPE);
+        err.statusCode = 400;
+        throw err;
+      }
+      break;
   }
 
   // Apply premium car multiplier
@@ -282,6 +374,20 @@ export async function calculateTripPrice(
 
   const totalPrice = basePrice + extraCharges + premiumAdjustment;
 
+  // Prepare trip type config details for response
+  let tripTypeConfigDetails: PriceCalculationResult["tripTypeConfig"] | undefined;
+  if (config) {
+    tripTypeConfigDetails = {
+      name: config.name,
+      basePrice: config.basePrice,
+      baseDuration: config.baseDuration,
+      baseDistance: config.baseDistance,
+      extraPerHour: config.extraPerHour,
+      extraPerHalfHour: config.extraPerHalfHour,
+      extraPerKm: config.extraPerKm,
+    };
+  }
+
   // Log pricing calculation details
   logger.debug("Price calculation completed", {
     tripType,
@@ -307,6 +413,7 @@ export async function calculateTripPrice(
       fromDatabase: useDatabaseConfig,
       configName: config?.name,
     },
+    tripTypeConfig: tripTypeConfigDetails,
   };
 }
 

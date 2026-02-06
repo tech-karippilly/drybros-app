@@ -121,72 +121,7 @@ export async function getPenaltiesHandler(
   next: NextFunction
 ) {
   try {
-   @swagger
- * /penalties/{id}:
- *   patch:
- *     tags:
- *       - Penalties
- *     summary: Update a penalty deduction type
- *     description: Update penalty details like name, amount, or description (Admin/Manager only)
- *     security:
- *       - BearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: Penalty ID
- *     requestBody:
- * @swagger
- * /penalties/{id}:
- *   delete:
- *     tags:
- *       - Penalties
- *     summary: Delete a penalty deduction type
- *     description: Soft delete a penalty type by setting isActive to false (Admin/Manager only)
- *     security:
- *       - BearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: Penalty ID
- *     responses:
- *       200:
- *         description: Penalty deleted successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
- *       404:
- *         description: Penalty not found: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               description:
- *                 type: string
- *               amount:
- *                 type: integer
- *               isActive:
- *                 type: boolean
- *     responses:
- *       200:
- *         description: Penalty updated successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
- *       404:
- *         description: Penalty not found.page || req.query.limit) {
+    if (req.query.page || req.query.limit) {
       const pagination = (req as any).validatedQuery;
       const result = await getPenaltiesPaginated(pagination);
       res.json(result);

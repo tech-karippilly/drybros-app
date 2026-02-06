@@ -52,6 +52,7 @@ import { logActivity } from "./activity.service";
 import { socketService } from "./socket.service";
 import logger from "../config/logger";
 import { sendTripStartOtpEmail, sendTripEndOtpEmail, sendTripEndConfirmationEmail } from "./email.service";
+import { calculateAndSaveDriverDailyMetrics } from "./driver-daily-metrics.service";
 import {
   validateDriverForTripAssignment,
   validateTripForAssignment,
@@ -1744,6 +1745,19 @@ export async function verifyAndEndTrip(input: VerifyEndTripInput) {
     throw err;
   }
 
+  // Validate that startTime and endTime are present
+  if (!trip.startTime) {
+    const err: any = new Error("Trip start time is missing. Please ensure the trip was started with a valid start time.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (!trip.endTime) {
+    const err: any = new Error("Trip end time is missing. Please ensure the trip was ended with a valid end time.");
+    err.statusCode = 400;
+    throw err;
+  }
+
   // Calculate distance traveled (in km)
   const distanceTraveled = trip.endOdometer - trip.startOdometer;
   if (distanceTraveled < 0) {
@@ -1752,10 +1766,8 @@ export async function verifyAndEndTrip(input: VerifyEndTripInput) {
     throw err;
   }
 
-  // Calculate time taken (in hours)
-  // Use current time as the end time for calculation
-  const endTime = new Date();
-  const timeTakenMs = endTime.getTime() - trip.startedAt.getTime();
+  // Calculate time taken (in hours) using actual startTime and endTime
+  const timeTakenMs = trip.endTime.getTime() - trip.startTime.getTime();
   const timeTakenHours = timeTakenMs / (1000 * 60 * 60); // Convert milliseconds to hours
 
   // Get trip type as string for pricing calculation
@@ -1781,6 +1793,7 @@ export async function verifyAndEndTrip(input: VerifyEndTripInput) {
   // Calculate trip amount using pricing service
   let calculatedAmount = 0;
   let priceBreakdown: any = null;
+  let tripTypeConfig: any = null;
   try {
     const priceResult = await calculateTripPrice({
       tripType,
@@ -1790,6 +1803,7 @@ export async function verifyAndEndTrip(input: VerifyEndTripInput) {
     });
     calculatedAmount = priceResult.totalPrice;
     priceBreakdown = priceResult.breakdown;
+    tripTypeConfig = priceResult.tripTypeConfig;
 
     logger.info("Trip price calculated successfully", {
       tripId,
@@ -1800,6 +1814,7 @@ export async function verifyAndEndTrip(input: VerifyEndTripInput) {
       basePrice: priceResult.basePrice,
       extraCharges: priceResult.extraCharges,
       breakdown: priceBreakdown,
+      tripTypeConfig,
     });
   } catch (error) {
     logger.error("Failed to calculate trip price", {
@@ -1830,6 +1845,7 @@ export async function verifyAndEndTrip(input: VerifyEndTripInput) {
     tripType,
     calculatedAmount,
     priceBreakdown, // Include breakdown for frontend display
+    tripTypeConfig, // Include trip type configuration details
   };
 }
 
@@ -2126,6 +2142,25 @@ export async function verifyPaymentAndEndTrip(input: VerifyPaymentAndEndTripInpu
   }).catch((err) => {
     logger.error("Failed to log trip end activity", { error: err });
   });
+
+  // Update driver daily metrics (non-blocking)
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    await calculateAndSaveDriverDailyMetrics(driverId, today);
+    logger.info("Driver daily metrics updated after trip completion", {
+      tripId,
+      driverId,
+      date: today.toISOString(),
+    });
+  } catch (error) {
+    // Log error but don't fail the trip end - metrics update is not critical
+    logger.error("Failed to update driver daily metrics after trip completion", {
+      error: error instanceof Error ? error.message : String(error),
+      tripId,
+      driverId,
+    });
+  }
 
   return {
     tripId: updatedTrip.id,

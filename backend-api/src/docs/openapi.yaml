@@ -6207,17 +6207,20 @@ paths:
 
   /trip-types:
     get:
-      summary: List all trip types (with optional pagination)
+      summary: List all trip types (with optional pagination and car type filter)
       description: |
-        Get all active trip type configurations. Supports optional pagination via query parameters.
+        Get all active trip type configurations. Supports optional pagination and filtering by car type.
         
         **Query Parameters:**
         - `page` (optional): Page number (default: 1)
         - `limit` (optional): Number of items per page (default: 10, max: 100)
+        - `carType` (optional): Filter trip types and return only pricing for specific car type
         
         **Without pagination parameters:** Returns all trip types (backward compatible)
         
         **With pagination parameters:** Returns paginated results with metadata
+        
+        **With carType filter:** Returns only pricing for the specified car type
       tags:
         - Trip Types
       security:
@@ -6240,6 +6243,13 @@ paths:
             minimum: 1
             maximum: 100
             default: 10
+        - name: carType
+          in: query
+          required: false
+          description: Filter by car type (returns only pricing for this car type)
+          schema:
+            type: string
+            enum: [MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS]
       responses:
         "200":
           description: List of trip types (paginated or all)
@@ -6265,64 +6275,102 @@ paths:
                           $ref: "#/components/schemas/TripTypeConfig"
               examples:
                 paginated:
-                  summary: Paginated response
+                  summary: Paginated response with new structure
                   value:
                     data:
                       - id: "550e8400-e29b-41d4-a716-446655440000"
                         name: "City Round Trip"
-                        specialPrice: false
-                        basePrice: 400
+                        pricingMode: "TIME_BASED"
                         baseHour: 3
                         extraPerHour: 100
                         extraPerHalfHour: 50
+                        baseDistance: null
                         status: "ACTIVE"
+                        carTypePricing:
+                          - carType: "MANUAL"
+                            basePrice: 400
+                            distanceSlabs: null
+                          - carType: "AUTOMATIC"
+                            basePrice: 450
+                            distanceSlabs: null
+                          - carType: "PREMIUM_CARS"
+                            basePrice: 600
+                            distanceSlabs: null
+                          - carType: "LUXURY_CARS"
+                            basePrice: 800
+                            distanceSlabs: null
+                          - carType: "SPORTY_CARS"
+                            basePrice: 1000
+                            distanceSlabs: null
                       - id: "660e8400-e29b-41d4-a716-446655440001"
                         name: "Long Round"
-                        specialPrice: true
-                        basePrice: null
-                        baseHour: null
-                        extraPerHour: null
-                        distanceSlabs:
-                          - from: 0
-                            to: 50
-                            price: 1000
-                          - from: 51
-                            to: 100
-                            price: 1500
-                          - from: 101
-                            to: null
-                            price: 2000
+                        pricingMode: "DISTANCE_BASED"
+                        baseHour: 8
+                        extraPerHour: 150
+                        extraPerHalfHour: 75
+                        baseDistance: 200
                         status: "ACTIVE"
+                        carTypePricing:
+                          - carType: "MANUAL"
+                            basePrice: 3000
+                            distanceSlabs:
+                              - from: 0
+                                to: 100
+                                price: 3000
+                              - from: 101
+                                to: 200
+                                price: 4500
+                              - from: 201
+                                to: null
+                                price: 6000
+                          - carType: "PREMIUM_CARS"
+                            basePrice: 4500
+                            distanceSlabs:
+                              - from: 0
+                                to: 100
+                                price: 4500
+                              - from: 101
+                                to: 200
+                                price: 6500
+                              - from: 201
+                                to: null
+                                price: 8500
                     pagination:
                       page: 1
                       limit: 10
-                      total: 4
+                      total: 2
                       totalPages: 1
                       hasNext: false
                       hasPrev: false
-                all:
-                  summary: All trip types (no pagination)
+                filteredByCarType:
+                  summary: Filtered by car type (MANUAL)
                   value:
                     data:
                       - id: "550e8400-e29b-41d4-a716-446655440000"
-                        name: "CITY_ROUND"
-                        specialPrice: false
-                        basePrice: 400
+                        name: "City Round Trip"
+                        pricingMode: "TIME_BASED"
                         baseHour: 3
                         extraPerHour: 100
+                        extraPerHalfHour: 50
+                        carTypePricing:
+                          - carType: "MANUAL"
+                            basePrice: 400
+                            distanceSlabs: null
                       - id: "660e8400-e29b-41d4-a716-446655440001"
-                        name: "LONG_ROUND"
-                        specialPrice: true
-                        basePrice: null
-                        baseHour: null
-                        extraPerHour: null
-                        distanceSlabs:
-                          - from: 0
-                            to: 50
-                            price: 1000
-                          - from: 51
-                            to: null
-                            price: 1500
+                        name: "Long Round"
+                        pricingMode: "DISTANCE_BASED"
+                        baseHour: 8
+                        extraPerHour: 150
+                        carTypePricing:
+                          - carType: "MANUAL"
+                            basePrice: 3000
+                            distanceSlabs:
+                              - from: 0
+                                to: 100
+                                price: 3000
+                              - from: 101
+                                to: null
+                                price: 4500
         "400":
           description: Bad request - invalid pagination parameters
           content:
@@ -6338,23 +6386,31 @@ paths:
         
         **Two Pricing Modes:**
         
-        1. **Standard Pricing** (`specialPrice: false` or omitted):
-           - **Required:** `name`, `basePrice`, `baseHour`, `extraPerHour`
-           - Time-based pricing with predefined rates
-           - Example: "City Round Trip" with base price ₹400 for 3 hours, ₹100 per extra hour
+        1. **TIME_BASED Pricing:**
+           - **Required:** `name`, `pricingMode: "TIME_BASED"`, `carTypePricing` (all 5 car types)
+           - Time-based pricing with base price per car type
+           - Each car type has its own base price
+           - Example: "City Round Trip" with MANUAL ₹400, PREMIUM ₹600 for 3 hours base
         
-        2. **Special Pricing** (`specialPrice: true`):
-           - **Required:** `name`, `distanceSlabs` (array of distance-based price slabs)
-           - **NOT Required:** `basePrice`, `baseHour`, `extraPerHour`
-           - Distance-based slab pricing (driver-negotiable)
-           - Example: "Long Round" with slabs: 0-50km = ₹1000, 51-100km = ₹1500, 101km+ = ₹2000
+        2. **DISTANCE_BASED Pricing:**
+           - **Required:** `name`, `pricingMode: "DISTANCE_BASED"`, `carTypePricing` (all 5 car types with distance slabs)
+           - Distance-based slab pricing per car type
+           - Each car type has its own distance slabs
+           - Example: "Long Round" with MANUAL slabs: 0-100km ₹3000, 101-200km ₹4500
+        
+        **Required Fields:**
+        - `name`: Trip type name (string)
+        - `pricingMode`: "TIME_BASED" or "DISTANCE_BASED"
+        - `carTypePricing`: Array of pricing for ALL 5 car types (MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS)
         
         **Optional Fields (both modes):**
-        - `extraPerHalfHour`: Extra charge for 30 minutes (standard mode only)
-        - `distance`: Base distance in km
+        - `baseHour`: Base hours included (e.g., 3 hours)
+        - `extraPerHour`: Extra charge per hour
+        - `extraPerHalfHour`: Extra charge for 30 minutes
+        - `baseDistance`: Base distance in km (for DISTANCE_BASED)
         - `description`: Description of the trip type
-        - `distanceScopeId`: Distance scope ID (default will be created if not provided)
-        - `tripPatternId`: Trip pattern ID (default will be created if not provided)
+        - `distanceScopeId`: Distance scope ID (default created if not provided)
+        - `tripPatternId`: Trip pattern ID (default created if not provided)
       tags:
         - Trip Types
       security:
@@ -6366,33 +6422,97 @@ paths:
             schema:
               $ref: "#/components/schemas/CreateTripTypeRequest"
             examples:
-              standardPricing:
-                summary: Standard pricing trip type
+              timeBasedPricing:
+                summary: TIME_BASED pricing trip type
                 value:
                   name: "City Round Trip"
-                  specialPrice: false
-                  basePrice: 400
+                  pricingMode: "TIME_BASED"
                   baseHour: 3
-                  distance: 20
                   extraPerHour: 100
                   extraPerHalfHour: 50
-                  description: "City round trip pricing"
-              specialPricing:
-                summary: Special pricing (slab-based) trip type
+                  description: "City round trip with time-based pricing"
+                  carTypePricing:
+                    - carType: "MANUAL"
+                      basePrice: 400
+                    - carType: "AUTOMATIC"
+                      basePrice: 450
+                    - carType: "PREMIUM_CARS"
+                      basePrice: 600
+                    - carType: "LUXURY_CARS"
+                      basePrice: 800
+                    - carType: "SPORTY_CARS"
+                      basePrice: 1000
+              distanceBasedPricing:
+                summary: DISTANCE_BASED pricing trip type
                 value:
                   name: "Long Round"
-                  specialPrice: true
-                  distanceSlabs:
-                    - from: 0
-                      to: 50
-                      price: 1000
-                    - from: 51
-                      to: 100
-                      price: 1500
-                    - from: 101
-                      to: null
-                      price: 2000
+                  pricingMode: "DISTANCE_BASED"
+                  baseHour: 8
+                  baseDistance: 200
+                  extraPerHour: 150
+                  extraPerHalfHour: 75
                   description: "Long round trip with distance-based slab pricing"
+                  carTypePricing:
+                    - carType: "MANUAL"
+                      basePrice: 3000
+                      distanceSlabs:
+                        - from: 0
+                          to: 100
+                          price: 3000
+                        - from: 101
+                          to: 200
+                          price: 4500
+                        - from: 201
+                          to: null
+                          price: 6000
+                    - carType: "AUTOMATIC"
+                      basePrice: 3300
+                      distanceSlabs:
+                        - from: 0
+                          to: 100
+                          price: 3300
+                        - from: 101
+                          to: 200
+                          price: 5000
+                        - from: 201
+                          to: null
+                          price: 6500
+                    - carType: "PREMIUM_CARS"
+                      basePrice: 4500
+                      distanceSlabs:
+                        - from: 0
+                          to: 100
+                          price: 4500
+                        - from: 101
+                          to: 200
+                          price: 6500
+                        - from: 201
+                          to: null
+                          price: 8500
+                    - carType: "LUXURY_CARS"
+                      basePrice: 6000
+                      distanceSlabs:
+                        - from: 0
+                          to: 100
+                          price: 6000
+                        - from: 101
+                          to: 200
+                          price: 8500
+                        - from: 201
+                          to: null
+                          price: 11000
+                    - carType: "SPORTY_CARS"
+                      basePrice: 8000
+                      distanceSlabs:
+                        - from: 0
+                          to: 100
+                          price: 8000
+                        - from: 101
+                          to: 200
+                          price: 11000
+                        - from: 201
+                          to: null
+                          price: 14000
       responses:
         "201":
           description: Trip type created successfully
@@ -6418,22 +6538,30 @@ paths:
                   summary: Trip type already exists
                   value:
                     error: "Trip type configuration already exists for: City Round Trip"
+                missingPricingMode:
+                  summary: Missing pricing mode
+                  value:
+                    error: "Pricing mode is required (TIME_BASED or DISTANCE_BASED)"
+                missingCarTypePricing:
+                  summary: Missing car type pricing
+                  value:
+                    error: "Car type pricing is required for all car types"
+                missingCarType:
+                  summary: Missing pricing for specific car type
+                  value:
+                    error: "Missing pricing for car types: LUXURY_CARS, SPORTY_CARS. All car types must have pricing configured."
                 invalidPrice:
-                  summary: Invalid price
+                  summary: Invalid base price
                   value:
-                    error: "Base price must be a positive number"
-                missingStandardFields:
-                  summary: Missing required fields for standard pricing
+                    error: "Base price must be a non-negative number for car type: MANUAL"
+                missingDistanceSlabs:
+                  summary: Missing distance slabs for DISTANCE_BASED mode
                   value:
-                    error: "basePrice is required when specialPrice is false"
-                missingSlabs:
-                  summary: Missing distanceSlabs for special pricing
-                  value:
-                    error: "distanceSlabs is required when specialPrice is true"
+                    error: "Distance slabs are required for car type: MANUAL in DISTANCE_BASED mode"
                 invalidSlab:
                   summary: Invalid slab format
                   value:
-                    error: "Slab 'to' distance must be greater than or equal to 'from'"
+                    error: "Slab 'to' distance must be greater than or equal to 'from' for car type: PREMIUM_CARS"
         "401":
           description: Not authenticated (missing or invalid token)
         "403":
@@ -6445,6 +6573,7 @@ paths:
       description: |
         Get a specific trip type configuration by its ID.
         Any authenticated user can view trip types.
+        Optionally filter to show only specific car type pricing.
       tags:
         - Trip Types
       security:
@@ -6457,6 +6586,13 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: carType
+          in: query
+          required: false
+          description: Filter to show only this car type pricing
+          schema:
+            type: string
+            enum: [MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS]
       responses:
         "200":
           description: Trip type retrieved successfully
@@ -6482,9 +6618,11 @@ paths:
         Only ADMIN and MANAGER roles can update trip types.
         All fields are optional - only provide the fields you want to update.
         
-        **Note:** When updating `specialPrice` mode, ensure required fields are provided:
-        - If switching to `specialPrice = true`, provide `distanceSlabs`
-        - If switching to `specialPrice = false`, provide `basePrice`, `baseHour`, `extraPerHour`
+        **Note:** When updating pricing mode or car type pricing:
+        - You can update specific car types without providing all 5
+        - If switching `pricingMode`, ensure car type pricing matches the mode
+        - For DISTANCE_BASED mode, provide `distanceSlabs` in carTypePricing
+        - For TIME_BASED mode, do not provide `distanceSlabs`
       tags:
         - Trip Types
       security:
@@ -6504,42 +6642,72 @@ paths:
             schema:
               $ref: "#/components/schemas/UpdateTripTypeRequest"
             examples:
-              updateStandardPricing:
-                summary: Update standard pricing fields
+              updateCommonFields:
+                summary: Update common fields
                 value:
-                  basePrice: 450
-                  baseHour: 3
-                  distance: 25
+                  baseHour: 4
                   extraPerHour: 120
                   extraPerHalfHour: 60
-              updateSpecialPricing:
-                summary: Update special pricing (slab-based)
+                  description: "Updated description"
+              updateCarTypePricing:
+                summary: Update specific car type pricing
                 value:
-                  specialPrice: true
-                  distanceSlabs:
-                    - from: 0
-                      to: 50
-                      price: 1200
-                    - from: 51
-                      to: 100
-                      price: 1800
-                    - from: 101
-                      to: null
-                      price: 2500
-              switchToSpecialPricing:
-                summary: Switch from standard to special pricing
+                  carTypePricing:
+                    - carType: "MANUAL"
+                      basePrice: 450
+                    - carType: "PREMIUM_CARS"
+                      basePrice: 700
+              switchToDistanceMode:
+                summary: Switch from TIME_BASED to DISTANCE_BASED
                 value:
-                  specialPrice: true
-                  distanceSlabs:
-                    - from: 0
-                      to: 50
-                      price: 1000
-                    - from: 51
-                      to: null
-                      price: 1500
-                  basePrice: null
-                  baseHour: null
-                  extraPerHour: null
+                  pricingMode: "DISTANCE_BASED"
+                  baseDistance: 150
+                  carTypePricing:
+                    - carType: "MANUAL"
+                      basePrice: 3000
+                      distanceSlabs:
+                        - from: 0
+                          to: 100
+                          price: 3000
+                        - from: 101
+                          to: null
+                          price: 4500
+                    - carType: "AUTOMATIC"
+                      basePrice: 3300
+                      distanceSlabs:
+                        - from: 0
+                          to: 100
+                          price: 3300
+                        - from: 101
+                          to: null
+                          price: 5000
+                    - carType: "PREMIUM_CARS"
+                      basePrice: 4500
+                      distanceSlabs:
+                        - from: 0
+                          to: 100
+                          price: 4500
+                        - from: 101
+                          to: null
+                          price: 6500
+                    - carType: "LUXURY_CARS"
+                      basePrice: 6000
+                      distanceSlabs:
+                        - from: 0
+                          to: 100
+                          price: 6000
+                        - from: 101
+                          to: null
+                          price: 8500
+                    - carType: "SPORTY_CARS"
+                      basePrice: 8000
+                      distanceSlabs:
+                        - from: 0
+                          to: 100
+                          price: 8000
+                        - from: 101
+                          to: null
+                          price: 11000
       responses:
         "200":
           description: Trip type updated successfully
@@ -9867,7 +10035,7 @@ components:
 
     TripTypeConfig:
       type: object
-      description: Trip type configuration model
+      description: Trip type configuration model with car-specific pricing
       properties:
         id:
           type: string
@@ -9876,73 +10044,46 @@ components:
           example: "550e8400-e29b-41d4-a716-446655440000"
         name:
           type: string
-          description: Trip type name (user-defined, any string)
+          description: Trip type name (user-defined)
           example: "City Round Trip"
         description:
           type: string
           nullable: true
           description: Configuration description
-          example: "City round trip pricing"
-        specialPrice:
-          type: boolean
+          example: "City round trip with time-based pricing"
+        pricingMode:
+          type: string
+          enum: [TIME_BASED, DISTANCE_BASED]
           description: |
-            If `true`, uses slab-based distance pricing (driver-negotiable).
-            When `true`, `basePrice` and `extraPerHour` may be null.
-          example: false
-        basePrice:
-          type: number
-          nullable: true
-          description: Base price (null when specialPrice = true)
-          example: 400
+            Pricing mode:
+            - TIME_BASED: Price based on hours (basePrice + extraPerHour)
+            - DISTANCE_BASED: Price based on distance slabs per car type
+          example: "TIME_BASED"
         baseHour:
           type: number
           nullable: true
-          description: Base hours included in the base price (null when specialPrice = true)
+          description: Base hours included in base price
           example: 3
-        distance:
-          type: number
-          nullable: true
-          description: Base distance in km
-          example: 20
         extraPerHour:
           type: number
           nullable: true
-          description: Extra charge per hour (null when specialPrice = true)
+          description: Extra charge per hour beyond base hours
           example: 100
         extraPerHalfHour:
           type: number
           nullable: true
           description: Extra charge per half hour (30 minutes)
           example: 50
-        distanceSlabs:
-          type: array
+        baseDistance:
+          type: number
           nullable: true
-          description: |
-            Distance-based price slabs (present when specialPrice = true).
-            Format: `[{from: 0, to: 50, price: 1000}, ...]`
+          description: Base distance in km (for DISTANCE_BASED mode)
+          example: 200
+        carTypePricing:
+          type: array
+          description: Pricing configuration for each car type
           items:
-            type: object
-            properties:
-              from:
-                type: number
-                description: Starting distance in km
-                example: 0
-              to:
-                type: number
-                nullable: true
-                description: Ending distance in km (null for open-ended)
-                example: 50
-              price:
-                type: number
-                description: Price for this distance range
-                example: 1000
-          example:
-            - from: 0
-              to: 50
-              price: 1000
-            - from: 51
-              to: 100
-              price: 1500
+            $ref: "#/components/schemas/CarTypePricing"
         status:
           type: string
           enum: [ACTIVE, INACTIVE]
@@ -9957,60 +10098,104 @@ components:
           format: date-time
           description: Last update timestamp
 
+    CarTypePricing:
+      type: object
+      description: Pricing for a specific car type
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Car type pricing ID
+        carType:
+          type: string
+          enum: [MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS]
+          description: Car type
+          example: "MANUAL"
+        basePrice:
+          type: number
+          description: Base price for this car type
+          example: 400
+        distanceSlabs:
+          type: array
+          nullable: true
+          description: |
+            Distance-based price slabs (only for DISTANCE_BASED mode).
+            Format: `[{from: 0, to: 100, price: 3000}, ...]`
+          items:
+            type: object
+            properties:
+              from:
+                type: number
+                description: Starting distance in km
+                example: 0
+              to:
+                type: number
+                nullable: true
+                description: Ending distance in km (null for open-ended)
+                example: 100
+              price:
+                type: number
+                description: Price for this distance range
+                example: 3000
+          example:
+            - from: 0
+              to: 100
+              price: 3000
+            - from: 101
+              to: 200
+              price: 4500
+            - from: 201
+              to: null
+              price: 6000
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
     CreateTripTypeRequest:
       type: object
       description: |
-        Request body for creating a new trip type.
+        Request body for creating a new trip type with car-specific pricing.
         
         **Two Pricing Modes:**
         
-        1. **Standard Pricing** (`specialPrice: false` or omitted):
-           - Requires: `basePrice`, `baseHour`, `extraPerHour`
-           - Time-based pricing with predefined rates
+        1. **TIME_BASED:** Price based on time with base price per car type
+        2. **DISTANCE_BASED:** Price based on distance slabs per car type
         
-        2. **Special Pricing** (`specialPrice: true`):
-           - Requires: `distanceSlabs` (array of distance-based price slabs)
-           - Distance-based slab pricing (driver-negotiable)
-           - `basePrice`, `baseHour`, `extraPerHour` are NOT required
+        **Required Fields:**
+        - `name`: Trip type name
+        - `pricingMode`: TIME_BASED or DISTANCE_BASED
+        - `carTypePricing`: Array with pricing for ALL 5 car types (MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS)
       required:
         - name
+        - pricingMode
+        - carTypePricing
       properties:
         name:
           type: string
-          description: Trip type name (user-defined, any string)
+          description: Trip type name (user-defined)
           example: "City Round Trip"
           minLength: 1
           maxLength: 100
-        specialPrice:
-          type: boolean
-          default: false
-          description: |
-            If `true`, uses slab-based distance pricing (driver-negotiable).
-            When `true`, `basePrice`, `baseHour`, and `extraPerHour` are NOT required.
-            Instead, `distanceSlabs` is required.
-          example: false
-        basePrice:
-          type: number
-          nullable: true
-          description: |
-            Base price (required when `specialPrice = false`, not required when `specialPrice = true`).
-            Must be positive if provided.
-          example: 400
-          minimum: 0
+        pricingMode:
+          type: string
+          enum: [TIME_BASED, DISTANCE_BASED]
+          description: Pricing mode
+          example: "TIME_BASED"
         baseHour:
           type: number
           nullable: true
-          description: |
-            Base hours included in the base price (required when `specialPrice = false`, not required when `specialPrice = true`).
-            Must be positive if provided.
+          description: Base hours included (optional)
           example: 3
           minimum: 0
         extraPerHour:
           type: number
           nullable: true
-          description: |
-            Extra charge per hour (required when `specialPrice = false`, not required when `specialPrice = true`).
-            Must be positive if provided.
+          description: Extra charge per hour (optional)
           example: 100
           minimum: 0
         extraPerHalfHour:
@@ -10019,96 +10204,111 @@ components:
           description: Extra charge for 30 minutes (optional)
           example: 50
           minimum: 0
-        distance:
+        baseDistance:
           type: number
           nullable: true
-          description: Base distance in km (optional)
-          example: 20
+          description: Base distance in km (for DISTANCE_BASED mode)
+          example: 200
           minimum: 0
         description:
           type: string
           nullable: true
           description: Description of the trip type
-          example: "City round trip pricing"
+          example: "City round trip with time-based pricing"
           maxLength: 500
-        distanceSlabs:
-          type: array
+        distanceScopeId:
+          type: string
+          format: uuid
           nullable: true
+          description: Distance scope ID (optional, default created if not provided)
+        tripPatternId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Trip pattern ID (optional, default created if not provided)
+        carTypePricing:
+          type: array
           description: |
-            Distance-based price slabs (required when `specialPrice = true`).
-            Each slab defines a price for a distance range.
-            Format: `[{from: 0, to: 50, price: 1000}, {from: 51, to: 100, price: 1500}, ...]`
-            Use `null` for `to` in the last slab to indicate open-ended range.
+            Pricing for each car type. ALL 5 car types must be provided:
+            MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS
+          minItems: 5
+          maxItems: 5
           items:
             type: object
             required:
-              - from
-              - price
+              - carType
+              - basePrice
             properties:
-              from:
+              carType:
+                type: string
+                enum: [MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS]
+                description: Car type
+                example: "MANUAL"
+              basePrice:
                 type: number
-                description: Starting distance in km (must be >= 0)
-                example: 0
+                description: Base price for this car type
+                example: 400
                 minimum: 0
-              to:
-                type: number
+              distanceSlabs:
+                type: array
                 nullable: true
-                description: Ending distance in km (must be >= from, or null for open-ended)
-                example: 50
-                minimum: 0
-              price:
-                type: number
-                description: Price for this distance range (must be >= 0)
-                example: 1000
-                minimum: 0
-          example:
-            - from: 0
-              to: 50
-              price: 1000
-            - from: 51
-              to: 100
-              price: 1500
-            - from: 101
-              to: null
-              price: 2000
+                description: |
+                  Distance slabs (required for DISTANCE_BASED mode, should be null/empty for TIME_BASED).
+                  Format: `[{from: 0, to: 100, price: 3000}, ...]`
+                items:
+                  type: object
+                  required:
+                    - from
+                    - price
+                  properties:
+                    from:
+                      type: number
+                      description: Starting distance in km
+                      example: 0
+                      minimum: 0
+                    to:
+                      type: number
+                      nullable: true
+                      description: Ending distance in km (null for open-ended)
+                      example: 100
+                      minimum: 0
+                    price:
+                      type: number
+                      description: Price for this distance range
+                      example: 3000
+                      minimum: 0
 
     UpdateTripTypeRequest:
       type: object
       description: |
         Request body for updating a trip type. All fields are optional.
         
-        **Note:** When updating `specialPrice` mode, ensure required fields are provided:
-        - If switching to `specialPrice = true`, provide `distanceSlabs`
-        - If switching to `specialPrice = false`, provide `basePrice`, `baseHour`, `extraPerHour`
+        **Note:** When updating pricing:
+        - You can update specific car types without providing all 5
+        - If switching `pricingMode`, ensure car type pricing matches
+        - For DISTANCE_BASED mode, provide `distanceSlabs` in carTypePricing
       properties:
         name:
           type: string
-          description: Trip type name (user-defined, any string)
+          description: Trip type name (user-defined)
           example: "City Round Trip"
           minLength: 1
           maxLength: 100
-        specialPrice:
-          type: boolean
-          description: |
-            If `true`, uses slab-based distance pricing.
-            When updating, ensure required fields match the mode.
-          example: false
-        basePrice:
-          type: number
-          nullable: true
-          description: Base price (required when `specialPrice = false`)
-          example: 450
-          minimum: 0
+        pricingMode:
+          type: string
+          enum: [TIME_BASED, DISTANCE_BASED]
+          description: Pricing mode
+          example: "TIME_BASED"
         baseHour:
           type: number
           nullable: true
-          description: Base hours included in the base price (required when `specialPrice = false`)
+          description: Base hours included
           example: 3
           minimum: 0
         extraPerHour:
           type: number
           nullable: true
-          description: Extra charge per hour (required when `specialPrice = false`)
+          description: Extra charge per hour
           example: 120
           minimum: 0
         extraPerHalfHour:
@@ -10117,45 +10317,66 @@ components:
           description: Extra charge for 30 minutes
           example: 60
           minimum: 0
-        distance:
+        baseDistance:
           type: number
           nullable: true
-          description: Base distance in km (optional)
-          example: 20
+          description: Base distance in km (for DISTANCE_BASED mode)
+          example: 200
           minimum: 0
         description:
           type: string
           nullable: true
           description: Description of the trip type
           maxLength: 500
-        distanceSlabs:
+        carTypePricing:
           type: array
-          nullable: true
           description: |
-            Distance-based price slabs (required when `specialPrice = true`).
-            Format: `[{from: 0, to: 50, price: 1000}, ...]`
+            Update pricing for specific car types.
+            You can provide pricing for one or more car types (not required to provide all 5 when updating).
           items:
             type: object
             required:
-              - from
-              - price
+              - carType
+              - basePrice
             properties:
-              from:
+              carType:
+                type: string
+                enum: [MANUAL, AUTOMATIC, PREMIUM_CARS, LUXURY_CARS, SPORTY_CARS]
+                description: Car type
+                example: "MANUAL"
+              basePrice:
                 type: number
-                description: Starting distance in km
-                example: 0
+                description: Base price for this car type
+                example: 450
                 minimum: 0
-              to:
-                type: number
+              distanceSlabs:
+                type: array
                 nullable: true
-                description: Ending distance in km (null for open-ended)
-                example: 50
-                minimum: 0
-              price:
-                type: number
-                description: Price for this distance range
-                example: 1000
-                minimum: 0
+                description: |
+                  Distance slabs (required for DISTANCE_BASED mode).
+                  Format: `[{from: 0, to: 100, price: 3000}, ...]`
+                items:
+                  type: object
+                  required:
+                    - from
+                    - price
+                  properties:
+                    from:
+                      type: number
+                      description: Starting distance in km
+                      example: 0
+                      minimum: 0
+                    to:
+                      type: number
+                      nullable: true
+                      description: Ending distance in km (null for open-ended)
+                      example: 100
+                      minimum: 0
+                    price:
+                      type: number
+                      description: Price for this distance range
+                      example: 3500
+                      minimum: 0
 
     CreateRoleRequest:
       type: object

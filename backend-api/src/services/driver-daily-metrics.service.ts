@@ -177,7 +177,7 @@ export async function calculateAndSaveDriverDailyMetrics(
         lte: endDate,
       },
       status: {
-        in: ["COMPLETED", "PAYMENT_DONE"],
+        in: ["TRIP_ENDED", "COMPLETED", "PAYMENT_DONE"],
       },
     },
   });

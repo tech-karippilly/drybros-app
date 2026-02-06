@@ -687,53 +687,15 @@ export async function getAvailableGreenDriversList(
 /**
  * Get drivers for trip assignment (all franchise drivers, best first)
  * Returns all ACTIVE drivers. Sorted by: AVAILABLE first, then day limit not finished, then performance (GREEN > YELLOW > RED), then score.
- * Optionally calculates distance from driver to pickup location if coordinates are provided.
  */
 export async function getAvailableDriversList(
-  franchiseId?: string,
-  pickupLat?: number,
-  pickupLng?: number
-): Promise<Array<DriverResponseDTO & { 
-  performance: DriverPerformanceMetrics;
-  pickupLocation?: { lat: number; lng: number };
-  driverLocation?: { lat: number | null; lng: number | null };
-  distanceKm?: number;
-}>> {
-  const { calculateDistance } = await import("../utils/geo");
+  franchiseId?: string
+): Promise<(DriverResponseDTO & { performance: DriverPerformanceMetrics })[]> {
   const drivers = await getAvailableDrivers(franchiseId);
-  
-  return drivers.map((driver) => {
-    const result: DriverResponseDTO & { 
-      performance: DriverPerformanceMetrics;
-      pickupLocation?: { lat: number; lng: number };
-      driverLocation?: { lat: number | null; lng: number | null };
-      distanceKm?: number;
-    } = {
-      ...mapDriverToResponse(driver),
-      performance: driver.performance,
-    };
-    
-    // Add location and distance information if pickup coordinates are provided
-    if (pickupLat !== undefined && pickupLng !== undefined) {
-      result.pickupLocation = { lat: pickupLat, lng: pickupLng };
-      result.driverLocation = { 
-        lat: driver.liveLocationLat, 
-        lng: driver.liveLocationLng 
-      };
-      
-      // Calculate distance if driver has a location
-      if (driver.liveLocationLat !== null && driver.liveLocationLng !== null) {
-        result.distanceKm = calculateDistance(
-          pickupLat,
-          pickupLng,
-          driver.liveLocationLat,
-          driver.liveLocationLng
-        );
-      }
-    }
-    
-    return result;
-  });
+  return drivers.map((driver) => ({
+    ...mapDriverToResponse(driver),
+    performance: driver.performance,
+  }));
 }
 
 /**

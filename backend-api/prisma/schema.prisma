@@ -103,6 +103,7 @@ model Driver {
   Trip                     Trip[]
   TripOffers               TripOffer[]
   Complaints               Complaint[]
+  Warnings                 Warning[]
   Attendances              Attendance[]
   LeaveRequests            LeaveRequest[]
   DriverRatings            DriverRating[]
@@ -177,6 +178,7 @@ model Staff {
   relieveReason            RelieveReason?
   StaffHistory             StaffHistory[]
   Complaints               Complaint[]
+  Warnings                 Warning[]
   Attendances              Attendance[]
   LeaveRequests            LeaveRequest[]
   ActivityLog              ActivityLog[]
@@ -272,6 +274,7 @@ model Trip {
   TripOffers           TripOffer[]
   TripReviews          TripReview[]
   DriverTransactions   DriverTransaction[]
+  Complaints           Complaint[]
 }
 
 enum TripOfferStatus {
@@ -403,17 +406,19 @@ model DriverEarningsConfig {
 }
 
 model Complaint {
-  id          String            @id @default(uuid()) @db.Uuid
-  driverId    String?           @db.Uuid
-  staffId     String?           @db.Uuid
-  customerId  String?           @db.Uuid // Customer who raised the complaint
-  title       String
-  description String
-  reportedBy  String?           @db.Uuid // User ID who reported the complaint
-  status      ComplaintStatus   @default(OPEN)
-  severity    ComplaintSeverity @default(MEDIUM)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id           String            @id @default(uuid()) @db.Uuid
+  driverId     String?           @db.Uuid
+  staffId      String?           @db.Uuid
+  customerId   String?           @db.Uuid // Customer who raised the complaint
+  customerName String // Customer name who registered the complaint
+  tripId       String?           @db.Uuid // Optional: Trip related to complaint (for drivers)
+  title        String
+  description  String
+  reportedBy   String?           @db.Uuid // User ID who reported the complaint (createdBy)
+  status       ComplaintStatus   @default(RECEIVED)
+  priority     ComplaintPriority @default(MEDIUM) // Changed from severity to priority
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
   resolvedAt       DateTime?
   resolvedBy       String?                    @db.Uuid // User ID who resolved the complaint
   resolution       String?
@@ -422,11 +427,31 @@ model Complaint {
   Driver           Driver?                    @relation(fields: [driverId], references: [id], onDelete: Cascade)
   Staff       Staff?            @relation(fields: [staffId], references: [id], onDelete: Cascade)
   Customer    Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  Trip        Trip?             @relation(fields: [tripId], references: [id], onDelete: SetNull)
 
   @@index([driverId])
   @@index([staffId])
   @@index([customerId])
+  @@index([tripId])
   @@index([status])
+  @@index([createdAt])
+}
+
+model Warning {
+  id        String          @id @default(uuid()) @db.Uuid
+  driverId  String?         @db.Uuid
+  staffId   String?         @db.Uuid
+  reason    String
+  priority  WarningPriority @default(MEDIUM)
+  createdBy String?         @db.Uuid // User ID who created the warning
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  Driver    Driver?         @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Staff     Staff?          @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  CreatedByUser User?       @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([driverId])
+  @@index([staffId])
   @@index([createdAt])
 }
 
@@ -615,22 +640,26 @@ enum FranchiseStatus {
 }
 
 enum ComplaintStatus {
-  OPEN
-  IN_PROGRESS
-  RESOLVED
-  CLOSED
+  RECEIVED // Newly registered complaint
+  IN_PROCESS // Complaint being processed
+  RESOLVED // Complaint resolved
 }
 
-enum ComplaintSeverity {
+enum ComplaintPriority {
   LOW
   MEDIUM
   HIGH
-  CRITICAL
 }
 
 enum ComplaintResolutionAction {
-  WARNING // Issued warning; 2+ warnings auto-fire
+  WARNING // Issued warning; 3+ warnings auto-fire
   FIRE    // Fired; cannot login or register
+}
+
+enum WarningPriority {
+  LOW
+  MEDIUM
+  HIGH
 }
 
 enum AttendanceStatus {

@@ -504,18 +504,55 @@ export async function getAvailableDriversForTrip(tripId: string) {
     return b.matchScore - a.matchScore;
   });
 
-  // Return drivers with match information
-  return availableDrivers.map(({ driver, matchScore }) => ({
-    id: driver.id,
-    firstName: driver.firstName,
-    lastName: driver.lastName,
-    phone: driver.phone,
-    driverCode: driver.driverCode,
-    status: driver.status,
-    currentRating: driver.currentRating,
-    performance: driver.performance,
-    matchScore,
-  }));
+  // Get pickup location from trip
+  const pickupLat = trip.pickupLat;
+  const pickupLng = trip.pickupLng;
+  const { calculateDistance } = await import("../utils/geo");
+
+  // Return drivers with match information, location, and distance
+  return availableDrivers.map(({ driver, matchScore }) => {
+    const result: any = {
+      id: driver.id,
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      phone: driver.phone,
+      driverCode: driver.driverCode,
+      status: driver.status,
+      currentRating: driver.currentRating,
+      performance: driver.performance,
+      matchScore,
+    };
+
+    // Add pickup location
+    if (pickupLat !== null && pickupLng !== null) {
+      result.pickupLocation = { lat: pickupLat, lng: pickupLng };
+    }
+
+    // Add driver location
+    result.driverLocation = {
+      lat: driver.liveLocationLat,
+      lng: driver.liveLocationLng,
+    };
+
+    // Calculate distance if both locations are available
+    if (
+      pickupLat !== null &&
+      pickupLng !== null &&
+      driver.liveLocationLat !== null &&
+      driver.liveLocationLng !== null
+    ) {
+      result.distanceKm = parseFloat(
+        calculateDistance(
+          pickupLat,
+          pickupLng,
+          driver.liveLocationLat,
+          driver.liveLocationLng
+        ).toFixed(2)
+      );
+    }
+
+    return result;
+  });
 }
 
 /**

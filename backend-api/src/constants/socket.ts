@@ -18,6 +18,10 @@ export const SOCKET_EVENTS = {
    * Kept as a path-style event for parity with REST route.
    */
   TRIPS_MY_ASSIGNED: "/trips/my-assigned",
+  
+  // Trip status events
+  TRIP_ACCEPTED_BY_DRIVER: "trip_accepted_by_driver",
+  TRIP_REJECTED_BY_DRIVER: "trip_rejected_by_driver",
 
   // Activity log events
   ACTIVITY_LOG_CREATED: "activity_log_created",

@@ -7,12 +7,23 @@ export type DriverTransaction = {
   id: string;
   driverId: string;
   tripId: string | null;
-  amount: number;
+  amount: string | number; // Backend returns as string from Prisma Decimal
   transactionType: 'CREDIT' | 'DEBIT';
   type: 'PENALTY' | 'TRIP' | 'GIFT';
   description: string | null;
   createdAt: string;
   updatedAt: string;
+  Driver?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    driverCode: string;
+  };
+  Trip?: {
+    id: string;
+    tripNumber: string;
+  } | null;
 };
 
 export type DriverTransactionSummary = {

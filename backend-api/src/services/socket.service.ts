@@ -742,6 +742,20 @@ class SocketService {
     this.io.to(`${SOCKET_ROOMS.DRIVER_PREFIX}${driverId}`).emit(SOCKET_EVENTS.TRIP_ASSIGNED, payload);
   }
 
+  emitTripAccepted(tripId: string, payload: { tripId: string; driverId: string; status: string; acceptedAt: string }): void {
+    if (!this.io) return;
+    // Emit to all connected clients (franchise, admins, staff)
+    this.io.emit(SOCKET_EVENTS.TRIP_ACCEPTED_BY_DRIVER, payload);
+    logger.debug("Trip acceptance emitted via socket", { tripId, driverId: payload.driverId });
+  }
+
+  emitTripRejected(tripId: string, payload: { tripId: string; driverId: string; status: string; rejectedAt: string }): void {
+    if (!this.io) return;
+    // Emit to all connected clients (franchise, admins, staff)
+    this.io.emit(SOCKET_EVENTS.TRIP_REJECTED_BY_DRIVER, payload);
+    logger.debug("Trip rejection emitted via socket", { tripId, driverId: payload.driverId });
+  }
+
   /**
    * Get connected users count
    */

@@ -868,6 +868,19 @@ export async function driverAcceptTrip(tripId: string, driverId: string) {
     logger.error("Failed to log trip acceptance activity", { error: err });
   });
 
+  // Emit socket event for trip acceptance
+  const { socketService } = await import("./socket.service");
+  try {
+    socketService.emitTripAccepted(tripId, {
+      tripId,
+      driverId,
+      status: "DRIVER_ACCEPTED",
+      acceptedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    logger.error("Failed to emit trip acceptance socket event", { error: err });
+  }
+
   return updatedTrip;
 }
 
@@ -916,6 +929,19 @@ export async function driverRejectTrip(tripId: string, driverId: string) {
   }).catch((err) => {
     logger.error("Failed to log trip rejection activity", { error: err });
   });
+
+  // Emit socket event for trip rejection
+  const { socketService } = await import("./socket.service");
+  try {
+    socketService.emitTripRejected(tripId, {
+      tripId,
+      driverId,
+      status: "REJECTED_BY_DRIVER",
+      rejectedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    logger.error("Failed to emit trip rejection socket event", { error: err });
+  }
   
   return updatedTrip;
 }

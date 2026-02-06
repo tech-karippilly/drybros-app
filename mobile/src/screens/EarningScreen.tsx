@@ -94,7 +94,10 @@ type SummaryCardProps = {
 };
 
 function SummaryCard({ period, dailyStats, monthlyStats, loading }: SummaryCardProps) {
-  const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN')}`;
+  const formatCurrency = (amount?: number | null) => {
+    if (amount == null || isNaN(amount)) return '₹ 0';
+    return `₹ ${amount.toLocaleString('en-IN')}`;
+  };
 
   const getPeriodLabel = () => {
     if (period === 'daily') return EARNINGS_STRINGS.TODAY;
@@ -183,7 +186,12 @@ type EarningsHistoryCardProps = {
 };
 
 function EarningsHistoryCard({ period, transactions, monthlyStats, loading }: EarningsHistoryCardProps) {
-  const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN')}`;
+  const formatCurrency = (amount?: number | string | null) => {
+    if (amount == null) return '₹ 0';
+    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    if (isNaN(numAmount)) return '₹ 0';
+    return `₹ ${numAmount.toLocaleString('en-IN')}`;
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

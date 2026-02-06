@@ -175,6 +175,7 @@ export async function getAvailableGreenDriversHandler(
 /**
  * Get drivers for trip assignment (all franchise drivers, best first)
  * Returns all ACTIVE drivers. Sorted by: AVAILABLE first, then day limit not finished, then performance (GREEN > YELLOW > RED), then score.
+ * Optionally accepts pickupLat and pickupLng to calculate distance from driver to pickup location.
  */
 export async function getAvailableDriversHandler(
   req: Request,
@@ -183,7 +184,10 @@ export async function getAvailableDriversHandler(
 ) {
   try {
     const franchiseId = req.query.franchiseId as string | undefined;
-    const drivers = await getAvailableDriversList(franchiseId);
+    const pickupLat = req.query.pickupLat ? parseFloat(req.query.pickupLat as string) : undefined;
+    const pickupLng = req.query.pickupLng ? parseFloat(req.query.pickupLng as string) : undefined;
+    
+    const drivers = await getAvailableDriversList(franchiseId, pickupLat, pickupLng);
     res.json({ data: drivers });
   } catch (err) {
     next(err);

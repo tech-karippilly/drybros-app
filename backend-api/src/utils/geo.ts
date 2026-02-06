@@ -19,3 +19,20 @@ export function haversineDistanceKm(
   return R_KM * c;
 }
 
+/**
+ * Calculate distance between two coordinates in kilometers
+ * @param lat1 Latitude of first location
+ * @param lng1 Longitude of first location
+ * @param lat2 Latitude of second location
+ * @param lng2 Longitude of second location
+ * @returns Distance in kilometers
+ */
+export function calculateDistance(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  return haversineDistanceKm({ lat: lat1, lng: lng1 }, { lat: lat2, lng: lng2 });
+}
+

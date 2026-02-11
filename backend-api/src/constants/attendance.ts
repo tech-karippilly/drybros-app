@@ -13,6 +13,7 @@ export const ATTENDANCE_ERROR_MESSAGES = {
 
 export const ATTENDANCE_STATUS = {
   PRESENT: "PRESENT",
+  PARTIAL: "PARTIAL",
   ABSENT: "ABSENT",
   LATE: "LATE",
   HALF_DAY: "HALF_DAY",
@@ -22,4 +23,25 @@ export const ATTENDANCE_STATUS = {
 /** Format for clock-in activity description: "{personName} clocked in" */
 export const ATTENDANCE_ACTIVITY_DESCRIPTIONS = {
   CLOCK_IN_SUFFIX: " clocked in",
+} as const;
+
+/**
+ * Attendance aggregation configuration
+ */
+export const ATTENDANCE_AGGREGATION_CONFIG = {
+  // Minimum minutes online to be marked PRESENT
+  MIN_PRESENT_MINUTES: 240, // 4 hours
+  
+  // Minimum minutes online to be marked PARTIAL (between PARTIAL and PRESENT)
+  MIN_PARTIAL_MINUTES: 30,  // 30 minutes
+  
+  // How often to run the aggregation (in milliseconds)
+  // Default: Every 6 hours (4 times per day)
+  AGGREGATION_INTERVAL_MS: 6 * 60 * 60 * 1000,
+  
+  // Maximum number of days to process in a single batch
+  MAX_DAYS_PER_BATCH: 7,
+  
+  // How many days back to check (for catching up missed days)
+  LOOKBACK_DAYS: 3,
 } as const;

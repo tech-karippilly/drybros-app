@@ -9,6 +9,65 @@ servers:
 
 paths:
 
+  /profile:
+    get:
+      summary: Get current user's profile details
+      tags:
+        - profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Profile details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+    patch:
+      summary: Edit current user's profile details
+      tags:
+        - profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileDTO'
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+
+  /profile/reset-password:
+    post:
+      summary: Reset password (old and new password)
+      tags:
+        - profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordDTO'
+      responses:
+        "200":
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Password reset successful
+
   /health:
     get:
       summary: Health check
@@ -9108,6 +9167,68 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         
 components:
+  schemas:
+    ProfileResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        profilePic:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        franchiseId:
+          type: string
+        status:
+          type: string
+        joinDate:
+          type: string
+          format: date-time
+        relieveDate:
+          type: string
+          format: date-time
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    UpdateProfileDTO:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        profilePic:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+    ResetPasswordDTO:
+      type: object
+      required:
+        - oldPassword
+        - newPassword
+      properties:
+        oldPassword:
+          type: string
+        newPassword:
+          type: string
   schemas:
     AttendanceStatus:
       type: object

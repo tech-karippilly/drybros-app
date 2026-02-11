@@ -9,6 +9,9 @@ export interface CreateDriverTransactionInput {
   tripId?: string;
   type: DriverTransactionType;
   description?: string;
+  penaltyId?: string;
+  appliedBy?: string;
+  metadata?: Record<string, any>;
 }
 
 export interface GetDriverTransactionsFilters {
@@ -16,6 +19,7 @@ export interface GetDriverTransactionsFilters {
   transactionType?: TransactionType;
   type?: DriverTransactionType;
   tripId?: string;
+  penaltyId?: string;
   startDate?: Date;
   endDate?: Date;
 }
@@ -32,6 +36,9 @@ export async function createDriverTransaction(data: CreateDriverTransactionInput
       tripId: data.tripId,
       type: data.type,
       description: data.description,
+      penaltyId: data.penaltyId,
+      appliedBy: data.appliedBy,
+      metadata: data.metadata ? (data.metadata as Prisma.InputJsonValue) : null,
     },
     include: {
       Driver: {
@@ -80,6 +87,10 @@ export async function getDriverTransactionsPaginated(
 
   if (filters?.tripId) {
     where.tripId = filters.tripId;
+  }
+
+  if (filters?.penaltyId) {
+    where.penaltyId = filters.penaltyId;
   }
 
   if (filters?.startDate || filters?.endDate) {

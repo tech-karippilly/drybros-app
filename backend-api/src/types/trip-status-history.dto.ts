@@ -9,7 +9,7 @@ export const createTripStatusHistorySchema = z.object({
   eventType: z.nativeEnum(TripEventType),
   status: z.nativeEnum(TripStatus).optional(),
   description: z.string().optional(),
-  metadata: z.record(z.any()).optional(), // JSON object
+  metadata: z.record(z.string(), z.any()).optional(), // JSON object
   createdBy: z.string().uuid("User ID must be a valid UUID").optional(),
 });
 

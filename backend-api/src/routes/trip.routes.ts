@@ -6,6 +6,7 @@ import {
   createTripPhase1Handler,
   driverAcceptTripHandler,
   driverRejectTripHandler,
+  driverCancelTripHandler,
   rescheduleTripHandler,
   cancelTripHandler,
   reassignDriverToTripHandler,
@@ -106,6 +107,7 @@ router.post(
 
 router.patch("/:id/driver-accept", driverAcceptTripHandler);
 router.patch("/:id/driver-reject", driverRejectTripHandler);
+router.post("/:id/driver-cancel", driverCancelTripHandler);
 
 router.patch(
   "/:id/reschedule",

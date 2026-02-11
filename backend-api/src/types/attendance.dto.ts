@@ -142,6 +142,13 @@ export interface AttendanceResponseDTO {
   notes: string | null;
   sessions: AttendanceSessionDTO[];
   totalWorkHours?: string;
+  
+  // Auto-calculated aggregation fields
+  firstOnlineAt: Date | null;
+  lastOfflineAt: Date | null;
+  totalOnlineMinutes: number | null;
+  tripsCompleted: number;
+  
   createdAt: Date;
   updatedAt: Date;
 }

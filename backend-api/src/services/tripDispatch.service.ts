@@ -5,6 +5,8 @@ import { socketService } from "./socket.service";
 import { haversineDistanceKm } from "../utils/geo";
 import { updateDriverTripStatus } from "../repositories/driver.repository";
 import { updateTrip } from "../repositories/trip.repository";
+import { emitNotification } from "./notification.service";
+import logger from "../config/logger";
 
 type DispatchState = {
   candidateDriverIds: string[];
@@ -135,6 +137,13 @@ class TripDispatchService {
     });
     const offeredDriverIds = new Set(existingOffers.map((o) => o.driverId));
 
+    // Check if we've exceeded max attempts
+    const attemptCount = existingOffers.length;
+    if (attemptCount >= DISPATCH_CONFIG.MAX_OFFER_ATTEMPTS_PER_TRIP) {
+      await this.handleExhaustedAttempts(tripId, trip.franchiseId, attemptCount);
+      return;
+    }
+
     // Get candidate drivers from dispatch state or rebuild list
     let candidateDriverIds = this.dispatchStates.get(tripId)?.candidateDriverIds;
     if (!candidateDriverIds) {
@@ -150,8 +159,79 @@ class TripDispatchService {
       await this.offerTripToDriver(tripId, nextDriver);
     } else {
       // No more drivers available - all have been offered
-      // Could optionally update trip status or log this scenario
+      await this.handleExhaustedAttempts(tripId, trip.franchiseId, attemptCount);
     }
+  }
+
+  /**
+   * Called when an offer expires without driver response.
+   * Behaves like rejection - tries next driver.
+   * 
+   * This is the entry point for the OfferExpirationService.
+   */
+  async handleExpiredOffer(tripId: string, expiredForDriverId: string): Promise<void> {
+    // Reuse the rejection logic - expiration is treated like rejection
+    await this.notifyOfferRejected(tripId, expiredForDriverId);
+  }
+
+  /**
+   * Called when all eligible drivers have been offered and none accepted.
+   * Marks trip as NOT_ASSIGNED and notifies admin.
+   */
+  private async handleExhaustedAttempts(
+    tripId: string,
+    franchiseId: string,
+    attemptCount: number
+  ): Promise<void> {
+    logger.warn("Exhausted all driver attempts for trip", {
+      tripId,
+      franchiseId,
+      attemptCount,
+      maxAttempts: DISPATCH_CONFIG.MAX_OFFER_ATTEMPTS_PER_TRIP,
+    });
+
+    // Keep trip as NOT_ASSIGNED (don't change to a different status)
+    // This allows manual reassignment by dispatchers
+    await updateTrip(tripId, {
+      status: TripStatus.NOT_ASSIGNED,
+      updatedAt: new Date(),
+    });
+
+    // Notify all admins in this franchise
+    const admins = await prisma.user.findMany({
+      where: {
+        franchiseId,
+        role: "ADMIN",
+      },
+      select: { id: true },
+    });
+
+    for (const admin of admins) {
+      await emitNotification({
+        title: "No Drivers Available",
+        message: `Trip ${tripId} could not be assigned after ${attemptCount} attempts. Please assign manually.`,
+        type: "error",
+        userId: admin.id,
+        franchiseId,
+        metadata: {
+          tripId,
+          attemptCount,
+          reason: "exhausted_driver_attempts",
+        },
+      });
+    }
+
+    // Log structured data for reporting
+    logger.error("Trip unassignable - no drivers available", {
+      tripId,
+      franchiseId,
+      attemptCount,
+      timestamp: new Date().toISOString(),
+      action: "exhausted_driver_attempts",
+    });
+
+    // Clean up dispatch state
+    this.clearTripTimers(tripId);
   }
 
   private async listCandidateDrivers(franchiseId: string) {

@@ -46,6 +46,8 @@ export const TRIP_ERROR_MESSAGES = {
   // Dispatch / trip offers (request-to-drivers)
   DISPATCH_MISSING_DRIVER_ID: "driverId is required when mode is SPECIFIC",
   DISPATCH_MISSING_DRIVER_IDS: "driverIds is required when mode is LIST",
+  NO_DRIVERS_AVAILABLE: "No drivers available to assign this trip",
+  MAX_DRIVER_ATTEMPTS_EXCEEDED: "Maximum driver assignment attempts exceeded",
 } as const;
 
 /**

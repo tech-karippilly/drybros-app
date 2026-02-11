@@ -18,7 +18,7 @@ export async function getDriverDailyStatsHandler(
     const driverId = req.params.id;
     const date = req.query.date as string | undefined;
 
-    const stats = await getDriverDailyStats(driverId, date);
+    const stats = await getDriverDailyStats(String(driverId), date);
     res.json({ data: stats });
   } catch (err) {
     next(err);
@@ -44,7 +44,7 @@ export async function getDriverMonthlyStatsHandler(
       });
     }
 
-    const stats = await getDriverMonthlyStats(driverId, year, month);
+    const stats = await getDriverMonthlyStats(String(driverId), year, month);
     res.json({ data: stats });
   } catch (err) {
     next(err);
@@ -70,7 +70,7 @@ export async function getDriverSettlementHandler(
       });
     }
 
-    const settlement = await getDriverSettlement(driverId, year, month);
+    const settlement = await getDriverSettlement(String(driverId), year, month);
     res.json({ data: settlement });
   } catch (err) {
     next(err);

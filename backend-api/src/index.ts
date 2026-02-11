@@ -14,6 +14,7 @@ import tripOfferRoutes from "./routes/tripOffer.routes";
 import authRoutes from "./routes/auth.routes";
 import roleRoutes from "./routes/role.routes";
 import staffRoutes from "./routes/staff.routes";
+import profileRoutes from "./routes/profile.routes";
 import tripTypeRoutes from "./routes/tripType.routes";
 import complaintRoutes from "./routes/complaint.routes";
 import warningRoutes from "./routes/warning.routes";
@@ -22,12 +23,14 @@ import leaveRoutes from "./routes/leave.routes";
 import ratingRoutes from "./routes/rating.routes";
 import activityRoutes from "./routes/activity.routes";
 import penaltyRoutes from "./routes/penalty.routes";
+import deductionRoutes from "./routes/deduction.routes";
 import earningsConfigRoutes from "./routes/earningsConfig.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
 import alertsRoutes from "./routes/alerts.routes";
 import reviewRoutes from "./routes/review.routes";
 import driverTransactionRoutes from "./routes/driverTransaction.routes";
 import distanceRoutes from "./routes/distance.routes";
+import reportRoutes from "./routes/report.routes";
 
 import cors from "cors";
 import path from "path";
@@ -37,6 +40,9 @@ import config from "./config/appConfig";
 import logger from "./config/logger";
 import { requestLogger } from "./middlewares/requestLogger";
 import { socketService } from "./services/socket.service";
+import { offerExpirationService } from "./services/offerExpiration.service";
+import { pickupMonitoringService } from "./services/pickupMonitoring.service";
+import { attendanceAggregationService } from "./services/attendanceAggregation.service";
 
 const app = express();
 
@@ -177,6 +183,7 @@ app.use("/trip-offers", tripOfferRoutes);
 app.use("/auth", authRoutes);
 app.use("/roles", roleRoutes);
 app.use("/staff", staffRoutes);
+app.use("/profile", profileRoutes);
 app.use("/trip-types", tripTypeRoutes);
 app.use("/complaints", complaintRoutes);
 app.use("/warnings", warningRoutes);
@@ -185,12 +192,14 @@ app.use("/leave-requests", leaveRoutes);
 app.use("/ratings", ratingRoutes);
 app.use("/activities", activityRoutes);
 app.use("/penalties", penaltyRoutes);
+app.use("/deductions", deductionRoutes);
 app.use("/config", earningsConfigRoutes);
 app.use("/dashboard", dashboardRoutes);
 app.use("/alerts", alertsRoutes);
 app.use("/reviews", reviewRoutes);
 app.use("/driver-transactions", driverTransactionRoutes);
 app.use("/distance", distanceRoutes);
+app.use("/reports", reportRoutes);
 
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Drybros backend root 🚗" });
@@ -212,6 +221,11 @@ const httpServer = http.createServer(app);
 
 // Initialize Socket.IO
 socketService.initialize(httpServer);
+
+// Start background services
+offerExpirationService.start();
+pickupMonitoringService.start();
+attendanceAggregationService.start();
 
 // Start server
 httpServer.listen(port, () => {
@@ -235,4 +249,27 @@ httpServer.listen(port, () => {
       credentials: true,
     });
   }
+});
+
+// Graceful shutdown handlers
+process.on("SIGTERM", () => {
+  logger.info("SIGTERM received, shutting down gracefully");
+  offerExpirationService.stop();
+  attendanceAggregationService.stop();
+  pickupMonitoringService.stop();
+  httpServer.close(() => {
+    logger.info("HTTP server closed");
+    process.exit(0);
+  });
+});
+
+process.on("SIGINT", () => {
+  logger.info("SIGINT received, shutting down gracefully");
+  attendanceAggregationService.stop();
+  offerExpirationService.stop();
+  pickupMonitoringService.stop();
+  httpServer.close(() => {
+    logger.info("HTTP server closed");
+    process.exit(0);
+  });
 });

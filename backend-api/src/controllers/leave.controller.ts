@@ -56,7 +56,7 @@ export async function getLeaveRequestByIdHandler(
 ) {
   try {
     const id = req.params.id;
-    const leaveRequest = await getLeaveRequest(id);
+    const leaveRequest = await getLeaveRequest(String(id));
     res.json({ data: leaveRequest });
   } catch (err) {
     next(err);
@@ -75,7 +75,7 @@ export async function updateLeaveRequestStatusHandler(
     if (!approverRole) {
       return res.status(401).json({ error: "Not authenticated" });
     }
-    const result = await updateLeaveRequestStatus(id, req.body, approvedBy, approverRole);
+    const result = await updateLeaveRequestStatus(String(id), req.body, approvedBy, approverRole);
     res.json(result);
   } catch (err) {
     next(err);

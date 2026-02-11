@@ -337,6 +337,48 @@ export async function updateAllDriversDailyLimit(
  * Get drivers with trip data for performance calculation
  * Includes trips from the last 90 days
  */
+export async function updateDriverOnlineStatus(
+  driverId: string,
+  onlineStatus: boolean
+): Promise<void> {
+  await prisma.driver.update({
+    where: { id: driverId },
+    data: {
+      onlineStatus,
+      lastStatusChange: new Date(),
+    },
+  });
+}
+
+export async function getOnlineDrivers(franchiseId?: string) {
+  const where: any = {
+    onlineStatus: true,
+    status: "ACTIVE",
+    isActive: true,
+  };
+  
+  if (franchiseId) {
+    where.franchiseId = franchiseId;
+  }
+  
+  return await prisma.driver.findMany({
+    where,
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      driverCode: true,
+      phone: true,
+      onlineStatus: true,
+      lastStatusChange: true,
+      franchiseId: true,
+      driverTripStatus: true,
+      currentLat: true,
+      currentLng: true,
+    },
+  });
+}
+
 export async function getDriversWithTripData(
   includeInactive: boolean = false,
   franchiseId?: string

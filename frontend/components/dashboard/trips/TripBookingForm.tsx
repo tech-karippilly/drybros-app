@@ -11,6 +11,7 @@ import {
 } from "@/lib/features/drivers/driverApi";
 import { PerformanceBadge } from "@/components/ui/PerformanceBadge";
 import { fetchTripTypesPaginated } from "@/lib/features/tripType/tripTypeSlice";
+import { getTripTypesByCarCategory, CarType } from "@/lib/features/tripType/tripTypeApi";
 import {
     getFranchiseList,
     type FranchiseResponse,
@@ -120,6 +121,8 @@ export function TripBookingForm() {
     const [driverAssigned, setDriverAssigned] = useState(false);
     const [franchiseList, setFranchiseList] = useState<FranchiseResponse[]>([]);
     const [loadingFranchises, setLoadingFranchises] = useState(true);
+    const [filteredTripTypes, setFilteredTripTypes] = useState<any[]>([]);
+    const [loadingTripTypes, setLoadingTripTypes] = useState(false);
 
     useEffect(() => {
         if (tripTypes.length === 0) {
@@ -151,6 +154,54 @@ export function TripBookingForm() {
             setFormData((prev) => ({ ...prev, franchiseId }));
         }
     }, [selectedFranchise, user]);
+
+    // Fetch trip types when vehicle category changes
+    useEffect(() => {
+        let cancelled = false;
+        
+        const fetchTripTypesByCategory = async () => {
+            try {
+                setLoadingTripTypes(true);
+                setError(null);
+                
+                const carCategoryMap: Record<string, CarType> = {
+                    [CAR_TYPE_CATEGORIES.NORMAL]: CarType.NORMAL,
+                    [CAR_TYPE_CATEGORIES.PREMIUM]: CarType.PREMIUM,
+                    [CAR_TYPE_CATEGORIES.LUXURY]: CarType.LUXURY,
+                    [CAR_TYPE_CATEGORIES.SPORTS]: CarType.SPORTS,
+                };
+                
+                const category = carCategoryMap[formData.carType];
+                if (category) {
+                    const types = await getTripTypesByCarCategory(category);
+                    if (!cancelled) {
+                        setFilteredTripTypes(types);
+                        
+                        // Reset trip type selection if current selection is not in filtered list
+                        if (formData.tripType && !types.some((t: any) => t.name === formData.tripType)) {
+                            setFormData((prev) => ({ ...prev, tripType: "" }));
+                        }
+                    }
+                }
+            } catch (err: unknown) {
+                if (!cancelled) {
+                    const ex = err as { response?: { data?: { error?: string } }; message?: string };
+                    console.error("Failed to fetch trip types:", ex);
+                    setFilteredTripTypes([]);
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoadingTripTypes(false);
+                }
+            }
+        };
+        
+        fetchTripTypesByCategory();
+        
+        return () => {
+            cancelled = true;
+        };
+    }, [formData.carType]);
 
     const handleChange = (
         e: React.ChangeEvent<
@@ -418,10 +469,6 @@ export function TripBookingForm() {
         setTimeout(() => setSuccess(null), 2000);
     };
 
-    const activeTripTypes = useMemo(
-        () => tripTypes.filter((t) => t.status === "ACTIVE"),
-        [tripTypes]
-    );
     const activeFranchises = useMemo(
         () =>
             franchiseList.filter(
@@ -614,7 +661,7 @@ export function TripBookingForm() {
                                         <p className={labelClass}>
                                             {BOOKING_STRINGS.VEHICLE_CATEGORY}
                                         </p>
-                                        <div className="flex h-12 p-1 bg-slate-100 dark:bg-[#111a22] rounded-lg border border-slate-300 dark:border-[#324d67]">
+                                        <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 dark:bg-[#111a22] rounded-lg border border-slate-300 dark:border-[#324d67]">
                                             <button
                                                 type="button"
                                                 onClick={() =>
@@ -624,7 +671,7 @@ export function TripBookingForm() {
                                                     }))
                                                 }
                                                 className={cn(
-                                                    "flex-1 rounded-md text-sm font-medium transition-all",
+                                                    "py-2 px-3 rounded-md text-sm font-medium transition-all",
                                                     formData.carType === CAR_TYPE_CATEGORIES.NORMAL
                                                         ? "bg-white dark:bg-theme-blue text-theme-blue dark:text-white shadow-sm font-bold"
                                                         : "text-slate-500 dark:text-[#92adc9] hover:bg-white/10"
@@ -641,7 +688,7 @@ export function TripBookingForm() {
                                                     }))
                                                 }
                                                 className={cn(
-                                                    "flex-1 rounded-md text-sm font-medium transition-all",
+                                                    "py-2 px-3 rounded-md text-sm font-medium transition-all",
                                                     formData.carType === CAR_TYPE_CATEGORIES.PREMIUM
                                                         ? "bg-white dark:bg-theme-blue text-theme-blue dark:text-white shadow-sm font-bold"
                                                         : "text-slate-500 dark:text-[#92adc9] hover:bg-white/10"
@@ -658,13 +705,30 @@ export function TripBookingForm() {
                                                     }))
                                                 }
                                                 className={cn(
-                                                    "flex-1 rounded-md text-sm font-medium transition-all",
+                                                    "py-2 px-3 rounded-md text-sm font-medium transition-all",
                                                     formData.carType === CAR_TYPE_CATEGORIES.LUXURY
                                                         ? "bg-white dark:bg-theme-blue text-theme-blue dark:text-white shadow-sm font-bold"
                                                         : "text-slate-500 dark:text-[#92adc9] hover:bg-white/10"
                                                 )}
                                             >
                                                 {BOOKING_STRINGS.VEHICLE_LUXURY}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setFormData((prev) => ({
+                                                        ...prev,
+                                                        carType: CAR_TYPE_CATEGORIES.SPORTS,
+                                                    }))
+                                                }
+                                                className={cn(
+                                                    "py-2 px-3 rounded-md text-sm font-medium transition-all",
+                                                    formData.carType === CAR_TYPE_CATEGORIES.SPORTS
+                                                        ? "bg-white dark:bg-theme-blue text-theme-blue dark:text-white shadow-sm font-bold"
+                                                        : "text-slate-500 dark:text-[#92adc9] hover:bg-white/10"
+                                                )}
+                                            >
+                                                {BOOKING_STRINGS.VEHICLE_SPORTS}
                                             </button>
                                         </div>
                                     </div>
@@ -860,12 +924,14 @@ export function TripBookingForm() {
                                 value={formData.tripType}
                                 onChange={handleChange}
                                 className={inputBaseClass}
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || loadingTripTypes}
                             >
                                 <option value="">
-                                    {BOOKING_STRINGS.SELECT_TRIP_TYPE}
+                                    {loadingTripTypes 
+                                        ? "Loading trip types..." 
+                                        : BOOKING_STRINGS.SELECT_TRIP_TYPE}
                                 </option>
-                                {activeTripTypes.map((t) => (
+                                {filteredTripTypes.map((t) => (
                                     <option key={t.id} value={t.name}>
                                         {t.name}
                                     </option>

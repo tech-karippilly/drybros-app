@@ -15,6 +15,7 @@ import {
     Edit2,
     Trash2,
     Loader2,
+    Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TripTypeResponse } from '@/lib/features/tripType/tripTypeApi';
@@ -115,16 +116,19 @@ export function TripTypeList({ onCreateClick, onEditClick }: TripTypeListProps) 
                                             Type Name
                                         </th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">
-                                            Base Price / Hour (INR)
+                                            Car Category
                                         </th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">
-                                            Extra per Hour (INR)
+                                            Pricing Type
                                         </th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">
-                                            Extra per 30 Min (INR)
+                                            Base Amount (₹)
                                         </th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">
-                                            Status
+                                            Base Hour
+                                        </th>
+                                        <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">
+                                            Extra / Hour (₹)
                                         </th>
                                         <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#49659c]">
                                             Actions
@@ -134,7 +138,7 @@ export function TripTypeList({ onCreateClick, onEditClick }: TripTypeListProps) 
                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                     {filteredList.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="px-6 py-20 text-center">
+                                            <td colSpan={7} className="px-6 py-20 text-center">
                                                 <div className="flex flex-col items-center gap-2">
                                                     <Search
                                                         size={32}
@@ -169,33 +173,30 @@ export function TripTypeList({ onCreateClick, onEditClick }: TripTypeListProps) 
                                                         )}
                                                     </div>
                                                 </td>
+                                                <td className="px-6 py-4 text-sm font-medium text-[#0d121c] dark:text-white">
+                                                    {tripType.carCategory}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-[#49659c] dark:text-gray-300">
+                                                    {tripType.type}
+                                                </td>
                                                 <td className="px-6 py-4 text-sm font-bold text-[#0d121c] dark:text-white">
-                                                    {tripType.basePricePerHour 
-                                                        ? formatPrice(tripType.basePricePerHour)
-                                                        : formatPrice(tripType.basePrice)}
+                                                    {formatPrice(tripType.baseAmount)}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-[#49659c] dark:text-gray-300">
+                                                    {tripType.baseHour ?? '-'}
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-[#49659c] dark:text-gray-300">
                                                     {formatPrice(tripType.extraPerHour)}
                                                 </td>
-                                                <td className="px-6 py-4 text-sm text-[#49659c] dark:text-gray-300">
-                                                    {tripType.extraPerHalfHour
-                                                        ? formatPrice(tripType.extraPerHalfHour)
-                                                        : '-'}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span
-                                                        className={cn(
-                                                            'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold',
-                                                            tripType.status === 'ACTIVE'
-                                                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-500'
-                                                                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-500'
-                                                        )}
-                                                    >
-                                                        {tripType.status}
-                                                    </span>
-                                                </td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => router.push(`/dashboard/trip-types/${tripType.id}`)}
+                                                            className="p-2 text-[#49659c] hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                                                            title="View Details"
+                                                        >
+                                                            <Eye size={18} />
+                                                        </button>
                                                         <button
                                                             onClick={() => onEditClick(tripType)}
                                                             className="p-2 text-[#49659c] hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-all"

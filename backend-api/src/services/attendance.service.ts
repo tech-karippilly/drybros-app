@@ -77,6 +77,10 @@ function mapAttendanceToResponse(attendance: any): AttendanceResponseDTO {
       notes: s.notes ?? null,
     })),
     totalWorkHours,
+    firstOnlineAt: attendance.firstOnlineAt ?? null,
+    lastOfflineAt: attendance.lastOfflineAt ?? null,
+    totalOnlineMinutes: attendance.totalOnlineMinutes ?? null,
+    tripsCompleted: attendance.tripsCompleted ?? 0,
     createdAt: attendance.createdAt,
     updatedAt: attendance.updatedAt,
   };

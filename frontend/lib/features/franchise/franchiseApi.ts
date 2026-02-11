@@ -16,6 +16,7 @@ const FRANCHISE_ENDPOINTS = {
     BY_ID: (id: string) => `/franchises/${id}`,
     PERSONNEL: (id: string) => `/franchises/${id}/personnel`,
     STATUS: (id: string) => `/franchises/${id}/status`,
+    PERFORMANCE: (id: string) => `/franchises/${id}/performance`,
 } as const;
 
 /** Franchise status values (must match backend enum) */
@@ -226,3 +227,24 @@ export async function deleteFranchise(id: string): Promise<DeleteFranchiseRespon
     const response = await api.delete<DeleteFranchiseResponse>(FRANCHISE_ENDPOINTS.BY_ID(id));
     return response.data;
 }
+
+// Franchise Performance DTOs
+export interface FranchisePerformanceMetrics {
+    franchiseId: string;
+    totalTrips: number;
+    totalReviews: number;
+    activeCustomersCount: number;
+}
+
+export interface FranchisePerformanceResponse {
+    data: FranchisePerformanceMetrics;
+}
+
+/**
+ * Get franchise performance metrics (ADMIN only)
+ */
+export async function getFranchisePerformance(franchiseId: string): Promise<FranchisePerformanceMetrics> {
+    const response = await api.get<FranchisePerformanceResponse>(FRANCHISE_ENDPOINTS.PERFORMANCE(franchiseId));
+    return response.data.data;
+}
+

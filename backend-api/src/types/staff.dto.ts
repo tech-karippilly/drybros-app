@@ -261,7 +261,7 @@ export type UpdateStaffDTO = z.infer<typeof updateStaffSchema>;
  */
 export const updateStaffStatusSchema = z.object({
   status: z.enum(["FIRED", "SUSPENDED", "BLOCKED", "ACTIVE"], {
-    errorMap: () => ({ message: "Status must be one of: FIRED, SUSPENDED, BLOCKED, ACTIVE" }),
+    message: "Status must be one of: FIRED, SUSPENDED, BLOCKED, ACTIVE",
   }),
   suspendedUntil: z
     .union([

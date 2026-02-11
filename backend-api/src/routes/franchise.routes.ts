@@ -9,6 +9,7 @@ import {
   updateFranchiseStatusHandler,
   getFranchisePersonnelHandler,
 } from "../controllers/franchise.controller";
+import { getFranchisePerformanceHandler } from "../controllers/franchisePerformance.controller";
 import { authMiddleware, requireRole } from "../middlewares/auth";
 import { validate, validateParams, validateQuery } from "../middlewares/validation";
 import { createFranchiseSchema, updateFranchiseSchema, updateFranchiseStatusSchema, paginationQuerySchema } from "../types/franchise.dto";
@@ -67,6 +68,14 @@ router.get(
   "/:id/personnel",
   validateParams(z.object({ id: z.string().uuid("Invalid franchise ID format") })),
   getFranchisePersonnelHandler
+);
+
+// GET /franchises/:id/performance - Get franchise performance metrics (only ADMIN)
+router.get(
+  "/:id/performance",
+  requireRole(UserRole.ADMIN),
+  validateParams(z.object({ id: z.string().uuid("Invalid franchise ID format") })),
+  getFranchisePerformanceHandler
 );
 
 export default router;

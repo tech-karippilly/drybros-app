@@ -10,6 +10,8 @@ import logger from "../config/logger";
 import { acceptTripOffer } from "../repositories/tripOffer.repository";
 import { tripDispatchService } from "./tripDispatch.service";
 import { getTripsByDriver } from "../repositories/trip.repository";
+import { getOnlineDrivers } from "../repositories/driver.repository";
+import { getOnlineStaff } from "../repositories/staff.repository";
 
 export interface SocketUser {
   userId?: string;
@@ -48,6 +50,13 @@ export interface NotificationPayload {
   franchiseId?: string;
   read: boolean;
   createdAt: Date;
+}
+
+export interface StatusChangePayload {
+  id: string;
+  onlineStatus: boolean;
+  lastStatusChange: Date;
+  franchiseId?: string;
 }
 
 export type TripOfferPayload = {
@@ -591,6 +600,64 @@ class SocketService {
         this.consoleLog("leave_room", { room, ...SocketService.getSocketIdentity(socket) });
       });
 
+      // Handle getting online staff
+      socket.on(SOCKET_EVENTS.GET_ONLINE_STAFF, async (payload: { franchiseId?: string }, ack?: (res: any) => void) => {
+        try {
+          const userData = socket.data.user;
+          
+          // Determine franchiseId based on user role
+          let franchiseId = payload?.franchiseId;
+          if (userData.role === UserRole.MANAGER || userData.role === UserRole.STAFF || userData.role === UserRole.OFFICE_STAFF) {
+            franchiseId = userData.franchiseId; // Force their own franchise
+          }
+
+          const onlineStaff = await getOnlineStaff(franchiseId);
+          
+          if (typeof ack === "function") {
+            ack({ data: onlineStaff });
+          } else {
+            socket.emit(SOCKET_EVENTS.ONLINE_STAFF_LIST, { data: onlineStaff });
+          }
+        } catch (error) {
+          logger.error("Failed to get online staff", {
+            error: error instanceof Error ? error.message : String(error),
+            socketId: socket.id,
+          });
+          if (typeof ack === "function") {
+            ack({ error: "failed", message: "Failed to fetch online staff" });
+          }
+        }
+      });
+
+      // Handle getting online drivers
+      socket.on(SOCKET_EVENTS.GET_ONLINE_DRIVERS, async (payload: { franchiseId?: string }, ack?: (res: any) => void) => {
+        try {
+          const userData = socket.data.user;
+          
+          // Determine franchiseId based on user role
+          let franchiseId = payload?.franchiseId;
+          if (userData.role === UserRole.MANAGER || userData.role === UserRole.STAFF || userData.role === UserRole.OFFICE_STAFF) {
+            franchiseId = userData.franchiseId; // Force their own franchise
+          }
+
+          const onlineDrivers = await getOnlineDrivers(franchiseId);
+          
+          if (typeof ack === "function") {
+            ack({ data: onlineDrivers });
+          } else {
+            socket.emit(SOCKET_EVENTS.ONLINE_DRIVERS_LIST, { data: onlineDrivers });
+          }
+        } catch (error) {
+          logger.error("Failed to get online drivers", {
+            error: error instanceof Error ? error.message : String(error),
+            socketId: socket.id,
+          });
+          if (typeof ack === "function") {
+            ack({ error: "failed", message: "Failed to fetch online drivers" });
+          }
+        }
+      });
+
       // Handle disconnection
       socket.on(SOCKET_EVENTS.DISCONNECT, (reason: string) => {
         this.connectedUsers.delete(socket.id);
@@ -716,6 +783,74 @@ class SocketService {
         notificationId: notification.id,
       });
     }
+  }
+
+  /**
+   * Emit staff online status change
+   */
+  emitStaffStatusChange(staffId: string, isOnline: boolean, franchiseId?: string): void {
+    if (!this.io) return;
+
+    const payload: StatusChangePayload = {
+      id: staffId,
+      onlineStatus: isOnline,
+      lastStatusChange: new Date(),
+      franchiseId,
+    };
+
+    // Emit to staff's own room
+    this.io.to(`${SOCKET_ROOMS.STAFF_PREFIX}${staffId}`).emit(
+      SOCKET_EVENTS.STAFF_STATUS_CHANGED,
+      payload
+    );
+
+    // Emit to franchise room
+    if (franchiseId) {
+      this.io.to(`${SOCKET_ROOMS.FRANCHISE_PREFIX}${franchiseId}`).emit(
+        SOCKET_EVENTS.STAFF_STATUS_CHANGED,
+        payload
+      );
+    }
+
+    // Emit to all admins and managers
+    this.io.to(SOCKET_ROOMS.ALL_ADMINS).emit(SOCKET_EVENTS.STAFF_STATUS_CHANGED, payload);
+    this.io.to(SOCKET_ROOMS.ALL_MANAGERS).emit(SOCKET_EVENTS.STAFF_STATUS_CHANGED, payload);
+
+    logger.debug("Staff status change emitted", { staffId, isOnline });
+  }
+
+  /**
+   * Emit driver online status change
+   */
+  emitDriverStatusChange(driverId: string, isOnline: boolean, franchiseId?: string): void {
+    if (!this.io) return;
+
+    const payload: StatusChangePayload = {
+      id: driverId,
+      onlineStatus: isOnline,
+      lastStatusChange: new Date(),
+      franchiseId,
+    };
+
+    // Emit to driver's own room
+    this.io.to(`${SOCKET_ROOMS.DRIVER_PREFIX}${driverId}`).emit(
+      SOCKET_EVENTS.DRIVER_STATUS_CHANGED,
+      payload
+    );
+
+    // Emit to franchise room
+    if (franchiseId) {
+      this.io.to(`${SOCKET_ROOMS.FRANCHISE_PREFIX}${franchiseId}`).emit(
+        SOCKET_EVENTS.DRIVER_STATUS_CHANGED,
+        payload
+      );
+    }
+
+    // Emit to all admins and managers
+    this.io.to(SOCKET_ROOMS.ALL_ADMINS).emit(SOCKET_EVENTS.DRIVER_STATUS_CHANGED, payload);
+    this.io.to(SOCKET_ROOMS.ALL_MANAGERS).emit(SOCKET_EVENTS.DRIVER_STATUS_CHANGED, payload);
+
+    logger.debug("Driver status change emitted", { driverId, isOnline });
   }
 
   emitTripOffer(driverId: string, payload: TripOfferPayload): void {

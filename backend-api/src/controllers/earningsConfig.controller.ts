@@ -53,7 +53,7 @@ export async function getEarningsConfigByFranchiseHandler(
 ) {
   try {
     const franchiseId = req.params.franchiseId;
-    const config = await getEarningsConfigByFranchise(franchiseId);
+    const config = await getEarningsConfigByFranchise(String(franchiseId));
     res.json({ data: config });
   } catch (err) {
     next(err);
@@ -91,7 +91,7 @@ export async function setFranchiseEarningsConfigHandler(
   try {
     const franchiseId = req.params.franchiseId;
     const userId = req.user?.userId;
-    const config = await setFranchiseEarningsConfig(franchiseId, req.body, userId);
+    const config = await setFranchiseEarningsConfig(String(franchiseId), req.body, userId);
     res.json({ data: config });
   } catch (err) {
     next(err);
@@ -108,7 +108,7 @@ export async function getEarningsConfigByDriverHandler(
 ) {
   try {
     const driverId = req.params.driverId;
-    const config = await getEarningsConfigByDriver(driverId);
+    const config = await getEarningsConfigByDriver(String(driverId));
     res.json({ data: config });
   } catch (err) {
     next(err);

@@ -53,7 +53,7 @@ export async function getComplaintByIdHandler(
 ) {
   try {
     const id = req.params.id;
-    const complaint = await getComplaint(id);
+    const complaint = await getComplaint(String(id));
     res.json({ data: complaint });
   } catch (err) {
     next(err);
@@ -68,7 +68,7 @@ export async function updateComplaintStatusHandler(
   try {
     const id = req.params.id;
     const resolvedBy = req.user?.userId;
-    const result = await updateComplaintStatus(id, req.body, resolvedBy);
+    const result = await updateComplaintStatus(String(id), req.body, resolvedBy);
     res.json(result);
   } catch (err) {
     next(err);

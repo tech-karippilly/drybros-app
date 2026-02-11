@@ -2,33 +2,145 @@ import prisma from "../config/prismaClient";
 import { TripPricingType, CarCategory } from "@prisma/client";
 
 /**
- * Get TripTypeConfig by type and car category
+ * Type representing the config format expected by pricing service
+ */
+type PricingConfig = {
+  id: string;
+  name: string;
+  description: string | null;
+  type: TripPricingType;
+  carCategory: CarCategory;
+  basePrice: number;
+  baseDuration: number | null;
+  baseDistance: number | null;
+  extraPerHour: number | null;
+  extraPerHalfHour: number | null;
+  extraPerKm: number | null;
+  distanceSlabs?: any;
+  timeSlabs?: any;
+  premiumCarMultiplier?: number | null;
+  forPremiumCars?: any;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+/**
+ * Maps database TripTypeConfig to pricing service format
+ * Database uses: baseAmount, baseHour, extraPerDistance
+ * Pricing service expects: basePrice, baseDuration, extraPerKm
+ */
+function mapToPricingFormat(config: any): PricingConfig | null {
+  if (!config) return null;
+  
+  return {
+    id: config.id,
+    name: config.name,
+    description: config.description,
+    type: config.type,
+    carCategory: config.carCategory,
+    basePrice: config.baseAmount, // Map baseAmount -> basePrice
+    baseDuration: config.baseHour, // Map baseHour -> baseDuration
+    baseDistance: config.baseDistance,
+    extraPerHour: config.extraPerHour,
+    extraPerHalfHour: config.extraPerHalfHour,
+    extraPerKm: config.extraPerDistance, // Map extraPerDistance -> extraPerKm
+    distanceSlabs: config.distanceSlab,
+    timeSlabs: config.timeSlab,
+    createdAt: config.createdAt,
+    updatedAt: config.updatedAt,
+  };
+}
+
+/**
+ * Get TripTypeConfig by name and car category
+ * @returns TripTypeConfig or null if not found
+ */
+export async function getTripTypeConfigByNameAndCategory(
+  name: string,
+  carCategory: CarCategory
+) {
+  const config = await prisma.tripTypeConfig.findUnique({
+    where: {
+      name_carCategory: {
+        name,
+        carCategory,
+      },
+    },
+  });
+  return mapToPricingFormat(config);
+}
+
+/**
+ * Get TripTypeConfig by type and car category (deprecated - for backwards compatibility)
  * @returns TripTypeConfig or null if not found
  */
 export async function getTripTypeConfigByTypeAndCategory(
   type: TripPricingType,
   carCategory: CarCategory
 ) {
-  return prisma.tripTypeConfig.findUnique({
+  const config = await prisma.tripTypeConfig.findFirst({
     where: {
-      type_carCategory: {
-        type,
-        carCategory,
-      },
+      type,
+      carCategory,
     },
   });
+  return mapToPricingFormat(config);
 }
 
 /**
- * Get all TripTypeConfigs
+ * Get TripTypeConfig by trip type name (e.g., "CITY DROP", "LONG ROUND")
+ * Tries to find matching config by name for NORMAL car category
+ * @returns TripTypeConfig or null if not found
  */
-export async function getAllTripTypeConfigs() {
-  return prisma.tripTypeConfig.findMany({
+export async function getTripTypeConfigByType(tripTypeName: string) {
+  // Try to find by name first (for display names like "CITY DROP")
+  const config = await prisma.tripTypeConfig.findFirst({
+    where: {
+      name: tripTypeName,
+      carCategory: CarCategory.NORMAL, // Default to NORMAL car category
+    },
+  });
+  return mapToPricingFormat(config);
+}
+
+/**
+ * Get TripTypeConfig for pricing calculation
+ * Handles both enum values (CITY_ROUND, CITY_DROPOFF) and display names (CITY DROP, LONG ROUND)
+ * @returns TripTypeConfig or null if not found
+ */
+export async function getTripTypeConfigForPricing(tripType: string, carCategory: CarCategory = CarCategory.NORMAL) {
+  // Map enum values to display names
+  const nameMap: Record<string, string> = {
+    'CITY_ROUND': 'CITY ROUND',
+    'CITY_DROPOFF': 'CITY DROP',
+    'LONG_DROPOFF': 'LONG DROP',
+    'LONG_ROUND': 'LONG ROUND',
+  };
+
+  // Try to get the display name from the map, or use the value as-is
+  const displayName = nameMap[tripType] || tripType;
+
+  const config = await prisma.tripTypeConfig.findFirst({
+    where: {
+      name: displayName,
+      carCategory,
+    },
+  });
+  return mapToPricingFormat(config);
+}
+
+/**
+ * Get all TripTypeConfigs, optionally filtered by car category
+ */
+export async function getAllTripTypeConfigs(carCategory?: CarCategory) {
+  const configs = await prisma.tripTypeConfig.findMany({
+    where: carCategory ? { carCategory } : undefined,
     orderBy: [
       { type: "asc" },
       { carCategory: "asc" },
     ],
   });
+  return configs.map(mapToPricingFormat).filter((c): c is PricingConfig => c !== null);
 }
 
 /**
@@ -47,16 +159,20 @@ export async function getTripTypeConfigsPaginated(skip: number, take: number) {
     prisma.tripTypeConfig.count(),
   ]);
 
-  return { data, total };
+  return { 
+    data: data.map(mapToPricingFormat).filter((c): c is PricingConfig => c !== null), 
+    total 
+  };
 }
 
 /**
  * Get TripTypeConfig by ID
  */
 export async function getTripTypeConfigById(id: string) {
-  return prisma.tripTypeConfig.findUnique({
+  const config = await prisma.tripTypeConfig.findUnique({
     where: { id },
   });
+  return mapToPricingFormat(config);
 }
 
 /**

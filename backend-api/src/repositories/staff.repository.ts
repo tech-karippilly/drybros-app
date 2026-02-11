@@ -241,3 +241,41 @@ export async function createStaffHistory(data: {
     data,
   });
 }
+
+export async function updateStaffOnlineStatus(
+  staffId: string,
+  onlineStatus: boolean
+): Promise<void> {
+  await prisma.staff.update({
+    where: { id: staffId },
+    data: {
+      onlineStatus,
+      lastStatusChange: new Date(),
+    },
+  });
+}
+
+export async function getOnlineStaff(franchiseId?: string) {
+  const where: any = {
+    onlineStatus: true,
+    status: "ACTIVE",
+    isActive: true,
+  };
+  
+  if (franchiseId) {
+    where.franchiseId = franchiseId;
+  }
+  
+  return await prisma.staff.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      onlineStatus: true,
+      lastStatusChange: true,
+      franchiseId: true,
+    },
+  });
+}

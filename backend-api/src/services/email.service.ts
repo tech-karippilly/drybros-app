@@ -1587,3 +1587,171 @@ This is an automated message. Please do not reply to this email.
     });
   }
 }
+
+/**
+ * Send penalty notification email
+ */
+export async function sendPenaltyNotificationEmail(
+  to: string,
+  data: any
+): Promise<void> {
+  const { penalty, driver, amount, reason, timestamp, appliedBy, complaints } = data;
+
+  if (!transporter) {
+    logger.warn("Email transporter not configured. Skipping penalty notification email.");
+    return;
+  }
+
+  const driverName = `${driver.firstName} ${driver.lastName}`;
+  const formattedDate = new Date(timestamp).toLocaleString('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+
+  let htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #dc3545; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f9f9f9; }
+        .info-box { background-color: #fff; padding: 15px; border-left: 4px solid #dc3545; margin: 15px 0; }
+        .driver-details { background-color: #fff; padding: 15px; border: 1px solid #ddd; margin: 15px 0; }
+        .warning { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        td { padding: 8px; border-bottom: 1px solid #ddd; }
+        .label { font-weight: bold; width: 40%; }
+        .severity-high { color: #dc3545; font-weight: bold; }
+        .severity-medium { color: #fd7e14; font-weight: bold; }
+        .severity-low { color: #ffc107; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🚨 Driver Penalty Notification</h1>
+        </div>
+        <div class="content">
+          <div class="info-box">
+            <h2>${penalty.name}</h2>
+            <p><strong>Category:</strong> ${penalty.category}</p>
+            <p><strong>Severity:</strong> <span class="severity-${penalty.severity.toLowerCase()}">${penalty.severity}</span></p>
+            ${penalty.description ? `<p><strong>Description:</strong> ${penalty.description}</p>` : ''}
+          </div>
+
+          <h3>Driver Details</h3>
+          <div class="driver-details">
+            <table>
+              <tr>
+                <td class="label">Name:</td>
+                <td>${driverName}</td>
+              </tr>
+              <tr>
+                <td class="label">Driver Code:</td>
+                <td>${driver.driverCode}</td>
+              </tr>
+              <tr>
+                <td class="label">Phone:</td>
+                <td>${driver.phone}</td>
+              </tr>
+              <tr>
+                <td class="label">Email:</td>
+                <td>${driver.email}</td>
+              </tr>
+            </table>
+          </div>
+
+          <h3>Deduction Details</h3>
+          <div class="driver-details">
+            <table>
+              <tr>
+                <td class="label">Deduction Amount:</td>
+                <td><strong>₹${amount}</strong></td>
+              </tr>
+              <tr>
+                <td class="label">Date & Time:</td>
+                <td>${formattedDate}</td>
+              </tr>
+              ${reason ? `
+              <tr>
+                <td class="label">Reason:</td>
+                <td>${reason}</td>
+              </tr>
+              ` : ''}
+              ${appliedBy ? `
+              <tr>
+                <td class="label">Applied By:</td>
+                <td>${appliedBy.fullName} (${appliedBy.email})</td>
+              </tr>
+              ` : ''}
+            </table>
+          </div>
+  `;
+
+  // Add complaints list if this is a 3 complaints block
+  if (complaints && complaints.length > 0) {
+    htmlContent += `
+          <h3>Recent Complaints</h3>
+          <div class="driver-details">
+            <table>
+    `;
+    complaints.forEach((complaint: any, index: number) => {
+      const complaintDate = new Date(complaint.createdAt).toLocaleDateString('en-US', { dateStyle: 'medium' });
+      htmlContent += `
+              <tr>
+                <td class="label">Complaint ${index + 1}:</td>
+                <td>${complaint.title} - ${complaintDate}</td>
+              </tr>
+      `;
+    });
+    htmlContent += `
+            </table>
+          </div>
+    `;
+  }
+
+  // Add action required for blocked drivers
+  if (penalty.blockDriver) {
+    htmlContent += `
+          <div class="warning">
+            <strong>⚠️ Action Required:</strong>
+            <p>Driver has been <strong>BLOCKED</strong> automatically. Please review and decide whether to UNBLOCK or TERMINATE the driver.</p>
+          </div>
+    `;
+  }
+
+  htmlContent += `
+          <p>This penalty has been automatically recorded in the system and the driver's incentive has been adjusted accordingly.</p>
+          <p>Best regards,<br>Drybros System</p>
+        </div>
+        <div class="footer">
+          <p>This is an automated message from the Drybros Penalty Management System.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: emailConfig.from,
+      to,
+      subject: `${penalty.blockDriver ? '🚫 DRIVER BLOCKED - ' : '⚠️ '}Penalty Applied: ${penalty.name}`,
+      html: htmlContent,
+    });
+
+    logger.info("Penalty notification email sent successfully", { to, penaltyId: penalty.id, driverId: driver.id });
+  } catch (error) {
+    logger.error("Failed to send penalty notification email", {
+      error: error instanceof Error ? error.message : String(error),
+      email: to,
+      penaltyId: penalty.id,
+      driverId: driver.id,
+    });
+    throw error;
+  }
+}

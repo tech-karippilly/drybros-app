@@ -9,6 +9,7 @@ import {
   driverRejectTrip,
   rescheduleTrip,
   cancelTrip,
+  cancelTripByDriver,
   reassignDriverToTrip,
   generateStartOtpForTrip,
   startTripWithOtp,
@@ -224,6 +225,27 @@ export async function driverRejectTripHandler(
     const driverId = validateAndGetUUID(req.body.driverId, "Driver ID");
     const updated = await driverRejectTrip(tripId, driverId);
     res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Driver cancels trip after accepting.
+ * Triggers automatic reassignment to another driver.
+ */
+export async function driverCancelTripHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const tripId = validateAndGetUUID(req.params.id, "Trip ID");
+    const driverId = validateAndGetUUID(req.body.driverId, "Driver ID");
+    const reason = typeof req.body.reason === "string" ? req.body.reason : undefined;
+    
+    const result = await cancelTripByDriver(tripId, driverId, reason);
+    res.json(result);
   } catch (err) {
     next(err);
   }

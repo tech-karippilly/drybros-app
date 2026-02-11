@@ -39,8 +39,11 @@ export async function listTripTypesHandler(
       const result = await listTripTypesPaginated({ page, limit });
       res.json(result);
     } else {
-      // Backward compatibility: return all trip types if no pagination params
-      const data = await listTripTypes();
+      // Check if carCategory filter is provided
+      const carCategory = req.query.carCategory as CarCategory | undefined;
+      
+      // Return all trip types or filtered by car category
+      const data = await listTripTypes(carCategory);
       res.json({ data });
     }
   } catch (err) {
@@ -55,7 +58,7 @@ export async function getTripTypeByIdHandler(
 ) {
   try {
     const { id } = req.params;
-    const tripType = await getTripTypeById(id);
+    const tripType = await getTripTypeById(String(id));
 
     if (!tripType) {
       return res.status(404).json({
@@ -89,7 +92,7 @@ export async function updateTripTypeHandler(
 ) {
   try {
     const { id } = req.params;
-    const tripType = await updateTripType(id, req.body);
+    const tripType = await updateTripType(String(id), req.body);
     res.json({ data: tripType });
   } catch (err) {
     next(err);
@@ -103,7 +106,7 @@ export async function deleteTripTypeHandler(
 ) {
   try {
     const { id } = req.params;
-    const result = await deleteTripType(id);
+    const result = await deleteTripType(String(id));
     res.json(result);
   } catch (err) {
     next(err);

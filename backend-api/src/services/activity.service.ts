@@ -6,8 +6,8 @@ import {
   getActivityLogById,
   CreateActivityLogData,
 } from "../repositories/activity.repository";
-import { getDriverById } from "../repositories/driver.repository";
-import { getStaffById } from "../repositories/staff.repository";
+import { getDriverById, updateDriverOnlineStatus } from "../repositories/driver.repository";
+import { getStaffById, updateStaffOnlineStatus } from "../repositories/staff.repository";
 import { getTripById } from "../repositories/trip.repository";
 import prisma from "../config/prismaClient";
 import { UserRole, ActivityAction, ActivityEntityType } from "@prisma/client";
@@ -29,6 +29,21 @@ export async function logActivity(data: CreateActivityLogData): Promise<void> {
   try {
     const activityLog = await repoCreateActivityLog(data);
     
+    // Update online status for clock-in/out actions
+    if (data.action === ActivityAction.DRIVER_CLOCK_IN || data.action === ActivityAction.STAFF_CLOCK_IN) {
+      if (data.staffId) {
+        await updateStaffOnlineStatus(data.staffId, true);
+      } else if (data.driverId) {
+        await updateDriverOnlineStatus(data.driverId, true);
+      }
+    } else if (data.action === ActivityAction.DRIVER_CLOCK_OUT || data.action === ActivityAction.STAFF_CLOCK_OUT) {
+      if (data.staffId) {
+        await updateStaffOnlineStatus(data.staffId, false);
+      } else if (data.driverId) {
+        await updateDriverOnlineStatus(data.driverId, false);
+      }
+    }
+    
     // Emit socket event for the new activity log
     socketService.emitActivityLog({
       id: activityLog.id,
@@ -46,6 +61,17 @@ export async function logActivity(data: CreateActivityLogData): Promise<void> {
       longitude: activityLog.longitude || undefined,
       createdAt: activityLog.createdAt,
     });
+
+    // Emit online status change event
+    if (data.action === ActivityAction.DRIVER_CLOCK_IN || data.action === ActivityAction.STAFF_CLOCK_IN ||
+        data.action === ActivityAction.DRIVER_CLOCK_OUT || data.action === ActivityAction.STAFF_CLOCK_OUT) {
+      const isOnline = data.action === ActivityAction.DRIVER_CLOCK_IN || data.action === ActivityAction.STAFF_CLOCK_IN;
+      if (data.staffId) {
+        socketService.emitStaffStatusChange(data.staffId, isOnline, data.franchiseId || undefined);
+      } else if (data.driverId) {
+        socketService.emitDriverStatusChange(data.driverId, isOnline, data.franchiseId || undefined);
+      }
+    }
   } catch (error) {
     // Log error but don't throw - activity logging should not break main functionality
     logger.error("Failed to create activity log", {

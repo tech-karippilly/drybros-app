@@ -88,6 +88,8 @@ model Driver {
   currentLng               Float?
   locationAccuracyM        Float?
   locationUpdatedAt        DateTime?
+  onlineStatus             Boolean          @default(false)
+  lastStatusChange         DateTime?
   isActive                 Boolean          @default(true)
   createdBy                String?          @db.Uuid // User ID who created this driver
   createdAt                DateTime         @default(now())
@@ -101,8 +103,6 @@ model Driver {
   DriverRatings            DriverRating[]
   TripReviews              TripReview[]
   ActivityLogs             ActivityLog[]
-  Penalties                Penalty[]                @relation("DriverPenalties")
-  DriverPenalties          DriverPenalty[]
   DriverDailyMetrics       DriverDailyMetrics[]
   TripStatusHistories      TripStatusHistory[]
   DriverTransactions       DriverTransaction[]
@@ -165,6 +165,8 @@ model Staff {
   status                   StaffStatus    @default(ACTIVE)
   warningCount             Int            @default(0) // Complaints resolved with WARNING; 2+ triggers auto-fire
   suspendedUntil           DateTime?
+  onlineStatus             Boolean        @default(false)
+  lastStatusChange         DateTime?
   joinDate                 DateTime       @default(now())
   relieveDate              DateTime?
   relieveReason            RelieveReason?
@@ -325,9 +327,10 @@ model TripTypeConfig {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([type, carCategory])
+  @@unique([name, carCategory])
   @@index([type])
   @@index([carCategory])
+  @@index([name])
 }
 
 model User {
@@ -345,11 +348,11 @@ model User {
   franchiseId    String?         @db.Uuid // For MANAGER role to associate with franchise
   Trip           Trip[]
   ActivityLogs   ActivityLog[]
-  DriverPenalty  DriverPenalty[]
   Attendances    Attendance[]
   LeaveRequests  LeaveRequest[]
   TripStatusHistories TripStatusHistory[]
   CreatedWarnings Warning[] // Warnings created by this user
+  AppliedTransactions DriverTransaction[] @relation("AppliedTransactions")
 
   @@index([lockedUntil])
   @@index([franchiseId])
@@ -444,6 +447,13 @@ model Attendance {
   clockOut  DateTime?        // Time when user clocked out
   status    AttendanceStatus @default(PRESENT)
   notes     String?
+  
+  // Auto-calculated fields for daily aggregation
+  firstOnlineAt      DateTime? // First clock-in time of the day
+  lastOfflineAt      DateTime? // Last clock-out time of the day
+  totalOnlineMinutes Int?      // Total minutes online (sum of all sessions)
+  tripsCompleted     Int       @default(0) // Number of trips completed that day
+  
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
   Driver    Driver?          @relation(fields: [driverId], references: [id], onDelete: Cascade)
@@ -625,6 +635,7 @@ enum WarningPriority {
 
 enum AttendanceStatus {
   PRESENT
+  PARTIAL
   ABSENT
   LATE
   HALF_DAY
@@ -790,21 +801,40 @@ enum ActivityEntityType {
 }
 
 model Penalty {
-  id              String          @id @default(uuid()) @db.Uuid
-  name            String
-  description     String?
-  driverId        String?         @db.Uuid // Optional: for driver-specific penalties
-  amount          Int // Default penalty amount
-  type            PenaltyType     @default(PENALTY)
-  isActive        Boolean         @default(true)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  Driver          Driver?         @relation("DriverPenalties", fields: [driverId], references: [id], onDelete: Cascade)
-  DriverPenalties DriverPenalty[]
+  id                String              @id @default(uuid()) @db.Uuid
+  name              String
+  description       String?
+  amount            Int                 // Default penalty amount
+  type              PenaltyType         @default(PENALTY)
+  isActive          Boolean             @default(true)
+  
+  // Auto-trigger configuration
+  isAutomatic       Boolean             @default(false)
+  triggerType       PenaltyTriggerType  @default(MANUAL)
+  triggerConfig     Json?               // Store conditions like {"delayMinutes": 5, "complaintCount": 3}
+  
+  // Categorization
+  category          PenaltyCategory     @default(OPERATIONAL)
+  severity          PenaltySeverity     @default(MEDIUM)
+  
+  // Notification settings
+  notifyAdmin       Boolean             @default(true)
+  notifyManager     Boolean             @default(true)
+  notifyDriver      Boolean             @default(false)
+  
+  // Action settings
+  blockDriver       Boolean             @default(false)
+  
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  DriverTransactions DriverTransaction[]
 
   @@index([isActive])
   @@index([type])
-  @@index([driverId])
+  @@index([triggerType])
+  @@index([category])
+  @@index([severity])
 }
 
 enum PenaltyType {
@@ -812,26 +842,27 @@ enum PenaltyType {
   DEDUCTION // Standard deductions (fuel, maintenance, etc.)
 }
 
-model DriverPenalty {
-  id            String   @id @default(uuid()) @db.Uuid
-  driverId      String   @db.Uuid
-  penaltyId     String   @db.Uuid
-  amount        Int // Actual amount applied (can override default)
-  reason        String? // Reason for penalty
-  violationDate DateTime @default(now()) // Date of violation
-  appliedAt     DateTime @default(now())
-  appliedBy     String?  @db.Uuid // User ID who applied the penalty
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  Driver        Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  Penalty       Penalty  @relation(fields: [penaltyId], references: [id], onDelete: Restrict)
-  AppliedByUser User?    @relation(fields: [appliedBy], references: [id], onDelete: SetNull)
+enum PenaltyTriggerType {
+  MANUAL
+  LATE_REPORT
+  THREE_COMPLAINTS
+  CANCELLED_TRIP
+  PHONE_NOT_ANSWERED
+  DRESS_CODE_VIOLATION
+  CUSTOMER_COMPLAINT
+}
 
-  @@index([driverId, appliedAt])
-  @@index([penaltyId])
-  @@index([appliedAt])
-  @@index([violationDate])
+enum PenaltyCategory {
+  OPERATIONAL
+  BEHAVIORAL
+  FINANCIAL
+  SAFETY
+}
+
+enum PenaltySeverity {
+  LOW
+  MEDIUM
+  HIGH
 }
 
 // Driver Daily Metrics - Historical daily snapshots of driver performance
@@ -922,16 +953,26 @@ model DriverTransaction {
   amount          Decimal                @db.Decimal(10, 2)
   transactionType TransactionType        // CREDIT or DEBIT
   tripId          String?                @db.Uuid // Optional, null for penalties
-  type            DriverTransactionType  // PENALTY or TRIP
+  type            DriverTransactionType  // PENALTY, TRIP, or GIFT
   description     String?                // Optional description
+  
+  // Penalty tracking fields
+  penaltyId       String?                @db.Uuid // Reference to Penalty master
+  appliedBy       String?                @db.Uuid // User who applied manual penalty
+  metadata        Json?                  // Store trigger details, before/after balance
+  
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
   
   Driver          Driver                 @relation(fields: [driverId], references: [id], onDelete: Cascade)
   Trip            Trip?                  @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  Penalty         Penalty?               @relation(fields: [penaltyId], references: [id], onDelete: SetNull)
+  AppliedByUser   User?                  @relation("AppliedTransactions", fields: [appliedBy], references: [id], onDelete: SetNull)
 
   @@index([driverId, createdAt])
   @@index([transactionType])
   @@index([type])
   @@index([tripId])
+  @@index([penaltyId])
+  @@index([appliedBy])
 }

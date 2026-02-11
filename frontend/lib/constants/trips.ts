@@ -14,6 +14,7 @@ export const CAR_TYPE_CATEGORIES = {
     PREMIUM: "PREMIUM",
     LUXURY: "LUXURY",
     NORMAL: "NORMAL",
+    SPORTS: "SPORTS",
 } as const;
 
 export type CarTypeCategory = typeof CAR_TYPE_CATEGORIES[keyof typeof CAR_TYPE_CATEGORIES];
@@ -100,6 +101,7 @@ export const BOOKING_STRINGS = {
     VEHICLE_NORMAL: 'Normal',
     VEHICLE_PREMIUM: 'Premium',
     VEHICLE_LUXURY: 'Luxury',
+    VEHICLE_SPORTS: 'Sports',
     TRIP_LOGISTICS: 'Trip Logistics',
     LOCATION: 'Location',
     LOCATION_PLACEHOLDER_PICKUP: 'Search for pickup location...',

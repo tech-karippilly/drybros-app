@@ -75,7 +75,7 @@ export async function getRatingByIdHandler(
 ) {
   try {
     const id = req.params.id;
-    const rating = await getRating(id);
+    const rating = await getRating(String(id));
     res.json({ data: rating });
   } catch (err) {
     next(err);

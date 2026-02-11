@@ -45,7 +45,7 @@ export async function getStaffById(
 ) {
   try {
     const id = req.params.id;
-    const staff = await getStaff(id);
+    const staff = await getStaff(String(id));
     res.json({ data: staff });
   } catch (err) {
     next(err);
@@ -74,7 +74,7 @@ export async function updateStaffHandler(
   try {
     const id = req.params.id;
     const changedBy = req.user?.userId;
-    const result = await updateStaff(id, req.body, changedBy);
+    const result = await updateStaff(String(id), req.body, changedBy);
     res.json(result);
   } catch (err) {
     next(err);
@@ -89,7 +89,7 @@ export async function deleteStaffHandler(
   try {
     const id = req.params.id;
     const changedBy = req.user?.userId;
-    const result = await deleteStaff(id, changedBy);
+    const result = await deleteStaff(String(id), changedBy);
     res.json(result);
   } catch (err) {
     next(err);
@@ -103,7 +103,7 @@ export async function getStaffHistoryHandler(
 ) {
   try {
     const id = req.params.id;
-    const result = await getStaffHistory(id);
+    const result = await getStaffHistory(String(id));
     res.json(result);
   } catch (err) {
     next(err);
@@ -117,7 +117,7 @@ export async function updateStaffStatusHandler(
 ) {
   try {
     const id = req.params.id;
-    const result = await updateStaffStatus(id, req.body);
+    const result = await updateStaffStatus(String(id), req.body);
     res.json(result);
   } catch (err) {
     next(err);

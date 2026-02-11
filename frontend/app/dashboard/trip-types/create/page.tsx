@@ -37,6 +37,8 @@ export default function CreateTripTypePage() {
     
     // Form state
     const [formData, setFormData] = useState({
+        name: '',
+        description: '',
         carCategory: CarType.NORMAL,
         pricingMode: PricingMode.TIME as PricingMode,
         // Time Based fields
@@ -144,6 +146,11 @@ export default function CreateTripTypePage() {
     const validateForm = (): boolean => {
         const errors: Record<string, string> = {};
 
+        // Basic validation
+        if (!formData.name.trim()) {
+            errors.name = 'Trip type name is required';
+        }
+
         // Mode-specific validation
         if (formData.pricingMode === PricingMode.TIME) {
             if (formData.baseAmount <= 0) {
@@ -200,6 +207,8 @@ export default function CreateTripTypePage() {
 
         try {
             const payload: any = {
+                name: formData.name.trim(),
+                description: formData.description.trim() || undefined,
                 carCategory: formData.carCategory,
                 type: formData.pricingMode,
             };
@@ -288,124 +297,106 @@ export default function CreateTripTypePage() {
                     {/* Basic Information */}
                     <div className="bg-white dark:bg-[#101622] rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-6 space-y-6">
                         <h4 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Car size={20} className="text-blue-600 dark:text-blue-400" />
-                            Car Category *
+                            <FileText size={20} className="text-blue-600 dark:text-blue-400" />
+                            Basic Information
                         </h4>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            {Object.values(CarType).map((category) => {
-                                const metadata = CAR_TYPE_METADATA[category];
-                                return (
-                                    <button
-                                        key={category}
-                                        type="button"
-                                        onClick={() => setFormData(prev => ({ ...prev, carCategory: category }))}
-                                        className={`p-4 rounded-xl border-2 transition-all ${
-                                            formData.carCategory === category
-                                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                                : 'border-gray-300 dark:border-gray-700 hover:border-blue-400'
-                                        }`}
-                                    >
-                                        <div className="flex flex-col items-center gap-2">
-                                            <span className="text-3xl">{metadata.icon}</span>
-                                            <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                                {metadata.label}
-                                            </span>
-                                        </div>
-                                    </button>
-                                );
-                            })}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Name */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    Trip Type Name *
+                                </label>
+                                <input
+                                    required
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                                    placeholder="e.g. City Round Trip, Long Distance"
+                                    className={`w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border ${
+                                        validationErrors.name ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+                                    } rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:text-white`}
+                                    disabled={isSubmitting}
+                                />
+                                {validationErrors.name && (
+                                    <p className="text-xs text-red-600 dark:text-red-400">{validationErrors.name}</p>
+                                )}
+                            </div>
+
+                            {/* Description */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    Description (Optional)
+                                </label>
+                                <input
+                                    name="description"
+                                    value={formData.description}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                                    placeholder="Brief description..."
+                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:text-white"
+                                    disabled={isSubmitting}
+                                />
+                            </div>
                         </div>
                     </div>
 
-                    {/* Pricing Mode */}
+                    {/* Car Category and Pricing Mode */}
                     <div className="bg-white dark:bg-[#101622] rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-6 space-y-6">
-                        <h4 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <DollarSign size={20} className="text-blue-600 dark:text-blue-400" />
-                            Pricing Mode *
-                        </h4>
-                        
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {/* Time Based */}
-                                <label className="flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-300 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer transition-all">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.pricingMode === PricingMode.TIME}
-                                        onChange={() => handlePricingModeChange(PricingMode.TIME)}
-                                        className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                                    />
-                                    <div className="text-center">
-                                        <div className="flex items-center justify-center gap-2 mb-1">
-                                            <Clock size={20} className="text-blue-600 dark:text-blue-400" />
-                                            <span className="font-bold text-gray-900 dark:text-white">Time Based</span>
-                                        </div>
-                                        <p className="text-xs text-gray-600 dark:text-gray-400">Base price with hourly rates</p>
-                                    </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Car Category */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    Car Category *
                                 </label>
-
-                                {/* Distance Based */}
-                                <label className="flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-300 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer transition-all">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.pricingMode === PricingMode.DISTANCE}
-                                        onChange={() => handlePricingModeChange(PricingMode.DISTANCE)}
-                                        className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                                    />
-                                    <div className="text-center">
-                                        <div className="flex items-center justify-center gap-2 mb-1">
-                                            <DollarSign size={20} className="text-blue-600 dark:text-blue-400" />
-                                            <span className="font-bold text-gray-900 dark:text-white">Distance Based</span>
-                                        </div>
-                                        <p className="text-xs text-gray-600 dark:text-gray-400">Base price with distance rates</p>
-                                    </div>
-                                </label>
-
-                                {/* Slab Based */}
-                                <label className="flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-gray-300 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer transition-all">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.pricingMode === PricingMode.SLAB}
-                                        onChange={() => handlePricingModeChange(PricingMode.SLAB)}
-                                        className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                                    />
-                                    <div className="text-center">
-                                        <div className="flex items-center justify-center gap-2 mb-1">
-                                            <Zap size={20} className="text-blue-600 dark:text-blue-400" />
-                                            <span className="font-bold text-gray-900 dark:text-white">Slab Based</span>
-                                        </div>
-                                        <p className="text-xs text-gray-600 dark:text-gray-400">Multiple pricing ranges</p>
-                                    </div>
-                                </label>
+                                <select
+                                    value={formData.carCategory}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, carCategory: e.target.value as CarType }))}
+                                    className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                >
+                                    {Object.values(CarType).map((category) => {
+                                        const metadata = CAR_TYPE_METADATA[category];
+                                        return (
+                                            <option key={category} value={category}>
+                                                {metadata.label}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
                             </div>
 
-                            {/* Slab Based Sub-options */}
-                            {formData.pricingMode === PricingMode.SLAB && (
-                                <div className="p-4 border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900/30">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.slabType === 'distance'}
-                                                onChange={() => setFormData(prev => ({ ...prev, slabType: 'distance' }))}
-                                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                                            />
-                                            <span className="font-semibold text-gray-900 dark:text-white">Distance Based Slabs</span>
-                                        </label>
-
-                                        <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.slabType === 'time'}
-                                                onChange={() => setFormData(prev => ({ ...prev, slabType: 'time' }))}
-                                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                                            />
-                                            <span className="font-semibold text-gray-900 dark:text-white">Time Based Slabs</span>
-                                        </label>
-                                    </div>
-                                </div>
-                            )}
+                            {/* Pricing Mode */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    Pricing Mode *
+                                </label>
+                                <select
+                                    value={formData.pricingMode}
+                                    onChange={(e) => handlePricingModeChange(e.target.value as PricingMode)}
+                                    className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                >
+                                    <option value={PricingMode.TIME}>Time Based</option>
+                                    <option value={PricingMode.DISTANCE}>Distance Based</option>
+                                    <option value={PricingMode.SLAB}>Slab Based</option>
+                                </select>
+                            </div>
                         </div>
+
+                        {/* Slab Based Sub-options */}
+                        {formData.pricingMode === PricingMode.SLAB && (
+                            <div className="p-4 border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900/30">
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                    Slab Type
+                                </label>
+                                <select
+                                    value={formData.slabType}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, slabType: e.target.value as SlabType }))}
+                                    className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                >
+                                    <option value="distance">Distance Based Slabs</option>
+                                    <option value="time">Time Based Slabs</option>
+                                </select>
+                            </div>
+                        )}
                     </div>
 
                     {/* Time Based Form */}

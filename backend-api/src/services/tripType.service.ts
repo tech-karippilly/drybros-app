@@ -3,7 +3,7 @@ import {
   getAllTripTypeConfigs,
   getTripTypeConfigsPaginated,
   getTripTypeConfigById,
-  getTripTypeConfigByTypeAndCategory,
+  getTripTypeConfigByNameAndCategory,
   createTripTypeConfig as repoCreateTripTypeConfig,
   updateTripTypeConfig as repoUpdateTripTypeConfig,
   deleteTripTypeConfig as repoDeleteTripTypeConfig,
@@ -75,8 +75,8 @@ function mapTripTypeResponse(tripType: any) {
   };
 }
 
-export async function listTripTypes() {
-  const tripTypes = await getAllTripTypeConfigs();
+export async function listTripTypes(carCategory?: CarCategory) {
+  const tripTypes = await getAllTripTypeConfigs(carCategory);
   return tripTypes.map(mapTripTypeResponse);
 }
 
@@ -307,11 +307,11 @@ export async function createTripType(input: CreateTripTypeInput) {
   // Validate input
   validateTripTypeInput(input);
 
-  // Check if config already exists for this type + carCategory combination
-  const existing = await getTripTypeConfigByTypeAndCategory(input.type, input.carCategory);
+  // Check if config already exists for this name + carCategory combination
+  const existing = await getTripTypeConfigByNameAndCategory(input.name, input.carCategory);
   if (existing) {
     const err: any = new Error(
-      `Trip type configuration already exists for type ${input.type} and car category ${input.carCategory}`
+      `Trip type "${input.name}" already exists for car category ${input.carCategory}`
     );
     err.statusCode = 400;
     throw err;

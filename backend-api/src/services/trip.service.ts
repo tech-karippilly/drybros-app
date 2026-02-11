@@ -15,7 +15,7 @@ import {
   type TripFilters,
 } from "../repositories/trip.repository";
 import { getActivityLogsByTripId } from "../repositories/activity.repository";
-import { TripStatus, PaymentStatus, PaymentMode, ActivityAction, ActivityEntityType } from "@prisma/client";
+import { TripStatus, PaymentStatus, PaymentMode, ActivityAction, ActivityEntityType, TripOfferStatus } from "@prisma/client";
 
 import { getCustomerById } from "../repositories/customer.repository";
 import { 
@@ -29,6 +29,13 @@ import jwt from "jsonwebtoken";
 import { authConfig } from "../config/authConfig";
 import { findOrCreateCustomer } from "./customer.service";
 import { createTripEarningTransaction } from "./driverTransaction.service";
+import { createDriverTransaction } from "../repositories/driverTransaction.repository";
+import { TransactionType, DriverTransactionType, Prisma } from "@prisma/client";
+import {
+  getDriverEarningsConfigByDriver,
+  getDriverEarningsConfigByFranchise,
+  getDriverEarningsConfig,
+} from "../repositories/earningsConfig.repository";
 import {
   CAR_GEAR_TYPES,
   CAR_TYPE_CATEGORIES,
@@ -1081,6 +1088,7 @@ export async function cancelTrip(tripId: string, input: CancelTripInput) {
   const status =
     input.cancelledBy === "OFFICE" ? "CANCELLED_BY_OFFICE" : "CANCELLED_BY_CUSTOMER";
   const previousDriverId = trip.driverId;
+  const hadDriver = !!previousDriverId;
 
   const updateData: { status: string; driverId?: null; updatedAt: Date } = {
     status,
@@ -1110,10 +1118,104 @@ export async function cancelTrip(tripId: string, input: CancelTripInput) {
       cancelledBy: input.cancelledBy,
       reason: input.reason ?? null,
       previousDriverId: previousDriverId ?? null,
+      hadDriver,
     },
   }).catch((err) => logger.error("Failed to log cancel activity", { error: err }));
 
   return updatedTrip;
+}
+
+/**
+ * Cancel trip by driver after accepting.
+ * This triggers auto-reassignment to find another driver.
+ */
+export async function cancelTripByDriver(tripId: string, driverId: string, reason?: string) {
+  const trip = await repoGetTripById(tripId);
+  if (!trip) {
+    const err: any = new Error(TRIP_ERROR_MESSAGES.TRIP_NOT_FOUND);
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Verify this driver is assigned to the trip
+  if (trip.driverId !== driverId) {
+    const err: any = new Error("You are not assigned to this trip");
+    err.statusCode = 403;
+    throw err;
+  }
+
+  // Driver can only cancel if trip hasn't started yet
+  const allowedStatuses = ["ASSIGNED", "DRIVER_ACCEPTED", "DRIVER_ON_THE_WAY"];
+  if (!allowedStatuses.includes(trip.status)) {
+    const err: any = new Error("Trip cannot be cancelled at this stage");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  logger.info("Driver cancelling trip, triggering reassignment", {
+    tripId,
+    driverId,
+    tripStatus: trip.status,
+    reason,
+  });
+
+  // Reset trip to NOT_ASSIGNED for reassignment
+  await updateTrip(tripId, {
+    status: TripStatus.NOT_ASSIGNED,
+    driverId: null,
+    updatedAt: new Date(),
+  });
+
+  // Reset driver to AVAILABLE
+  await updateDriverTripStatus(driverId, "AVAILABLE");
+
+  // Cancel any active offers
+  await prisma.tripOffer.updateMany({
+    where: {
+      tripId,
+      status: { in: [TripOfferStatus.OFFERED, TripOfferStatus.ACCEPTED] },
+    },
+    data: {
+      status: TripOfferStatus.CANCELLED,
+    },
+  });
+
+  // Log activity
+  logActivity({
+    action: ActivityAction.TRIP_CANCELLED,
+    entityType: ActivityEntityType.TRIP,
+    entityId: tripId,
+    franchiseId: trip.franchiseId,
+    driverId,
+    tripId,
+    userId: null,
+    description: `Driver ${driverId} cancelled trip ${tripId} after accepting`,
+    metadata: {
+      tripId,
+      driverId,
+      cancelledBy: "DRIVER",
+      reason: reason ?? "Driver cancelled",
+      previousStatus: trip.status,
+      willReassign: true,
+    },
+  }).catch((err) => logger.error("Failed to log driver cancel activity", { error: err }));
+
+  // Import dynamically to avoid circular dependency
+  const { tripDispatchService } = await import("./tripDispatch.service");
+  
+  // Trigger reassignment
+  await tripDispatchService.startDispatchForTrip(tripId);
+
+  logger.info("Trip cancelled by driver, reassignment initiated", {
+    tripId,
+    driverId,
+  });
+
+  return {
+    success: true,
+    message: "Trip cancelled and reassignment initiated",
+    tripId,
+  };
 }
 
 export interface ReassignDriverInput {
@@ -1519,6 +1621,47 @@ export async function verifyAndStartTrip(input: VerifyStartTripInput) {
   // Update driver trip status to ON_TRIP
   await updateDriverTripStatus(decoded.driverId, "ON_TRIP");
 
+  // Check for late report penalty (if trip was scheduled)
+  if (trip.scheduledAt) {
+    try {
+      const delayMinutes = (now.getTime() - trip.scheduledAt.getTime()) / 60000;
+      
+      // Import penalty repository
+      const { default: penaltyRepository } = await import('../repositories/penalty.repository');
+      
+      // Find late report penalty
+      const lateReportPenalty = await penaltyRepository.findByTriggerType('LATE_REPORT');
+      
+      if (lateReportPenalty && lateReportPenalty.isActive) {
+        const triggerConfig = lateReportPenalty.triggerConfig as any;
+        const delayThreshold = triggerConfig?.delayMinutes || 5;
+        
+        if (delayMinutes > delayThreshold) {
+          // Import deduction service
+          const { default: deductionService } = await import('./deduction.service');
+          const { Decimal } = await import('@prisma/client/runtime/library');
+          
+          logger.warn(
+            `Late report detected: Trip ${tripId}, Driver ${decoded.driverId}, Delay: ${delayMinutes.toFixed(1)} minutes`
+          );
+          
+          // Apply late report penalty
+          await deductionService.applyDeduction({
+            penaltyId: lateReportPenalty.id,
+            driverId: decoded.driverId,
+            amount: lateReportPenalty.amount,
+            reason: `Trip started ${Math.floor(delayMinutes)} minutes late (scheduled at ${trip.scheduledAt.toLocaleString()})`,
+            tripId: trip.id,
+            appliedBy: decoded.driverId, // Self-applied by driver action
+          });
+        }
+      }
+    } catch (error) {
+      // Log error but don't fail trip start
+      logger.error(`Error checking late report penalty: ${error}`);
+    }
+  }
+
   // Log activity (non-blocking)
   logActivity({
     action: ActivityAction.TRIP_STARTED,
@@ -1666,6 +1809,104 @@ export async function initiateEndTrip(input: InitiateEndTripInput) {
       : "OTP generated. Customer email not available. Please verify with token and OTP to end trip.",
     emailSent: !!trip.customerEmail,
   };
+}
+
+/**
+ * Get driver earnings config with priority: driver > franchise > global
+ */
+async function getDriverEarningsConfigWithPriority(driverId: string, franchiseId: string) {
+  // Check driver-specific config
+  let config = await getDriverEarningsConfigByDriver(driverId);
+  if (config) {
+    logger.info("Using driver-specific earnings config", { driverId });
+    return config;
+  }
+
+  // Check franchise-specific config
+  config = await getDriverEarningsConfigByFranchise(franchiseId);
+  if (config) {
+    logger.info("Using franchise-specific earnings config", { franchiseId });
+    return config;
+  }
+
+  // Use global config
+  config = await getDriverEarningsConfig();
+  if (config) {
+    logger.info("Using global earnings config");
+    return config;
+  }
+
+  // Return default config if none found
+  logger.warn("No earnings config found, using defaults");
+  return {
+    dailyTargetDefault: 1250,
+    incentiveTier1Min: 1250,
+    incentiveTier1Max: 1550,
+    incentiveTier1Type: "full_extra",
+    incentiveTier2Min: 1550,
+    incentiveTier2Percent: 20,
+  };
+}
+
+/**
+ * Calculate today's total earnings for a driver
+ */
+async function calculateTodayEarnings(driverId: string): Promise<number> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const trips = await prisma.trip.findMany({
+    where: {
+      driverId,
+      status: TripStatus.COMPLETED,
+      completedAt: {
+        gte: today,
+        lt: tomorrow,
+      },
+    },
+    select: {
+      totalAmount: true,
+    },
+  });
+
+  const total = trips.reduce((sum, trip) => sum + trip.totalAmount, 0);
+  logger.info("Calculated today's earnings", { driverId, total, tripCount: trips.length });
+  return total;
+}
+
+/**
+ * Calculate daily incentive based on earnings config
+ */
+function calculateDailyIncentive(todayEarnings: number, config: any): number {
+  const dailyTarget = config.dailyTargetDefault || 1250;
+  const tier1Max = config.incentiveTier1Max || 1550;
+  const tier2Percent = config.incentiveTier2Percent || 20;
+
+  let incentive = 0;
+
+  if (todayEarnings < dailyTarget) {
+    // Below target, no incentive
+    incentive = 0;
+  } else if (todayEarnings <= tier1Max) {
+    // Between target and tier1Max: full extra
+    incentive = todayEarnings - dailyTarget;
+  } else {
+    // Above tier1Max: percentage of total earnings
+    incentive = todayEarnings * (tier2Percent / 100);
+  }
+
+  logger.info("Calculated daily incentive", {
+    todayEarnings,
+    dailyTarget,
+    tier1Max,
+    tier2Percent,
+    incentive,
+  });
+
+  return Math.round(incentive * 100) / 100; // Round to 2 decimal places
 }
 
 /**
@@ -1835,6 +2076,99 @@ export async function verifyAndEndTrip(input: VerifyEndTripInput) {
     endOtp: null, // Clear OTP after successful verification
     status: TripStatus.TRIP_PROGRESS, // Keep trip in progress until payment is verified
   });
+
+  // Create driver transactions and update incentives
+  try {
+    // 1. Create trip earning transaction
+    await createDriverTransaction({
+      driverId: trip.driverId!,
+      amount: calculatedAmount,
+      transactionType: TransactionType.CREDIT,
+      type: DriverTransactionType.TRIP,
+      tripId: trip.id,
+      description: `Trip earning for ${tripType}`,
+    });
+
+    logger.info("Created trip earning transaction", {
+      driverId: trip.driverId,
+      amount: calculatedAmount,
+      tripId: trip.id,
+    });
+
+    // 2. Update remaining daily limit
+    const driver = await getDriverById(trip.driverId!);
+    if (driver && driver.remainingDailyLimit !== null) {
+      const currentLimit = Number(driver.remainingDailyLimit);
+      let newLimit = 0;
+
+      if (currentLimit > 0) {
+        if (currentLimit >= calculatedAmount) {
+          newLimit = currentLimit - calculatedAmount;
+        } else {
+          newLimit = 0;
+        }
+      }
+
+      await prisma.driver.update({
+        where: { id: driver.id },
+        data: {
+          remainingDailyLimit: newLimit,
+        },
+      });
+
+      logger.info("Updated remaining daily limit", {
+        driverId: driver.id,
+        previousLimit: currentLimit,
+        newLimit,
+        tripAmount: calculatedAmount,
+      });
+    }
+
+    // 3. Calculate and update daily incentive
+    const todayEarnings = await calculateTodayEarnings(trip.driverId!);
+    const earningsConfig = await getDriverEarningsConfigWithPriority(
+      trip.driverId!,
+      trip.franchiseId
+    );
+    const incentive = calculateDailyIncentive(todayEarnings, earningsConfig);
+
+    // Update driver's incentive field
+    await prisma.driver.update({
+      where: { id: trip.driverId! },
+      data: {
+        incentive: incentive,
+      },
+    });
+
+    logger.info("Updated driver incentive", {
+      driverId: trip.driverId,
+      todayEarnings,
+      incentive,
+    });
+
+    // 4. Create incentive transaction if incentive > 0
+    if (incentive > 0) {
+      await createDriverTransaction({
+        driverId: trip.driverId!,
+        amount: incentive,
+        transactionType: TransactionType.CREDIT,
+        type: DriverTransactionType.GIFT,
+        description: "Daily incentive",
+      });
+
+      logger.info("Created incentive transaction", {
+        driverId: trip.driverId,
+        amount: incentive,
+      });
+    }
+  } catch (transactionError) {
+    logger.error("Failed to create driver transactions or update incentive", {
+      error: transactionError instanceof Error ? transactionError.message : String(transactionError),
+      tripId,
+      driverId: trip.driverId,
+    });
+    // Continue execution - don't fail the trip end if transaction creation fails
+  }
 
   // Return calculated values with detailed breakdown
   return {
@@ -2753,8 +3087,7 @@ export async function createTripPhase1(input: CreateTripPhase1Input) {
       name: {
         equals: normalizedInputTripType,
         mode: 'insensitive'
-      },
-      status: 'ACTIVE'
+      }
     }
   });
 

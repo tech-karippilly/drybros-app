@@ -52,7 +52,7 @@ export async function getWarningByIdHandler(
 ) {
   try {
     const id = req.params.id;
-    const warning = await getWarning(id);
+    const warning = await getWarning(String(id));
     res.json({ data: warning });
   } catch (err) {
     next(err);
@@ -66,7 +66,7 @@ export async function deleteWarningHandler(
 ) {
   try {
     const id = req.params.id;
-    const result = await deleteWarning(id);
+    const result = await deleteWarning(String(id));
     res.json(result);
   } catch (err) {
     next(err);

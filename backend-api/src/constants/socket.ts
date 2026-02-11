@@ -23,6 +23,14 @@ export const SOCKET_EVENTS = {
   TRIP_ACCEPTED_BY_DRIVER: "trip_accepted_by_driver",
   TRIP_REJECTED_BY_DRIVER: "trip_rejected_by_driver",
 
+  // Online status events
+  STAFF_STATUS_CHANGED: "staff:status-changed",
+  DRIVER_STATUS_CHANGED: "driver:status-changed",
+  ONLINE_STAFF_LIST: "online:staff-list",
+  ONLINE_DRIVERS_LIST: "online:drivers-list",
+  GET_ONLINE_STAFF: "/online/staff",
+  GET_ONLINE_DRIVERS: "/online/drivers",
+
   // Activity log events
   ACTIVITY_LOG_CREATED: "activity_log_created",
   ACTIVITY_LOG_UPDATED: "activity_log_updated",

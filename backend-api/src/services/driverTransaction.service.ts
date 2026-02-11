@@ -14,7 +14,7 @@ import { NotFoundError, BadRequestError } from "../utils/errors";
 import { getDriverById } from "../repositories/driver.repository";
 import { getTripById } from "../repositories/trip.repository";
 import { reduceRemainingDailyLimit } from "../repositories/driver.repository";
-import { calculateAndSaveDailyMetrics } from "./driver-daily-metrics.service";
+import { calculateAndSaveDriverDailyMetrics } from "./driver-daily-metrics.service";
 import logger from "../config/logger";
 
 export interface CreateTransactionDTO {
@@ -106,7 +106,7 @@ export async function createTransaction(data: CreateTransactionDTO) {
       // Update daily metrics and calculate incentive
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      await calculateAndSaveDailyMetrics(data.driverId, today);
+      await calculateAndSaveDriverDailyMetrics(data.driverId, today);
       logger.info("Daily metrics updated for driver", {
         driverId: data.driverId,
         date: today.toISOString(),

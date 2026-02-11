@@ -49,6 +49,8 @@ export interface TimeSlab {
 
 // Request DTOs (matching backend structure)
 export interface CreateTripTypeRequest {
+    name: string; // Trip type name (required)
+    description?: string; // Optional description
     carCategory: CarType; // NORMAL, PREMIUM, LUXURY, SPORTS
     type: PricingMode; // TIME, DISTANCE, or SLAB
     
@@ -69,6 +71,8 @@ export interface CreateTripTypeRequest {
 }
 
 export interface UpdateTripTypeRequest {
+    name?: string;
+    description?: string;
     baseAmount?: number;
     baseHour?: number;
     baseDistance?: number;
@@ -82,6 +86,8 @@ export interface UpdateTripTypeRequest {
 // Response DTOs (matching backend structure)
 export interface TripTypeResponse {
     id: string;
+    name: string;
+    description?: string | null;
     type: PricingMode; // TIME, DISTANCE, or SLAB
     carCategory: CarType; // NORMAL, PREMIUM, LUXURY, SPORTS
     
@@ -143,6 +149,19 @@ export async function getTripTypeListPaginated(
         { params: { page, limit } }
     );
     return response.data;
+}
+
+/**
+ * Get trip types filtered by car category
+ */
+export async function getTripTypesByCarCategory(
+    carCategory: CarType
+): Promise<TripTypeResponse[]> {
+    const response = await api.get<TripTypeListResponse>(
+        TRIP_TYPE_ENDPOINTS.BASE,
+        { params: { carCategory } }
+    );
+    return response.data.data;
 }
 
 /**

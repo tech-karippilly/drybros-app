@@ -83,3 +83,47 @@ export async function updateTripOfferStatus(
   });
 }
 
+/**
+ * Get count of all offer attempts for a trip (regardless of status).
+ * Used to enforce max attempt limits.
+ */
+export async function getTripOfferAttemptCount(tripId: string): Promise<number> {
+  return prisma.tripOffer.count({
+    where: { tripId },
+  });
+}
+
+/**
+ * Get list of all driver IDs who have been offered this trip.
+ * Useful for exclusion logic and reporting.
+ */
+export async function getTripOfferedDriverIds(tripId: string): Promise<string[]> {
+  const offers = await prisma.tripOffer.findMany({
+    where: { tripId },
+    select: { driverId: true },
+    distinct: ['driverId'],
+  });
+  return offers.map((o) => o.driverId);
+}
+
+/**
+ * Get detailed offer attempt history for a trip.
+ * Useful for debugging and admin dashboards.
+ */
+export async function getTripOfferHistory(tripId: string) {
+  return prisma.tripOffer.findMany({
+    where: { tripId },
+    include: {
+      Driver: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          driverCode: true,
+          currentRating: true,
+        },
+      },
+    },
+    orderBy: { offeredAt: 'asc' },
+  });
+}

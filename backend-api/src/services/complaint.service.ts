@@ -104,6 +104,94 @@ export async function createComplaint(
     await incrementDriverComplaintCount(input.driverId).catch((err) => {
       logger.error("Failed to increment driver complaint count", { error: err });
     });
+
+    // Check for 3 complaints block trigger
+    try {
+      const driver = await getDriverById(input.driverId);
+      if (driver && driver.complaintCount >= 3 && driver.status !== 'BLOCKED') {
+        // Import penalty repository and deduction service
+        const { default: penaltyRepository } = await import('../repositories/penalty.repository');
+        const { default: deductionService } = await import('./deduction.service');
+        
+        // Find three complaints penalty
+        const threeComplaintsPenalty = await penaltyRepository.findByTriggerType('THREE_COMPLAINTS');
+        
+        if (threeComplaintsPenalty && threeComplaintsPenalty.isActive) {
+          logger.warn(
+            `Three complaints threshold reached: Driver ${driver.driverCode} (${driver.id}), Total complaints: ${driver.complaintCount}`
+          );
+          
+          // Get recent complaints for email notification
+          const recentComplaints = await getAllComplaints({ driverId: input.driverId });
+          const last3Complaints = recentComplaints.slice(0, 3).map((c: any) => ({
+            title: c.title,
+            createdAt: c.createdAt,
+            status: c.status,
+          }));
+          
+          // Block the driver
+          await deductionService.blockDriver(
+            input.driverId,
+            `Automatic block: ${driver.complaintCount} complaints received`,
+            reportedBy || 'system'
+          );
+          
+          // Apply penalty if amount > 0
+          if (threeComplaintsPenalty.amount > 0) {
+            await deductionService.applyDeduction({
+              penaltyId: threeComplaintsPenalty.id,
+              driverId: input.driverId,
+              amount: threeComplaintsPenalty.amount,
+              reason: `Automatic deduction: ${driver.complaintCount} complaints received`,
+              appliedBy: reportedBy || 'system',
+            });
+          }
+          
+          // Send notifications with complaint history
+          const { sendPenaltyNotificationEmail } = await import('./email.service');
+          const prisma = await import('../config/prismaClient');
+          
+          // Get admin and manager emails
+          const admins = await prisma.default.user.findMany({
+            where: { role: 'ADMIN', isActive: true },
+            select: { email: true },
+          });
+          
+          const managers = await prisma.default.user.findMany({
+            where: { role: 'MANAGER', franchiseId: driver.franchiseId, isActive: true },
+            select: { email: true },
+          });
+          
+          const notificationData = {
+            penalty: threeComplaintsPenalty,
+            driver: {
+              id: driver.id,
+              firstName: driver.firstName,
+              lastName: driver.lastName,
+              driverCode: driver.driverCode,
+              phone: driver.phone,
+              email: driver.email,
+              franchiseId: driver.franchiseId,
+            },
+            amount: threeComplaintsPenalty.amount,
+            reason: `Driver blocked automatically after receiving ${driver.complaintCount} complaints`,
+            timestamp: new Date(),
+            complaints: last3Complaints,
+          };
+          
+          // Send emails (non-blocking)
+          Promise.all([
+            ...admins.map(admin => sendPenaltyNotificationEmail(admin.email, notificationData)),
+            ...managers.map(manager => sendPenaltyNotificationEmail(manager.email, notificationData)),
+          ]).catch(err => {
+            logger.error('Failed to send 3 complaints notification emails', { error: err });
+          });
+        }
+      }
+    } catch (error) {
+      // Log error but don't fail complaint creation
+      logger.error(`Error checking three complaints trigger: ${error}`);
+    }
   }
 
   logger.info("Complaint created", {

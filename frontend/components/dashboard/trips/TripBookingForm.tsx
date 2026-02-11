@@ -4,12 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAppDispatch, useAppSelector } from "@/lib/hooks";
-import { createTripPhase1, assignDriverToTrip } from "@/lib/features/trip/tripApi";
-import {
-    getDriversByFranchises,
-    DriverByFranchiseResponse,
-} from "@/lib/features/drivers/driverApi";
-import { PerformanceBadge } from "@/components/ui/PerformanceBadge";
+import { createTripPhase1 } from "@/lib/features/trip/tripApi";
 import { fetchTripTypesPaginated } from "@/lib/features/tripType/tripTypeSlice";
 import { getTripTypesByCarCategory, CarType } from "@/lib/features/tripType/tripTypeApi";
 import {
@@ -25,12 +20,9 @@ import {
     Calendar,
     Clock,
     Zap,
-    Flag,
     Loader2,
-    UserPlus,
     CheckCircle,
     AlertCircle,
-    Phone,
 } from "lucide-react";
 import {
     CAR_GEAR_TYPES,
@@ -38,7 +30,14 @@ import {
     BOOKING_STRINGS,
 } from "@/lib/constants";
 import { DASHBOARD_ROUTES } from "@/lib/constants/routes";
-import { cn } from "@/lib/utils";
+
+// UI Components
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { TripMap } from "./TripMap";
 
 interface TripBookingFormData {
     customerName: string;
@@ -67,12 +66,6 @@ interface TripBookingFormData {
     isFareDiscussed: boolean;
     isPriceAccepted: boolean;
 }
-
-const inputBaseClass =
-    "form-input w-full rounded-lg text-slate-900 dark:text-white border border-slate-300 dark:border-[#324d67] bg-white dark:bg-[#111a22] focus:border-theme-blue focus:ring-1 focus:ring-theme-blue h-12 placeholder:text-slate-400 dark:placeholder:text-[#526d87] px-4 text-base font-normal";
-const labelClass = "text-slate-700 dark:text-white text-sm font-medium pb-2";
-const sectionTitleClass =
-    "text-slate-900 dark:text-white text-xl font-bold leading-tight tracking-[-0.015em]";
 
 export function TripBookingForm() {
     const router = useRouter();
@@ -112,13 +105,6 @@ export function TripBookingForm() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-    const [createdTripId, setCreatedTripId] = useState<string | null>(null);
-    const [availableDrivers, setAvailableDrivers] = useState<
-        DriverByFranchiseResponse[]
-    >([]);
-    const [loadingDrivers, setLoadingDrivers] = useState(false);
-    const [assigningDriver, setAssigningDriver] = useState<string | null>(null);
-    const [driverAssigned, setDriverAssigned] = useState(false);
     const [franchiseList, setFranchiseList] = useState<FranchiseResponse[]>([]);
     const [loadingFranchises, setLoadingFranchises] = useState(true);
     const [filteredTripTypes, setFilteredTripTypes] = useState<any[]>([]);
@@ -226,7 +212,6 @@ export function TripBookingForm() {
             pickupLocationSearch:
                 placeDetails.name || placeDetails.formattedAddress || "",
             // Only update pickup address when a place was actually selected (has placeId).
-            // If user only typed in Location and blurred, do not overwrite the Address field.
             ...(placeDetails.placeId
                 ? { pickupAddress: placeDetails.formattedAddress || "" }
                 : {}),
@@ -369,7 +354,7 @@ export function TripBookingForm() {
             const response = await createTripPhase1(payload);
             const tripId = response.data.trip.id;
             setSuccess(BOOKING_STRINGS.SUCCESS_CREATED_REDIRECTING_REQUEST_DRIVERS);
-            setCreatedTripId(tripId);
+            
             // Redirect to dedicated Request Drivers screen (Dybros Dispatch style)
             router.push(`${DASHBOARD_ROUTES.REQUEST_DRIVERS}/${tripId}`);
         } catch (err: unknown) {
@@ -384,51 +369,6 @@ export function TripBookingForm() {
         }
     };
 
-    const fetchAvailableDrivers = async (franchiseId: string) => {
-        try {
-            setLoadingDrivers(true);
-            setError(null);
-            const drivers = await getDriversByFranchises(franchiseId);
-            const availableGreenDrivers = drivers.filter(
-                (d) =>
-                    d.availableStatus === "AVAILABLE" &&
-                    d.performanceStatus === "GREEN"
-            );
-            setAvailableDrivers(availableGreenDrivers);
-        } catch (err: unknown) {
-            const ex = err as { response?: { data?: { error?: string } }; message?: string };
-            setError(
-                ex?.response?.data?.error ||
-                    ex?.message ||
-                    "Failed to fetch available drivers"
-            );
-        } finally {
-            setLoadingDrivers(false);
-        }
-    };
-
-    const handleAssignDriver = async (driverId: string) => {
-        if (!createdTripId) return;
-        try {
-            setAssigningDriver(driverId);
-            await assignDriverToTrip(createdTripId, driverId);
-            setDriverAssigned(true);
-            setSuccess("Driver assigned successfully!");
-            setTimeout(() => {
-                resetForm();
-            }, 3000);
-        } catch (err: unknown) {
-            const ex = err as { response?: { data?: { message?: string } }; message?: string };
-            setError(
-                ex?.response?.data?.message ||
-                    ex?.message ||
-                    "Failed to assign driver"
-            );
-        } finally {
-            setAssigningDriver(null);
-        }
-    };
-
     const resetForm = () => {
         setFormData({
             customerName: "",
@@ -438,10 +378,14 @@ export function TripBookingForm() {
             pickupLocation: "",
             pickupLocationSearch: "",
             pickupAddress: "",
+            pickupLat: null,
+            pickupLng: null,
             pickupLocationNote: "",
             destinationLocation: "",
             destinationLocationSearch: "",
             destinationAddress: "",
+            destinationLat: null,
+            destinationLng: null,
             destinationNote: "",
             franchiseId: formData.franchiseId,
             tripType: "",
@@ -453,18 +397,10 @@ export function TripBookingForm() {
             isFareDiscussed: false,
             isPriceAccepted: false,
         });
-        setCreatedTripId(null);
-        setAvailableDrivers([]);
-        setDriverAssigned(false);
         setSuccess(null);
     };
 
-    const handleSkipAssignment = () => {
-        resetForm();
-    };
-
     const handleSaveDraft = () => {
-        // Placeholder: could persist to localStorage or API later
         setSuccess("Draft saved.");
         setTimeout(() => setSuccess(null), 2000);
     };
@@ -479,650 +415,423 @@ export function TripBookingForm() {
     );
 
     return (
-        <div className="max-w-[1200px] mx-auto flex flex-col gap-8 animate-in fade-in duration-500">
-            {/* Breadcrumbs */}
-            <div className="flex flex-wrap gap-2">
-                <Link
-                    href={DASHBOARD_ROUTES.HOME}
-                    className="text-slate-500 dark:text-[#92adc9] text-sm font-medium hover:text-theme-blue"
-                >
-                    {BOOKING_STRINGS.BREADCRUMB_DASHBOARD}
-                </Link>
-                <span className="text-slate-500 dark:text-[#92adc9] text-sm font-medium">
-                    /
-                </span>
-                <Link
-                    href={DASHBOARD_ROUTES.TRIPS}
-                    className="text-slate-500 dark:text-[#92adc9] text-sm font-medium hover:text-theme-blue"
-                >
-                    {BOOKING_STRINGS.BREADCRUMB_TRIPS}
-                </Link>
-                <span className="text-slate-500 dark:text-[#92adc9] text-sm font-medium">
-                    /
-                </span>
-                <span className="text-slate-900 dark:text-white text-sm font-medium">
-                    {BOOKING_STRINGS.BREADCRUMB_BOOK}
-                </span>
-            </div>
-
-            {/* Page Heading */}
-            <div className="flex flex-wrap justify-between items-end gap-3">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-slate-900 dark:text-white text-4xl font-black leading-tight tracking-[-0.033em]">
-                        {BOOKING_STRINGS.PAGE_TITLE}
-                    </h1>
-                    <p className="text-slate-500 dark:text-[#92adc9] text-base font-normal leading-normal">
-                        {BOOKING_STRINGS.PAGE_SUBTITLE}
-                    </p>
+        <div className="max-w-[1400px] mx-auto animate-in fade-in duration-500 pb-20">
+            {/* Breadcrumbs & Heading */}
+            <div className="mb-8">
+                <div className="flex flex-wrap gap-2 mb-2">
+                    <Link href={DASHBOARD_ROUTES.HOME} className="text-muted-foreground text-sm font-medium hover:text-primary">{BOOKING_STRINGS.BREADCRUMB_DASHBOARD}</Link>
+                    <span className="text-muted-foreground text-sm font-medium">/</span>
+                    <Link href={DASHBOARD_ROUTES.TRIPS} className="text-muted-foreground text-sm font-medium hover:text-primary">{BOOKING_STRINGS.BREADCRUMB_TRIPS}</Link>
+                    <span className="text-muted-foreground text-sm font-medium">/</span>
+                    <span className="text-foreground text-sm font-medium">{BOOKING_STRINGS.BREADCRUMB_BOOK}</span>
                 </div>
-                <div className="flex gap-3">
-                    <button
-                        type="button"
-                        onClick={handleSaveDraft}
-                        className="px-5 py-2.5 rounded-lg border border-slate-300 dark:border-[#324d67] text-slate-700 dark:text-white font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                    >
+                <div className="flex flex-wrap justify-between items-end gap-3">
+                    <div className="flex flex-col gap-1">
+                        <h1 className="text-3xl font-bold tracking-tight">{BOOKING_STRINGS.PAGE_TITLE}</h1>
+                        <p className="text-muted-foreground">{BOOKING_STRINGS.PAGE_SUBTITLE}</p>
+                    </div>
+                    <Button variant="outline" onClick={handleSaveDraft}>
                         {BOOKING_STRINGS.SAVE_AS_DRAFT}
-                    </button>
+                    </Button>
                 </div>
             </div>
 
             {error && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <p className="text-sm text-red-600 dark:text-red-400">
-                        {error}
-                    </p>
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg mb-6 flex items-start gap-2">
+                    <AlertCircle className="size-5 text-red-600 mt-0.5" />
+                    <p className="text-sm text-red-600 font-medium">{error}</p>
                 </div>
             )}
             {success && (
-                <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                    <p className="text-sm text-green-600 dark:text-green-400">
-                        {success}
-                    </p>
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg mb-6 flex items-start gap-2">
+                    <CheckCircle className="size-5 text-green-600 mt-0.5" />
+                    <p className="text-sm text-green-600 font-medium">{success}</p>
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-8">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Left Column: Customer & Car Details */}
-                    <div className="flex flex-col gap-8">
-                        {/* Customer Information */}
-                        <section className="bg-white dark:bg-[#192633] rounded-xl p-6 border border-slate-200 dark:border-[#233648] shadow-sm">
-                            <div className="flex items-center gap-2 mb-6">
-                                <User className="size-5 text-theme-blue" />
-                                <h2 className={sectionTitleClass}>
+            <form onSubmit={handleSubmit} className="relative">
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                    {/* Left Side: Form Sections */}
+                    <div className="xl:col-span-8 flex flex-col gap-6">
+                        {/* Customer Details Card */}
+                        <Card>
+                            <CardHeader className="pb-4">
+                                <CardTitle className="flex items-center gap-2 text-lg">
+                                    <User className="size-5 text-primary" />
                                     {BOOKING_STRINGS.CUSTOMER_INFO}
-                                </h2>
-                            </div>
-                            <div className="flex flex-col gap-5">
-                                <label className="flex flex-col">
-                                    <p className={labelClass}>
-                                        {BOOKING_STRINGS.CUSTOMER_FULL_NAME}
-                                    </p>
-                                    <input
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="customerName">
+                                        {BOOKING_STRINGS.CUSTOMER_FULL_NAME} <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Input
+                                        id="customerName"
                                         required
-                                        type="text"
                                         name="customerName"
                                         value={formData.customerName}
                                         onChange={handleChange}
-                                        placeholder={
-                                            BOOKING_STRINGS.CUSTOMER_FULL_NAME_PLACEHOLDER
-                                        }
-                                        className={inputBaseClass}
+                                        placeholder={BOOKING_STRINGS.CUSTOMER_FULL_NAME_PLACEHOLDER}
                                         disabled={isSubmitting}
                                     />
-                                </label>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <label className="flex flex-col">
-                                        <p className={labelClass}>
-                                            {BOOKING_STRINGS.PHONE_NUMBER}
-                                        </p>
-                                        <input
-                                            required
-                                            type="tel"
-                                            name="customerPhone"
-                                            value={formData.customerPhone}
-                                            onChange={handleChange}
-                                            placeholder={
-                                                BOOKING_STRINGS.PHONE_PLACEHOLDER
-                                            }
-                                            className={inputBaseClass}
-                                            disabled={isSubmitting}
-                                        />
-                                    </label>
-                                    <label className="flex flex-col">
-                                        <p className={labelClass}>
-                                            {BOOKING_STRINGS.EMAIL_ADDRESS}
-                                        </p>
-                                        <input
-                                            type="email"
-                                            name="customerEmail"
-                                            value={formData.customerEmail}
-                                            onChange={handleChange}
-                                            placeholder={
-                                                BOOKING_STRINGS.EMAIL_PLACEHOLDER
-                                            }
-                                            className={inputBaseClass}
-                                            disabled={isSubmitting}
-                                        />
-                                    </label>
                                 </div>
-                            </div>
-                        </section>
-
-                        {/* Car Details */}
-                        <section className="bg-white dark:bg-[#192633] rounded-xl p-6 border border-slate-200 dark:border-[#233648] shadow-sm">
-                            <div className="flex items-center gap-2 mb-6">
-                                <Car className="size-5 text-theme-blue" />
-                                <h2 className={sectionTitleClass}>
-                                    {BOOKING_STRINGS.CAR_DETAILS}
-                                </h2>
-                            </div>
-                            <div className="flex flex-col gap-5">
-                                <label className="flex flex-col">
-                                    <p className={labelClass}>
-                                        {BOOKING_STRINGS.CAR_MODEL_NAME}
-                                    </p>
-                                    <input
-                                        type="text"
-                                        name="carModel"
-                                        value={formData.carModel}
+                                <div className="space-y-2">
+                                    <Label htmlFor="customerPhone">
+                                        {BOOKING_STRINGS.PHONE_NUMBER} <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Input
+                                        id="customerPhone"
+                                        required
+                                        type="tel"
+                                        name="customerPhone"
+                                        value={formData.customerPhone}
                                         onChange={handleChange}
-                                        placeholder={
-                                            BOOKING_STRINGS.CAR_MODEL_PLACEHOLDER
-                                        }
-                                        className={inputBaseClass}
+                                        placeholder={BOOKING_STRINGS.PHONE_PLACEHOLDER}
                                         disabled={isSubmitting}
                                     />
-                                </label>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <label className="flex flex-col">
-                                        <p className={labelClass}>
-                                            {BOOKING_STRINGS.TRANSMISSION_TYPE}
-                                        </p>
-                                        <select
-                                            name="carGearType"
-                                            value={formData.carGearType}
-                                            onChange={handleChange}
-                                            className={inputBaseClass}
-                                            disabled={isSubmitting}
-                                        >
-                                            <option value={CAR_GEAR_TYPES.AUTOMATIC}>
-                                                {BOOKING_STRINGS.TRANSMISSION_AUTOMATIC}
-                                            </option>
-                                            <option value={CAR_GEAR_TYPES.MANUAL}>
-                                                {BOOKING_STRINGS.TRANSMISSION_MANUAL}
-                                            </option>
-                                            <option value={CAR_GEAR_TYPES.EV}>
-                                                {BOOKING_STRINGS.TRANSMISSION_EV}
-                                            </option>
-                                        </select>
-                                    </label>
-                                    <div className="flex flex-col">
-                                        <p className={labelClass}>
-                                            {BOOKING_STRINGS.VEHICLE_CATEGORY}
-                                        </p>
-                                        <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 dark:bg-[#111a22] rounded-lg border border-slate-300 dark:border-[#324d67]">
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    setFormData((prev) => ({
-                                                        ...prev,
-                                                        carType: CAR_TYPE_CATEGORIES.NORMAL,
-                                                    }))
-                                                }
-                                                className={cn(
-                                                    "py-2 px-3 rounded-md text-sm font-medium transition-all",
-                                                    formData.carType === CAR_TYPE_CATEGORIES.NORMAL
-                                                        ? "bg-white dark:bg-theme-blue text-theme-blue dark:text-white shadow-sm font-bold"
-                                                        : "text-slate-500 dark:text-[#92adc9] hover:bg-white/10"
-                                                )}
-                                            >
-                                                {BOOKING_STRINGS.VEHICLE_NORMAL}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    setFormData((prev) => ({
-                                                        ...prev,
-                                                        carType: CAR_TYPE_CATEGORIES.PREMIUM,
-                                                    }))
-                                                }
-                                                className={cn(
-                                                    "py-2 px-3 rounded-md text-sm font-medium transition-all",
-                                                    formData.carType === CAR_TYPE_CATEGORIES.PREMIUM
-                                                        ? "bg-white dark:bg-theme-blue text-theme-blue dark:text-white shadow-sm font-bold"
-                                                        : "text-slate-500 dark:text-[#92adc9] hover:bg-white/10"
-                                                )}
-                                            >
-                                                {BOOKING_STRINGS.VEHICLE_PREMIUM}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    setFormData((prev) => ({
-                                                        ...prev,
-                                                        carType: CAR_TYPE_CATEGORIES.LUXURY,
-                                                    }))
-                                                }
-                                                className={cn(
-                                                    "py-2 px-3 rounded-md text-sm font-medium transition-all",
-                                                    formData.carType === CAR_TYPE_CATEGORIES.LUXURY
-                                                        ? "bg-white dark:bg-theme-blue text-theme-blue dark:text-white shadow-sm font-bold"
-                                                        : "text-slate-500 dark:text-[#92adc9] hover:bg-white/10"
-                                                )}
-                                            >
-                                                {BOOKING_STRINGS.VEHICLE_LUXURY}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    setFormData((prev) => ({
-                                                        ...prev,
-                                                        carType: CAR_TYPE_CATEGORIES.SPORTS,
-                                                    }))
-                                                }
-                                                className={cn(
-                                                    "py-2 px-3 rounded-md text-sm font-medium transition-all",
-                                                    formData.carType === CAR_TYPE_CATEGORIES.SPORTS
-                                                        ? "bg-white dark:bg-theme-blue text-theme-blue dark:text-white shadow-sm font-bold"
-                                                        : "text-slate-500 dark:text-[#92adc9] hover:bg-white/10"
-                                                )}
-                                            >
-                                                {BOOKING_STRINGS.VEHICLE_SPORTS}
-                                            </button>
-                                        </div>
-                                    </div>
                                 </div>
-                            </div>
-                        </section>
-                    </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="customerEmail">{BOOKING_STRINGS.EMAIL_ADDRESS}</Label>
+                                    <Input
+                                        id="customerEmail"
+                                        type="email"
+                                        name="customerEmail"
+                                        value={formData.customerEmail}
+                                        onChange={handleChange}
+                                        placeholder={BOOKING_STRINGS.EMAIL_PLACEHOLDER}
+                                        disabled={isSubmitting}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="alternatePhone">{BOOKING_STRINGS.ALTERNATE_PHONE}</Label>
+                                    <Input
+                                        id="alternatePhone"
+                                        type="tel"
+                                        name="alternatePhone"
+                                        placeholder="Alternate Phone"
+                                        disabled={isSubmitting}
+                                    />
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                    {/* Right Column: Trip Logistics */}
-                    <div className="flex flex-col gap-8">
-                        <section className="bg-white dark:bg-[#192633] rounded-xl p-6 border border-slate-200 dark:border-[#233648] shadow-sm flex flex-col h-full">
-                            <div className="flex items-center gap-2 mb-6">
-                                <MapPin className="size-5 text-theme-blue" />
-                                <h2 className={sectionTitleClass}>
-                                    {BOOKING_STRINGS.TRIP_LOGISTICS}
-                                </h2>
-                            </div>
-                            <div className="flex flex-col gap-6">
-                                {/* Pickup */}
-                                <div className="relative pl-8 border-l-2 border-dashed border-theme-blue/30">
-                                    <div className="absolute -left-[11px] top-0 bg-theme-blue text-white rounded-full p-1 leading-[0]">
-                                        <MapPin className="size-3.5" />
+                        {/* Trip Route Card (Timeline Style) */}
+                        <Card>
+                            <CardHeader className="pb-4">
+                                <CardTitle className="flex items-center gap-2 text-lg">
+                                    <MapPin className="size-5 text-primary" />
+                                    {BOOKING_STRINGS.TRIP_ROUTE}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-6 relative">
+                                {/* Visual Timeline Line */}
+                                <div className="absolute left-[23px] top-[2.5rem] bottom-[5rem] w-0.5 bg-muted-foreground/30 border-l border-dashed border-muted-foreground/50 z-0 hidden md:block" />
+
+                                {/* Pickup Section */}
+                                <div className="grid md:grid-cols-[48px_1fr] gap-4 relative">
+                                    <div className="hidden md:flex flex-col items-center pt-2 z-10">
+                                        <div className="size-3 rounded-full bg-green-500 ring-4 ring-background" />
                                     </div>
-                                    <div className="flex flex-col gap-4">
-                                        <label className="flex flex-col">
-                                            <p className={labelClass}>
-                                                {BOOKING_STRINGS.LOCATION}
-                                            </p>
+                                    <div className="space-y-4">
+                                        <div className="space-y-2">
+                                            <Label className="text-green-600 font-semibold flex items-center gap-2 md:hidden">
+                                                <div className="size-2 rounded-full bg-green-500" />
+                                                {BOOKING_STRINGS.LOCATION} (Pickup) <span className="text-red-500">*</span>
+                                            </Label>
+                                            <Label className="hidden md:block">
+                                                {BOOKING_STRINGS.LOCATION} (Pickup) <span className="text-red-500">*</span>
+                                            </Label>
                                             <PlacesAutocomplete
                                                 value={formData.pickupLocationSearch}
                                                 onChange={handlePickupPlaceSelect}
-                                                placeholder={
-                                                    BOOKING_STRINGS.LOCATION_PLACEHOLDER_PICKUP
-                                                }
+                                                placeholder={BOOKING_STRINGS.LOCATION_PLACEHOLDER_PICKUP}
                                                 required
                                                 disabled={isSubmitting}
-                                                onError={(err) => setError(err)}
-                                                className={cn(
-                                                    inputBaseClass,
-                                                    "pl-10"
-                                                )}
+                                                onError={setError}
                                             />
-                                        </label>
-                                        <label className="flex flex-col">
-                                            <p className={labelClass}>
-                                                {BOOKING_STRINGS.PICKUP_ADDRESS}
-                                            </p>
-                                            <input
-                                                type="text"
-                                                name="pickupAddress"
-                                                value={formData.pickupAddress}
-                                                onChange={handleChange}
-                                                placeholder={
-                                                    BOOKING_STRINGS.PICKUP_ADDRESS_PLACEHOLDER
-                                                }
-                                                required
-                                                className={inputBaseClass}
-                                                disabled={isSubmitting}
-                                            />
-                                        </label>
-                                        <label className="flex flex-col">
-                                            <p className={labelClass}>
-                                                {BOOKING_STRINGS.NOTE_SPECIAL_INSTRUCTIONS}
-                                            </p>
-                                            <input
-                                                type="text"
-                                                name="pickupLocationNote"
-                                                value={formData.pickupLocationNote}
-                                                onChange={handleChange}
-                                                placeholder={
-                                                    BOOKING_STRINGS.NOTE_PICKUP_PLACEHOLDER
-                                                }
-                                                className={inputBaseClass}
-                                                disabled={isSubmitting}
-                                            />
-                                        </label>
-                                    </div>
-                                </div>
-                                {/* Destination */}
-                                <div className="relative pl-8">
-                                    <div className="absolute -left-[11px] top-0 bg-slate-400 dark:bg-slate-600 text-white rounded-full p-1 leading-[0]">
-                                        <Flag className="size-3.5" />
-                                    </div>
-                                    <div className="flex flex-col gap-4">
-                                        <label className="flex flex-col">
-                                            <p className={labelClass}>
-                                                {BOOKING_STRINGS.LOCATION}
-                                            </p>
-                                            <PlacesAutocomplete
-                                                value={formData.destinationLocationSearch}
-                                                onChange={handleDestinationPlaceSelect}
-                                                placeholder={
-                                                    BOOKING_STRINGS.LOCATION_PLACEHOLDER_DESTINATION
-                                                }
-                                                required
-                                                disabled={isSubmitting}
-                                                onError={(err) => setError(err)}
-                                                className={cn(
-                                                    inputBaseClass,
-                                                    "pl-10"
-                                                )}
-                                            />
-                                        </label>
-                                        <label className="flex flex-col">
-                                            <p className={labelClass}>
-                                                {BOOKING_STRINGS.DESTINATION_ADDRESS}
-                                            </p>
-                                            <input
-                                                type="text"
-                                                name="destinationAddress"
-                                                value={formData.destinationAddress}
-                                                onChange={handleChange}
-                                                placeholder={
-                                                    BOOKING_STRINGS.DESTINATION_ADDRESS_PLACEHOLDER
-                                                }
-                                                required
-                                                className={inputBaseClass}
-                                                disabled={isSubmitting}
-                                            />
-                                        </label>
-                                        <label className="flex flex-col">
-                                            <p className={labelClass}>
-                                                {BOOKING_STRINGS.NOTE_SPECIAL_INSTRUCTIONS}
-                                            </p>
-                                            <input
-                                                type="text"
-                                                name="destinationNote"
-                                                value={formData.destinationNote}
-                                                onChange={handleChange}
-                                                placeholder={
-                                                    BOOKING_STRINGS.NOTE_DESTINATION_PLACEHOLDER
-                                                }
-                                                className={inputBaseClass}
-                                                disabled={isSubmitting}
-                                            />
-                                        </label>
-                                    </div>
-                                </div>
-                                {/* Mini Map Preview */}
-                                <div className="mt-4 rounded-lg overflow-hidden border border-slate-200 dark:border-[#324d67] h-40 relative group">
-                                    <div className="absolute inset-0 bg-slate-200 dark:bg-slate-800 flex items-center justify-center bg-center bg-cover">
-                                        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
-                                        <span className="relative z-10 px-4 py-2 bg-white/90 dark:bg-[#111a22]/90 rounded-full text-xs font-bold shadow-lg">
-                                            {BOOKING_STRINGS.MAP_PREVIEW}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-                    </div>
-                </div>
-
-                {/* Operational Details */}
-                <section className="bg-white dark:bg-[#192633] rounded-xl p-6 border border-slate-200 dark:border-[#233648] shadow-sm">
-                    <div className="flex items-center gap-2 mb-6">
-                        <Settings className="size-5 text-theme-blue" />
-                        <h2 className={sectionTitleClass}>
-                            {BOOKING_STRINGS.OPERATIONAL_DETAILS}
-                        </h2>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <label className="flex flex-col">
-                            <p className={labelClass}>
-                                {BOOKING_STRINGS.FRANCHISE_OFFICE}
-                            </p>
-                            <select
-                                required
-                                name="franchiseId"
-                                value={formData.franchiseId}
-                                onChange={handleChange}
-                                className={inputBaseClass}
-                                disabled={isSubmitting || loadingFranchises}
-                            >
-                                <option value="">
-                                    {loadingFranchises
-                                        ? BOOKING_STRINGS.LOADING_FRANCHISES
-                                        : BOOKING_STRINGS.SELECT_FRANCHISE}
-                                </option>
-                                {activeFranchises.map((f) => (
-                                    <option key={f.id} value={f.id}>
-                                        {f.code} - {f.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                        <label className="flex flex-col">
-                            <p className={labelClass}>
-                                {BOOKING_STRINGS.TRIP_TYPE}
-                            </p>
-                            <select
-                                required
-                                name="tripType"
-                                value={formData.tripType}
-                                onChange={handleChange}
-                                className={inputBaseClass}
-                                disabled={isSubmitting || loadingTripTypes}
-                            >
-                                <option value="">
-                                    {loadingTripTypes 
-                                        ? "Loading trip types..." 
-                                        : BOOKING_STRINGS.SELECT_TRIP_TYPE}
-                                </option>
-                                {filteredTripTypes.map((t) => (
-                                    <option key={t.id} value={t.name}>
-                                        {t.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                        <label className="flex flex-col">
-                            <p className={labelClass}>
-                                {BOOKING_STRINGS.SCHEDULED_DATE}
-                            </p>
-                            <div className="relative">
-                                <Calendar className="absolute right-3 top-3 size-4 text-slate-400 pointer-events-none" />
-                                <input
-                                    required
-                                    type="date"
-                                    name="tripDate"
-                                    value={formData.tripDate}
-                                    onChange={handleChange}
-                                    min={new Date().toISOString().split("T")[0]}
-                                    className={inputBaseClass}
-                                    disabled={isSubmitting}
-                                />
-                            </div>
-                        </label>
-                        <label className="flex flex-col">
-                            <p className={labelClass}>
-                                {BOOKING_STRINGS.SCHEDULED_TIME}
-                            </p>
-                            <div className="relative">
-                                <Clock className="absolute right-3 top-3 size-4 text-slate-400 pointer-events-none" />
-                                <input
-                                    required
-                                    type="time"
-                                    name="tripTime"
-                                    value={formData.tripTime}
-                                    onChange={handleChange}
-                                    className={inputBaseClass}
-                                    disabled={isSubmitting}
-                                />
-                            </div>
-                        </label>
-                    </div>
-                </section>
-
-                {/* Form Footer */}
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 py-6 border-t border-slate-200 dark:border-[#233648]">
-                    <label className="flex items-center gap-3 cursor-pointer group">
-                        <input
-                            type="checkbox"
-                            name="isDetailsReconfirmed"
-                            checked={formData.isDetailsReconfirmed}
-                            onChange={handleChange}
-                            className="w-5 h-5 rounded border-slate-300 dark:border-[#324d67] bg-transparent text-theme-blue focus:ring-theme-blue focus:ring-offset-background-dark"
-                        />
-                        <span className="text-slate-700 dark:text-white text-sm font-medium group-hover:text-theme-blue transition-colors">
-                            {BOOKING_STRINGS.DETAILS_RECONFIRMED}
-                        </span>
-                    </label>
-                    <div className="flex gap-3 w-full sm:w-auto">
-                        <button
-                            type="button"
-                            onClick={resetForm}
-                            className="flex-1 sm:flex-none px-5 py-2.5 rounded-lg bg-slate-200 dark:bg-[#233648] text-slate-700 dark:text-white font-semibold text-sm hover:bg-slate-300 dark:hover:bg-[#324d67] transition-all"
-                        >
-                            {BOOKING_STRINGS.CANCEL}
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className="flex-1 sm:flex-none px-5 py-2.5 rounded-lg bg-theme-blue text-white font-semibold text-sm hover:brightness-110 shadow-md shadow-theme-blue/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {isSubmitting ? (
-                                <>
-                                    <Loader2 className="size-4 animate-spin" />
-                                    {BOOKING_STRINGS.CREATING}
-                                </>
-                            ) : (
-                                <>
-                                    <Zap className="size-4" />
-                                    {BOOKING_STRINGS.BOOK_TRIP_NOW}
-                                </>
-                            )}
-                        </button>
-                    </div>
-                </div>
-            </form>
-
-            {/* Driver Assignment (after trip created) */}
-            {createdTripId && !driverAssigned && (
-                <div className="bg-white dark:bg-[#192633] rounded-xl border border-slate-200 dark:border-[#233648] shadow-sm p-6 animate-in fade-in duration-500">
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                <UserPlus className="size-6 text-theme-blue" />
-                                Assign Driver to Trip
-                            </h3>
-                            <p className="text-sm text-slate-500 dark:text-[#92adc9] mt-1">
-                                Select a driver from the selected franchise
-                            </p>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={handleSkipAssignment}
-                            className="px-4 py-2 text-sm text-slate-500 dark:text-[#92adc9] hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#324d67] rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
-                        >
-                            Skip for Now
-                        </button>
-                    </div>
-                    {loadingDrivers ? (
-                        <div className="text-center py-12">
-                            <Loader2 className="size-8 animate-spin text-theme-blue mx-auto mb-4" />
-                            <p className="text-slate-500 dark:text-[#92adc9]">
-                                Loading available drivers...
-                            </p>
-                        </div>
-                    ) : availableDrivers.length === 0 ? (
-                        <div className="text-center py-12">
-                            <AlertCircle className="size-8 text-slate-400 mx-auto mb-4" />
-                            <p className="text-slate-600 dark:text-slate-300 font-medium">
-                                No active drivers available in this franchise
-                            </p>
-                            <p className="text-sm text-slate-500 dark:text-[#92adc9] mt-2">
-                                You can assign a driver later from the unassigned
-                                trips list
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {availableDrivers.map((driver) => (
-                                <div
-                                    key={driver.id}
-                                    className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-[#233648] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                >
-                                    <div className="flex items-center gap-4 flex-1">
-                                        <PerformanceBadge
-                                            category={driver.performanceStatus}
-                                            size="sm"
-                                        />
-                                        <div className="flex-1">
-                                            <p className="font-medium text-sm text-slate-900 dark:text-white">
-                                                {driver.name}
-                                            </p>
-                                            <div className="flex items-center gap-3 mt-1">
-                                                <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-[#92adc9]">
-                                                    <Phone className="size-3" />
-                                                    {driver.phone}
-                                                </span>
+                                        </div>
+                                        <div className="grid md:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="pickupAddress">
+                                                    {BOOKING_STRINGS.PICKUP_ADDRESS} <span className="text-red-500">*</span>
+                                                </Label>
+                                                <Input
+                                                    id="pickupAddress"
+                                                    name="pickupAddress"
+                                                    value={formData.pickupAddress}
+                                                    onChange={handleChange}
+                                                    placeholder={BOOKING_STRINGS.PICKUP_ADDRESS_PLACEHOLDER}
+                                                    required
+                                                    disabled={isSubmitting}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="pickupLocationNote">{BOOKING_STRINGS.NOTE_SPECIAL_INSTRUCTIONS}</Label>
+                                                <Input
+                                                    id="pickupLocationNote"
+                                                    name="pickupLocationNote"
+                                                    value={formData.pickupLocationNote}
+                                                    onChange={handleChange}
+                                                    placeholder={BOOKING_STRINGS.NOTE_PICKUP_PLACEHOLDER}
+                                                    disabled={isSubmitting}
+                                                />
                                             </div>
                                         </div>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleAssignDriver(driver.id)}
-                                        disabled={assigningDriver === driver.id}
-                                        className="px-4 py-2 bg-theme-blue text-white rounded-lg text-sm font-medium hover:bg-theme-blue/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-                                    >
-                                        {assigningDriver === driver.id ? (
-                                            <>
-                                                <Loader2 className="size-4 animate-spin" />
-                                                Assigning...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <CheckCircle className="size-4" />
-                                                Assign
-                                            </>
-                                        )}
-                                    </button>
                                 </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
 
-            {driverAssigned && (
-                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-6">
-                    <div className="flex items-center gap-3">
-                        <CheckCircle className="text-green-600 dark:text-green-400 size-6" />
-                        <div>
-                            <p className="text-green-800 dark:text-green-300 font-bold">
-                                Driver assigned successfully!
-                            </p>
-                            <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                                The trip has been created and assigned to the
-                                selected driver.
-                            </p>
+                                {/* Destination Section */}
+                                <div className="grid md:grid-cols-[48px_1fr] gap-4 relative">
+                                    <div className="hidden md:flex flex-col items-center pt-2 z-10">
+                                        <div className="size-3 rounded-none rotate-45 bg-red-500 ring-4 ring-background" />
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="space-y-2">
+                                            <Label className="text-red-600 font-semibold flex items-center gap-2 md:hidden">
+                                                <div className="size-2 rounded-none rotate-45 bg-red-500" />
+                                                {BOOKING_STRINGS.LOCATION} (Destination) <span className="text-red-500">*</span>
+                                            </Label>
+                                            <Label className="hidden md:block">
+                                                {BOOKING_STRINGS.LOCATION} (Destination) <span className="text-red-500">*</span>
+                                            </Label>
+                                            <PlacesAutocomplete
+                                                value={formData.destinationLocationSearch}
+                                                onChange={handleDestinationPlaceSelect}
+                                                placeholder={BOOKING_STRINGS.LOCATION_PLACEHOLDER_DESTINATION}
+                                                required
+                                                disabled={isSubmitting}
+                                                onError={setError}
+                                            />
+                                        </div>
+                                        <div className="grid md:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="destinationAddress">
+                                                    {BOOKING_STRINGS.DESTINATION_ADDRESS} <span className="text-red-500">*</span>
+                                                </Label>
+                                                <Input
+                                                    id="destinationAddress"
+                                                    name="destinationAddress"
+                                                    value={formData.destinationAddress}
+                                                    onChange={handleChange}
+                                                    placeholder={BOOKING_STRINGS.DESTINATION_ADDRESS_PLACEHOLDER}
+                                                    required
+                                                    disabled={isSubmitting}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="destinationNote">{BOOKING_STRINGS.NOTE_SPECIAL_INSTRUCTIONS}</Label>
+                                                <Input
+                                                    id="destinationNote"
+                                                    name="destinationNote"
+                                                    value={formData.destinationNote}
+                                                    onChange={handleChange}
+                                                    placeholder={BOOKING_STRINGS.NOTE_DESTINATION_PLACEHOLDER}
+                                                    disabled={isSubmitting}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Car Details Card */}
+                        <Card>
+                            <CardHeader className="pb-4">
+                                <CardTitle className="flex items-center gap-2 text-lg">
+                                    <Car className="size-5 text-primary" />
+                                    {BOOKING_STRINGS.CAR_DETAILS}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid md:grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="carModel">{BOOKING_STRINGS.CAR_MODEL_NAME}</Label>
+                                    <Input
+                                        id="carModel"
+                                        name="carModel"
+                                        value={formData.carModel}
+                                        onChange={handleChange}
+                                        placeholder={BOOKING_STRINGS.CAR_MODEL_PLACEHOLDER}
+                                        disabled={isSubmitting}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="carGearType">{BOOKING_STRINGS.TRANSMISSION_TYPE}</Label>
+                                    <Select
+                                        id="carGearType"
+                                        name="carGearType"
+                                        value={formData.carGearType}
+                                        onChange={handleChange}
+                                        disabled={isSubmitting}
+                                    >
+                                        <option value={CAR_GEAR_TYPES.AUTOMATIC}>{BOOKING_STRINGS.TRANSMISSION_AUTOMATIC}</option>
+                                        <option value={CAR_GEAR_TYPES.MANUAL}>{BOOKING_STRINGS.TRANSMISSION_MANUAL}</option>
+                                        <option value={CAR_GEAR_TYPES.EV}>{BOOKING_STRINGS.TRANSMISSION_EV}</option>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="carType">{BOOKING_STRINGS.VEHICLE_CATEGORY}</Label>
+                                    <Select
+                                        id="carType"
+                                        name="carType"
+                                        value={formData.carType}
+                                        onChange={handleChange}
+                                        disabled={isSubmitting}
+                                    >
+                                        <option value={CAR_TYPE_CATEGORIES.NORMAL}>{BOOKING_STRINGS.VEHICLE_NORMAL}</option>
+                                        <option value={CAR_TYPE_CATEGORIES.PREMIUM}>{BOOKING_STRINGS.VEHICLE_PREMIUM}</option>
+                                        <option value={CAR_TYPE_CATEGORIES.LUXURY}>{BOOKING_STRINGS.VEHICLE_LUXURY}</option>
+                                        <option value={CAR_TYPE_CATEGORIES.SPORTS}>{BOOKING_STRINGS.VEHICLE_SPORTS}</option>
+                                    </Select>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Operation Details Card */}
+                        <Card>
+                            <CardHeader className="pb-4">
+                                <CardTitle className="flex items-center gap-2 text-lg">
+                                    <Settings className="size-5 text-primary" />
+                                    {BOOKING_STRINGS.OPERATIONAL_DETAILS}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="franchiseId">
+                                        {BOOKING_STRINGS.FRANCHISE_OFFICE} <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Select
+                                        id="franchiseId"
+                                        required
+                                        name="franchiseId"
+                                        value={formData.franchiseId}
+                                        onChange={handleChange}
+                                        disabled={isSubmitting || loadingFranchises}
+                                    >
+                                        <option value="">{loadingFranchises ? BOOKING_STRINGS.LOADING_FRANCHISES : BOOKING_STRINGS.SELECT_FRANCHISE}</option>
+                                        {activeFranchises.map((f) => (<option key={f.id} value={f.id}>{f.code} - {f.name}</option>))}
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="tripType">
+                                        {BOOKING_STRINGS.TRIP_TYPE} <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Select
+                                        id="tripType"
+                                        required
+                                        name="tripType"
+                                        value={formData.tripType}
+                                        onChange={handleChange}
+                                        disabled={isSubmitting || loadingTripTypes}
+                                    >
+                                        <option value="">{loadingTripTypes ? "Loading trip types..." : BOOKING_STRINGS.SELECT_TRIP_TYPE}</option>
+                                        {filteredTripTypes.map((t) => (<option key={t.id} value={t.name}>{t.name}</option>))}
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="tripDate">
+                                        {BOOKING_STRINGS.SCHEDULED_DATE} <span className="text-red-500">*</span>
+                                    </Label>
+                                    <div className="relative">
+                                        <Input
+                                            id="tripDate"
+                                            required
+                                            type="date"
+                                            name="tripDate"
+                                            value={formData.tripDate}
+                                            onChange={handleChange}
+                                            min={new Date().toISOString().split("T")[0]}
+                                            disabled={isSubmitting}
+                                        />
+                                        <Calendar className="absolute right-3 top-2.5 size-4 text-muted-foreground pointer-events-none" />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="tripTime">
+                                        {BOOKING_STRINGS.SCHEDULED_TIME} <span className="text-red-500">*</span>
+                                    </Label>
+                                    <div className="relative">
+                                        <Input
+                                            id="tripTime"
+                                            required
+                                            type="time"
+                                            name="tripTime"
+                                            value={formData.tripTime}
+                                            onChange={handleChange}
+                                            disabled={isSubmitting}
+                                        />
+                                        <Clock className="absolute right-3 top-2.5 size-4 text-muted-foreground pointer-events-none" />
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Confirmation Flags */}
+                        <div className="flex justify-end">
+                            <label className="flex items-center gap-3 cursor-pointer p-4 rounded-lg hover:bg-muted/50 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    name="isDetailsReconfirmed"
+                                    checked={formData.isDetailsReconfirmed}
+                                    onChange={handleChange}
+                                    className="w-5 h-5 rounded border-input bg-background text-primary focus:ring-primary"
+                                />
+                                <span className="text-sm font-medium">{BOOKING_STRINGS.DETAILS_RECONFIRMED}</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    {/* Right Side: Map Preview + Summary */}
+                    <div className="xl:col-span-4">
+                        <div className="sticky top-6 space-y-6">
+                             <Card className="overflow-hidden">
+                                <div className="w-full h-[400px] bg-muted/20">
+                                    {(formData.pickupLat && formData.pickupLng && formData.destinationLat && formData.destinationLng) ? (
+                                        <TripMap
+                                            pickupLat={formData.pickupLat}
+                                            pickupLng={formData.pickupLng}
+                                            dropLat={formData.destinationLat}
+                                            dropLng={formData.destinationLng}
+                                            pickupLocation={formData.pickupAddress || formData.pickupLocationSearch}
+                                            dropLocation={formData.destinationAddress || formData.destinationLocationSearch}
+                                        />
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+                                            <MapPin className="size-8 opacity-20" />
+                                            <span className="text-sm font-medium">{BOOKING_STRINGS.MAP_PREVIEW}</span>
+                                            <p className="text-xs text-center px-6 opacity-60">Enter pickup and destination locations to view the route on map</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </Card>
                         </div>
                     </div>
                 </div>
-            )}
+
+                {/* Sticky Bottom Action Bar */}
+                <div className="fixed bottom-0 left-0 lg:left-64 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4 flex justify-end gap-4 z-40 shadow-[0_-1px_10px_rgba(0,0,0,0.05)]">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={resetForm}
+                        disabled={isSubmitting}
+                    >
+                        {BOOKING_STRINGS.CANCEL}
+                    </Button>
+                    <Button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="min-w-[140px]"
+                    >
+                        {isSubmitting ? (
+                            <><Loader2 className="mr-2 size-4 animate-spin" />{BOOKING_STRINGS.CREATING}</>
+                        ) : (
+                            <><Zap className="mr-2 size-4" />{BOOKING_STRINGS.BOOK_TRIP_NOW}</>
+                        )}
+                    </Button>
+                </div>
+            </form>
         </div>
     );
 }

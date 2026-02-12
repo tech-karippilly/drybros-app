@@ -17,12 +17,13 @@ import {
     Car,
     MapPin,
     Settings,
-    Calendar,
-    Clock,
     Zap,
     Loader2,
     CheckCircle,
     AlertCircle,
+    ChevronRight,
+    Navigation,
+    Flag,
 } from "lucide-react";
 import {
     CAR_GEAR_TYPES,
@@ -74,6 +75,17 @@ export function TripBookingForm() {
     const { list: tripTypes } = useAppSelector((state) => state.tripType);
     const { user } = useAppSelector((state) => state.auth);
 
+    // Get current date and time
+    const getCurrentDate = () => {
+        const now = new Date();
+        return now.toISOString().split("T")[0];
+    };
+
+    const getCurrentTime = () => {
+        const now = new Date();
+        return now.toTimeString().slice(0, 5);
+    };
+
     const [formData, setFormData] = useState<TripBookingFormData>({
         customerName: "",
         customerPhone: "",
@@ -95,8 +107,8 @@ export function TripBookingForm() {
         tripType: "",
         carGearType: CAR_GEAR_TYPES.AUTOMATIC,
         carType: CAR_TYPE_CATEGORIES.NORMAL,
-        tripDate: "",
-        tripTime: "",
+        tripDate: getCurrentDate(),
+        tripTime: getCurrentTime(),
         isDetailsReconfirmed: false,
         isFareDiscussed: false,
         isPriceAccepted: false,
@@ -211,10 +223,6 @@ export function TripBookingForm() {
             pickupLocation: placeDetails.placeId || "",
             pickupLocationSearch:
                 placeDetails.name || placeDetails.formattedAddress || "",
-            // Only update pickup address when a place was actually selected (has placeId).
-            ...(placeDetails.placeId
-                ? { pickupAddress: placeDetails.formattedAddress || "" }
-                : {}),
             // set geometry if available
             ...(placeDetails.geometry && placeDetails.geometry.location
                 ? { pickupLat: placeDetails.geometry.location.lat, pickupLng: placeDetails.geometry.location.lng }
@@ -230,10 +238,6 @@ export function TripBookingForm() {
             destinationLocation: placeDetails.placeId || "",
             destinationLocationSearch:
                 placeDetails.name || placeDetails.formattedAddress || "",
-            // Only update destination address when a place was actually selected (has placeId).
-            ...(placeDetails.placeId
-                ? { destinationAddress: placeDetails.formattedAddress || "" }
-                : {}),
             ...(placeDetails.geometry && placeDetails.geometry.location
                 ? { destinationLat: placeDetails.geometry.location.lat, destinationLng: placeDetails.geometry.location.lng }
                 : {}),
@@ -391,8 +395,8 @@ export function TripBookingForm() {
             tripType: "",
             carGearType: CAR_GEAR_TYPES.AUTOMATIC,
             carType: CAR_TYPE_CATEGORIES.NORMAL,
-            tripDate: "",
-            tripTime: "",
+            tripDate: getCurrentDate(),
+            tripTime: getCurrentTime(),
             isDetailsReconfirmed: false,
             isFareDiscussed: false,
             isPriceAccepted: false,
@@ -415,46 +419,45 @@ export function TripBookingForm() {
     );
 
     return (
-        <div className="max-w-[1400px] mx-auto animate-in fade-in duration-500 pb-20">
-            {/* Breadcrumbs & Heading */}
-            <div className="mb-8">
-                <div className="flex flex-wrap gap-2 mb-2">
-                    <Link href={DASHBOARD_ROUTES.HOME} className="text-muted-foreground text-sm font-medium hover:text-primary">{BOOKING_STRINGS.BREADCRUMB_DASHBOARD}</Link>
-                    <span className="text-muted-foreground text-sm font-medium">/</span>
-                    <Link href={DASHBOARD_ROUTES.TRIPS} className="text-muted-foreground text-sm font-medium hover:text-primary">{BOOKING_STRINGS.BREADCRUMB_TRIPS}</Link>
-                    <span className="text-muted-foreground text-sm font-medium">/</span>
-                    <span className="text-foreground text-sm font-medium">{BOOKING_STRINGS.BREADCRUMB_BOOK}</span>
+        <div className="max-w-[1400px] mx-auto animate-in fade-in duration-700 pb-24">
+            {/* Simple Header */}
+            <div className="mb-6">
+                <div className="flex items-center gap-2 mb-2 text-muted-foreground">
+                    <Link href={DASHBOARD_ROUTES.HOME} className="text-sm hover:text-foreground transition-colors">{BOOKING_STRINGS.BREADCRUMB_DASHBOARD}</Link>
+                    <ChevronRight className="size-4" />
+                    <Link href={DASHBOARD_ROUTES.TRIPS} className="text-sm hover:text-foreground transition-colors">{BOOKING_STRINGS.BREADCRUMB_TRIPS}</Link>
+                    <ChevronRight className="size-4" />
+                    <span className="text-sm font-medium text-foreground">{BOOKING_STRINGS.BREADCRUMB_BOOK}</span>
                 </div>
-                <div className="flex flex-wrap justify-between items-end gap-3">
-                    <div className="flex flex-col gap-1">
-                        <h1 className="text-3xl font-bold tracking-tight">{BOOKING_STRINGS.PAGE_TITLE}</h1>
-                        <p className="text-muted-foreground">{BOOKING_STRINGS.PAGE_SUBTITLE}</p>
-                    </div>
-                    <Button variant="outline" onClick={handleSaveDraft}>
-                        {BOOKING_STRINGS.SAVE_AS_DRAFT}
-                    </Button>
-                </div>
+                <h1 className="text-2xl font-bold">{BOOKING_STRINGS.PAGE_TITLE}</h1>
+                <p className="text-muted-foreground">{BOOKING_STRINGS.PAGE_SUBTITLE}</p>
             </div>
 
             {error && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg mb-6 flex items-start gap-2">
-                    <AlertCircle className="size-5 text-red-600 mt-0.5" />
-                    <p className="text-sm text-red-600 font-medium">{error}</p>
+                <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg mb-6 flex items-start gap-3 shadow-sm animate-in slide-in-from-top-2">
+                    <div className="p-1 bg-red-100 rounded-full">
+                        <AlertCircle className="size-4 text-red-600" />
+                    </div>
+                    <p className="text-sm text-red-700 font-medium">{error}</p>
                 </div>
             )}
             {success && (
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg mb-6 flex items-start gap-2">
-                    <CheckCircle className="size-5 text-green-600 mt-0.5" />
-                    <p className="text-sm text-green-600 font-medium">{success}</p>
+                <div className="p-4 bg-green-50 border-l-4 border-green-500 rounded-r-lg mb-6 flex items-start gap-3 shadow-sm animate-in slide-in-from-top-2">
+                    <div className="p-1 bg-green-100 rounded-full">
+                        <CheckCircle className="size-4 text-green-600" />
+                    </div>
+                    <p className="text-sm text-green-700 font-medium">{success}</p>
                 </div>
             )}
+
+
 
             <form onSubmit={handleSubmit} className="relative">
                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
                     {/* Left Side: Form Sections */}
                     <div className="xl:col-span-8 flex flex-col gap-6">
                         {/* Customer Details Card */}
-                        <Card>
+                        <Card className="border-0 shadow-sm">
                             <CardHeader className="pb-4">
                                 <CardTitle className="flex items-center gap-2 text-lg">
                                     <User className="size-5 text-primary" />
@@ -516,128 +519,137 @@ export function TripBookingForm() {
                             </CardContent>
                         </Card>
 
-                        {/* Trip Route Card (Timeline Style) */}
-                        <Card>
+                        {/* Trip Route Card */}
+                        <Card className="border-0 shadow-sm">
                             <CardHeader className="pb-4">
                                 <CardTitle className="flex items-center gap-2 text-lg">
                                     <MapPin className="size-5 text-primary" />
                                     {BOOKING_STRINGS.TRIP_ROUTE}
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-6 relative">
-                                {/* Visual Timeline Line */}
-                                <div className="absolute left-[23px] top-[2.5rem] bottom-[5rem] w-0.5 bg-muted-foreground/30 border-l border-dashed border-muted-foreground/50 z-0 hidden md:block" />
-
+                            <CardContent className="space-y-6">
                                 {/* Pickup Section */}
-                                <div className="grid md:grid-cols-[48px_1fr] gap-4 relative">
-                                    <div className="hidden md:flex flex-col items-center pt-2 z-10">
-                                        <div className="size-3 rounded-full bg-green-500 ring-4 ring-background" />
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 text-green-600 font-medium">
+                                        <Navigation className="size-4" />
+                                        Pickup Location
                                     </div>
-                                    <div className="space-y-4">
-                                        <div className="space-y-2">
-                                            <Label className="text-green-600 font-semibold flex items-center gap-2 md:hidden">
-                                                <div className="size-2 rounded-full bg-green-500" />
-                                                {BOOKING_STRINGS.LOCATION} (Pickup) <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Label className="hidden md:block">
-                                                {BOOKING_STRINGS.LOCATION} (Pickup) <span className="text-red-500">*</span>
-                                            </Label>
-                                            <PlacesAutocomplete
-                                                value={formData.pickupLocationSearch}
-                                                onChange={handlePickupPlaceSelect}
-                                                placeholder={BOOKING_STRINGS.LOCATION_PLACEHOLDER_PICKUP}
-                                                required
-                                                disabled={isSubmitting}
-                                                onError={setError}
-                                            />
-                                        </div>
-                                        <div className="grid md:grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="pickupAddress">
-                                                    {BOOKING_STRINGS.PICKUP_ADDRESS} <span className="text-red-500">*</span>
-                                                </Label>
-                                                <Input
-                                                    id="pickupAddress"
-                                                    name="pickupAddress"
-                                                    value={formData.pickupAddress}
-                                                    onChange={handleChange}
-                                                    placeholder={BOOKING_STRINGS.PICKUP_ADDRESS_PLACEHOLDER}
-                                                    required
-                                                    disabled={isSubmitting}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="pickupLocationNote">{BOOKING_STRINGS.NOTE_SPECIAL_INSTRUCTIONS}</Label>
-                                                <Input
-                                                    id="pickupLocationNote"
-                                                    name="pickupLocationNote"
-                                                    value={formData.pickupLocationNote}
-                                                    onChange={handleChange}
-                                                    placeholder={BOOKING_STRINGS.NOTE_PICKUP_PLACEHOLDER}
-                                                    disabled={isSubmitting}
-                                                />
-                                            </div>
-                                        </div>
+                                    
+                                    {/* Pickup Location - For Lat/Lng */}
+                                    <div className="space-y-2">
+                                        <Label>
+                                            Search Location <span className="text-red-500">*</span>
+                                            <span className="text-xs text-muted-foreground font-normal ml-2">(Select to get coordinates)</span>
+                                        </Label>
+                                        <PlacesAutocomplete
+                                            value={formData.pickupLocationSearch}
+                                            onChange={handlePickupPlaceSelect}
+                                            placeholder="Search for pickup location..."
+                                            required
+                                            disabled={isSubmitting}
+                                            onError={setError}
+                                        />
+                                    </div>
+                                    
+                                    {/* Pickup Address */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="pickupAddress">
+                                            Address <span className="text-red-500">*</span>
+                                        </Label>
+                                        <Input
+                                            id="pickupAddress"
+                                            name="pickupAddress"
+                                            value={formData.pickupAddress}
+                                            onChange={handleChange}
+                                            placeholder="Enter complete address"
+                                            required
+                                            disabled={isSubmitting}
+                                        />
+                                    </div>
+                                    
+                                    {/* Pickup Notes - Textarea */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="pickupLocationNote">
+                                            Location Details
+                                            <span className="text-xs text-muted-foreground font-normal ml-2">(Landmarks, building name, floor, etc.)</span>
+                                        </Label>
+                                        <textarea
+                                            id="pickupLocationNote"
+                                            name="pickupLocationNote"
+                                            value={formData.pickupLocationNote}
+                                            onChange={handleChange}
+                                            placeholder="e.g., Near HDFC Bank, 3rd Floor, Opposite City Mall..."
+                                            disabled={isSubmitting}
+                                            rows={3}
+                                            className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                                        />
                                     </div>
                                 </div>
 
+                                <div className="h-px bg-border" />
+
                                 {/* Destination Section */}
-                                <div className="grid md:grid-cols-[48px_1fr] gap-4 relative">
-                                    <div className="hidden md:flex flex-col items-center pt-2 z-10">
-                                        <div className="size-3 rounded-none rotate-45 bg-red-500 ring-4 ring-background" />
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 text-red-600 font-medium">
+                                        <Flag className="size-4" />
+                                        Destination Location
                                     </div>
-                                    <div className="space-y-4">
-                                        <div className="space-y-2">
-                                            <Label className="text-red-600 font-semibold flex items-center gap-2 md:hidden">
-                                                <div className="size-2 rounded-none rotate-45 bg-red-500" />
-                                                {BOOKING_STRINGS.LOCATION} (Destination) <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Label className="hidden md:block">
-                                                {BOOKING_STRINGS.LOCATION} (Destination) <span className="text-red-500">*</span>
-                                            </Label>
-                                            <PlacesAutocomplete
-                                                value={formData.destinationLocationSearch}
-                                                onChange={handleDestinationPlaceSelect}
-                                                placeholder={BOOKING_STRINGS.LOCATION_PLACEHOLDER_DESTINATION}
-                                                required
-                                                disabled={isSubmitting}
-                                                onError={setError}
-                                            />
-                                        </div>
-                                        <div className="grid md:grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="destinationAddress">
-                                                    {BOOKING_STRINGS.DESTINATION_ADDRESS} <span className="text-red-500">*</span>
-                                                </Label>
-                                                <Input
-                                                    id="destinationAddress"
-                                                    name="destinationAddress"
-                                                    value={formData.destinationAddress}
-                                                    onChange={handleChange}
-                                                    placeholder={BOOKING_STRINGS.DESTINATION_ADDRESS_PLACEHOLDER}
-                                                    required
-                                                    disabled={isSubmitting}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="destinationNote">{BOOKING_STRINGS.NOTE_SPECIAL_INSTRUCTIONS}</Label>
-                                                <Input
-                                                    id="destinationNote"
-                                                    name="destinationNote"
-                                                    value={formData.destinationNote}
-                                                    onChange={handleChange}
-                                                    placeholder={BOOKING_STRINGS.NOTE_DESTINATION_PLACEHOLDER}
-                                                    disabled={isSubmitting}
-                                                />
-                                            </div>
-                                        </div>
+                                    
+                                    {/* Destination Location - For Lat/Lng */}
+                                    <div className="space-y-2">
+                                        <Label>
+                                            Search Location <span className="text-red-500">*</span>
+                                            <span className="text-xs text-muted-foreground font-normal ml-2">(Select to get coordinates)</span>
+                                        </Label>
+                                        <PlacesAutocomplete
+                                            value={formData.destinationLocationSearch}
+                                            onChange={handleDestinationPlaceSelect}
+                                            placeholder="Search for destination location..."
+                                            required
+                                            disabled={isSubmitting}
+                                            onError={setError}
+                                        />
+                                    </div>
+                                    
+                                    {/* Destination Address */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="destinationAddress">
+                                            Address <span className="text-red-500">*</span>
+                                        </Label>
+                                        <Input
+                                            id="destinationAddress"
+                                            name="destinationAddress"
+                                            value={formData.destinationAddress}
+                                            onChange={handleChange}
+                                            placeholder="Enter complete address"
+                                            required
+                                            disabled={isSubmitting}
+                                        />
+                                    </div>
+                                    
+                                    {/* Destination Notes - Textarea */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="destinationNote">
+                                            Location Details
+                                            <span className="text-xs text-muted-foreground font-normal ml-2">(Landmarks, building name, floor, etc.)</span>
+                                        </Label>
+                                        <textarea
+                                            id="destinationNote"
+                                            name="destinationNote"
+                                            value={formData.destinationNote}
+                                            onChange={handleChange}
+                                            placeholder="e.g., Near HDFC Bank, 3rd Floor, Opposite City Mall..."
+                                            disabled={isSubmitting}
+                                            rows={3}
+                                            className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                                        />
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
 
                         {/* Car Details Card */}
-                        <Card>
+                        <Card className="border-0 shadow-sm">
                             <CardHeader className="pb-4">
                                 <CardTitle className="flex items-center gap-2 text-lg">
                                     <Car className="size-5 text-primary" />
@@ -689,7 +701,7 @@ export function TripBookingForm() {
                         </Card>
 
                         {/* Operation Details Card */}
-                        <Card>
+                        <Card className="border-0 shadow-sm">
                             <CardHeader className="pb-4">
                                 <CardTitle className="flex items-center gap-2 text-lg">
                                     <Settings className="size-5 text-primary" />
@@ -733,41 +745,37 @@ export function TripBookingForm() {
                                     <Label htmlFor="tripDate">
                                         {BOOKING_STRINGS.SCHEDULED_DATE} <span className="text-red-500">*</span>
                                     </Label>
-                                    <div className="relative">
-                                        <Input
-                                            id="tripDate"
-                                            required
-                                            type="date"
-                                            name="tripDate"
-                                            value={formData.tripDate}
-                                            onChange={handleChange}
-                                            min={new Date().toISOString().split("T")[0]}
-                                            disabled={isSubmitting}
-                                        />
-                                        <Calendar className="absolute right-3 top-2.5 size-4 text-muted-foreground pointer-events-none" />
-                                    </div>
+                                    <input
+                                        id="tripDate"
+                                        required
+                                        type="date"
+                                        name="tripDate"
+                                        value={formData.tripDate}
+                                        onChange={handleChange}
+                                        min={new Date().toISOString().split("T")[0]}
+                                        disabled={isSubmitting}
+                                        className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="tripTime">
                                         {BOOKING_STRINGS.SCHEDULED_TIME} <span className="text-red-500">*</span>
                                     </Label>
-                                    <div className="relative">
-                                        <Input
-                                            id="tripTime"
-                                            required
-                                            type="time"
-                                            name="tripTime"
-                                            value={formData.tripTime}
-                                            onChange={handleChange}
-                                            disabled={isSubmitting}
-                                        />
-                                        <Clock className="absolute right-3 top-2.5 size-4 text-muted-foreground pointer-events-none" />
-                                    </div>
+                                    <input
+                                        id="tripTime"
+                                        required
+                                        type="time"
+                                        name="tripTime"
+                                        value={formData.tripTime}
+                                        onChange={handleChange}
+                                        disabled={isSubmitting}
+                                        className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    />
                                 </div>
                             </CardContent>
                         </Card>
 
-                        {/* Confirmation Flags */}
+                        {/* Confirmation */}
                         <div className="flex justify-end">
                             <label className="flex items-center gap-3 cursor-pointer p-4 rounded-lg hover:bg-muted/50 transition-colors">
                                 <input
@@ -782,35 +790,70 @@ export function TripBookingForm() {
                         </div>
                     </div>
 
-                    {/* Right Side: Map Preview + Summary */}
+                    {/* Right Side: Map Preview */}
                     <div className="xl:col-span-4">
-                        <div className="sticky top-6 space-y-6">
-                             <Card className="overflow-hidden">
-                                <div className="w-full h-[400px] bg-muted/20">
-                                    {(formData.pickupLat && formData.pickupLng && formData.destinationLat && formData.destinationLng) ? (
-                                        <TripMap
-                                            pickupLat={formData.pickupLat}
-                                            pickupLng={formData.pickupLng}
-                                            dropLat={formData.destinationLat}
-                                            dropLng={formData.destinationLng}
-                                            pickupLocation={formData.pickupAddress || formData.pickupLocationSearch}
-                                            dropLocation={formData.destinationAddress || formData.destinationLocationSearch}
-                                        />
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
-                                            <MapPin className="size-8 opacity-20" />
-                                            <span className="text-sm font-medium">{BOOKING_STRINGS.MAP_PREVIEW}</span>
-                                            <p className="text-xs text-center px-6 opacity-60">Enter pickup and destination locations to view the route on map</p>
-                                        </div>
-                                    )}
-                                </div>
+                        <div className="sticky top-6 space-y-4">
+                            {/* Map Card */}
+                            <Card className="border-0 shadow-sm">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="flex items-center gap-2 text-base">
+                                        <MapPin className="size-4 text-primary" />
+                                        Route Preview
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-0">
+                                    <div className="w-full h-[300px] bg-muted/20">
+                                        {(formData.pickupLat && formData.pickupLng && formData.destinationLat && formData.destinationLng) ? (
+                                            <TripMap
+                                                pickupLat={formData.pickupLat}
+                                                pickupLng={formData.pickupLng}
+                                                dropLat={formData.destinationLat}
+                                                dropLng={formData.destinationLng}
+                                                pickupLocation={formData.pickupAddress || formData.pickupLocationSearch}
+                                                dropLocation={formData.destinationAddress || formData.destinationLocationSearch}
+                                            />
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground p-6">
+                                                <MapPin className="size-8 opacity-30" />
+                                                <span className="text-sm font-medium">{BOOKING_STRINGS.MAP_PREVIEW}</span>
+                                                <p className="text-xs text-center">Enter pickup and destination locations to view the route</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </CardContent>
                             </Card>
+
+                            {/* Quick Info */}
+                            {(formData.pickupAddress || formData.destinationAddress) && (
+                                <Card className="bg-muted/30 border-0">
+                                    <CardContent className="p-4 space-y-3">
+                                        {formData.pickupAddress && (
+                                            <div className="flex items-start gap-2">
+                                                <Navigation className="size-4 text-green-600 mt-0.5 shrink-0" />
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Pickup</p>
+                                                    <p className="text-sm font-medium line-clamp-2">{formData.pickupAddress}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {formData.destinationAddress && (
+                                            <div className="flex items-start gap-2">
+                                                <Flag className="size-4 text-red-600 mt-0.5 shrink-0" />
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Destination</p>
+                                                    <p className="text-sm font-medium line-clamp-2">{formData.destinationAddress}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            )}
                         </div>
                     </div>
                 </div>
 
                 {/* Sticky Bottom Action Bar */}
-                <div className="fixed bottom-0 left-0 lg:left-64 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4 flex justify-end gap-4 z-40 shadow-[0_-1px_10px_rgba(0,0,0,0.05)]">
+                <div className="fixed bottom-0 left-0 lg:left-64 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4 flex justify-end gap-4 z-40">
                     <Button
                         type="button"
                         variant="outline"

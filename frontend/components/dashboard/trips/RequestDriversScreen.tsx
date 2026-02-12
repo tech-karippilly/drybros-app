@@ -1,17 +1,56 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, CheckCircle, Loader2, Search, Send } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle, Loader2, MapPin, Search, Send, Navigation, CircleDot, CircleOff, RefreshCw, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DASHBOARD_ROUTES } from "@/lib/constants/routes";
 import { REQUEST_DRIVERS_STRINGS } from "@/lib/constants/trips";
-import { getTripById, requestTripDrivers, TripResponse } from "@/lib/features/trip/tripApi";
-import { getDrivers } from "@/lib/features/drivers/driverApi";
+import { getTripById, requestTripDrivers, getAvailableDriversForTrip, TripResponse } from "@/lib/features/trip/tripApi";
 import type { AvailableDriver } from "@/lib/types/driver";
 import { useSocket } from "@/lib/hooks/useSocket";
 import { SOCKET_EVENTS } from "@/lib/constants/socket";
+
+/**
+ * Calculate time remaining for an offer (in seconds)
+ */
+function calculateOfferTimeRemaining(offeredAt: Date): number {
+    const OFFER_TTL_MS = 5 * 60 * 1000; // 5 minutes
+    const elapsed = Date.now() - offeredAt.getTime();
+    const remaining = OFFER_TTL_MS - elapsed;
+    return Math.max(0, Math.ceil(remaining / 1000));
+}
+
+/**
+ * Format time remaining in MM:SS format
+ */
+function formatTimeRemaining(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+/**
+ * Format distance for display
+ */
+function formatDistance(distanceKm: number | null | undefined): string {
+    if (distanceKm === null || distanceKm === undefined) return "Distance unknown";
+    if (distanceKm < 1) {
+        return `${Math.round(distanceKm * 1000)} m away`;
+    }
+    return `${distanceKm.toFixed(1)} km away`;
+}
+
+/**
+ * Get distance color based on proximity
+ */
+function getDistanceColor(distanceKm: number | null | undefined): string {
+    if (distanceKm === null || distanceKm === undefined) return "text-slate-400";
+    if (distanceKm < 2) return "text-green-600 dark:text-green-400";
+    if (distanceKm < 5) return "text-yellow-600 dark:text-yellow-400";
+    return "text-red-600 dark:text-red-400";
+}
 
 interface RequestDriversScreenProps {
     tripId: string;
@@ -43,6 +82,7 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
     const [drivers, setDrivers] = useState<AvailableDriver[]>([]);
     const [loadingTrip, setLoadingTrip] = useState(true);
     const [loadingDrivers, setLoadingDrivers] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [requestingAll, setRequestingAll] = useState(false);
@@ -52,6 +92,12 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
     const [acceptedDriverId, setAcceptedDriverId] = useState<string | null>(null);
     const [tripStatus, setTripStatus] = useState<string | null>(null);
     const [socketConnected, setSocketConnected] = useState(false);
+    const [offeredDriverIds, setOfferedDriverIds] = useState<Map<string, Date>>(new Map());
+    const [autoRedirectTimer, setAutoRedirectTimer] = useState<number | null>(null);
+    const [, setOfferTimerTick] = useState(0); // Force re-render for offer timers
+    const autoRedirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const tripStatusCheckRef = useRef<NodeJS.Timeout | null>(null);
+    const offerTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     // Setup socket connection and listeners
     const { joinRoom, leaveRoom, isConnected, socket } = useSocket({
@@ -103,31 +149,117 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
             console.log("📤 Trip offer sent:", payload);
             if (payload.tripId === tripId) {
                 console.log("Trip offer sent to driver:", payload.driverId);
+                // Track which drivers have been offered
+                setOfferedDriverIds(prev => new Map(prev).set(payload.driverId, new Date(payload.offeredAt)));
             }
         },
     }, [tripId, drivers, router]);
 
+    // Cleanup timers on unmount
     useEffect(() => {
-        let cancelled = false;
-        setLoadingTrip(true);
-        setError(null);
-        getTripById(tripId)
-            .then((data) => {
-                if (!cancelled) setTrip(data);
-            })
-            .catch((err: unknown) => {
-                const ex = err as { response?: { data?: { error?: string } }; message?: string };
-                if (!cancelled) {
-                    setError(ex?.response?.data?.error || ex?.message || REQUEST_DRIVERS_STRINGS.ERROR_LOAD_TRIP);
-                }
-            })
-            .finally(() => {
-                if (!cancelled) setLoadingTrip(false);
-            });
         return () => {
-            cancelled = true;
+            if (autoRedirectTimeoutRef.current) {
+                clearTimeout(autoRedirectTimeoutRef.current);
+            }
+            if (tripStatusCheckRef.current) {
+                clearInterval(tripStatusCheckRef.current);
+            }
+            if (offerTimerRef.current) {
+                clearInterval(offerTimerRef.current);
+            }
         };
-    }, [tripId, drivers]);
+    }, []);
+
+    // Update offer timers every second
+    useEffect(() => {
+        if (offeredDriverIds.size === 0) return;
+
+        offerTimerRef.current = setInterval(() => {
+            setOfferTimerTick(prev => prev + 1);
+        }, 1000);
+
+        return () => {
+            if (offerTimerRef.current) {
+                clearInterval(offerTimerRef.current);
+            }
+        };
+    }, [offeredDriverIds.size]);
+
+    // Background check for trip status every 5 seconds
+    useEffect(() => {
+        if (!tripId || acceptedDriverId) return;
+
+        const checkTripStatus = async () => {
+            try {
+                const tripData = await getTripById(tripId);
+                
+                // Check if trip has been assigned
+                if (tripData.driverId && tripData.status === "ASSIGNED") {
+                    setTripStatus("ASSIGNED");
+                    setSuccess(`✅ Trip assigned to driver!`);
+                    
+                    // Redirect to trip details
+                    setTimeout(() => {
+                        leaveRoom(`trip:${tripId}`);
+                        if (socket) {
+                            socket.disconnect();
+                        }
+                        router.push(`${DASHBOARD_ROUTES.TRIPS}/${tripId}`);
+                    }, 1500);
+                }
+            } catch (err) {
+                console.error("Error checking trip status:", err);
+            }
+        };
+
+        // Check immediately
+        checkTripStatus();
+
+        // Then check every 5 seconds
+        tripStatusCheckRef.current = setInterval(checkTripStatus, 5000);
+
+        return () => {
+            if (tripStatusCheckRef.current) {
+                clearInterval(tripStatusCheckRef.current);
+            }
+        };
+    }, [tripId, acceptedDriverId, router, socket, leaveRoom]);
+
+    // Auto-redirect timeout: if no acceptance in 10 minutes, redirect to manual assign
+    useEffect(() => {
+        if (!tripId || acceptedDriverId) return;
+
+        const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+        const startTime = Date.now();
+
+        // Update countdown every second
+        const countdownInterval = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            const remaining = Math.max(0, TIMEOUT_MS - elapsed);
+            setAutoRedirectTimer(Math.ceil(remaining / 1000));
+
+            if (remaining <= 0) {
+                clearInterval(countdownInterval);
+            }
+        }, 1000);
+
+        // Set timeout for redirect
+        autoRedirectTimeoutRef.current = setTimeout(() => {
+            if (!acceptedDriverId) {
+                setError("⏱️ No driver accepted. Redirecting to manual assignment...");
+                setTimeout(() => {
+                    router.push(`${DASHBOARD_ROUTES.ASSIGN_DRIVER}/${tripId}`);
+                }, 2000);
+            }
+        }, TIMEOUT_MS);
+
+        return () => {
+            clearInterval(countdownInterval);
+            if (autoRedirectTimeoutRef.current) {
+                clearTimeout(autoRedirectTimeoutRef.current);
+            }
+        };
+    }, [tripId, acceptedDriverId, router]);
 
     // Join trip-specific room for real-time updates
     useEffect(() => {
@@ -142,53 +274,78 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
         }
     }, [tripId, joinRoom, leaveRoom]);
 
-    useEffect(() => {
-        if (!trip?.franchiseId) {
-            if (trip && !trip.franchiseId) setLoadingDrivers(false);
+    // Load drivers list
+    const loadDrivers = useCallback(async () => {
+        if (!tripId) {
+            setLoadingDrivers(false);
             return;
         }
-        let cancelled = false;
-        setLoadingDrivers(true);
-        getDrivers({ franchiseId: trip.franchiseId, includePerformance: true })
-            .then((list) => {
-                if (cancelled) return;
-                const mapped: AvailableDriver[] = (list || []).map((d) => {
-                    const perf = (d as { performance?: AvailableDriver["performance"] }).performance;
-                    return {
-                        id: d.id,
-                        firstName: d.firstName ?? "",
-                        lastName: d.lastName ?? "",
-                        phone: d.phone ?? "",
-                        driverCode: d.driverCode ?? "",
-                        status: d.status ?? "",
-                        currentRating: d.currentRating ?? null,
-                        performance: perf ?? {
-                            category: "GREEN" as const,
-                            score: 0,
-                            rating: null,
-                            complaintCount: 0,
-                            totalTrips: 0,
-                            completedTrips: 0,
-                            rejectedTrips: 0, 
-                            completionRate: 0,
-                            rejectionRate: 0,
-                        },
-                        matchScore: 0,
-                        remainingDailyLimit:d.remainingDailyLimit ?? null,
-                    };
-                });
-                setDrivers(mapped);
-            })
-            .catch(() => {
-                if (!cancelled) setDrivers([]);
-            })
-            .finally(() => {
-                if (!cancelled) setLoadingDrivers(false);
+        
+        try {
+            setLoadingDrivers(true);
+            const list = await getAvailableDriversForTrip(tripId);
+            const mapped: AvailableDriver[] = (list || []).map((d: any) => {
+                const perf = d.performance;
+                return {
+                    id: d.id,
+                    firstName: d.firstName ?? "",
+                    lastName: d.lastName ?? "",
+                    phone: d.phone ?? "",
+                    driverCode: d.driverCode ?? "",
+                    status: d.status ?? "",
+                    currentRating: d.currentRating ?? null,
+                    performance: perf ?? {
+                        category: "GREEN" as const,
+                        score: 0,
+                        rating: null,
+                        complaintCount: 0,
+                        totalTrips: 0,
+                        completedTrips: 0,
+                        rejectedTrips: 0, 
+                        completionRate: 0,
+                        rejectionRate: 0,
+                    },
+                    matchScore: d.matchScore ?? 0,
+                    remainingDailyLimit: d.remainingDailyLimit ?? null,
+                    checkedIn: d.checkedIn ?? false,
+                    attendanceStatus: d.attendanceStatus ?? null,
+                    // Distance fields from API
+                    distanceKm: d.distanceKm,
+                    driverLocation: d.driverLocation,
+                    pickupLocation: d.pickupLocation,
+                };
             });
-        return () => {
-            cancelled = true;
-        };
-    }, [trip?.franchiseId]);
+            // Sort by distance (closest first), then by performance
+            mapped.sort((a, b) => {
+                // If both have distance, sort by distance
+                if (a.distanceKm !== null && a.distanceKm !== undefined && 
+                    b.distanceKm !== null && b.distanceKm !== undefined) {
+                    return a.distanceKm - b.distanceKm;
+                }
+                // If only one has distance, prioritize the one with distance
+                if (a.distanceKm !== null && a.distanceKm !== undefined) return -1;
+                if (b.distanceKm !== null && b.distanceKm !== undefined) return 1;
+                // Fall back to performance score
+                return (b.performance?.score ?? 0) - (a.performance?.score ?? 0);
+            });
+            setDrivers(mapped);
+        } catch (err) {
+            setDrivers([]);
+        } finally {
+            setLoadingDrivers(false);
+        }
+    }, [tripId]);
+
+    useEffect(() => {
+        loadDrivers();
+    }, [loadDrivers]);
+
+    // Refresh handler
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        await Promise.all([loadTrip(), loadDrivers()]);
+        setRefreshing(false);
+    };
 
     const filteredDrivers = useMemo(() => {
         if (!searchTerm.trim()) return drivers;
@@ -286,6 +443,27 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
                 </div>
 
                 <div className="flex items-center gap-3">
+                    {/* Auto-redirect timer */}
+                    {autoRedirectTimer !== null && autoRedirectTimer > 0 && !acceptedDriverId && (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm">
+                            <Clock className="size-4 text-amber-600 dark:text-amber-400" />
+                            <span className="text-amber-700 dark:text-amber-300 font-medium">
+                                Auto-redirect in {Math.floor(autoRedirectTimer / 60)}:{String(autoRedirectTimer % 60).padStart(2, '0')}
+                            </span>
+                        </div>
+                    )}
+                    
+                    {/* Refresh button */}
+                    <button
+                        type="button"
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        className="p-2 text-slate-500 dark:text-slate-400 hover:text-theme-blue hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
+                        title="Refresh drivers list"
+                    >
+                        <RefreshCw className={cn("size-5", refreshing && "animate-spin")} />
+                    </button>
+                    
                     <button
                         type="button"
                         onClick={() => router.push(`${DASHBOARD_ROUTES.ASSIGN_DRIVER}/${tripId}`)}
@@ -422,6 +600,9 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
                                 const isRejected = rejectedDriverIds.has(driver.id);
                                 const isAccepted = acceptedDriverId === driver.id;
                                 const isPending = !isRejected && !isAccepted;
+                                const offerDate = offeredDriverIds.get(driver.id);
+                                const hasOffer = offerDate !== undefined;
+                                const offerTimeRemaining = hasOffer ? calculateOfferTimeRemaining(offerDate) : 0;
                                 
                                 return (
                                     <div
@@ -443,13 +624,64 @@ export function RequestDriversScreen({ tripId }: RequestDriversScreenProps) {
                                                 {driver.firstName?.[0]}
                                                 {driver.lastName?.[0]}
                                             </div>
-                                            <div className="flex flex-col">
+                                            <div className="flex flex-col gap-1">
                                                 <p className="text-slate-900 dark:text-white font-bold">
                                                     {driver.firstName} {driver.lastName}
                                                 </p>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400">
                                                     {driver.driverCode} {driver.phone ? `• ${driver.phone}` : ""}
                                                 </p>
+                                                
+                                                {/* Distance from pickup */}
+                                                {!isRejected && !isAccepted && (
+                                                    <p className={cn(
+                                                        "text-xs font-medium flex items-center gap-1",
+                                                        getDistanceColor(driver.distanceKm)
+                                                    )}>
+                                                        <Navigation className="size-3" />
+                                                        {formatDistance(driver.distanceKm)}
+                                                    </p>
+                                                )}
+                                                
+                                                {/* Status badges row */}
+                                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                    {/* Trip offer indicator */}
+                                                    {hasOffer && isPending && offerTimeRemaining > 0 && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 animate-pulse">
+                                                            <Clock className="size-3" />
+                                                            Offer sent • {formatTimeRemaining(offerTimeRemaining)}
+                                                        </span>
+                                                    )}
+                                                    
+                                                    {/* Check-in status badge */}
+                                                    {driver.checkedIn !== undefined && (
+                                                        <span className={cn(
+                                                            "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium",
+                                                            driver.checkedIn
+                                                                ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+                                                                : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
+                                                        )}>
+                                                            {driver.checkedIn ? (
+                                                                <><CircleDot className="size-3" /> Checked In</>
+                                                            ) : (
+                                                                <><CircleOff className="size-3" /> Not Checked In</>
+                                                            )}
+                                                        </span>
+                                                    )}
+                                                    
+                                                    {/* Remaining limit badge */}
+                                                    {driver.remainingDailyLimit !== null && driver.remainingDailyLimit !== undefined && (
+                                                        <span className={cn(
+                                                            "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium",
+                                                            driver.remainingDailyLimit > 0
+                                                                ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
+                                                                : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                                                        )}>
+                                                            Limit: ₹{Number(driver.remainingDailyLimit).toFixed(0)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                
                                                 {isRejected && (
                                                     <p className="text-xs text-red-600 dark:text-red-400 font-medium mt-0.5">
                                                         Rejected trip request

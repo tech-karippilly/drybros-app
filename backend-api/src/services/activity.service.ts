@@ -6,8 +6,8 @@ import {
   getActivityLogById,
   CreateActivityLogData,
 } from "../repositories/activity.repository";
-import { getDriverById, updateDriverOnlineStatus } from "../repositories/driver.repository";
-import { getStaffById, updateStaffOnlineStatus } from "../repositories/staff.repository";
+import { getDriverById } from "../repositories/driver.repository";
+import { getStaffById } from "../repositories/staff.repository";
 import { getTripById } from "../repositories/trip.repository";
 import prisma from "../config/prismaClient";
 import { UserRole, ActivityAction, ActivityEntityType } from "@prisma/client";
@@ -29,21 +29,6 @@ export async function logActivity(data: CreateActivityLogData): Promise<void> {
   try {
     const activityLog = await repoCreateActivityLog(data);
     
-    // Update online status for clock-in/out actions
-    if (data.action === ActivityAction.DRIVER_CLOCK_IN || data.action === ActivityAction.STAFF_CLOCK_IN) {
-      if (data.staffId) {
-        await updateStaffOnlineStatus(data.staffId, true);
-      } else if (data.driverId) {
-        await updateDriverOnlineStatus(data.driverId, true);
-      }
-    } else if (data.action === ActivityAction.DRIVER_CLOCK_OUT || data.action === ActivityAction.STAFF_CLOCK_OUT) {
-      if (data.staffId) {
-        await updateStaffOnlineStatus(data.staffId, false);
-      } else if (data.driverId) {
-        await updateDriverOnlineStatus(data.driverId, false);
-      }
-    }
-    
     // Emit socket event for the new activity log
     socketService.emitActivityLog({
       id: activityLog.id,
@@ -61,17 +46,6 @@ export async function logActivity(data: CreateActivityLogData): Promise<void> {
       longitude: activityLog.longitude || undefined,
       createdAt: activityLog.createdAt,
     });
-
-    // Emit online status change event
-    if (data.action === ActivityAction.DRIVER_CLOCK_IN || data.action === ActivityAction.STAFF_CLOCK_IN ||
-        data.action === ActivityAction.DRIVER_CLOCK_OUT || data.action === ActivityAction.STAFF_CLOCK_OUT) {
-      const isOnline = data.action === ActivityAction.DRIVER_CLOCK_IN || data.action === ActivityAction.STAFF_CLOCK_IN;
-      if (data.staffId) {
-        socketService.emitStaffStatusChange(data.staffId, isOnline, data.franchiseId || undefined);
-      } else if (data.driverId) {
-        socketService.emitDriverStatusChange(data.driverId, isOnline, data.franchiseId || undefined);
-      }
-    }
   } catch (error) {
     // Log error but don't throw - activity logging should not break main functionality
     logger.error("Failed to create activity log", {
@@ -135,15 +109,13 @@ export async function getActivityLogs(
   userRole: UserRole,
   userId: string | undefined,
   userFranchiseId: string | undefined,
-  driverId: string | undefined,
-  staffId: string | undefined,
   filters?: {
     franchiseId?: string;
   }
 ): Promise<ActivityLogResponseDTO[]> {
   const whereClause: any = {};
 
-  // Role-based filtering
+  // Role-based franchiseId filtering
   switch (userRole) {
     case UserRole.ADMIN:
       // Admin can see all activities, optionally filtered by franchiseId
@@ -171,14 +143,11 @@ export async function getActivityLogs(
       break;
 
     case UserRole.DRIVER:
-      // Driver sees ONLY their own activities
-      if (!driverId) {
-        throw new Error("Driver context required for driver activity logs");
-      }
-      whereClause.driverId = driverId;
-      // Optional: also ensure franchiseId matches if strict checking is needed
+      // Driver sees activities of their franchise
       if (userFranchiseId) {
         whereClause.franchiseId = userFranchiseId;
+      } else if (filters?.franchiseId) {
+        whereClause.franchiseId = filters.franchiseId;
       }
       break;
 
@@ -195,17 +164,15 @@ export async function getActivityLogsPaginated(
   userRole: UserRole,
   userId: string | undefined,
   userFranchiseId: string | undefined,
-  driverId: string | undefined,
-  staffId: string | undefined,
   pagination: ActivityPaginationQueryDTO
 ): Promise<PaginatedActivityLogResponseDTO> {
   const { page, limit, franchiseId } = pagination;
   const skip = (page - 1) * limit;
 
-  // Build filters
+  // Build filters - only franchiseId
   const filters: any = {};
   
-  // Role-based filtering
+  // Role-based franchiseId filtering
   switch (userRole) {
     case UserRole.ADMIN:
       // Admin can see all activities, optionally filtered by franchiseId
@@ -233,13 +200,11 @@ export async function getActivityLogsPaginated(
       break;
 
     case UserRole.DRIVER:
-      // Driver sees ONLY their own activities
-      if (!driverId) {
-        throw new Error("Driver context required for driver activity logs");
-      }
-      filters.driverId = driverId;
+      // Driver sees activities of their franchise
       if (userFranchiseId) {
         filters.franchiseId = userFranchiseId;
+      } else if (franchiseId) {
+        filters.franchiseId = franchiseId;
       }
       break;
   }

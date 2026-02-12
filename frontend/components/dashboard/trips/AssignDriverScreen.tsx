@@ -3,8 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getTripById, assignDriverToTrip, TripResponse } from "@/lib/features/trip/tripApi";
-import { getDrivers } from "@/lib/features/drivers/driverApi";
+import { getTripById, assignDriverToTrip, getAvailableDriversForTrip, TripResponse } from "@/lib/features/trip/tripApi";
 import { DASHBOARD_ROUTES } from "@/lib/constants/routes";
 import { ASSIGN_DRIVER_STRINGS } from "@/lib/constants/trips";
 import { cn } from "@/lib/utils";
@@ -18,8 +17,30 @@ import {
     History,
     Star,
     CheckCircle,
+    Navigation,
 } from "lucide-react";
 import type { AvailableDriver } from "@/lib/types/driver";
+
+/**
+ * Format distance for display
+ */
+function formatDistance(distanceKm: number | null | undefined): string {
+    if (distanceKm === null || distanceKm === undefined) return "Distance unknown";
+    if (distanceKm < 1) {
+        return `${Math.round(distanceKm * 1000)} m away`;
+    }
+    return `${distanceKm.toFixed(1)} km away`;
+}
+
+/**
+ * Get distance color based on proximity
+ */
+function getDistanceColor(distanceKm: number | null | undefined): string {
+    if (distanceKm === null || distanceKm === undefined) return "text-slate-400";
+    if (distanceKm < 2) return "text-green-600 dark:text-green-400";
+    if (distanceKm < 5) return "text-yellow-600 dark:text-yellow-400";
+    return "text-red-600 dark:text-red-400";
+}
 
 interface AssignDriverScreenProps {
     tripId: string;
@@ -81,22 +102,19 @@ export function AssignDriverScreen({ tripId }: AssignDriverScreenProps) {
         };
     }, [tripId]);
 
-    // Fetch drivers via drivers API (by franchise) once trip is loaded
+    // Fetch available drivers for this trip (includes distance from pickup)
     useEffect(() => {
-        if (!trip?.franchiseId) {
-            if (trip && !trip.franchiseId) setLoadingDrivers(false);
+        if (!tripId) {
+            setLoadingDrivers(false);
             return;
         }
         let cancelled = false;
         setLoadingDrivers(true);
-        getDrivers({
-            franchiseId: trip.franchiseId,
-            includePerformance: true,
-        })
+        getAvailableDriversForTrip(tripId)
             .then((list) => {
                 if (cancelled) return;
-                const mapped: AvailableDriver[] = (list || []).map((d) => {
-                    const perf = (d as { performance?: AvailableDriver["performance"] }).performance;
+                const mapped: AvailableDriver[] = (list || []).map((d: any) => {
+                    const perf = d.performance;
                     return {
                         id: d.id,
                         firstName: d.firstName ?? "",
@@ -116,8 +134,26 @@ export function AssignDriverScreen({ tripId }: AssignDriverScreenProps) {
                             completionRate: 0,
                             rejectionRate: 0,
                         },
-                        matchScore: 0,
+                        matchScore: d.matchScore ?? 0,
+                        remainingDailyLimit: d.remainingDailyLimit ?? null,
+                        // Distance fields from API
+                        distanceKm: d.distanceKm,
+                        driverLocation: d.driverLocation,
+                        pickupLocation: d.pickupLocation,
                     };
+                });
+                // Sort by distance (closest first), then by performance
+                mapped.sort((a, b) => {
+                    // If both have distance, sort by distance
+                    if (a.distanceKm !== null && a.distanceKm !== undefined && 
+                        b.distanceKm !== null && b.distanceKm !== undefined) {
+                        return a.distanceKm - b.distanceKm;
+                    }
+                    // If only one has distance, prioritize the one with distance
+                    if (a.distanceKm !== null && a.distanceKm !== undefined) return -1;
+                    if (b.distanceKm !== null && b.distanceKm !== undefined) return 1;
+                    // Fall back to performance score
+                    return (b.performance?.score ?? 0) - (a.performance?.score ?? 0);
                 });
                 setDrivers(mapped);
             })
@@ -130,7 +166,7 @@ export function AssignDriverScreen({ tripId }: AssignDriverScreenProps) {
         return () => {
             cancelled = true;
         };
-    }, [trip?.franchiseId]);
+    }, [tripId]);
 
     const filteredDrivers = useMemo(() => {
         if (!searchTerm.trim()) return drivers;
@@ -398,6 +434,14 @@ export function AssignDriverScreen({ tripId }: AssignDriverScreenProps) {
                                                     {driver.driverCode}
                                                 </span>
                                             </div>
+                                            {/* Distance from pickup */}
+                                            <p className={cn(
+                                                "text-xs font-medium mt-1 flex items-center gap-1",
+                                                getDistanceColor(driver.distanceKm)
+                                            )}>
+                                                <Navigation className="size-3" />
+                                                {formatDistance(driver.distanceKm)}
+                                            </p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4">

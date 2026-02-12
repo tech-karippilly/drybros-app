@@ -517,8 +517,34 @@ export async function getAvailableDriversForTrip(tripId: string) {
   const pickupLng = trip.pickupLng;
   const { calculateDistance } = await import("../utils/geo");
 
-  // Return drivers with match information, location, and distance
+  // Get today's attendance for all drivers to check if they've checked in
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const eligibleDriverIds = availableDrivers.map(({ driver }) => driver.id);
+  
+  const todayAttendances = await prisma.attendance.findMany({
+    where: {
+      driverId: { in: eligibleDriverIds },
+      date: today,
+    },
+    select: {
+      driverId: true,
+      clockIn: true,
+      status: true,
+    },
+  });
+
+  // Create a map for quick lookup
+  const attendanceMap = new Map(
+    todayAttendances.map((att) => [
+      att.driverId!,
+      { clockIn: att.clockIn, status: att.status },
+    ])
+  );
+
+  // Return drivers with match information, location, distance, and attendance
   return availableDrivers.map(({ driver, matchScore }) => {
+    const attendance = attendanceMap.get(driver.id);
     const result: any = {
       id: driver.id,
       firstName: driver.firstName,
@@ -529,6 +555,9 @@ export async function getAvailableDriversForTrip(tripId: string) {
       currentRating: driver.currentRating,
       performance: driver.performance,
       matchScore,
+      remainingDailyLimit: driver.remainingDailyLimit,
+      checkedIn: attendance?.clockIn ? true : false,
+      attendanceStatus: attendance?.status || null,
     };
 
     // Add pickup location
@@ -538,23 +567,23 @@ export async function getAvailableDriversForTrip(tripId: string) {
 
     // Add driver location
     result.driverLocation = {
-      lat: driver.liveLocationLat,
-      lng: driver.liveLocationLng,
+      lat: driver.currentLat,
+      lng: driver.currentLng,
     };
 
     // Calculate distance if both locations are available
     if (
       pickupLat !== null &&
       pickupLng !== null &&
-      driver.liveLocationLat !== null &&
-      driver.liveLocationLng !== null
+      driver.currentLat !== null &&
+      driver.currentLng !== null
     ) {
       result.distanceKm = parseFloat(
         calculateDistance(
           pickupLat,
           pickupLng,
-          driver.liveLocationLat,
-          driver.liveLocationLng
+          driver.currentLat,
+          driver.currentLng
         ).toFixed(2)
       );
     }

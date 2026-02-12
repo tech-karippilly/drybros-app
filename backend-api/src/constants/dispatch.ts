@@ -1,8 +1,8 @@
 export const DISPATCH_CONFIG = {
-  /** Delay between offering to driver #1, #2, #3, ... */
-  OFFER_INTERVAL_MS: 60_000,
-  /** Offer validity window. Overlaps allow multiple accepts. */
-  OFFER_TTL_MS: 120_000,
+  /** Delay between offering to driver #1, #2, #3, ... - sequential offering */
+  OFFER_INTERVAL_MS: 0, // Immediate sequential offers
+  /** Offer validity window. Driver has 5 minutes to accept before offer expires */
+  OFFER_TTL_MS: 5 * 60_000, // 5 minutes
   /** After first accept, wait briefly to see if another accept arrives. */
   ACCEPT_GRACE_MS: 15_000,
   /** Ignore driver locations older than this. */

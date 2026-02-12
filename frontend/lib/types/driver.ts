@@ -52,7 +52,19 @@ export interface AvailableDriver {
   currentRating: number | null;
   performance: DriverPerformanceMetrics;
   matchScore: number; // Car type match score
-  remainingDailyLimit:number | null;
+  remainingDailyLimit: number | null;
+  checkedIn?: boolean; // Whether driver has checked in today
+  attendanceStatus?: string | null; // Today's attendance status (PRESENT, PARTIAL, ABSENT)
+  // Distance from pickup location
+  distanceKm?: number | null;
+  driverLocation?: {
+    lat: number | null;
+    lng: number | null;
+  } | null;
+  pickupLocation?: {
+    lat: number | null;
+    lng: number | null;
+  } | null;
 }
 
 /**

@@ -43,15 +43,14 @@ export function PlacesAutocomplete({
     required = false,
     onError,
 }: PlacesAutocompleteProps) {
-    const inputRef = useRef<HTMLInputElement>(null);
-    const autocompleteRef = useRef<any>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isScriptLoaded, setIsScriptLoaded] = useState(false);
+    const [placeDetails, setPlaceDetails] = useState<PlaceDetails | null>(null);
 
     // Load Google Places API script
     useEffect(() => {
         const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY;
-        
         if (!apiKey) {
             console.error('NEXT_PUBLIC_GOOGLE_PLACES_API_KEY is not set');
             onError?.('Google Places API key is not configured');
@@ -60,7 +59,7 @@ export function PlacesAutocomplete({
         }
 
         // Check if script is already loaded
-        if (window.google && window.google.maps && window.google.maps.places) {
+        if (window.google && window.google.maps && window.google.maps.places && window.google.maps.places.PlaceAutocompleteElement) {
             setIsScriptLoaded(true);
             setIsLoading(false);
             return;
@@ -69,7 +68,6 @@ export function PlacesAutocomplete({
         // Check if script tag already exists
         const existingScript = document.querySelector(`script[src*="maps.googleapis.com"]`);
         if (existingScript) {
-            // Wait for it to load
             existingScript.addEventListener('load', () => {
                 setIsScriptLoaded(true);
                 setIsLoading(false);
@@ -82,12 +80,12 @@ export function PlacesAutocomplete({
         script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
         script.async = true;
         script.defer = true;
-        
+
         script.onload = () => {
             setIsScriptLoaded(true);
             setIsLoading(false);
         };
-        
+
         script.onerror = () => {
             console.error('Failed to load Google Maps script');
             onError?.('Failed to load Google Places API');
@@ -96,167 +94,133 @@ export function PlacesAutocomplete({
 
         document.head.appendChild(script);
 
-        return () => {
-            // Cleanup: remove script if component unmounts (optional)
-            // Note: We might not want to remove it if other components use it
-        };
+        return () => {};
     }, [onError]);
 
-    // Initialize autocomplete when script is loaded
+    // Store the selected place text to prevent clearing
+    const selectedPlaceTextRef = useRef<string>(value || '');
+    
+    // Update ref when value changes from parent (only on initial mount or external changes)
     useEffect(() => {
-        if (!isScriptLoaded || !inputRef.current || disabled) {
-            return;
-        }
-
-        try {
-            // Initialize Google Places Autocomplete
-            autocompleteRef.current = new window.google.maps.places.Autocomplete(
-                inputRef.current,
-                {
-                    types: ['address'], // Restrict to addresses
-                    fields: ['place_id', 'formatted_address', 'geometry', 'name', 'address_components', 'types'],
-                }
-            );
-
-            // Handle place selection
-            autocompleteRef.current.addListener('place_changed', () => {
-                const place = autocompleteRef.current.getPlace();
-
-                // Check if a valid place was selected
-                if (!place || !place.place_id) {
-                    console.warn('No valid place selected from autocomplete');
-                    return;
-                }
-
-                // Fetch detailed place information
-                const service = new window.google.maps.places.PlacesService(
-                    document.createElement('div')
-                );
-
-                service.getDetails(
-                    {
-                        placeId: place.place_id,
-                        fields: [
-                            'place_id',
-                            'formatted_address',
-                            'name',
-                            'geometry',
-                            'address_components',
-                            'types',
-                        ],
-                    },
-                    (placeDetails: any, status: string) => {
-                        if (status === window.google.maps.places.PlacesServiceStatus.OK && placeDetails) {
-                            // Update input value to show the selected address
-                            if (inputRef.current) {
-                                inputRef.current.value = placeDetails.formatted_address || placeDetails.name || '';
-                            }
-
-                            // Call onChange with detailed place information
-                            onChange({
-                                placeId: placeDetails.place_id,
-                                formattedAddress: placeDetails.formatted_address || '',
-                                name: placeDetails.name || undefined,
-                                geometry: placeDetails.geometry ? {
-                                    location: {
-                                        lat: placeDetails.geometry.location.lat(),
-                                        lng: placeDetails.geometry.location.lng(),
-                                    },
-                                } : undefined,
-                                addressComponents: placeDetails.address_components || undefined,
-                                types: placeDetails.types || undefined,
-                            });
-                        } else {
-                            console.warn('Failed to get place details:', status);
-                            // Fallback to basic place info if details fetch fails
-                            const address = place.formatted_address || place.name || '';
-                            if (inputRef.current) {
-                                inputRef.current.value = address;
-                            }
-                            onChange({
-                                placeId: place.place_id || '',
-                                formattedAddress: address,
-                                name: place.name || undefined,
-                            });
-                        }
-                    }
-                );
-            });
-
-            return () => {
-                // Cleanup listener
-                if (autocompleteRef.current) {
-                    window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
-                }
-            };
-        } catch (error) {
-            console.error('Error initializing Places Autocomplete:', error);
-            onError?.('Failed to initialize Places Autocomplete');
-        }
-    }, [isScriptLoaded, disabled, onChange, onError]);
-
-    // Update input value when value prop changes (only if input is not focused)
-    useEffect(() => {
-        if (inputRef.current && value !== inputRef.current.value) {
-            // Only update if the input is not focused (to avoid interrupting user typing)
-            const isFocused = document.activeElement === inputRef.current;
-            if (!isFocused) {
-                inputRef.current.value = value || '';
-            }
+        if (value && value !== selectedPlaceTextRef.current) {
+            selectedPlaceTextRef.current = value;
         }
     }, [value]);
 
+    // Initialize autocomplete when script is loaded
+    useEffect(() => {
+        if (!isScriptLoaded || !containerRef.current || disabled) {
+            return;
+        }
+
+        const element = document.createElement('gmp-place-autocomplete');
+        
+        try {
+            // Create PlaceAutocompleteElement
+            element.setAttribute('placeholder', placeholder);
+            element.setAttribute('class', className || '');
+            element.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+            element.setAttribute('aria-required', required ? 'true' : 'false');
+
+            // Listen for place selection
+            const handlePlaceSelect = (event: any) => {
+                const place = event.detail;
+                console.log('Place selected - full event detail:', place);
+                
+                if (!place || !place.placeId) {
+                    onError?.('No valid place selected from autocomplete');
+                    return;
+                }
+                
+                // Debug: log all available properties
+                console.log('Available properties:', Object.keys(place));
+                console.log('Location:', place.location);
+                console.log('Geometry:', place.geometry);
+                console.log('Lat/Lng:', place.lat, place.lng);
+                
+                // Try multiple ways to get lat/lng from the place object
+                let lat: number | undefined;
+                let lng: number | undefined;
+                
+                // Method 1: Direct location property (newer API)
+                if (place.location && typeof place.location.lat === 'number' && typeof place.location.lng === 'number') {
+                    lat = place.location.lat;
+                    lng = place.location.lng;
+                }
+                // Method 2: Geometry property (older API style)
+                else if (place.geometry && place.geometry.location) {
+                    if (typeof place.geometry.location.lat === 'function') {
+                        lat = place.geometry.location.lat();
+                        lng = place.geometry.location.lng();
+                    } else if (typeof place.geometry.location.lat === 'number') {
+                        lat = place.geometry.location.lat;
+                        lng = place.geometry.location.lng;
+                    }
+                }
+                // Method 3: Direct lat/lng properties
+                else if (typeof place.lat === 'number' && typeof place.lng === 'number') {
+                    lat = place.lat;
+                    lng = place.lng;
+                }
+                // Method 4: Latitude/Longitude properties
+                else if (typeof place.latitude === 'number' && typeof place.longitude === 'number') {
+                    lat = place.latitude;
+                    lng = place.longitude;
+                }
+                
+                console.log('Extracted lat/lng:', lat, lng);
+                
+                // Store the selected place name/text
+                selectedPlaceTextRef.current = place.name || place.formattedAddress || '';
+                
+                const details: PlaceDetails = {
+                    placeId: place.placeId,
+                    formattedAddress: place.formattedAddress || '',
+                    name: place.name || undefined,
+                    geometry: lat !== undefined && lng !== undefined ? {
+                        location: { lat, lng },
+                    } : undefined,
+                    addressComponents: place.addressComponents || undefined,
+                    types: place.types || undefined,
+                };
+                
+                console.log('PlaceDetails to be sent:', details);
+                setPlaceDetails(details);
+                onChange(details);
+            };
+
+            element.addEventListener('gmp-placeautocomplete-select', handlePlaceSelect);
+
+            // Clear previous element
+            containerRef.current.innerHTML = '';
+            containerRef.current.appendChild(element);
+            
+            return () => {
+                element.removeEventListener('gmp-placeautocomplete-select', handlePlaceSelect);
+                element.remove();
+            };
+        } catch (error) {
+            console.error('Error initializing PlaceAutocompleteElement:', error);
+            onError?.('Failed to initialize PlaceAutocompleteElement');
+            // Clean up element if it was created
+            if (element && element.parentNode) {
+                element.remove();
+            }
+        }
+    // Only re-initialize when script loads, disabled state changes, or on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isScriptLoaded, disabled]);
+
+    // No need to sync input value with ref, handled by PlaceAutocompleteElement
+
     return (
         <div className="relative">
-            <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-[#49659c] size-4 pointer-events-none" />
-                <input
-                    ref={inputRef}
-                    type="text"
-                    defaultValue={value}
-                    placeholder={placeholder}
-                    disabled={disabled || isLoading}
-                    required={required}
-                    onChange={(e) => {
-                        // Allow user to type freely - Google Autocomplete will handle suggestions
-                        // We don't interfere with typing here
-                    }}
-                    onBlur={(e) => {
-                        // When user leaves the field
-                        const currentValue = e.target.value.trim();
-                        
-                        if (!currentValue) {
-                            // If input is empty, clear the place data
-                            onChange({
-                                placeId: '',
-                                formattedAddress: '',
-                            });
-                        } else {
-                            // Check if we need to update - if user typed something and no place was selected
-                            // We'll trigger onChange to update the parent with manual entry
-                            // Note: If a place was selected via autocomplete, onChange would have been called already
-                            // So if we're here and the value is different, it's likely manual entry
-                            const storedValue = value || '';
-                            if (currentValue !== storedValue) {
-                                // User likely typed manually - treat as manual entry without place_id
-                                onChange({
-                                    placeId: '',
-                                    formattedAddress: currentValue,
-                                });
-                            }
-                        }
-                    }}
-                    className={cn(
-                        "w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-[#0d59f2]/20 dark:text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed",
-                        className
-                    )}
-                />
-                {isLoading && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <Loader2 className="size-4 animate-spin text-[#49659c]" />
-                    </div>
-                )}
-            </div>
+            <div ref={containerRef} className="relative w-full" />
+            {isLoading && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <Loader2 className="size-4 animate-spin text-[#49659c]" />
+                </div>
+            )}
         </div>
     );
 }

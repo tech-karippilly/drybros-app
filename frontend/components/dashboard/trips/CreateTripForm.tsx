@@ -335,6 +335,7 @@ export function CreateTripForm({ isOpen, onClose, onStep1Complete }: CreateTripF
                                         value={step1Data.pickupLocation}
                                         onChange={(place) => setStep1Data((prev) => ({ ...prev, pickupLocation: place.formattedAddress }))}
                                         placeholder={TRIPS_STRINGS.PICKUP_LOCATION_PLACEHOLDER}
+                                        required
                                     />
                                     <textarea
                                         value={step1Data.pickupNote}
@@ -353,6 +354,7 @@ export function CreateTripForm({ isOpen, onClose, onStep1Complete }: CreateTripF
                                         value={step1Data.destinationLocation}
                                         onChange={(place) => setStep1Data((prev) => ({ ...prev, destinationLocation: place.formattedAddress }))}
                                         placeholder={TRIPS_STRINGS.DESTINATION_LOCATION_PLACEHOLDER}
+                                        required
                                     />
                                     <textarea
                                         value={step1Data.destinationNote}

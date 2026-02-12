@@ -60,16 +60,6 @@ export const createFranchiseSchema = z.object({
     .boolean()
     .optional()
     .default(false),
-  workStartTime: z
-    .string()
-    .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)")
-    .optional()
-    .nullable(),
-  workEndTime: z
-    .string()
-    .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)")
-    .optional()
-    .nullable(),
 });
 
 // Ensure franchise email and manager email are different
@@ -84,6 +74,11 @@ export const createFranchiseSchemaWithValidation = createFranchiseSchema.superRe
 });
 
 export type CreateFranchiseDTO = z.infer<typeof createFranchiseSchemaWithValidation>;
+
+/**
+ * DTO for creating a franchise (inferred from Zod schema)
+ */
+export type CreateFranchiseDTO = z.infer<typeof createFranchiseSchema>;
 
 /**
  * DTO for franchise response
@@ -101,8 +96,6 @@ export interface FranchiseResponseDTO {
   inchargeName: string | null;
   storeImage: string | null;
   legalDocumentsCollected: boolean;
-  workStartTime: string | null;
-  workEndTime: string | null;
   status: FranchiseStatus;
   isActive: boolean;
   createdAt: Date;
@@ -160,16 +153,6 @@ export const updateFranchiseSchema = z.object({
   legalDocumentsCollected: z
     .boolean()
     .optional(),
-  workStartTime: z
-    .string()
-    .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)")
-    .optional()
-    .nullable(),
-  workEndTime: z
-    .string()
-    .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)")
-    .optional()
-    .nullable(),
 });
 
 /**
@@ -182,7 +165,7 @@ export type UpdateFranchiseDTO = z.infer<typeof updateFranchiseSchema>;
  */
 export const updateFranchiseStatusSchema = z.object({
   status: z.enum(["ACTIVE", "BLOCKED", "TEMPORARILY_CLOSED"], {
-    error: "Status must be ACTIVE, BLOCKED, or TEMPORARILY_CLOSED",
+    errorMap: () => ({ message: "Status must be ACTIVE, BLOCKED, or TEMPORARILY_CLOSED" }),
   }),
 });
 

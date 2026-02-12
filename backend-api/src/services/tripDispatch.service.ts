@@ -176,7 +176,7 @@ class TripDispatchService {
 
   /**
    * Called when all eligible drivers have been offered and none accepted.
-   * Marks trip as NOT_ASSIGNED and notifies admin.
+   * Marks trip as NOT_ASSIGNED and notifies admin, managers, and staff.
    */
   private async handleExhaustedAttempts(
     tripId: string,
@@ -197,27 +197,70 @@ class TripDispatchService {
       updatedAt: new Date(),
     });
 
-    // Notify all admins in this franchise
-    const admins = await prisma.user.findMany({
-      where: {
-        franchiseId,
-        role: "ADMIN",
+    // Get trip details for better notification message
+    const trip = await prisma.trip.findUnique({
+      where: { id: tripId },
+      select: { 
+        customerName: true, 
+        pickupAddress: true, 
+        pickupLocation: true,
+        scheduledAt: true 
       },
-      select: { id: true },
     });
 
-    for (const admin of admins) {
+    const pickupLocation = trip?.pickupAddress || trip?.pickupLocation || "Unknown location";
+    const customerName = trip?.customerName || "Unknown customer";
+    const scheduledTime = trip?.scheduledAt 
+      ? new Date(trip.scheduledAt).toLocaleString("en-IN", { 
+          day: "2-digit", 
+          month: "short", 
+          hour: "2-digit", 
+          minute: "2-digit" 
+        })
+      : "Not scheduled";
+
+    const notificationMessage = `No drivers available for trip to ${pickupLocation} (${customerName}) at ${scheduledTime}. All ${attemptCount} drivers rejected or didn't respond. Please assign manually.`;
+
+    // Notify all admins, managers, and staff in this franchise
+    const usersToNotify = await prisma.user.findMany({
+      where: {
+        franchiseId,
+        role: { in: ["ADMIN", "MANAGER", "OFFICE_STAFF", "STAFF"] },
+        isActive: true,
+      },
+      select: { id: true, role: true },
+    });
+
+    for (const user of usersToNotify) {
       await emitNotification({
-        title: "No Drivers Available",
-        message: `Trip ${tripId} could not be assigned after ${attemptCount} attempts. Please assign manually.`,
+        title: "🚨 No Drivers Available - Manual Assignment Required",
+        message: notificationMessage,
         type: "error",
-        userId: admin.id,
+        userId: user.id,
         franchiseId,
         metadata: {
           tripId,
           attemptCount,
           reason: "exhausted_driver_attempts",
+          pickupLocation,
+          customerName,
+          scheduledTime,
+          requiresManualAssignment: true,
         },
+      });
+    }
+
+    // Also emit socket event for real-time dashboard updates via socketService
+    const io = socketService.getIO();
+    if (io) {
+      io.to(`franchise:${franchiseId}`).emit("trip:no_drivers_available", {
+        tripId,
+        attemptCount,
+        pickupLocation,
+        customerName,
+        scheduledTime,
+        message: notificationMessage,
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -228,6 +271,7 @@ class TripDispatchService {
       attemptCount,
       timestamp: new Date().toISOString(),
       action: "exhausted_driver_attempts",
+      notifiedUsers: usersToNotify.length,
     });
 
     // Clean up dispatch state

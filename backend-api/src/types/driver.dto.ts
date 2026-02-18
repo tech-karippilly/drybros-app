@@ -1,26 +1,13 @@
 // src/types/driver.dto.ts
 import { z } from "zod";
-import { DriverStatus, DriverTripStatus, TransmissionType, CarCategory } from "@prisma/client";
-import { DriverPerformanceCategory } from "../constants/driver";
+import { DriverStatus, DriverTripStatus } from "@prisma/client";
+
+// Define enum types locally until Prisma client is regenerated
+export type CarType = "HATCHBACK" | "SEDAN" | "SUV" | "LUXURY";
+export type Transmission = "MANUAL" | "AUTOMATIC";
 
 // Driver Employment Type Enum Schema (API-facing string values)
-// "all" is a special value to fetch drivers of all employment types
-export const driverEmploymentTypeEnum = z.enum(["part time", "full time", "contract", "all"]);
-
-// TransmissionType enum schema (from Prisma)
-export const transmissionTypeEnum = z.enum(["MANUAL", "AUTOMATIC", "EV"]);
-
-// CarCategory enum schema (from Prisma)
-export const carCategoryEnum = z.enum(["NORMAL", "PREMIUM", "LUXURY", "SPORTS"]);
-
-// CarType enum schema (legacy - kept for backward compatibility)
-export const carTypeEnum = z.enum([
-  "MANUAL",
-  "AUTOMATIC",
-  "PREMIUM_CARS",
-  "LUXURY_CARS",
-  "SPORTY_CARS",
-]);
+export const driverEmploymentTypeEnum = z.enum(["part time", "full time", "contract"]);
 
 // Create Driver Schema
 export const createDriverSchema = z.object({
@@ -39,7 +26,7 @@ export const createDriverSchema = z.object({
   pincode: z.string().min(6, "Pincode is required"),
   licenseNumber: z.string().min(1, "License number is required"),
   licenseType: z.string().min(1, "License type is required"),
-  employmentType: driverEmploymentTypeEnum.optional(),
+  employmentType: driverEmploymentTypeEnum,
   licenseExpDate: z
     .union([
       z.string().datetime("Invalid date format").transform((val) => new Date(val)),
@@ -55,55 +42,57 @@ export const createDriverSchema = z.object({
   license: z.boolean().default(false),
   educationCert: z.boolean().default(false),
   previousExp: z.boolean().default(false),
-  transmissionTypes: z.array(transmissionTypeEnum).min(1, "At least one transmission type is required"),
-  carCategories: z.array(carCategoryEnum).min(1, "At least one car category is required"),
-  franchiseId: z.string().uuid("Franchise ID must be a valid UUID"),
+  franchiseId: z.string().uuid("Franchise ID must be a valid UUID").optional(), // Optional, required only for ADMIN
 });
 
 export type CreateDriverDTO = z.infer<typeof createDriverSchema>;
 
-// Driver Performance Metrics DTO
-export interface DriverPerformanceMetricsDTO {
-  category: DriverPerformanceCategory;
-  score: number; // 0-100
-  rating: number | null;
-  complaintCount: number;
-  totalTrips: number;
-  completedTrips: number;
-  rejectedTrips: number;
-  completionRate: number; // percentage
-  rejectionRate: number; // percentage
-}
+// Driver Car Schema
+export const createDriverCarSchema = z.object({
+  carType: z.enum(["HATCHBACK", "SEDAN", "SUV", "LUXURY"]),
+  transmission: z.enum(["MANUAL", "AUTOMATIC"]),
+  brand: z.string().min(1, "Brand is required").optional(),
+  model: z.string().min(1, "Model is required").optional(),
+  registrationNo: z.string().min(1, "Registration number is required"),
+  color: z.string().min(1, "Color is required").optional(),
+  isPrimary: z.boolean().default(false),
+});
 
-export interface DriverDailyLimitStatusDTO {
+export type CreateDriverCarDTO = z.infer<typeof createDriverCarSchema>;
+
+// Update Driver Car Schema
+export const updateDriverCarSchema = z.object({
+  brand: z.string().min(1, "Brand is required").optional(),
+  model: z.string().min(1, "Model is required").optional(),
+  color: z.string().min(1, "Color is required").optional(),
+  isPrimary: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+}).refine((data) => Object.keys(data).length > 0, {
+  message: "At least one field must be provided for update",
+});
+
+export type UpdateDriverCarDTO = z.infer<typeof updateDriverCarSchema>;
+
+// Driver Car Response DTO
+export interface DriverCarResponseDTO {
+  id: string;
   driverId: string;
-  driverName: string;
-  dailyTargetAmount: number;
-  remainingDailyLimit: number;
-  usedDailyLimit: number;
-  cashInHand: number;
-}
-
-export interface DriverDailyEarningsStatusDTO {
-  driverId: string;
-  date: string; // YYYY-MM-DD
-  dailyTargetAmount: number;
-  amountRunToday: number;
-  tripsCountToday: number;
-  incentiveToday: number;
-  incentiveType: string | null;
-  remainingToAchieve: number;
-}
-
-export interface DriverDailyStatusDTO {
-  dailyLimit: DriverDailyLimitStatusDTO;
-  dailyEarnings: DriverDailyEarningsStatusDTO;
+  carType: CarType;
+  transmission: Transmission;
+  brand: string | null;
+  model: string | null;
+  registrationNo: string;
+  color: string | null;
+  isPrimary: boolean;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // Driver Response DTO
 export interface DriverResponseDTO {
-  id: string; // UUID
-  franchiseId: string; // UUID
+  id: string;
+  franchiseId: string;
   firstName: string;
   lastName: string;
   phone: string;
@@ -128,30 +117,80 @@ export interface DriverResponseDTO {
   license: boolean;
   educationCert: boolean;
   previousExp: boolean;
-  transmissionTypes: TransmissionType[]; // Array of TransmissionType enum values
-  carCategories: CarCategory[]; // Array of CarCategory enum values
-  carTypes: string[]; // Legacy field - JSON string array
   status: DriverStatus;
   driverTripStatus: DriverTripStatus;
   complaintCount: number;
+  warningCount: number;
+  blacklisted: boolean;
   bannedGlobally: boolean;
-  dailyTargetAmount: number | null;
-  cashInHand: number;
-  incentive: number | null;
-  bonus: number | null;
   currentRating: number | null;
-  remainingDailyLimit: number | null;
+  onlineStatus: boolean;
   isActive: boolean;
-  createdBy: string | null; // User UUID who created this driver
+  createdBy: string | null;
   createdAt: Date;
   updatedAt: Date;
-  performance?: DriverPerformanceMetricsDTO; // Optional performance metrics
-  dailyStatus?: DriverDailyStatusDTO; // Optional daily status snapshot
+  cars?: DriverCarResponseDTO[]; // Optional cars array
+}
+
+// Driver Self Profile Response DTO (without sensitive data)
+export interface DriverSelfProfileResponseDTO {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  driverCode: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  emergencyContactRelation: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+  licenseNumber: string;
+  licenseExpDate: Date;
+  status: DriverStatus;
+  driverTripStatus: DriverTripStatus;
+  currentRating: number | null;
+  onlineStatus: boolean;
+  cars?: DriverCarResponseDTO[];
+}
+
+// Standardized Response DTOs
+export interface SingleDriverResponseDTO {
+  success: true;
+  message: string;
+  data: DriverResponseDTO;
 }
 
 export interface CreateDriverResponseDTO {
+  success: true;
   message: string;
   data: DriverResponseDTO;
+}
+
+export interface UpdateDriverResponseDTO {
+  success: true;
+  message: string;
+  data: DriverResponseDTO;
+}
+
+export interface DriverSelfProfileResponse {
+  success: true;
+  message: string;
+  data: DriverSelfProfileResponseDTO;
+}
+
+export interface DriverCarsResponseDTO {
+  success: true;
+  message: string;
+  data: DriverCarResponseDTO[];
+}
+
+export interface SingleDriverCarResponseDTO {
+  success: true;
+  message: string;
+  data: DriverCarResponseDTO;
 }
 
 // Driver Login DTOs
@@ -207,24 +246,11 @@ export const updateDriverSchema = z.object({
   license: z.boolean().optional(),
   educationCert: z.boolean().optional(),
   previousExp: z.boolean().optional(),
-  transmissionTypes: z.array(transmissionTypeEnum).min(1, "At least one transmission type is required").optional(),
-  carCategories: z.array(carCategoryEnum).min(1, "At least one car category is required").optional(),
-  carTypes: z.array(carTypeEnum).min(1, "At least one car type is required").optional(),
-  franchiseId: z.string().uuid("Franchise ID must be a valid UUID").optional(),
-  status: z.enum(["ACTIVE", "INACTIVE", "BLOCKED", "TERMINATED"]).optional(),
-  dailyTargetAmount: z.number().int().positive().optional().nullable(),
-  incentive: z.number().nonnegative("Incentive must be non-negative").optional().nullable(),
-  bonus: z.number().nonnegative("Bonus must be non-negative").optional().nullable(),
 }).refine((data) => Object.keys(data).length > 0, {
   message: "At least one field must be provided for update",
 });
 
 export type UpdateDriverDTO = z.infer<typeof updateDriverSchema>;
-
-export interface UpdateDriverResponseDTO {
-  message: string;
-  data: DriverResponseDTO;
-}
 
 // Update Driver Status DTOs
 export const updateDriverStatusSchema = z.object({
@@ -236,12 +262,13 @@ export const updateDriverStatusSchema = z.object({
 export type UpdateDriverStatusDTO = z.infer<typeof updateDriverStatusSchema>;
 
 export interface UpdateDriverStatusResponseDTO {
+  success: true;
   message: string;
   data: DriverResponseDTO;
 }
 
-// Pagination DTOs
-export const paginationQuerySchema = z.object({
+// List Drivers Query Schema
+export const listDriversQuerySchema = z.object({
   page: z
     .string()
     .optional()
@@ -253,17 +280,23 @@ export const paginationQuerySchema = z.object({
     .optional()
     .default("10")
     .transform((val) => parseInt(val, 10))
-    .pipe(z.number().int().positive().max(100)), // Max 100 items per page
+    .pipe(z.number().int().positive().max(100)),
   franchiseId: z
     .string()
     .uuid("Franchise ID must be a valid UUID")
     .optional(),
+  status: z
+    .enum(["ACTIVE", "INACTIVE", "BLOCKED", "TERMINATED"])
+    .optional(),
   employmentType: driverEmploymentTypeEnum.optional(),
+  search: z.string().trim().optional(), // Search by name or phone
 });
 
-export type PaginationQueryDTO = z.infer<typeof paginationQuerySchema>;
+export type ListDriversQueryDTO = z.infer<typeof listDriversQuerySchema>;
 
 export interface PaginatedDriverResponseDTO {
+  success: true;
+  message: string;
   data: DriverResponseDTO[];
   pagination: {
     page: number;
@@ -275,29 +308,10 @@ export interface PaginatedDriverResponseDTO {
   };
 }
 
-// Driver with Performance Response DTO (performance is required)
-export interface DriverWithPerformanceResponseDTO extends DriverResponseDTO {
-  performance: DriverPerformanceMetricsDTO; // Required (not optional)
-}
-
 // Submit Cash for Settlement Schema
 export const submitCashForSettlementSchema = z.object({
   driverId: z.string().uuid("Driver ID must be a valid UUID"),
-  settlementAmount: z
-    .number()
-    .positive("Settlement amount must be greater than zero")
-    .refine((val) => val > 0, {
-      message: "Settlement amount must be greater than zero",
-    }),
+  settlementAmount: z.number().positive("Settlement amount must be positive"),
 });
 
 export type SubmitCashForSettlementDTO = z.infer<typeof submitCashForSettlementSchema>;
-
-export interface SubmitCashForSettlementResponseDTO {
-  driverId: string;
-  driverName: string;
-  message: string;
-  previousCash: number;
-  settlementAmount: number;
-  remainingCash: number;
-}

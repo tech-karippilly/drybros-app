@@ -1,35 +1,28 @@
 import express from "express";
-import { validate, validateParams } from "../middlewares/validation";
-import { createTripReviewSchema, createReviewLinkSchema, submitReviewWithTokenSchema } from "../types/review.dto";
-import { createTripReviewPublicHandler, getTripReviewByIdHandler, createReviewLinkHandler, submitReviewWithTokenHandler } from "../controllers/review.controller";
-import { z } from "zod";
-import { authMiddleware, requireRole } from "../middlewares/auth";
-import { UserRole } from "@prisma/client";
+import { authMiddleware } from "../middlewares/auth";
+import { validate } from "../middlewares/validation";
+import {
+  submitTripReviewSchema,
+  submitDriverRatingSchema,
+} from "../types/review.dto";
+import {
+  submitTripReviewHandler,
+  submitDriverRatingHandler,
+} from "../controllers/review.controller";
 
 const router = express.Router();
 
-router.post("/public", validate(createTripReviewSchema), createTripReviewPublicHandler);
+// All routes require authentication
+router.use(authMiddleware);
 
-router.get(
-  "/:id",
-  validateParams(z.object({ id: z.string().uuid("Invalid review ID format") })),
-  getTripReviewByIdHandler
-);
-
-// Create review link (Manager/Staff only)
+// ============================================
+// POST /api/reviews - Submit Trip Review
+// Access: CUSTOMER only (authenticated via JWT)
+// ============================================
 router.post(
-  "/link/create",
-  authMiddleware,
-  requireRole([UserRole.ADMIN, UserRole.MANAGER, UserRole.OFFICE_STAFF]),
-  validate(createReviewLinkSchema),
-  createReviewLinkHandler
-);
-
-// Submit review via token (Public endpoint)
-router.post(
-  "/submit",
-  validate(submitReviewWithTokenSchema),
-  submitReviewWithTokenHandler
+  "/",
+  validate(submitTripReviewSchema),
+  submitTripReviewHandler
 );
 
 export default router;

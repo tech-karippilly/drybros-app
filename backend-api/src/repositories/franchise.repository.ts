@@ -4,28 +4,100 @@ import { Franchise } from "@prisma/client";
 
 export async function getAllFranchises() {
   return prisma.franchise.findMany({
-    orderBy: { id: "asc" },
+    orderBy: { createdAt: "desc" },
   });
 }
 
-export async function getFranchisesPaginated(skip: number, take: number) {
-  // Use Promise.all for parallel execution
+export async function getFranchisesPaginated(
+  skip: number,
+  take: number,
+  search?: string,
+  status?: string
+) {
+  const where: any = {};
+
+  if (search) {
+    where.name = {
+      contains: search,
+      mode: "insensitive",
+    };
+  }
+
+  if (status) {
+    where.status = status;
+  }
+
   const [data, total] = await Promise.all([
     prisma.franchise.findMany({
+      where,
       skip,
       take,
       orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        city: true,
+        region: true,
+        address: true,
+        phone: true,
+        email: true,
+        inchargeName: true,
+        managerEmail: true,
+        managerPhone: true,
+        storeImage: true,
+        legalDocumentsCollected: true,
+        status: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        // Count related records
+        _count: {
+          select: {
+            Staff: true,
+            Trip: true,
+          },
+        },
+      },
     }),
-    prisma.franchise.count(),
+    prisma.franchise.count({ where }),
   ]);
 
-  return { data, total };
+  // Transform data to include computed fields
+  const transformedData = data.map((franchise: any) => ({
+    ...franchise,
+    driverCount: 0, // TODO: Implement driver count query
+    staffCount: franchise._count?.Staff || 0,
+    monthlyRevenue: 0, // TODO: Implement revenue calculation
+    _count: undefined,
+  }));
+
+  return { data: transformedData, total };
 }
 
 export async function getFranchiseById(id: string) {
-  return prisma.franchise.findUnique({
+  const franchise = await prisma.franchise.findUnique({
     where: { id },
+    include: {
+      _count: {
+        select: {
+          Staff: true,
+          Trip: true,
+        },
+      },
+    },
   });
+
+  if (!franchise) return null;
+
+  // Transform to include computed fields
+  return {
+    ...franchise,
+    driverCount: 0, // TODO: Implement driver count query
+    staffCount: franchise._count?.Staff || 0,
+    monthlyRevenue: 0, // TODO: Implement revenue calculation
+    _count: undefined,
+  };
 }
 
 export async function getFranchiseByCode(code: string) {
@@ -34,72 +106,33 @@ export async function getFranchiseByCode(code: string) {
   });
 }
 
-/**
- * Generate unique franchise code
- * Format: FRN-XXXXXX (6 random alphanumeric characters)
- */
-function generateFranchiseCode(): string {
-  const prefix = "FRN";
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return `${prefix}-${code}`;
-}
-
-/**
- * Check if franchise code already exists and generate a new one if needed
- */
-async function getUniqueFranchiseCode(): Promise<string> {
-  const maxAttempts = 20;
-  let franchiseCode = generateFranchiseCode();
-  let attempts = 0;
-  const checkedCodes = new Set<string>();
-
-  while (attempts < maxAttempts) {
-    if (checkedCodes.has(franchiseCode)) {
-      franchiseCode = generateFranchiseCode();
-      attempts++;
-      continue;
-    }
-
-    checkedCodes.add(franchiseCode);
-    const existing = await getFranchiseByCode(franchiseCode);
-    
-    if (!existing) {
-      return franchiseCode;
-    }
-    
-    franchiseCode = generateFranchiseCode();
-    attempts++;
-  }
-
-  throw new Error("Failed to generate unique franchise code after multiple attempts");
-}
-
 export async function createFranchise(data: {
+  code: string;
   name: string;
-  region: string;
-  address: string;
-  phone: string;
-  inchargeName: string;
+  city: string;
+  region?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  inchargeName?: string | null;
+  managerEmail?: string | null;
+  managerPhone?: string | null;
   storeImage?: string | null;
   legalDocumentsCollected?: boolean;
 }): Promise<Franchise> {
-  // Generate unique franchise code
-  const code = await getUniqueFranchiseCode();
-
   return prisma.franchise.create({
     data: {
-      code,
+      code: data.code,
       name: data.name,
-      city: data.region, // Store region in city field for backward compatibility
+      city: data.city,
       region: data.region,
       address: data.address,
       phone: data.phone,
+      email: data.email,
       inchargeName: data.inchargeName,
-      storeImage: data.storeImage || null,
+      managerEmail: data.managerEmail,
+      managerPhone: data.managerPhone,
+      storeImage: data.storeImage,
       legalDocumentsCollected: data.legalDocumentsCollected ?? false,
     },
   });
@@ -109,39 +142,35 @@ export async function updateFranchise(
   id: string,
   data: {
     name?: string;
-    region?: string;
-    address?: string;
-    phone?: string;
-    franchiseEmail?: string;
-    managerName?: string;
+    city?: string;
+    region?: string | null;
+    address?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    inchargeName?: string | null;
+    managerEmail?: string | null;
+    managerPhone?: string | null;
     storeImage?: string | null;
     legalDocumentsCollected?: boolean;
+    isActive?: boolean;
   }
 ): Promise<Franchise> {
-  const updateData: any = {};
-  
-  if (data.name !== undefined) updateData.name = data.name;
-  if (data.region !== undefined) {
-    updateData.region = data.region;
-    updateData.city = data.region; // Update city for backward compatibility
-  }
-  if (data.address !== undefined) updateData.address = data.address;
-  if (data.phone !== undefined) updateData.phone = data.phone;
-  if (data.franchiseEmail !== undefined) updateData.email = data.franchiseEmail;
-  if (data.managerName !== undefined) updateData.inchargeName = data.managerName;
-  if (data.storeImage !== undefined) updateData.storeImage = data.storeImage;
-  if (data.legalDocumentsCollected !== undefined) updateData.legalDocumentsCollected = data.legalDocumentsCollected;
-
   return prisma.franchise.update({
     where: { id },
-    data: updateData,
-  });
-}
-
-export async function softDeleteFranchise(id: string): Promise<Franchise> {
-  return prisma.franchise.update({
-    where: { id },
-    data: { isActive: false },
+    data: {
+      name: data.name,
+      city: data.city,
+      region: data.region,
+      address: data.address,
+      phone: data.phone,
+      email: data.email,
+      inchargeName: data.inchargeName,
+      managerEmail: data.managerEmail,
+      managerPhone: data.managerPhone,
+      storeImage: data.storeImage,
+      legalDocumentsCollected: data.legalDocumentsCollected,
+      isActive: data.isActive,
+    },
   });
 }
 
@@ -155,49 +184,12 @@ export async function updateFranchiseStatus(
   });
 }
 
-export async function getStaffByFranchiseId(franchiseId: string) {
-  return prisma.staff.findMany({
-    where: { franchiseId, isActive: true },
-    orderBy: { createdAt: "desc" },
-  });
-}
-
-export async function getDriversByFranchiseId(franchiseId: string) {
-  return prisma.driver.findMany({
-    where: { franchiseId, isActive: true },
-    orderBy: { createdAt: "desc" },
-  });
-}
-
-/**
- * Get manager user by franchise ID
- */
-export async function getManagerByFranchiseId(franchiseId: string) {
-  return prisma.user.findFirst({
-    where: {
-      franchiseId,
-      role: "MANAGER",
-      isActive: true,
-    },
-    select: {
-      id: true,
-      fullName: true,
-      email: true,
-      phone: true,
-      role: true,
-      isActive: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
-}
-
 export async function calculateFranchiseAverageRating(franchiseId: string): Promise<number | null> {
   const result = await prisma.tripReview.aggregate({
     where: { franchiseId },
-    _avg: { rating: true },
+    _avg: { overallRating: true },
   });
-  return result._avg.rating ?? null;
+  return result._avg.overallRating ?? null;
 }
 
 export async function updateFranchiseAverageRating(franchiseId: string, averageRating: number | null) {
@@ -207,83 +199,97 @@ export async function updateFranchiseAverageRating(franchiseId: string, averageR
   });
 }
 
-/**
- * Get staff, drivers, and manager by franchise ID (combined)
- */
-export async function getFranchisePersonnel(franchiseId: string) {
-  // Get franchise details to match manager by inchargeName if needed
-  const franchise = await prisma.franchise.findUnique({
-    where: { id: franchiseId },
-    select: { inchargeName: true },
-  });
-
-  const [staff, drivers, managerByFranchiseId] = await Promise.all([
-    prisma.staff.findMany({
-      where: { franchiseId, isActive: true },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-      },
-    }),
-    prisma.driver.findMany({
-      where: { franchiseId, isActive: true },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-      },
-    }),
-    prisma.user.findFirst({
-      where: {
-        franchiseId,
-        role: "MANAGER",
-        isActive: true,
-      },
-      select: {
-        id: true,
-        fullName: true,
-        email: true,
-        phone: true,
-      },
-    }),
-  ]);
-
-  // If manager not found by franchiseId, try to find by matching inchargeName
-  let manager = managerByFranchiseId;
-  if (!manager && franchise?.inchargeName) {
-    const managerByName = await prisma.user.findFirst({
-      where: {
-        role: "MANAGER",
-        isActive: true,
-        fullName: franchise.inchargeName,
-        franchiseId: null, // Only find managers not already assigned
-      },
-      select: {
-        id: true,
-        fullName: true,
-        email: true,
-        phone: true,
-      },
+export async function deleteFranchise(id: string): Promise<void> {
+  // Use a transaction to ensure all deletions succeed or fail together
+  await prisma.$transaction(async (tx) => {
+    // 1. Delete Users (MANAGERs) associated with this franchise
+    await tx.user.deleteMany({
+      where: { franchiseId: id },
     });
 
-    if (managerByName) {
-      // Update the manager's franchiseId for future queries
-      await prisma.user.update({
-        where: { id: managerByName.id },
-        data: { franchiseId },
-      }).catch((err) => {
-        // Log error but don't fail - this is a best-effort update
-        console.error("Failed to update manager franchiseId:", err);
-      });
-      manager = managerByName;
-    }
-  }
+    // 2. Delete DriverEarningsConfig (franchise-level configs)
+    await tx.driverEarningsConfig.deleteMany({
+      where: { franchiseId: id },
+    });
 
-  return { staff, drivers, manager };
+    // 3. Delete Customers (cascade will handle Customer relations: Trips, TripReviews, Complaints)
+    await tx.customer.deleteMany({
+      where: { franchiseId: id },
+    });
+
+    // 4. Delete Staff (cascade will handle Staff relations: StaffHistory, Complaints, Warnings, Attendances, LeaveRequests, ActivityLog, StaffMonthlyPerformance)
+    await tx.staff.deleteMany({
+      where: { franchiseId: id },
+    });
+
+    // 5. Delete all Drivers associated with this franchise
+    // Note: Prisma cascade delete will handle all related records:
+    // - DriverCar (with its Trips)
+    // - Trip (with TripOffers, TripReviews, ActivityLogs, TripStatusHistories, DriverTransactions, Complaints, PickupRequest, TripReassignment, TripReschedule)
+    // - TripOffers
+    // - Complaints
+    // - Warnings
+    // - Attendances
+    // - LeaveRequests
+    // - DriverRatings
+    // - TripReviews
+    // - ActivityLogs
+    // - DriverDailyMetrics
+    // - TripStatusHistories
+    // - DriverTransactions
+    // - DriverMonthlyPerformance
+    // - PickupRequest
+    // - DriverPayroll
+    const drivers = await tx.driver.findMany({
+      where: { franchiseId: id },
+      select: { id: true },
+    });
+
+    for (const driver of drivers) {
+      await tx.driver.delete({
+        where: { id: driver.id },
+      });
+    }
+
+    // 6. Delete performance records that reference this franchise
+    await tx.driverMonthlyPerformance.deleteMany({
+      where: { franchiseId: id },
+    });
+
+    await tx.staffMonthlyPerformance.deleteMany({
+      where: { franchiseId: id },
+    });
+
+    await tx.managerMonthlyPerformance.deleteMany({
+      where: { franchiseId: id },
+    });
+
+    await tx.franchiseMonthlyPerformance.deleteMany({
+      where: { franchiseId: id },
+    });
+
+    await tx.driverPayroll.deleteMany({
+      where: { franchiseId: id },
+    });
+
+    // 7. Delete remaining Trips that might not have been deleted by driver cascade
+    await tx.trip.deleteMany({
+      where: { franchiseId: id },
+    });
+
+    // 8. Delete TripReviews associated with this franchise
+    await tx.tripReview.deleteMany({
+      where: { franchiseId: id },
+    });
+
+    // 9. Delete ActivityLogs associated with this franchise
+    await tx.activityLog.deleteMany({
+      where: { franchiseId: id },
+    });
+
+    // 10. Finally, delete the Franchise itself
+    await tx.franchise.delete({
+      where: { id },
+    });
+  });
 }

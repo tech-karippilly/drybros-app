@@ -1,79 +1,86 @@
 import prisma from "../config/prismaClient";
-import { ACTIVE_DRIVER_ASSIGNED_TRIP_STATUSES } from "../constants/trip";
+import { CarType, Transmission } from "../types/trip.dto";
 
-export async function getAllTrips() {
-  return prisma.trip.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      Franchise: true,
-      Driver: true,
-      Customer: true,
-    },
-  });
-}
-
-/**
- * Get trips by status (PENDING or NOT_ASSIGNED)
- */
-export async function getUnassignedTrips() {
-  return prisma.trip.findMany({
-    where: {
-      status: {
-        in: ["NOT_ASSIGNED", "NOT_ASSIGNED"],
-      },
-    },
-    orderBy: { createdAt: "desc" },
-    include: {
-      Franchise: true,
-      Driver: true,
-      Customer: true,
-    },
-  });
-}
+// ============================================
+// QUERY FILTERS
+// ============================================
 
 export interface TripFilters {
-  dateFrom?: string; // YYYY-MM-DD
-  dateTo?: string;
-  status?: string;
-  statuses?: string[];
   franchiseId?: string;
+  driverId?: string;
+  status?: string;
+  dateFrom?: string; // ISO date string
+  dateTo?: string;
 }
 
 /**
  * Build Prisma where clause from filters.
- * Date filters use scheduledAt when set; otherwise createdAt for trips without scheduledAt.
  */
 function buildTripWhere(filters?: TripFilters): object {
   if (!filters) return {};
+  
   const where: Record<string, unknown> = {};
 
-  if (filters.franchiseId) where.franchiseId = filters.franchiseId;
-  if (filters.status) where.status = filters.status;
-  else if (filters.statuses?.length) where.status = { in: filters.statuses };
+  if (filters.franchiseId) {
+    where.franchiseId = filters.franchiseId;
+  }
 
+  if (filters.driverId) {
+    where.driverId = filters.driverId;
+  }
+
+  if (filters.status) {
+    where.status = filters.status;
+  }
+
+  // Date range filter on scheduledAt or createdAt
   if (filters.dateFrom || filters.dateTo) {
-    const dr: Record<string, Date> = {};
+    const dateRange: Record<string, Date> = {};
+    
     if (filters.dateFrom) {
-      const s = new Date(filters.dateFrom);
-      s.setHours(0, 0, 0, 0);
-      dr.gte = s;
+      const start = new Date(filters.dateFrom);
+      start.setHours(0, 0, 0, 0);
+      dateRange.gte = start;
     }
+    
     if (filters.dateTo) {
-      const e = new Date(filters.dateTo);
-      e.setHours(23, 59, 59, 999);
-      dr.lte = e;
+      const end = new Date(filters.dateTo);
+      end.setHours(23, 59, 59, 999);
+      dateRange.lte = end;
     }
+    
     where.AND = [
       {
         OR: [
-          { scheduledAt: dr },
-          { scheduledAt: null, createdAt: dr },
+          { scheduledAt: dateRange },
+          { scheduledAt: null, createdAt: dateRange },
         ],
       },
     ];
   }
 
   return Object.keys(where).length ? where : {};
+}
+
+// ============================================
+// CORE CRUD OPERATIONS
+// ============================================
+
+/**
+ * Get all trips with optional filters (no pagination)
+ */
+export async function getAllTrips(filters?: TripFilters) {
+  const where = buildTripWhere(filters);
+  
+  return prisma.trip.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    include: {
+      Franchise: true,
+      Driver: true,
+      Customer: true,
+    },
+  });
 }
 
 /**
@@ -85,6 +92,7 @@ export async function getTripsPaginated(
   filters?: TripFilters
 ) {
   const where = buildTripWhere(filters);
+  
   const [data, total] = await Promise.all([
     prisma.trip.findMany({
       where,
@@ -104,54 +112,8 @@ export async function getTripsPaginated(
 }
 
 /**
- * Get trips without pagination, with optional filters
- * (e.g., by status/statuses, date range, franchiseId).
+ * Get trip by ID
  */
-export async function getTripsFiltered(filters?: TripFilters) {
-  const where = buildTripWhere(filters);
-  return prisma.trip.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    include: {
-      Franchise: true,
-      Driver: true,
-      Customer: true,
-    },
-  });
-}
-
-/**
- * Get unassigned trips with pagination
- */
-export async function getUnassignedTripsPaginated(skip: number, take: number) {
-  const [data, total] = await Promise.all([
-    prisma.trip.findMany({
-      where: {
-        status: {
-          in: ["PENDING", "NOT_ASSIGNED"],
-        },
-      },
-      skip,
-      take,
-      orderBy: { createdAt: "desc" },
-      include: {
-        Franchise: true,
-        Driver: true,
-        Customer: true,
-      },
-    }),
-    prisma.trip.count({
-      where: {
-        status: {
-          in: ["PENDING", "NOT_ASSIGNED"],
-        },
-      },
-    }),
-  ]);
-
-  return { data, total };
-}
-
 export async function getTripById(id: string) {
   return prisma.trip.findUnique({
     where: { id },
@@ -163,235 +125,175 @@ export async function getTripById(id: string) {
   });
 }
 
+/**
+ * Create a new trip (unified create function)
+ */
 export async function createTrip(data: {
-  franchiseId: number;
-  driverId: number;
-  customerId: string;
-  customerName: string;
-  customerPhone: string;
-  tripType: string;
-  pickupLocation: string;
-  pickupLat?: number | null;
-  pickupLng?: number | null;
-  dropLocation?: string | null;
-  dropLat?: number | null;
-  dropLng?: number | null;
-  destinationLat?: number | null;
-  destinationLng?: number | null;
-  scheduledAt?: Date | null;
-  baseAmount: number;
-  extraAmount?: number;
-  totalAmount: number;
-  finalAmount: number;
-}) {
-  return prisma.trip.create({
-    data: {
-      franchiseId: data.franchiseId,
-      driverId: data.driverId,
-      customerId: data.customerId,
-      customerName: data.customerName,
-      customerPhone: data.customerPhone,
-      tripType: data.tripType as any,
-      pickupLocation: data.pickupLocation,
-      pickupLat: data.pickupLat ?? null,
-      pickupLng: data.pickupLng ?? null,
-      dropLocation: data.dropLocation ?? null,
-      dropLat: data.dropLat ?? null,
-      dropLng: data.dropLng ?? null,
-      destinationLat: data.destinationLat ?? null,
-      destinationLng: data.destinationLng ?? null,
-      scheduledAt: data.scheduledAt ?? null,
-      baseAmount: data.baseAmount,
-      extraAmount: data.extraAmount ?? 0,
-      totalAmount: data.totalAmount,
-      finalAmount: data.finalAmount,
-      status: "ASSIGNED",
-      updatedAt: new Date(),
-    },
-  });
-}
-
-export async function createTripPhase1(data: {
   franchiseId: string;
-  customerId: string | null;
+  customerId?: string | null;
   customerName: string;
   customerPhone: string;
   customerEmail?: string | null;
   tripType: string;
   pickupLocation: string;
-  pickupAddress: string;
-  pickupLat?: number | null;
-  pickupLng?: number | null;
+  pickupAddress?: string | null;
+  pickupLat: number;
+  pickupLng: number;
   pickupLocationNote?: string | null;
   dropLocation: string;
-  dropAddress: string;
-  dropLat?: number | null;
-  dropLng?: number | null;
-  destinationLat?: number | null;
-  destinationLng?: number | null;
+  dropAddress?: string | null;
+  dropLat: number;
+  dropLng: number;
   dropLocationNote?: string | null;
-  carType: string;
-  carGearType?: string | null;
-  scheduledAt: Date | null;
-  isDetailsReconfirmed: boolean;
-  isFareDiscussed: boolean;
-  isPriceAccepted: boolean;
+  requiredCarType: CarType;
+  requiredTransmission: Transmission;
+  scheduledAt?: Date | null;
   createdBy?: string | null;
-  baseAmount?: number;
-  extraAmount?: number;
-  totalAmount?: number;
-  finalAmount?: number;
 }) {
   return prisma.trip.create({
     data: {
       franchiseId: data.franchiseId,
-      customerId: data.customerId,
+      customerId: data.customerId ?? null,
       customerName: data.customerName,
       customerPhone: data.customerPhone,
       customerEmail: data.customerEmail ?? null,
-      tripType: data.tripType as any,
+      tripType: data.tripType,
       pickupLocation: data.pickupLocation,
-      pickupAddress: data.pickupAddress,
-      pickupLat: data.pickupLat ?? null,
-      pickupLng: data.pickupLng ?? null,
+      pickupAddress: data.pickupAddress ?? null,
+      pickupLat: data.pickupLat,
+      pickupLng: data.pickupLng,
       pickupLocationNote: data.pickupLocationNote ?? null,
       dropLocation: data.dropLocation,
-      dropAddress: data.dropAddress,
-      dropLat: data.dropLat ?? null,
-      dropLng: data.dropLng ?? null,
-      destinationLat: data.destinationLat ?? null,
-      destinationLng: data.destinationLng ?? null,
+      dropAddress: data.dropAddress ?? null,
+      dropLat: data.dropLat,
+      dropLng: data.dropLng,
+      destinationLat: data.dropLat, // Alias
+      destinationLng: data.dropLng, // Alias
       dropLocationNote: data.dropLocationNote ?? null,
-      carType: data.carType,
-      carGearType: data.carGearType ?? null,
-      scheduledAt: data.scheduledAt,
-      isDetailsReconfirmed: data.isDetailsReconfirmed,
-      isFareDiscussed: data.isFareDiscussed,
-      isPriceAccepted: data.isPriceAccepted,
+      // Note: requiredCarType and requiredTransmission will be added after Prisma regeneration
+      scheduledAt: data.scheduledAt ?? null,
+      status: "NOT_ASSIGNED", // Default status
+      baseAmount: 0, // Will be calculated later
+      extraAmount: 0,
+      totalAmount: 0,
+      finalAmount: 0,
       createdBy: data.createdBy ?? null,
-      status: "REQUESTED",
-      baseAmount: data.baseAmount ?? 0,
-      extraAmount: data.extraAmount ?? 0,
-      totalAmount: data.totalAmount ?? 0,
-      finalAmount: data.finalAmount ?? 0,
       updatedAt: new Date(),
     },
     include: {
-      Customer: true,
       Franchise: true,
+      Customer: true,
     },
-  });
-}
-
-export async function updateTrip(id: string, data: any) {
-  return prisma.trip.update({
-    where: { id },
-    data,
   });
 }
 
 /**
- * Get active trips assigned to a driver (driver "my assigned" list)
+ * Update trip
+ */
+export async function updateTrip(id: string, data: any) {
+  return prisma.trip.update({
+    where: { id },
+    data: {
+      ...data,
+      updatedAt: new Date(),
+    },
+    include: {
+      Franchise: true,
+      Driver: true,
+      Customer: true,
+    },
+  });
+}
+
+/**
+ * Get trips by driver (for driver's own trip list)
+ * Returns only active/ongoing trips
  */
 export async function getTripsByDriver(driverId: string) {
   return prisma.trip.findMany({
     where: {
       driverId,
       status: {
-        in: ACTIVE_DRIVER_ASSIGNED_TRIP_STATUSES,
+        in: ["ASSIGNED", "TRIP_STARTED", "TRIP_PROGRESS", "COMPLETED"],
       },
     },
     orderBy: { createdAt: "desc" },
     include: {
       Franchise: true,
-      Driver: true,
       Customer: true,
     },
   });
 }
 
-/**
- * Get ALL trips for a driver (any status).
- *
- * NOTE:
- * - `/trips/my-assigned` intentionally uses `getTripsByDriver()` (active-only)
- *   for "Upcoming Trips" and realtime UX.
- * - Trip history screens should use this "all statuses" query.
- */
-export async function getTripsByDriverAllStatuses(driverId: string) {
-  return prisma.trip.findMany({
-    where: {
-      driverId,
-    },
-    orderBy: { createdAt: "desc" },
-    include: {
-      Franchise: true,
-      Driver: true,
-      Customer: true,
-    },
-  });
-}
+// ============================================
+// CAR MATCHING HELPER
+// ============================================
 
 /**
- * Get all assigned trips (trips that have a driver assigned)
- * Includes trips with status: ASSIGNED, DRIVER_ACCEPTED, TRIP_STARTED, TRIP_PROGRESS, IN_PROGRESS, DRIVER_ON_THE_WAY
+ * Find eligible drivers with matching car for trip assignment.
+ * Returns drivers who:
+ * - Are ACTIVE
+ * - Are AVAILABLE (driverTripStatus)
+ * - Belong to the specified franchise
+ * - Have an active car matching the required carType and transmission
  */
-export async function getAssignedTrips(franchiseId?: string) {
-  const whereClause: any = {
-    driverId: { not: null }, // Must have a driver assigned
-    status: {
-      in: ACTIVE_DRIVER_ASSIGNED_TRIP_STATUSES,
-    },
-  };
-
-  if (franchiseId) {
-    whereClause.franchiseId = franchiseId;
-  }
-
-  return prisma.trip.findMany({
-    where: whereClause,
-    orderBy: { createdAt: "desc" },
-    include: {
-      Franchise: true,
-      Driver: true,
-      Customer: true,
-    },
-  });
-}
-
-/**
- * Get assigned trips with pagination
- */
-export async function getAssignedTripsPaginated(
-  skip: number,
-  take: number,
-  franchiseId?: string
+export async function findDriversWithMatchingCar(
+  franchiseId: string,
+  requiredCarType: CarType,
+  requiredTransmission: Transmission
 ) {
-  const whereClause: any = {
-    driverId: { not: null }, // Must have a driver assigned
-    status: {
-      in: ACTIVE_DRIVER_ASSIGNED_TRIP_STATUSES,
-    },
-  };
+  // Query drivers with matching cars using raw SQL for better performance
+  const result: any[] = await prisma.$queryRaw`
+    SELECT 
+      d.id as "driverId",
+      d."firstName",
+      d."lastName",
+      d.phone,
+      d."driverCode",
+      d.status,
+      d."driverTripStatus",
+      dc.id as "carId",
+      dc."carType",
+      dc.transmission,
+      dc."registrationNo"
+    FROM "Driver" d
+    INNER JOIN "DriverCar" dc ON dc."driverId" = d.id
+    WHERE d."franchiseId" = ${franchiseId}::uuid
+      AND d.status = 'ACTIVE'
+      AND d."driverTripStatus" = 'AVAILABLE'
+      AND d."isActive" = true
+      AND dc."isActive" = true
+      AND dc."carType" = ${requiredCarType}::"CarType"
+      AND dc.transmission = ${requiredTransmission}::"Transmission"
+    ORDER BY d."createdAt" DESC
+  `;
 
-  if (franchiseId) {
-    whereClause.franchiseId = franchiseId;
-  }
+  return result;
+}
 
-  const [data, total] = await Promise.all([
-    prisma.trip.findMany({
-      where: whereClause,
-      skip,
-      take,
-      orderBy: { createdAt: "desc" },
-      include: {
-        Franchise: true,
-        Driver: true,
-        Customer: true,
-      },
-    }),
-    prisma.trip.count({ where: whereClause }),
-  ]);
+/**
+ * Get a specific driver's matching car for assignment
+ */
+export async function getDriverMatchingCar(
+  driverId: string,
+  requiredCarType: CarType,
+  requiredTransmission: Transmission
+) {
+  const result: any = await prisma.$queryRaw`
+    SELECT 
+      dc.id,
+      dc."carType",
+      dc.transmission,
+      dc."registrationNo",
+      dc."isPrimary"
+    FROM "DriverCar" dc
+    WHERE dc."driverId" = ${driverId}::uuid
+      AND dc."isActive" = true
+      AND dc."carType" = ${requiredCarType}::"CarType"
+      AND dc.transmission = ${requiredTransmission}::"Transmission"
+    ORDER BY dc."isPrimary" DESC, dc."createdAt" DESC
+    LIMIT 1
+  `;
 
-  return { data, total };
+  return result.length > 0 ? result[0] : null;
 }

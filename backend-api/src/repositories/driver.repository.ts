@@ -1,6 +1,6 @@
 // src/repositories/driver.repository.ts
 import prisma from "../config/prismaClient";
-import { Driver, DriverStatus, DriverEmploymentType, TransmissionType, CarCategory } from "@prisma/client";
+import { Driver, DriverStatus, DriverEmploymentType } from "@prisma/client";
 import {
   getDriverEarningsConfigByDriver,
   getDriverEarningsConfigByFranchise,
@@ -133,15 +133,15 @@ export async function createDriver(data: {
   license: boolean;
   educationCert: boolean;
   previousExp: boolean;
-  transmissionTypes?: TransmissionType[]; // Array of TransmissionType enum values
-  carCategories?: CarCategory[]; // Array of CarCategory enum values
-  carTypes: string; // JSON string
   createdBy?: string | null; // User UUID who created this driver
   currentRating?: number;
-  employmentType?: DriverEmploymentType | null; // Optional rating (defaults to 5 in service)
+  employmentType?: DriverEmploymentType | null;
 }): Promise<Driver> {
+  // Remove fields that don't exist in the Driver model
+  const { transmissionTypes, carCategories, carTypes, ...driverData } = data as any;
+  
   return prisma.driver.create({
-    data,
+    data: driverData,
   });
 }
 
@@ -173,9 +173,6 @@ export async function updateDriver(
     license?: boolean;
     educationCert?: boolean;
     previousExp?: boolean;
-    transmissionTypes?: TransmissionType[]; // Array of TransmissionType enum values
-    carCategories?: CarCategory[]; // Array of CarCategory enum values
-    carTypes?: string; // JSON string
     status?: string;
     dailyTargetAmount?: number | null;
     incentive?: number | null;
@@ -183,10 +180,14 @@ export async function updateDriver(
     
   }
 ): Promise<Driver> {
-  // Filter out undefined values to only update provided fields (optimization)
+  // Filter out undefined values and fields that don't exist in Driver model
   const updateData: Record<string, any> = {};
   
   Object.keys(data).forEach((key) => {
+    // Skip fields that don't exist in Driver model
+    if (key === 'transmissionTypes' || key === 'carCategories' || key === 'carTypes') {
+      return;
+    }
     if (data[key as keyof typeof data] !== undefined) {
       updateData[key] = data[key as keyof typeof data];
     }

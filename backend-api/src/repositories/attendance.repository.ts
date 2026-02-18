@@ -258,6 +258,7 @@ export async function getAttendancesPaginated(
     userId?: string;
     startDate?: Date;
     endDate?: Date;
+    roleType?: AttendanceRoleType;
   }
 ) {
   const whereClause: any = {};
@@ -272,6 +273,30 @@ export async function getAttendancesPaginated(
   
   if (filters?.userId) {
     whereClause.userId = filters.userId;
+  }
+  
+  // Apply roleType filter
+  if (filters?.roleType) {
+    const roleConditions = [];
+    if (filters.roleType === "DRIVER") {
+      roleConditions.push({ driverId: { not: null } });
+    } else if (filters.roleType === "STAFF") {
+      roleConditions.push({ staffId: { not: null } });
+    } else if (filters.roleType === "MANAGER") {
+      roleConditions.push({ 
+        userId: { not: null }, 
+        User: { role: UserRole.MANAGER } 
+      });
+    } else if (filters.roleType === "ADMIN") {
+      roleConditions.push({ 
+        userId: { not: null }, 
+        User: { role: UserRole.ADMIN } 
+      });
+    }
+    
+    if (roleConditions.length > 0) {
+      whereClause.OR = roleConditions;
+    }
   }
   
   if (filters?.startDate || filters?.endDate) {

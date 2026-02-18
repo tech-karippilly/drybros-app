@@ -47,6 +47,22 @@ export const loginSchema = z.object({
 });
 
 /**
+ * Zod schema for driver login
+ */
+export const driverLoginSchema = z.object({
+  phone: z.string().min(10, "Phone is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+/**
+ * Zod schema for staff login
+ */
+export const staffLoginSchema = z.object({
+  phone: z.string().min(10, "Phone is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+/**
  * DTO for registering an admin (inferred from Zod schema)
  */
 export type RegisterAdminDTO = z.infer<typeof registerAdminSchema>;
@@ -55,6 +71,16 @@ export type RegisterAdminDTO = z.infer<typeof registerAdminSchema>;
  * DTO for login (inferred from Zod schema)
  */
 export type LoginDTO = z.infer<typeof loginSchema>;
+
+/**
+ * DTO for driver login (inferred from Zod schema)
+ */
+export type DriverLoginDTO = z.infer<typeof driverLoginSchema>;
+
+/**
+ * DTO for staff login (inferred from Zod schema)
+ */
+export type StaffLoginDTO = z.infer<typeof staffLoginSchema>;
 
 /**
  * DTO for user response
@@ -89,14 +115,30 @@ export const forgotPasswordSchema = z.object({
 });
 
 /**
+ * Zod schema for verify OTP
+ */
+export const verifyOTPSchema = z.object({
+  email: z.string().email("Invalid email format").toLowerCase().trim(),
+  otp: z.string().length(6, "OTP must be 6 digits"),
+});
+
+/**
  * Zod schema for reset password
  */
 export const resetPasswordSchema = z.object({
-  token: z.string().min(1, "Token is required"),
-  password: z
+  email: z.string().email("Invalid email format").toLowerCase().trim(),
+  otp: z.string().length(6, "OTP must be 6 digits"),
+  newPassword: z
     .string()
     .min(8, "Password must be at least 8 characters")
     .max(100, "Password must be less than 100 characters"),
+  confirmPassword: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(100, "Password must be less than 100 characters"),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
 });
 
 /**
@@ -110,6 +152,11 @@ export const refreshTokenSchema = z.object({
  * DTO for forgot password (inferred from Zod schema)
  */
 export type ForgotPasswordDTO = z.infer<typeof forgotPasswordSchema>;
+
+/**
+ * DTO for verify OTP (inferred from Zod schema)
+ */
+export type VerifyOTPDTO = z.infer<typeof verifyOTPSchema>;
 
 /**
  * DTO for reset password (inferred from Zod schema)
@@ -136,6 +183,10 @@ export interface AuthResponseDTO {
     phone: string | null;
     role: string;
     franchiseId?: string;
+    /** Staff ID for staff members (when logging in via email, id = User.id, staffId = Staff.id) */
+    staffId?: string;
+    /** Driver ID for drivers (when applicable) */
+    driverId?: string;
   };
   /** When true, client should show a modal that the franchise is temporarily closed */
   franchiseTemporarilyClosed?: boolean;
@@ -163,6 +214,7 @@ export interface AccessTokenPayload {
   role: string;
   fullName: string;
   email: string;
+  franchiseId?: string;
 }
 
 /**

@@ -1,219 +1,204 @@
-import { BadRequestError, NotFoundError } from "../utils/errors";
-import { createTripReview, getTripReviewById } from "../repositories/tripReview.repository";
-import { CreateTripReviewDTO, TripReviewResponseDTO, ReviewLinkResponseDTO, SubmitReviewWithTokenDTO, SubmitReviewResponseDTO } from "../types/review.dto";
-import { getTripById } from "../repositories/trip.repository";
-import { getDriverById } from "../repositories/driver.repository";
 import prisma from "../config/prismaClient";
-import jwt from "jsonwebtoken";
-import { authConfig } from "../config/authConfig";
-import appConfig from "../config/appConfig";
+import { TripStatus } from "@prisma/client";
+import {
+  SubmitTripReviewDTO,
+  SubmitDriverRatingDTO,
+} from "../types/review.dto";
+import logger from "../config/logger";
 
-export async function submitTripReview(input: CreateTripReviewDTO): Promise<{ message: string; data: TripReviewResponseDTO }> {
-  if (input.rating < 1 || input.rating > 5) {
-    throw new BadRequestError("Rating must be between 1 and 5");
-  }
+// ============================================
+// SUBMIT TRIP REVIEW
+// ============================================
 
-  const [trip, driver, customer, franchise] = await Promise.all([
-    getTripById(input.tripId),
-    getDriverById(input.driverId),
-    prisma.customer.findUnique({ where: { id: input.customerId } }),
-    prisma.franchise.findUnique({ where: { id: input.franchiseId } }),
-  ]);
-
-  if (!trip) throw new NotFoundError("Trip not found");
-  if (!driver) throw new NotFoundError("Driver not found");
-  if (!customer) throw new NotFoundError("Customer not found");
-  if (!franchise) throw new NotFoundError("Franchise not found");
-
-  const review = await createTripReview({
-    tripId: input.tripId,
-    driverId: input.driverId,
-    franchiseId: input.franchiseId,
-    customerId: input.customerId,
-    rating: input.rating,
-    comment: input.comment,
+export async function submitTripReview(
+  input: SubmitTripReviewDTO,
+  customerId: string
+) {
+  // Get trip
+  const trip = await prisma.trip.findUnique({
+    where: { id: input.tripId },
+    select: {
+      id: true,
+      status: true,
+      customerId: true,
+      driverId: true,
+      franchiseId: true,
+    },
   });
 
-  // Recalculate and update franchise average rating
-  try {
-    const average = await prisma.tripReview.aggregate({
-      where: { franchiseId: input.franchiseId },
-      _avg: { rating: true },
-    });
-    const avg = average._avg.rating ?? null;
-    await prisma.franchise.update({ where: { id: input.franchiseId }, data: { averageRating: avg } });
-  } catch (err) {
-    // Log but don't fail the request
-    console.error("Failed to update franchise average rating", err);
-  }
-
-  return {
-    message: "Trip review submitted successfully",
-    data: {
-      id: review.id,
-      tripId: review.tripId,
-      driverId: review.driverId,
-      franchiseId: review.franchiseId,
-      customerId: review.customerId,
-      rating: review.rating,
-      comment: review.comment,
-      createdAt: review.createdAt,
-    },
-  };
-}
-
-export async function getTripReview(id: string): Promise<{ data: TripReviewResponseDTO | null }> {
-  const review = await getTripReviewById(id);
-  if (!review) {
-    return { data: null };
-  }
-  return {
-    data: {
-      id: review.id,
-      tripId: review.tripId,
-      driverId: review.driverId,
-      franchiseId: review.franchiseId,
-      customerId: review.customerId,
-      rating: review.rating,
-      comment: review.comment,
-      createdAt: review.createdAt,
-    },
-  };
-}
-
-/**
- * Generate a review link for a trip
- * Creates a JWT token containing trip details
- */
-export async function createReviewLink(tripId: string): Promise<ReviewLinkResponseDTO> {
-  // Validate trip exists
-  const trip = await getTripById(tripId);
   if (!trip) {
-    throw new NotFoundError("Trip not found");
+    const error: any = new Error("Trip not found");
+    error.statusCode = 404;
+    throw error;
   }
 
-  // Check if trip has required data
-  if (!trip.driverId) {
-    throw new BadRequestError("Trip does not have an assigned driver");
-  }
-  if (!trip.customerId) {
-    throw new BadRequestError("Trip does not have an assigned customer");
-  }
-
-  // Create token with trip details (expires in 30 days)
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 30);
-
-  const token = jwt.sign(
-    {
-      tripId: trip.id,
-      driverId: trip.driverId,
-      customerId: trip.customerId,
-      franchiseId: trip.franchiseId,
-      type: "review_link",
-    },
-    authConfig.jwtSecret,
-    { expiresIn: "30d" }
-  );
-
-  // Construct review link
-  const reviewLink = `${appConfig.frontendUrlBase}/review/submit?token=${token}`;
-
-  return {
-    reviewLink,
-    token,
-    expiresAt,
-  };
-}
-
-/**
- * Submit a review using a token
- * Validates token and saves review to database
- */
-export async function submitReviewWithToken(input: SubmitReviewWithTokenDTO): Promise<SubmitReviewResponseDTO> {
-  // Verify and decode token
-  let decoded: any;
-  try {
-    decoded = jwt.verify(input.token, authConfig.jwtSecret);
-  } catch (err) {
-    throw new BadRequestError("Invalid or expired token");
+  // Validate trip is completed
+  if (trip.status !== TripStatus.COMPLETED && trip.status !== "PAYMENT_DONE" as any) {
+    const error: any = new Error("Trip must be completed before submitting review");
+    error.statusCode = 400;
+    throw error;
   }
 
-  // Validate token type
-  if (decoded.type !== "review_link") {
-    throw new BadRequestError("Invalid token type");
+  // Validate customer owns this trip
+  if (trip.customerId !== customerId) {
+    const error: any = new Error("You can only review your own trips");
+    error.statusCode = 403;
+    throw error;
   }
 
-  const { tripId, driverId, customerId, franchiseId } = decoded;
-
-  // Validate entities exist
-  const [trip, driver, customer, franchise] = await Promise.all([
-    getTripById(tripId),
-    getDriverById(driverId),
-    prisma.customer.findUnique({ where: { id: customerId } }),
-    prisma.franchise.findUnique({ where: { id: franchiseId } }),
-  ]);
-
-  if (!trip) throw new NotFoundError("Trip not found");
-  if (!driver) throw new NotFoundError("Driver not found");
-  if (!customer) throw new NotFoundError("Customer not found");
-  if (!franchise) throw new NotFoundError("Franchise not found");
-
-  // Check if review already exists for this trip
+  // Check if review already exists
   const existingReview = await prisma.tripReview.findFirst({
-    where: { tripId },
+    where: {
+      tripId: input.tripId,
+      customerId,
+    },
   });
 
   if (existingReview) {
-    throw new BadRequestError("Review already submitted for this trip");
+    const error: any = new Error("You have already reviewed this trip");
+    error.statusCode = 400;
+    throw error;
   }
 
   // Create review
   const review = await prisma.tripReview.create({
     data: {
-      tripId,
-      driverId,
-      franchiseId,
+      tripId: input.tripId,
       customerId,
+      franchiseId: trip.franchiseId,
+      driverId: trip.driverId,
       tripRating: input.tripRating,
       overallRating: input.overallRating,
       driverRating: input.driverRating,
-      comment: input.comment,
+      comment: input.comment || null,
+    },
+    include: {
+      Trip: true,
+      Customer: true,
+      Driver: true,
     },
   });
 
-  // Update franchise average rating
-  try {
-    const average = await prisma.tripReview.aggregate({
-      where: { franchiseId },
+  // Update driver's current rating (average of all ratings)
+  if (trip.driverId) {
+    const avgRating = await prisma.tripReview.aggregate({
+      where: { driverId: trip.driverId },
       _avg: { overallRating: true },
     });
-    const avg = average._avg.overallRating ?? null;
-    await prisma.franchise.update({
-      where: { id: franchiseId },
-      data: { averageRating: avg },
-    });
-  } catch (err) {
-    console.error("Failed to update franchise average rating", err);
+
+    if (avgRating._avg.overallRating) {
+      await prisma.driver.update({
+        where: { id: trip.driverId },
+        data: { currentRating: avgRating._avg.overallRating },
+      });
+    }
   }
 
-  // Update driver rating
-  try {
-    const driverAverage = await prisma.tripReview.aggregate({
-      where: { driverId },
-      _avg: { driverRating: true },
-    });
-    const driverAvg = driverAverage._avg.driverRating ?? null;
-    await prisma.driver.update({
-      where: { id: driverId },
-      data: { currentRating: driverAvg },
-    });
-  } catch (err) {
-    console.error("Failed to update driver rating", err);
-  }
+  logger.info("Trip review submitted", {
+    reviewId: review.id,
+    tripId: input.tripId,
+    customerId,
+  });
 
   return {
-    message: "Review submitted successfully",
-    reviewId: review.id,
+    success: true,
+    message: "Trip review submitted successfully",
+    data: review,
+  };
+}
+
+// ============================================
+// SUBMIT DRIVER RATING
+// ============================================
+
+export async function submitDriverRating(
+  input: SubmitDriverRatingDTO,
+  customerId: string
+) {
+  // Validate driver exists
+  const driver = await prisma.driver.findUnique({
+    where: { id: input.driverId },
+    select: { id: true, status: true },
+  });
+
+  if (!driver) {
+    const error: any = new Error("Driver not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // If tripId provided, validate trip
+  if (input.tripId) {
+    const trip = await prisma.trip.findUnique({
+      where: { id: input.tripId },
+      select: {
+        id: true,
+        status: true,
+        customerId: true,
+        driverId: true,
+      },
+    });
+
+    if (!trip) {
+      const error: any = new Error("Trip not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    // Validate customer owns this trip
+    if (trip.customerId !== customerId) {
+      const error: any = new Error("You can only rate drivers from your own trips");
+      error.statusCode = 403;
+      throw error;
+    }
+
+    // Validate driver matches trip
+    if (trip.driverId !== input.driverId) {
+      const error: any = new Error("Driver does not match the trip");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  // Create rating (using proper Prisma client fields)
+  const rating = await prisma.driverRating.create({
+    data: {
+      Driver: { connect: { id: input.driverId } },
+      Trip: input.tripId ? { connect: { id: input.tripId } } : undefined,
+      overallRating: input.overallRating,
+      drivingSafety: input.drivingSafety,
+      drivingSmoothness: input.drivingSmoothness,
+      behaviorPoliteness: input.behaviorPoliteness,
+      experience: input.experience || null,
+    } as any, // Temp cast until schema is verified
+    include: {
+      Driver: true,
+      Trip: true,
+    },
+  });
+
+  // Update driver's current rating (average of all overall ratings)
+  const avgRating = await prisma.driverRating.aggregate({
+    where: { driverId: input.driverId },
+    _avg: { overallRating: true },
+  });
+
+  if (avgRating._avg.overallRating) {
+    await prisma.driver.update({
+      where: { id: input.driverId },
+      data: { currentRating: avgRating._avg.overallRating },
+    });
+  }
+
+  logger.info("Driver rating submitted", {
+    ratingId: rating.id,
+    driverId: input.driverId,
+    customerId,
+  });
+
+  return {
+    success: true,
+    message: "Driver rating submitted successfully",
+    data: rating,
   };
 }

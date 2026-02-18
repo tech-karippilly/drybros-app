@@ -1,5 +1,6 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import prisma from '../config/prismaClient';
+import { getDashboardMetrics } from "../services/dashboard.service";
 
 export const getDashboardSummary = async (req: Request, res: Response) => {
   try {
@@ -65,10 +66,7 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch dashboard summary', details: error });
   }
-};// src/controllers/dashboard.controller.ts
-import { Request, Response, NextFunction } from "express";
-import { getDashboardMetrics } from "../services/dashboard.service";
-import prisma from "../config/prismaClient";
+};
 
 /**
  * Get dashboard metrics
@@ -103,8 +101,9 @@ export async function getAdminDashboardHandler(req:Request,res:Response){
     const pendingTripsCount = await prisma.trip.count({where:{status:'TRIP_PROGRESS',franchiseId}});
     const cancelledTripsCount = await prisma.trip.count({where:{status:'CANCELLED_BY_CUSTOMER',franchiseId}});
 
+    return res.status(200).json({data:{customersCount,driversCount,completedTripsCount,pendingTripsCount,cancelledTripsCount}})
     
   }catch(err){
-
+    return res.status(500).json({message:err.message})
   }
 }

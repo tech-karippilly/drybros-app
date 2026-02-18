@@ -1,159 +1,152 @@
 import express from "express";
+import { authMiddleware, requireRole } from "../middlewares/auth";
+import { UserRole } from "@prisma/client";
 import {
-  getTrips,
-  getTripByIdHandler,
-  createTripHandler,
-  createTripPhase1Handler,
-  driverAcceptTripHandler,
-  driverRejectTripHandler,
-  driverCancelTripHandler,
-  rescheduleTripHandler,
-  cancelTripHandler,
-  reassignDriverToTripHandler,
-  getUnassignedTripsHandler,
-  getAssignedTripsHandler,
-  getAvailableDriversForTripHandler,
-  getAvailableDriversSortedByRatingHandler,
-  assignDriverToTripHandler,
-  assignDriverToTripWithFranchiseHandler,
-  getDriverAssignedTripsHandler,
-  getMyAssignedTripsHandler,
-  getMyTripsHandler,
-  initiateStartTripHandler,
-  verifyAndStartTripHandler,
-  initiateEndTripHandler,
-  verifyAndEndTripHandler,
-  collectPaymentHandler,
-  verifyPaymentAndEndTripHandler,
-  getTripHistoryHandler,
-  getTripLogsHandler,
-  requestTripDriversHandler,
-  endTripDirectHandler,
-  updateTripLiveLocationHandler,
-} from "../controllers/trip.controller";
-import { authMiddleware } from "../middlewares/auth";
-import { validate, validateParams } from "../middlewares/validation";
+  enforceTripFranchiseScope,
+  validateTripFranchiseAccess,
+} from "../middlewares/tripFranchiseScope";
+import { validate } from "../middlewares/validation";
 import {
+  createTripSchema,
+  assignDriverSchema,
+  reassignDriverSchema,
   rescheduleTripSchema,
   cancelTripSchema,
-  reassignDriverSchema,
-  assignDriverSchema,
+  startTripSchema,
+  endTripSchema,
+  collectPaymentSchema,
 } from "../types/trip.dto";
-import { TRIP_ERROR_MESSAGES } from "../constants/trip";
-import { z } from "zod";
+import {
+  createTripHandler,
+  getTripsHandler,
+  getTripByIdHandler,
+  assignDriverHandler,
+  reassignDriverHandler,
+  rescheduleTripHandler,
+  cancelTripHandler,
+  startTripHandler,
+  endTripHandler,
+  collectPaymentHandler,
+} from "../controllers/trip.controller";
 
 const router = express.Router();
 
-// All trip routes require authentication
+// All routes require authentication
 router.use(authMiddleware);
 
-router.get("/", getTrips);
-router.get("/unassigned", getUnassignedTripsHandler);
-router.get("/assigned", getAssignedTripsHandler);
-router.get("/driver/assigned", getDriverAssignedTripsHandler);
-router.get("/my-assigned", getMyAssignedTripsHandler);
-router.get("/my", getMyTripsHandler);
-router.get("/:id/available-drivers", getAvailableDriversForTripHandler);
-router.get("/:id/available", getAvailableDriversSortedByRatingHandler);
-router.get("/:id", getTripByIdHandler);
-router.post("/", createTripHandler);
-router.post("/phase1", createTripPhase1Handler);
+// ============================================
+// POST /api/trips - Create Trip
+// Access: ADMIN, MANAGER, OFFICE_STAFF
+// ============================================
 router.post(
-  "/assign-driver",
+  "/",
+  requireRole(UserRole.ADMIN, UserRole.MANAGER, UserRole.OFFICE_STAFF),
+  validate(createTripSchema),
+  createTripHandler
+);
+
+// ============================================
+// GET /api/trips - List Trips
+// Access: ADMIN, MANAGER, OFFICE_STAFF, DRIVER (own only)
+// Middleware enforces franchise scope for MANAGER/OFFICE_STAFF
+// ============================================
+router.get(
+  "/",
+  requireRole(UserRole.ADMIN, UserRole.MANAGER, UserRole.OFFICE_STAFF, UserRole.DRIVER),
+  enforceTripFranchiseScope,
+  getTripsHandler
+);
+
+// ============================================
+// GET /api/trips/:id - Get Trip by ID
+// Access: ADMIN, MANAGER, OFFICE_STAFF, DRIVER (own only)
+// ============================================
+router.get(
+  "/:id",
+  requireRole(UserRole.ADMIN, UserRole.MANAGER, UserRole.OFFICE_STAFF, UserRole.DRIVER),
+  validateTripFranchiseAccess,
+  getTripByIdHandler
+);
+
+// ============================================
+// POST /api/trips/:id/assign - Assign Driver
+// Access: ADMIN, MANAGER, OFFICE_STAFF
+// ============================================
+router.post(
+  "/:id/assign",
+  requireRole(UserRole.ADMIN, UserRole.MANAGER, UserRole.OFFICE_STAFF),
+  validateTripFranchiseAccess,
   validate(assignDriverSchema),
-  assignDriverToTripWithFranchiseHandler
+  assignDriverHandler
 );
-router.post("/:id/assign-driver", assignDriverToTripHandler);
 
-
-const requestTripDriversSchema = z
-  .object({
-    mode: z.enum(["ALL", "SPECIFIC", "LIST"]).optional().default("ALL"),
-    driverId: z.string().uuid("Invalid driver ID format").optional(),
-    driverIds: z.array(z.string().uuid("Invalid driver ID format")).optional(),
-  })
-  .refine(
-    (v) => {
-      if (v.mode === "SPECIFIC") return Boolean(v.driverId);
-      if (v.mode === "LIST") return Array.isArray(v.driverIds) && v.driverIds.length > 0;
-      return true;
-    },
-    // Use superRefine so we can add dynamic, contextual issues
-  )
-  .superRefine((v, ctx) => {
-    if (v.mode === "SPECIFIC" && !v.driverId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: TRIP_ERROR_MESSAGES.DISPATCH_MISSING_DRIVER_ID,
-        path: ["driverId"],
-      });
-    }
-
-    if (v.mode === "LIST" && (!Array.isArray(v.driverIds) || v.driverIds.length === 0)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: TRIP_ERROR_MESSAGES.DISPATCH_MISSING_DRIVER_IDS,
-        path: ["driverIds"],
-      });
-    }
-  });
-
+// ============================================
+// POST /api/trips/:id/reassign - Reassign Driver
+// Access: ADMIN, MANAGER
+// ============================================
 router.post(
-  "/:id/request-drivers",
-  validateParams(z.object({ id: z.string().uuid("Invalid trip ID format") })),
-  validate(requestTripDriversSchema),
-  requestTripDriversHandler
+  "/:id/reassign",
+  requireRole(UserRole.ADMIN, UserRole.MANAGER),
+  validateTripFranchiseAccess,
+  validate(reassignDriverSchema),
+  reassignDriverHandler
 );
 
-router.patch("/:id/driver-accept", driverAcceptTripHandler);
-router.patch("/:id/driver-reject", driverRejectTripHandler);
-router.post("/:id/driver-cancel", driverCancelTripHandler);
-
-router.patch(
+// ============================================
+// POST /api/trips/:id/reschedule - Reschedule Trip
+// Access: ADMIN, MANAGER
+// ============================================
+router.post(
   "/:id/reschedule",
-  validateParams(z.object({ id: z.string().uuid("Invalid trip ID format") })),
+  requireRole(UserRole.ADMIN, UserRole.MANAGER),
+  validateTripFranchiseAccess,
   validate(rescheduleTripSchema),
   rescheduleTripHandler
 );
-router.patch(
+
+// ============================================
+// POST /api/trips/:id/cancel - Cancel Trip
+// Access: ADMIN, MANAGER, OFFICE_STAFF
+// ============================================
+router.post(
   "/:id/cancel",
-  validateParams(z.object({ id: z.string().uuid("Invalid trip ID format") })),
+  requireRole(UserRole.ADMIN, UserRole.MANAGER, UserRole.OFFICE_STAFF),
+  validateTripFranchiseAccess,
   validate(cancelTripSchema),
   cancelTripHandler
 );
-router.patch(
-  "/:id/reassign-driver",
-  validateParams(z.object({ id: z.string().uuid("Invalid trip ID format") })),
-  validate(reassignDriverSchema),
-  reassignDriverToTripHandler
-);
 
+// ============================================
+// POST /api/trips/:id/start - Start Trip
+// Access: DRIVER only
+// ============================================
 router.post(
-  "/:id/start-initiate",
-  validateParams(z.object({ id: z.string().uuid("Invalid trip ID format") })),
-  initiateStartTripHandler
+  "/:id/start",
+  requireRole(UserRole.DRIVER),
+  validate(startTripSchema),
+  startTripHandler
 );
-router.post("/:id/start-verify", verifyAndStartTripHandler);
 
+// ============================================
+// POST /api/trips/:id/end - End Trip
+// Access: DRIVER only
+// ============================================
 router.post(
-  "/:id/end-initiate",
-  validateParams(z.object({ id: z.string().uuid("Invalid trip ID format") })),
-  initiateEndTripHandler
+  "/:id/end",
+  requireRole(UserRole.DRIVER),
+  validate(endTripSchema),
+  endTripHandler
 );
-router.post("/:id/end-verify", verifyAndEndTripHandler);
 
-router.post("/:id/collect-payment", collectPaymentHandler);
-router.post("/:id/verify-payment", verifyPaymentAndEndTripHandler);
-
-router.post("/:id/end-direct", endTripDirectHandler);
-
+// ============================================
+// POST /api/trips/:id/payment - Collect Payment
+// Access: DRIVER only
+// ============================================
 router.post(
-  "/:id/live-location",
-  validateParams(z.object({ id: z.string().uuid("Invalid trip ID format") })),
-  updateTripLiveLocationHandler
+  "/:id/payment",
+  requireRole(UserRole.DRIVER),
+  validate(collectPaymentSchema),
+  collectPaymentHandler
 );
-
-router.get("/:id/history", getTripHistoryHandler);
-router.get("/:id/logs", getTripLogsHandler);
 
 export default router;

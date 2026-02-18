@@ -1,132 +1,131 @@
-// src/types/leave.dto.ts
 import { z } from "zod";
-import { LeaveType, LeaveRequestStatus } from "@prisma/client";
 
-/**
- * Helper to transform empty strings to undefined and validate UUID
- */
-const optionalUuidField = z.preprocess(
-  (val) => {
-    if (val === "" || val === null) return undefined;
-    return val;
-  },
-  z.string().uuid().optional()
-);
+// Local enum definitions (until Prisma client regeneration)
+export enum LeaveStatus {
+  PENDING = "PENDING",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+  CANCELLED = "CANCELLED",
+}
 
-/**
- * Zod schema for creating a leave request
- */
+export enum LeaveType {
+  SICK_LEAVE = "SICK_LEAVE",
+  CASUAL_LEAVE = "CASUAL_LEAVE",
+  ANNUAL_LEAVE = "ANNUAL_LEAVE",
+  EMERGENCY_LEAVE = "EMERGENCY_LEAVE",
+}
+
+// ============================================
+// CREATE LEAVE REQUEST DTO
+// ============================================
+
 export const createLeaveRequestSchema = z.object({
-  driverId: optionalUuidField,
-  staffId: optionalUuidField,
-  userId: optionalUuidField,
-  startDate: z.union([
-    z.string().datetime("Invalid date format").transform((val) => new Date(val)),
-    z.date(),
-  ]),
-  endDate: z.union([
-    z.string().datetime("Invalid date format").transform((val) => new Date(val)),
-    z.date(),
-  ]),
-  reason: z.string().min(1, "Reason is required").max(500, "Reason must be less than 500 characters").trim(),
-  leaveType: z.enum(["SICK_LEAVE", "CASUAL_LEAVE", "EARNED_LEAVE", "EMERGENCY_LEAVE", "OTHER"]),
+  startDate: z.string().refine((val) => !isNaN(Date.parse(val)), {
+    message: "Invalid start date format",
+  }),
+  endDate: z.string().refine((val) => !isNaN(Date.parse(val)), {
+    message: "Invalid end date format",
+  }),
+  reason: z.string().min(1, "Reason is required").max(500, "Reason too long"),
+  leaveType: z.nativeEnum(LeaveType),
 }).refine(
   (data) => {
-    const count = [data.driverId, data.staffId, data.userId].filter(Boolean).length;
-    return count === 1;
+    const start = new Date(data.startDate);
+    const end = new Date(data.endDate);
+    return start <= end;
   },
   {
-    message: "Exactly one of driverId, staffId, or userId must be provided",
-    path: ["driverId", "staffId", "userId"],
-  }
-).refine(
-  (data) => data.endDate >= data.startDate,
-  {
-    message: "End date must be after or equal to start date",
+    message: "Start date must be before or equal to end date",
     path: ["endDate"],
   }
 );
 
 export type CreateLeaveRequestDTO = z.infer<typeof createLeaveRequestSchema>;
 
-/**
- * Helper to transform empty strings to null for rejectionReason
- */
-const optionalRejectionReason = z.preprocess(
-  (val) => {
-    if (val === "" || val === undefined) return null;
-    return val;
-  },
-  z.string().max(500, "Rejection reason must be less than 500 characters").nullable()
-);
+// ============================================
+// APPROVE LEAVE DTO
+// ============================================
 
-/**
- * Zod schema for updating leave request status
- */
-export const updateLeaveRequestStatusSchema = z.object({
-  status: z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]),
-  rejectionReason: optionalRejectionReason,
-}).refine(
-  (data) => {
-    // If status is REJECTED, rejectionReason should be provided
-    if (data.status === "REJECTED" && !data.rejectionReason) {
-      return false;
-    }
-    return true;
-  },
-  {
-    message: "Rejection reason is required when status is REJECTED",
-    path: ["rejectionReason"],
-  }
-);
+export const approveLeaveSchema = z.object({
+  // approvedBy will come from JWT, no input needed
+});
 
-export type UpdateLeaveRequestStatusDTO = z.infer<typeof updateLeaveRequestStatusSchema>;
+export type ApproveLeaveDTO = z.infer<typeof approveLeaveSchema>;
 
-/**
- * Leave request response DTO
- */
+// ============================================
+// REJECT LEAVE DTO
+// ============================================
+
+export const rejectLeaveSchema = z.object({
+  rejectionReason: z.string().min(1, "Rejection reason is required").max(500, "Reason too long"),
+});
+
+export type RejectLeaveDTO = z.infer<typeof rejectLeaveSchema>;
+
+// ============================================
+// LIST LEAVE REQUESTS QUERY DTO
+// ============================================
+
+export const listLeaveRequestsQuerySchema = z.object({
+  status: z.nativeEnum(LeaveStatus).optional(),
+  franchiseId: z.string().uuid("Invalid franchise ID format").optional(),
+  driverId: z.string().uuid("Invalid driver ID format").optional(),
+  staffId: z.string().uuid("Invalid staff ID format").optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  page: z.string().optional().transform(val => val ? parseInt(val, 10) : 1),
+  limit: z.string().optional().transform(val => val ? Math.min(parseInt(val, 10), 100) : 10),
+});
+
+export type ListLeaveRequestsQueryDTO = z.infer<typeof listLeaveRequestsQuerySchema>;
+
+// ============================================
+// RESPONSE DTOs
+// ============================================
+
+export interface PaginationDTO {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
 export interface LeaveRequestResponseDTO {
   id: string;
   driverId: string | null;
   staffId: string | null;
   userId: string | null;
+  leaveType: LeaveType;
   startDate: Date;
   endDate: Date;
   reason: string;
-  leaveType: LeaveType;
-  status: LeaveRequestStatus;
-  requestedBy: string | null;
+  status: LeaveStatus;
   approvedBy: string | null;
   approvedAt: Date | null;
+  rejectedBy: string | null;
+  rejectedAt: Date | null;
   rejectionReason: string | null;
   createdAt: Date;
   updatedAt: Date;
+  // Relations
+  Driver?: any;
+  Staff?: any;
+  User?: any;
+  ApprovedByUser?: any;
+  RejectedByUser?: any;
 }
 
-/**
- * Pagination query schema for leave requests
- */
-export const leaveRequestPaginationQuerySchema = z.object({
-  page: z.string().optional().default("1").transform((val) => parseInt(val, 10)).pipe(z.number().int().positive()),
-  limit: z.string().optional().default("10").transform((val) => parseInt(val, 10)).pipe(z.number().int().positive().max(100)),
-  driverId: z.string().uuid("Driver ID must be a valid UUID").optional(),
-  staffId: z.string().uuid("Staff ID must be a valid UUID").optional(),
-  userId: z.string().uuid("User ID must be a valid UUID").optional(),
-  status: z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]).optional(),
-  startDate: z.string().datetime("Invalid start date format").optional(),
-  endDate: z.string().datetime("Invalid end date format").optional(),
-});
+export interface SingleLeaveRequestResponseDTO {
+  success: true;
+  message: string;
+  data: LeaveRequestResponseDTO;
+}
 
-export type LeaveRequestPaginationQueryDTO = z.infer<typeof leaveRequestPaginationQuerySchema>;
-
-export interface PaginatedLeaveRequestResponseDTO {
+export interface LeaveRequestListResponseDTO {
+  success: true;
+  message: string;
   data: LeaveRequestResponseDTO[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  };
+  pagination?: PaginationDTO;
 }

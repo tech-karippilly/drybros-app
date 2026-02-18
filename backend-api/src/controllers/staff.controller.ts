@@ -26,12 +26,20 @@ export async function getStaffList(
     if (req.query.page || req.query.limit) {
       // Use paginated endpoint with optional franchiseId filter
       const result = await listStaffPaginated(validatedQuery);
-      res.json(result);
+      res.json({
+        success: true,
+        message: "Staff list retrieved successfully",
+        ...result
+      });
     } else {
       // Backward compatibility: return all staff if no pagination params
       // franchiseId is optional - if not provided, returns all staff across all franchises
       const data = await listStaff(franchiseId);
-      res.json({ data });
+      res.json({ 
+        success: true,
+        message: "Staff list retrieved successfully",
+        data 
+      });
     }
   } catch (err) {
     next(err);
@@ -46,7 +54,11 @@ export async function getStaffById(
   try {
     const id = req.params.id;
     const staff = await getStaff(String(id));
-    res.json({ data: staff });
+    res.json({ 
+      success: true,
+      message: "Staff details retrieved successfully",
+      data: staff 
+    });
   } catch (err) {
     next(err);
   }

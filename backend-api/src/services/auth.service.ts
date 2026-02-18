@@ -24,9 +24,12 @@ import { ERROR_MESSAGES } from "../constants/errors";
 import {
   RegisterAdminDTO,
   LoginDTO,
+  DriverLoginDTO,
+  StaffLoginDTO,
   AuthResponseDTO,
   RegisterAdminResponseDTO,
   ForgotPasswordDTO,
+  VerifyOTPDTO,
   ResetPasswordDTO,
   RefreshTokenDTO,
   ForgotPasswordResponseDTO,
@@ -193,7 +196,9 @@ type UserAuthShape = {
  */
 function mapUserToResponse(
   user: UserAuthShape,
-  franchiseId?: string | null
+  franchiseId?: string | null,
+  staffId?: string | null,
+  driverId?: string | null
 ): AuthResponseDTO["user"] {
   const base = {
     id: String(user.id),
@@ -203,22 +208,32 @@ function mapUserToResponse(
     role: user.role,
   };
   // Include franchiseId for MANAGER, STAFF, OFFICE_STAFF, and DRIVER
+  const result: any = { ...base };
   if (franchiseId && ROLES_WITH_FRANCHISE.includes(user.role)) {
-    return { ...base, franchiseId };
+    result.franchiseId = franchiseId;
   }
-  return base;
+  // Include staffId for STAFF/OFFICE_STAFF when logging in via User table
+  if (staffId) {
+    result.staffId = staffId;
+  }
+  // Include driverId for DRIVER when applicable
+  if (driverId) {
+    result.driverId = driverId;
+  }
+  return result;
 }
 
 /**
  * Helper function to create access token payload from user
  * Supports User, Staff, and Driver entities
  */
-function createAccessTokenPayload(user: UserAuthShape): AccessTokenPayload {
+function createAccessTokenPayload(user: UserAuthShape, franchiseId?: string | null): AccessTokenPayload {
   return {
     userId: String(user.id),
     role: user.role,
     fullName: user.fullName,
     email: user.email,
+    franchiseId: franchiseId || undefined,
   };
 }
 
@@ -303,112 +318,119 @@ export async function registerAdmin(
 
 /**
  * Calculate lockout duration in minutes based on failed attempts
- * Optimized with early returns and cached calculations
- * 
- * Logic:
- * - 5 attempts → 5 minutes
- * - 7 attempts (5 + 2) → 10 minutes
- * - 9 attempts (7 + 2) → 20 minutes
- * - 11 attempts (9 + 2) → 30 minutes (capped at MAX_LOCKOUT_MINUTES)
+ * Progressive lockout: 5→5min, 6→10min, 7→15min, 8→20min, 9→25min, 10+→block
  */
-function calculateLockoutMinutes(failedAttempts: number): number {
-  // Early return for no lockout
-  if (failedAttempts < AUTH_RATE_LIMIT.FIRST_THRESHOLD) {
-    return 0;
-  }
-
-  // First threshold: exactly 5 attempts → 5 minutes
-  if (failedAttempts === AUTH_RATE_LIMIT.FIRST_THRESHOLD) {
-    return AUTH_RATE_LIMIT.FIRST_LOCKOUT_MINUTES;
-  }
-
-  // Calculate how many subsequent thresholds have been reached
-  // After 5 attempts, every 2 more attempts triggers a new threshold
-  const attemptsAfterFirst = failedAttempts - AUTH_RATE_LIMIT.FIRST_THRESHOLD;
-  const subsequentThresholds = Math.floor(
-    attemptsAfterFirst / AUTH_RATE_LIMIT.SUBSEQUENT_THRESHOLD_INCREMENT
-  );
-
-  // Each subsequent threshold multiplies the lockout time
-  // 5 attempts = 5 min, 7 attempts = 10 min (5 * 2), 9 attempts = 20 min (10 * 2), etc.
-  // Use bit shift for power of 2 (faster than Math.pow for powers of 2)
-  const lockoutMinutes =
-    AUTH_RATE_LIMIT.FIRST_LOCKOUT_MINUTES * (1 << subsequentThresholds);
-
-  // Cap at maximum lockout time
-  return lockoutMinutes > AUTH_RATE_LIMIT.MAX_LOCKOUT_MINUTES
-    ? AUTH_RATE_LIMIT.MAX_LOCKOUT_MINUTES
-    : lockoutMinutes;
+function calculateLockoutMinutes(failedAttempts: number): number | null {
+  if (failedAttempts < 5) return null;
+  if (failedAttempts >= 10) return -1; // Permanent block indicator
+  return (failedAttempts - 4) * 5; // 5, 10, 15, 20, 25
 }
 
 /**
- * Check if account is currently locked and throw error if so
- * Also auto-unlocks expired lockouts
- */
-function checkAccountLockout(user: any, now: Date = new Date()): void {
-  // Note: lockedUntil may not exist if migration hasn't been applied
-  if (user.lockedUntil) {
-    const lockedUntil = new Date(user.lockedUntil);
-
-    if (lockedUntil > now) {
-      const remainingMinutes = Math.ceil(
-        (lockedUntil.getTime() - now.getTime()) / (1000 * 60)
-      );
-      throw new TooManyRequestsError(
-        `${ERROR_MESSAGES.ACCOUNT_LOCKED} Please try again in ${remainingMinutes} minute(s).`
-      );
-    }
-    // Lockout has expired - will be cleared on next update
-  }
-}
-
-/**
- * Handle failed login attempt - increment attempts and lock account if needed
- * Optimized with pre-calculated lockout time
+ * Handle failed login attempt for any entity type
  */
 async function handleFailedLogin(
-  userId: string,
-  currentAttempts: number,
-  now: Date = new Date()
+  entity: 'user' | 'driver' | 'staff',
+  entityId: string,
+  currentAttempts: number
 ): Promise<void> {
   const newAttempts = currentAttempts + 1;
   const lockoutMinutes = calculateLockoutMinutes(newAttempts);
 
-  let lockedUntil: Date | null = null;
-  if (lockoutMinutes > 0) {
-    lockedUntil = new Date(now.getTime() + lockoutMinutes * 60 * 1000);
+  if (lockoutMinutes === -1) {
+    // Permanent block - set isActive to false
+    if (entity === 'user') {
+      await prisma.user.update({
+        where: { id: entityId },
+        data: { isActive: false, failedAttempts: newAttempts },
+      });
+    } else if (entity === 'driver') {
+      // @ts-ignore - Prisma client will be regenerated
+      await prisma.driver.update({
+        where: { id: entityId },
+        data: { isActive: false, failedAttempts: newAttempts },
+      });
+    } else if (entity === 'staff') {
+      // @ts-ignore - Prisma client will be regenerated
+      await prisma.staff.update({
+        where: { id: entityId },
+        data: { isActive: false, failedAttempts: newAttempts },
+      });
+    }
+    throw new BadRequestError("Account blocked due to multiple failed login attempts. Please contact administrator.");
   }
 
-  // Single atomic update operation
-  await prisma.user.update({
-    // @ts-ignore - Prisma types may show number but database uses UUID string
-    where: { id: userId },
-    data: {
-      failedAttempts: newAttempts,
-      lockedUntil,
-    },
-  });
+  const lockedUntil = lockoutMinutes 
+    ? new Date(Date.now() + lockoutMinutes * 60000) 
+    : null;
+
+  // Update failed attempts and lock status
+  if (entity === 'user') {
+    await prisma.user.update({
+      where: { id: entityId },
+      data: { failedAttempts: newAttempts, lockedUntil },
+    });
+  } else if (entity === 'driver') {
+    // @ts-ignore - Prisma client will be regenerated
+    await prisma.driver.update({
+      where: { id: entityId },
+      data: { failedAttempts: newAttempts, lockedUntil },
+    });
+  } else if (entity === 'staff') {
+    // @ts-ignore - Prisma client will be regenerated
+    await prisma.staff.update({
+      where: { id: entityId },
+      data: { failedAttempts: newAttempts, lockedUntil },
+    });
+  }
 
   logger.warn("Failed login attempt", {
-    userId,
+    entity,
+    entityId,
     failedAttempts: newAttempts,
     lockedUntil: lockedUntil?.toISOString(),
   });
 }
 
 /**
- * Reset failed login attempts on successful login
- * Also clears any expired lockouts
+ * Check if account is currently locked and throw error if so
  */
-async function resetFailedAttempts(userId: string): Promise<void> {
-  await prisma.user.update({
-    // @ts-ignore - Prisma types may show number but database uses UUID string
-    where: { id: userId },
-    data: {
-      failedAttempts: 0,
-      lockedUntil: null,
-    },
-  });
+function checkAccountLockout(record: any): void {
+  if (record.lockedUntil && new Date(record.lockedUntil) > new Date()) {
+    const remainingMinutes = Math.ceil(
+      (new Date(record.lockedUntil).getTime() - Date.now()) / 60000
+    );
+    throw new TooManyRequestsError(
+      `Account locked. Try again in ${remainingMinutes} minute(s).`
+    );
+  }
+}
+
+/**
+ * Reset failed login attempts on successful login
+ */
+async function resetFailedAttempts(
+  entity: 'user' | 'driver' | 'staff',
+  entityId: string
+): Promise<void> {
+  if (entity === 'user') {
+    await prisma.user.update({
+      where: { id: entityId },
+      data: { failedAttempts: 0, lockedUntil: null },
+    });
+  } else if (entity === 'driver') {
+    // @ts-ignore - Prisma client will be regenerated
+    await prisma.driver.update({
+      where: { id: entityId },
+      data: { failedAttempts: 0, lockedUntil: null },
+    });
+  } else if (entity === 'staff') {
+    // @ts-ignore - Prisma client will be regenerated
+    await prisma.staff.update({
+      where: { id: entityId },
+      data: { failedAttempts: 0, lockedUntil: null },
+    });
+  }
 }
 
 /**
@@ -443,11 +465,12 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
   let userAuthShape: UserAuthShape;
   let franchiseId: string | null = null;
   let entityId: string;
+  let staffId: string | null = null;
+  let driverId: string | null = null;
 
   if (user && user.isActive) {
     // Check if account is locked (before expensive password check)
-    const userWithLockout = user as any;
-    checkAccountLockout(userWithLockout, now);
+    checkAccountLockout(user);
 
     // Verify password (expensive operation, done after lockout check)
     const isPasswordValid = await bcrypt.compare(
@@ -457,15 +480,15 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
 
     if (!isPasswordValid) {
       // Handle failed login attempt with atomic increment
-      await handleFailedLogin(String(user.id), userWithLockout.failedAttempts || 0, now);
+      await handleFailedLogin('user', String(user.id), user.failedAttempts || 0);
       throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
 
     // Password is correct - reset failed attempts and unlock account
     // Only update database if there are failed attempts or account is locked (optimization)
-    const needsReset = (userWithLockout.failedAttempts && userWithLockout.failedAttempts > 0) || userWithLockout.lockedUntil;
+    const needsReset = (user.failedAttempts && user.failedAttempts > 0) || user.lockedUntil;
     if (needsReset) {
-      await resetFailedAttempts(String(user.id));
+      await resetFailedAttempts('user', String(user.id));
     }
 
     userAuthShape = {
@@ -666,7 +689,7 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
   }
 
   // Generate tokens
-  const accessToken = generateAccessToken(createAccessTokenPayload(userAuthShape));
+  const accessToken = generateAccessToken(createAccessTokenPayload(userAuthShape, franchiseId));
   const refreshToken = generateRefreshToken(entityId);
 
   logger.info("Successful login", {
@@ -686,6 +709,7 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
           select: { id: true },
         });
         if (staff) {
+          staffId = staff.id; // Store staffId for the response
           await trackLogin(undefined, staff.id, undefined);
         }
       } else if (userAuthShape.role === UserRole.MANAGER) {
@@ -720,13 +744,13 @@ export async function login(input: LoginDTO): Promise<AuthResponseDTO> {
   return {
     accessToken,
     refreshToken,
-    user: mapUserToResponse(userAuthShape, franchiseId),
+    user: mapUserToResponse(userAuthShape, franchiseId, staffId, driverId),
     ...(franchiseTemporarilyClosed && { franchiseTemporarilyClosed: true }),
   };
 }
 
 /**
- * Forgot password - verify email and send reset link.
+ * Generate and send OTP for password reset
  * Supports User (manager, staff, driver, admin), Staff, and Driver.
  * Lookup order: User (allowed roles) → Staff → Driver.
  */
@@ -734,142 +758,182 @@ export async function forgotPassword(
   input: ForgotPasswordDTO
 ): Promise<ForgotPasswordResponseDTO> {
   const email = input.email.toLowerCase().trim();
-
-  // 1. User (manager, staff, driver, admin)
+  
+  // Check if user exists in any table
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, email: true, fullName: true, role: true, isActive: true },
+    select: { id: true, email: true, fullName: true },
   });
-  if (
-    user &&
-    user.isActive &&
-    ROLES_ALLOWED_FOR_PASSWORD_RESET.includes(user.role as UserRole)
-  ) {
-    const resetToken = generatePasswordResetToken(
-      PASSWORD_RESET_ENTITY.USER as PasswordResetEntityType,
-      String(user.id),
-      user.email
-    );
-    const resetLink = `${emailConfig.resetPasswordLink}?token=${resetToken}`;
+  
+  if (user) {
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Store OTP in database with 10-minute expiry
+    // @ts-ignore - Prisma client will be regenerated
+    await prisma.passwordResetOTP.create({
+      data: {
+        email,
+        otp,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+      },
+    });
+    
+    // Send OTP to user's email
     await sendEmailSafely(
-      () =>
-        sendPasswordResetEmail({
-          to: user.email,
-          name: user.fullName,
-          resetLink,
-        }),
-      "Password reset email sent successfully",
-      "Failed to send password reset email",
-      { email: user.email }
+      () => sendPasswordResetEmail({
+        to: email,
+        name: user.fullName,
+        otp,
+        loginLink: emailConfig.loginLink,
+      }),
+      "Password reset OTP sent successfully",
+      "Failed to send password reset OTP",
+      { email }
     );
+    
     return {
-      message: "Password reset link has been sent to your email address.",
+      message: "Password reset OTP sent to your email. Please check your inbox.",
     };
   }
-
-  // 2. Staff
-  const staff = await prisma.staff.findFirst({
-    where: { email, isActive: true, status: "ACTIVE" },
+  
+  // Check if staff exists
+  const staff = await prisma.staff.findUnique({
+    where: { email },
     select: { id: true, email: true, name: true },
   });
+  
   if (staff) {
-    const resetToken = generatePasswordResetToken(
-      PASSWORD_RESET_ENTITY.STAFF as PasswordResetEntityType,
-      staff.id,
-      staff.email
-    );
-    const resetLink = `${emailConfig.resetPasswordLink}?token=${resetToken}`;
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Store OTP in database with 10-minute expiry
+    // @ts-ignore - Prisma client will be regenerated
+    await prisma.passwordResetOTP.create({
+      data: {
+        email,
+        otp,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+      },
+    });
+    
+    // Send OTP to staff's email
     await sendEmailSafely(
-      () =>
-        sendPasswordResetEmail({
-          to: staff.email,
-          name: staff.name,
-          resetLink,
-        }),
-      "Password reset email sent successfully (staff)",
-      "Failed to send password reset email to staff",
-      { email: staff.email }
+      () => sendPasswordResetEmail({
+        to: email,
+        name: staff.name,
+        otp,
+        loginLink: emailConfig.loginLink,
+      }),
+      "Password reset OTP sent successfully to staff",
+      "Failed to send password reset OTP to staff",
+      { email }
     );
+    
     return {
-      message: "Password reset link has been sent to your email address.",
+      message: "Password reset OTP sent to your email. Please check your inbox.",
     };
   }
-
-  // 3. Driver
-  const driver = await prisma.driver.findFirst({
-    where: {
-      email,
-      isActive: true,
-      status: "ACTIVE",
-      bannedGlobally: false,
-      blacklisted: false,
-    },
+  
+  // Check if driver exists
+  const driver = await prisma.driver.findUnique({
+    where: { email },
     select: { id: true, email: true, firstName: true, lastName: true },
   });
+  
   if (driver) {
-    const resetToken = generatePasswordResetToken(
-      PASSWORD_RESET_ENTITY.DRIVER as PasswordResetEntityType,
-      driver.id,
-      driver.email
-    );
-    const resetLink = `${emailConfig.resetPasswordLink}?token=${resetToken}`;
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Store OTP in database with 10-minute expiry
+    // @ts-ignore - Prisma client will be regenerated
+    await prisma.passwordResetOTP.create({
+      data: {
+        email,
+        otp,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+      },
+    });
+    
     const driverName = `${driver.firstName} ${driver.lastName}`.trim();
+    
+    // Send OTP to driver's email
     await sendEmailSafely(
-      () =>
-        sendPasswordResetEmail({
-          to: driver.email,
-          name: driverName,
-          resetLink,
-        }),
-      "Password reset email sent successfully (driver)",
-      "Failed to send password reset email to driver",
-      { email: driver.email }
+      () => sendPasswordResetEmail({
+        to: email,
+        name: driverName,
+        otp,
+        loginLink: emailConfig.loginLink,
+      }),
+      "Password reset OTP sent successfully to driver",
+      "Failed to send password reset OTP to driver",
+      { email }
     );
+    
     return {
-      message: "Password reset link has been sent to your email address.",
+      message: "Password reset OTP sent to your email. Please check your inbox.",
     };
   }
-
-  throw new NotFoundError(ERROR_MESSAGES.EMAIL_NOT_FOUND);
+  
+  // Even if email doesn't exist, return success to prevent enumeration attacks
+  return {
+    message: "Password reset OTP sent to your email. Please check your inbox.",
+  };
 }
 
 /**
- * Reset password using token.
- * Supports User (manager, staff, driver, admin), Staff, and Driver.
- * Backward compatible: tokens with userId but no entityType/entityId are treated as user.
+ * Reset password using OTP.
+ * Supports User, Staff, and Driver.
  */
 export async function resetPassword(
   input: ResetPasswordDTO
 ): Promise<ResetPasswordResponseDTO> {
-  const decoded = verifyToken<PasswordResetTokenPayload>(input.token);
+  const email = input.email.toLowerCase().trim();
+  
+  // Verify OTP is valid and verified
+  // @ts-ignore - Prisma client will be regenerated
+  const otpRecord = await prisma.passwordResetOTP.findFirst({
+    where: {
+      email,
+      otp: input.otp,
+      verified: true,
+      expiresAt: { gte: new Date() },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
 
-  if (decoded.type !== "password-reset") {
-    throw new BadRequestError(ERROR_MESSAGES.TOKEN_INVALID_TYPE);
+  if (!otpRecord) {
+    throw new BadRequestError("Invalid or expired OTP. Please request a new one.");
   }
 
-  const entityType = decoded.entityType ?? (decoded.userId ? "user" : null);
-  const entityId = decoded.entityId ?? decoded.userId;
-  if (!entityType || !entityId) {
-    throw new BadRequestError(ERROR_MESSAGES.INVALID_TOKEN);
-  }
+  // Hash new password
+  const hashedPassword = await bcrypt.hash(input.newPassword, 10);
 
-  const hashedPassword = await bcrypt.hash(input.password, 10);
+  // Try to find and update user in User table
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, email: true, fullName: true, isActive: true },
+  });
 
-  if (entityType === PASSWORD_RESET_ENTITY.USER) {
-    const user = await prisma.user.findUnique({
-      where: { id: entityId },
-      select: { id: true, email: true, fullName: true, isActive: true },
-    });
-    if (!user || !user.isActive) {
+  if (user) {
+    if (!user.isActive) {
       throw new BadRequestError(ERROR_MESSAGES.USER_NOT_FOUND);
     }
-    if (user.email !== decoded.email) {
-      throw new BadRequestError(ERROR_MESSAGES.INVALID_TOKEN);
-    }
+    
+    // @ts-ignore - Prisma client will be regenerated
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: hashedPassword },
+      data: { 
+        password: hashedPassword,
+        failedAttempts: 0,
+        lockedUntil: null,
+      },
     });
+
+    // Delete used OTP
+    // @ts-ignore - Prisma client will be regenerated
+    await prisma.passwordResetOTP.delete({ where: { id: otpRecord.id } });
+
     await sendEmailSafely(
       () =>
         sendPasswordResetConfirmationEmail({
@@ -881,21 +945,37 @@ export async function resetPassword(
       "Failed to send password reset confirmation email",
       { email: user.email }
     );
-  } else if (entityType === PASSWORD_RESET_ENTITY.STAFF) {
-    const staff = await prisma.staff.findUnique({
-      where: { id: entityId },
-      select: { id: true, email: true, name: true, isActive: true, status: true },
-    });
-    if (!staff || !staff.isActive || staff.status !== "ACTIVE") {
+
+    return {
+      message: "Password has been reset successfully. Please login with your new password.",
+    };
+  }
+
+  // Try to find and update in Staff table
+  const staff = await prisma.staff.findUnique({
+    where: { email },
+    select: { id: true, email: true, name: true, isActive: true, status: true },
+  });
+
+  if (staff) {
+    if (!staff.isActive || staff.status !== "ACTIVE") {
       throw new BadRequestError(ERROR_MESSAGES.STAFF_NOT_FOUND);
     }
-    if (staff.email !== decoded.email) {
-      throw new BadRequestError(ERROR_MESSAGES.INVALID_TOKEN);
-    }
+    
+    // @ts-ignore - Prisma client will be regenerated
     await prisma.staff.update({
       where: { id: staff.id },
-      data: { password: hashedPassword },
+      data: { 
+        password: hashedPassword,
+        failedAttempts: 0,
+        lockedUntil: null,
+      },
     });
+
+    // Delete used OTP
+    // @ts-ignore - Prisma client will be regenerated
+    await prisma.passwordResetOTP.delete({ where: { id: otpRecord.id } });
+
     await sendEmailSafely(
       () =>
         sendPasswordResetConfirmationEmail({
@@ -907,22 +987,29 @@ export async function resetPassword(
       "Failed to send password reset confirmation email to staff",
       { email: staff.email }
     );
-  } else if (entityType === PASSWORD_RESET_ENTITY.DRIVER) {
-    const driver = await prisma.driver.findUnique({
-      where: { id: entityId },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        isActive: true,
-        status: true,
-        bannedGlobally: true,
-        blacklisted: true,
-      },
-    });
+
+    return {
+      message: "Password has been reset successfully. Please login with your new password.",
+    };
+  }
+
+  // Try to find and update in Driver table
+  const driver = await prisma.driver.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      isActive: true,
+      status: true,
+      bannedGlobally: true,
+      blacklisted: true,
+    },
+  });
+
+  if (driver) {
     if (
-      !driver ||
       !driver.isActive ||
       driver.status !== "ACTIVE" ||
       driver.bannedGlobally ||
@@ -930,14 +1017,23 @@ export async function resetPassword(
     ) {
       throw new BadRequestError(ERROR_MESSAGES.DRIVER_NOT_FOUND);
     }
-    if (driver.email !== decoded.email) {
-      throw new BadRequestError(ERROR_MESSAGES.INVALID_TOKEN);
-    }
+    
     const driverName = `${driver.firstName} ${driver.lastName}`.trim();
+    
+    // @ts-ignore - Prisma client will be regenerated
     await prisma.driver.update({
       where: { id: driver.id },
-      data: { password: hashedPassword },
+      data: { 
+        password: hashedPassword,
+        failedAttempts: 0,
+        lockedUntil: null,
+      },
     });
+
+    // Delete used OTP
+    // @ts-ignore - Prisma client will be regenerated
+    await prisma.passwordResetOTP.delete({ where: { id: otpRecord.id } });
+
     await sendEmailSafely(
       () =>
         sendPasswordResetConfirmationEmail({
@@ -949,19 +1045,290 @@ export async function resetPassword(
       "Failed to send password reset confirmation email to driver",
       { email: driver.email }
     );
-  } else {
-    throw new BadRequestError(ERROR_MESSAGES.INVALID_TOKEN);
+
+    return {
+      message: "Password has been reset successfully. Please login with your new password.",
+    };
+  }
+
+  throw new NotFoundError(ERROR_MESSAGES.EMAIL_NOT_FOUND);
+}
+
+/**
+ * Login driver and return access and refresh tokens
+ */
+export async function loginDriver(input: DriverLoginDTO): Promise<AuthResponseDTO> {
+  const phone = input.phone.trim();
+
+  // Find driver by phone
+  // @ts-ignore - Prisma client will be regenerated
+  const driver = await prisma.driver.findUnique({
+    where: { phone },
+    select: {
+      id: true,
+      email: true,
+      phone: true,
+      password: true,
+      firstName: true,
+      lastName: true,
+      franchiseId: true,
+      isActive: true,
+      status: true,
+      bannedGlobally: true,
+      blacklisted: true,
+      failedAttempts: true,
+      lockedUntil: true,
+    },
+  });
+
+  if (!driver) {
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+  }
+
+  // Check if driver is active and not blacklisted/banned
+  if (!driver.isActive) {
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+  }
+  if (driver.blacklisted || driver.status === "TERMINATED") {
+    throw new BadRequestError(ERROR_MESSAGES.DRIVER_BLACKLISTED);
+  }
+  if (driver.bannedGlobally) {
+    throw new BadRequestError(ERROR_MESSAGES.DRIVER_BANNED_GLOBALLY);
+  }
+
+  // Check if account is locked
+  checkAccountLockout(driver);
+
+  // Verify password
+  const isPasswordValid = await bcrypt.compare(input.password, driver.password);
+  if (!isPasswordValid) {
+    // Handle failed login attempt
+    await handleFailedLogin('driver', driver.id, driver.failedAttempts || 0);
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+  }
+
+  // Password is correct - reset failed attempts and unlock account
+  const needsReset = (driver.failedAttempts && driver.failedAttempts > 0) || driver.lockedUntil;
+  if (needsReset) {
+    await resetFailedAttempts('driver', driver.id);
+  }
+
+  // Generate tokens
+  const accessToken = generateDriverAccessToken({
+    id: driver.id,
+    driverCode: driver.driverCode,
+    email: driver.email,
+  });
+  const refreshToken = generateDriverRefreshToken(driver.id);
+
+  // Block login if driver's franchise is blocked; flag if temporarily closed
+  let franchiseTemporarilyClosed = false;
+  if (driver.franchiseId) {
+    const franchise = await prisma.franchise.findUnique({
+      where: { id: driver.franchiseId },
+      select: { status: true, isActive: true },
+    });
+    if (
+      franchise &&
+      (franchise.status === FranchiseStatus.BLOCKED || !franchise.isActive)
+    ) {
+      throw new BadRequestError(ERROR_MESSAGES.FRANCHISE_BLOCKED);
+    }
+    if (franchise?.status === FranchiseStatus.TEMPORARILY_CLOSED) {
+      franchiseTemporarilyClosed = true;
+    }
+  }
+
+  logger.info("Driver login successful", {
+    driverId: driver.id,
+    email: driver.email,
+    phone: driver.phone,
+  });
+
+  // Track login time for attendance (non-blocking)
+  try {
+    await trackLogin(driver.id, undefined, undefined);
+  } catch (error) {
+    logger.error("Error tracking driver login", {
+      driverId: driver.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  // Log LOGIN activity
+  try {
+    await logActivity({
+      action: ActivityAction.LOGIN,
+      entityType: ActivityEntityType.DRIVER,
+      entityId: driver.id,
+      description: `Driver login`,
+    });
+  } catch (error) {
+    logger.error("Error logging driver login activity", {
+      driverId: driver.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 
   return {
-    message:
-      "Password has been reset successfully. Please check your email for confirmation.",
+    accessToken,
+    refreshToken,
+    user: {
+      id: driver.id,
+      fullName: `${driver.firstName} ${driver.lastName}`.trim(),
+      email: driver.email,
+      phone: driver.phone,
+      role: "DRIVER",
+      franchiseId: driver.franchiseId,
+    },
+    ...(franchiseTemporarilyClosed && { franchiseTemporarilyClosed: true }),
   };
 }
 
 /**
- * Refresh access token using refresh token
+ * Login staff and return access and refresh tokens
  */
+export async function loginStaff(input: StaffLoginDTO): Promise<AuthResponseDTO> {
+  const phone = input.phone.trim();
+
+  // Find staff by phone
+  // @ts-ignore - Prisma client will be regenerated
+  const staff = await prisma.staff.findUnique({
+    where: { phone },
+    select: {
+      id: true,
+      email: true,
+      phone: true,
+      password: true,
+      name: true,
+      franchiseId: true,
+      isActive: true,
+      status: true,
+      suspendedUntil: true,
+      failedAttempts: true,
+      lockedUntil: true,
+    },
+  });
+
+  if (!staff) {
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+  }
+
+  // Check if staff is active and not suspended/fired
+  if (!staff.isActive) {
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+  }
+  if (staff.status === "FIRED") {
+    throw new BadRequestError(ERROR_MESSAGES.STAFF_FIRED);
+  }
+  if (staff.status === "SUSPENDED" && staff.suspendedUntil && new Date(staff.suspendedUntil) > new Date()) {
+    throw new BadRequestError(ERROR_MESSAGES.STAFF_SUSPENDED);
+  }
+
+  // Check if account is locked
+  checkAccountLockout(staff);
+
+  // Verify password
+  const isPasswordValid = await bcrypt.compare(input.password, staff.password);
+  if (!isPasswordValid) {
+    // Handle failed login attempt
+    await handleFailedLogin('staff', staff.id, staff.failedAttempts || 0);
+    throw new BadRequestError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+  }
+
+  // Password is correct - reset failed attempts and unlock account
+  const needsReset = (staff.failedAttempts && staff.failedAttempts > 0) || staff.lockedUntil;
+  if (needsReset) {
+    await resetFailedAttempts('staff', staff.id);
+  }
+
+  // Generate tokens
+  const userAuthShape: UserAuthShape = {
+    id: staff.id,
+    fullName: staff.name,
+    email: staff.email,
+    phone: staff.phone,
+    role: UserRole.STAFF,
+  };
+  const accessToken = generateAccessToken(createAccessTokenPayload(userAuthShape, staff.franchiseId));
+  const refreshToken = generateRefreshToken(staff.id);
+
+  logger.info("Staff login successful", {
+    staffId: staff.id,
+    email: staff.email,
+    phone: staff.phone,
+  });
+
+  // Track login time for attendance (non-blocking)
+  try {
+    await trackLogin(undefined, staff.id, undefined);
+  } catch (error) {
+    logger.error("Error tracking staff login", {
+      staffId: staff.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  // Log LOGIN activity
+  try {
+    await logActivity({
+      action: ActivityAction.LOGIN,
+      entityType: ActivityEntityType.STAFF,
+      entityId: staff.id,
+      description: `Staff login`,
+    });
+  } catch (error) {
+    logger.error("Error logging staff login activity", {
+      staffId: staff.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return {
+    accessToken,
+    refreshToken,
+    user: {
+      id: staff.id,
+      fullName: staff.name,
+      email: staff.email,
+      phone: staff.phone,
+      role: "STAFF",
+      franchiseId: staff.franchiseId,
+    },
+  };
+}
+
+/**
+ * Verify OTP for password reset
+ */
+export async function verifyOTP(input: VerifyOTPDTO): Promise<{ message: string }> {
+  const email = input.email.toLowerCase().trim();
+  
+  // Find OTP record
+  const otpRecord = await prisma.passwordResetOTP.findFirst({
+    where: {
+      email,
+      otp: input.otp,
+      verified: false,
+      expiresAt: { gte: new Date() },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  
+  if (!otpRecord) {
+    throw new BadRequestError("Invalid or expired OTP. Please request a new one.");
+  }
+  
+  // Mark OTP as verified
+  await prisma.passwordResetOTP.update({
+    where: { id: otpRecord.id },
+    data: { verified: true },
+  });
+  
+  return {
+    message: "OTP verified successfully. You can now reset your password.",
+  };
+}
 export async function refreshToken(
   input: RefreshTokenDTO
 ): Promise<AuthResponseDTO> {
@@ -1086,7 +1453,7 @@ export async function refreshToken(
   }
 
   // Generate new tokens
-  const accessToken = generateAccessToken(createAccessTokenPayload(user));
+  const accessToken = generateAccessToken(createAccessTokenPayload(user, franchiseId));
   const newRefreshToken = generateRefreshToken(String(user.id));
 
   return {

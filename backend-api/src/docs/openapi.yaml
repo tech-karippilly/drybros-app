@@ -255,7 +255,8 @@ paths:
   /auth/reset-password:
     post:
       summary: Reset password with token
-      description: Resets the user's password using the token received via email. Token expiration is configurable (default: 1 hour).
+      description: |
+        Resets the user's password using the token received via email. Token expiration is configurable (default: 1 hour).
       tags:
         - Authentication
       requestBody:
@@ -401,17 +402,21 @@ paths:
 
   /franchises:
     get:
-      summary: List all franchises (with optional pagination)
+      summary: List all franchises (with optional pagination, search, and filter)
       description: |
-        Get a list of all franchises. Supports optional pagination via query parameters.
+        Get a list of all franchises. Supports optional pagination, search, and status filtering.
         
         **Query Parameters:**
         - `page` (optional): Page number (default: 1)
         - `limit` (optional): Number of items per page (default: 10, max: 100)
+        - `search` (optional): Search by franchise name, code, city, or region
+        - `status` (optional): Filter by status (ACTIVE, BLOCKED, TEMPORARILY_CLOSED)
         
         **Without pagination parameters:** Returns all franchises (backward compatible)
         
         **With pagination parameters:** Returns paginated results with metadata
+        
+        **Access:** ADMIN only
       tags:
         - Franchises
       security:
@@ -434,6 +439,24 @@ paths:
             minimum: 1
             maximum: 100
             default: 10
+        - name: search
+          in: query
+          required: false
+          description: Search by franchise name, code, city, or region
+          schema:
+            type: string
+            example: "Downtown"
+        - name: status
+          in: query
+          required: false
+          description: Filter by franchise status
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - BLOCKED
+              - TEMPORARILY_CLOSED
+            example: "ACTIVE"
       responses:
         "200":
           description: List of franchises (paginated or all)
@@ -444,28 +467,45 @@ paths:
                   - type: object
                     description: Paginated response (when page/limit provided)
                     properties:
+                      success:
+                        type: boolean
+                        example: true
+                      message:
+                        type: string
+                        example: "Franchises retrieved successfully"
                       data:
                         type: array
                         items:
-                          $ref: "#/components/schemas/Franchise"
+                          $ref: "#/components/schemas/FranchiseListItem"
                       pagination:
                         $ref: "#/components/schemas/PaginationMeta"
                   - type: object
                     description: All franchises (when no pagination params)
                     properties:
+                      success:
+                        type: boolean
+                        example: true
+                      message:
+                        type: string
+                        example: "Franchises retrieved successfully"
                       data:
                         type: array
                         items:
-                          $ref: "#/components/schemas/Franchise"
+                          $ref: "#/components/schemas/FranchiseListItem"
               examples:
                 paginated:
                   summary: Paginated response
                   value:
+                    success: true
+                    message: "Franchises retrieved successfully"
                     data:
                       - id: "550e8400-e29b-41d4-a716-446655440000"
                         code: "FRN-A1B2C3"
                         name: "Downtown Branch"
+                        city: "New York"
                         status: "ACTIVE"
+                        isActive: true
+                        createdAt: "2026-01-15T10:30:00Z"
                     pagination:
                       page: 1
                       limit: 10
@@ -476,10 +516,36 @@ paths:
                 all:
                   summary: All franchises (no pagination)
                   value:
+                    success: true
+                    message: "Franchises retrieved successfully"
                     data:
                       - id: "550e8400-e29b-41d4-a716-446655440000"
                         code: "FRN-A1B2C3"
                         name: "Downtown Branch"
+                        city: "New York"
+                        status: "ACTIVE"
+                        isActive: true
+                        createdAt: "2026-01-15T10:30:00Z"
+                searchFiltered:
+                  summary: Search and filter response
+                  value:
+                    success: true
+                    message: "Franchises retrieved successfully"
+                    data:
+                      - id: "550e8400-e29b-41d4-a716-446655440000"
+                        code: "FRN-A1B2C3"
+                        name: "Downtown Branch"
+                        city: "New York"
+                        status: "ACTIVE"
+                        isActive: true
+                        createdAt: "2026-01-15T10:30:00Z"
+                    pagination:
+                      page: 1
+                      limit: 10
+                      total: 5
+                      totalPages: 1
+                      hasNext: false
+                      hasPrev: false
         "400":
           description: Bad request - invalid pagination parameters
           content:
@@ -488,6 +554,8 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated (missing or invalid token)
+        "403":
+          description: Forbidden - insufficient permissions (ADMIN only)
     post:
       summary: Create a new franchise
       description: |
@@ -641,15 +709,51 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
-      summary: Soft delete franchise
+      summary: Delete franchise and all related data (permanent)
       description: |
-        Soft delete a franchise by setting isActive to false. Only ADMIN role can delete franchises.
+        **⚠️ PERMANENT DELETION - This action cannot be undone!**
         
-        This operation does not permanently delete the franchise from the database.
+        Permanently delete a franchise and all its associated data from the database. Only ADMIN role can delete franchises.
+        
+        This operation uses a database transaction to ensure atomicity - either all deletions succeed or none do.
+        
+        **What gets deleted:**
+        
+        1. **Users** - All MANAGER users associated with this franchise
+        2. **Drivers** - All drivers and their complete records including:
+           - Driver cars and vehicle information
+           - All trips (with trip offers, reviews, status history)
+           - Driver ratings and reviews
+           - Attendance and leave records
+           - Complaints and warnings
+           - Financial transactions and payroll records
+           - Daily and monthly performance metrics
+        3. **Staff** - All staff members and their records including:
+           - Staff history
+           - Complaints and warnings
+           - Attendance and leave records
+           - Monthly performance data
+        4. **Customers** - All customers registered under this franchise
+        5. **Trips** - All trips and trip-related data (if not deleted via driver cascade)
+        6. **Performance Records** - All monthly performance records for drivers, staff, managers, and the franchise itself
+        7. **Activity Logs** - All activity logs associated with this franchise
+        8. **Earnings Config** - Franchise-level driver earnings configurations
+        9. **The Franchise** - Finally, the franchise record itself
+        
+        **Security:**
+        - Only users with ADMIN role can perform this operation
+        - Requires valid authentication token
+        - Validates franchise exists before deletion
+        
+        **Transaction Safety:**
+        - All deletions are wrapped in a database transaction
+        - If any deletion fails, all changes are rolled back
+        - Ensures data consistency and integrity
       tags:
         - Franchises
       security:
         - bearerAuth: []
+      x-roles: ["ADMIN"]
       parameters:
         - name: id
           in: path
@@ -658,27 +762,81 @@ paths:
           schema:
             type: string
             format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
       responses:
         "200":
-          description: Franchise deleted successfully
+          description: Franchise and all related data deleted successfully
           content:
             application/json:
               schema:
                 type: object
                 properties:
+                  success:
+                    type: boolean
+                    example: true
                   message:
                     type: string
-                    example: "Franchise deleted successfully"
+                    example: "Franchise and all related data deleted successfully"
+              examples:
+                success:
+                  summary: Successful deletion
+                  value:
+                    success: true
+                    message: "Franchise and all related data deleted successfully"
+        "400":
+          description: Bad request - invalid franchise ID format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidId:
+                  summary: Invalid UUID format
+                  value:
+                    success: false
+                    message: "Invalid franchise ID format"
         "401":
           description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: Forbidden - insufficient permissions (only ADMIN can delete)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                forbidden:
+                  summary: Insufficient permissions
+                  value:
+                    success: false
+                    message: "Access denied. Admin privileges required."
         "404":
           description: Franchise not found
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                notFound:
+                  summary: Franchise not found
+                  value:
+                    success: false
+                    message: "Franchise not found"
+        "500":
+          description: Internal server error - deletion failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                serverError:
+                  summary: Database transaction failed
+                  value:
+                    success: false
+                    message: "Failed to delete franchise. Transaction rolled back."
 
   /franchises/{id}/status:
     patch:
@@ -7855,6 +8013,504 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  # ============================================
+  # NOTIFICATIONS MODULE
+  # ============================================
+  /api/notifications:
+    get:
+      summary: Get my notifications
+      description: Retrieve notifications for the authenticated user
+      tags:
+        - Notifications
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: isRead
+          schema:
+            type: boolean
+          description: Filter by read status
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum:
+              - TRIP_ASSIGNED
+              - COMPLAINT_CREATED
+              - LEAVE_APPROVED
+              - PAYROLL_GENERATED
+          description: Filter by notification type
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        "200":
+          description: Notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Notification"
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      total:
+                        type: integer
+                      totalPages:
+                        type: integer
+                      hasNext:
+                        type: boolean
+                      hasPrev:
+                        type: boolean
+                  unreadCount:
+                    type: integer
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+  /api/notifications/read-all:
+    patch:
+      summary: Mark all notifications as read
+      tags:
+        - Notifications
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        "401":
+          description: Unauthorized
+
+  /api/notifications/{id}/read:
+    patch:
+      summary: Mark single notification as read
+      tags:
+        - Notifications
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Notification marked as read
+        "401":
+          description: Unauthorized
+
+  # ============================================
+  # OTP MODULE
+  # ============================================
+  /api/otp/send:
+    post:
+      summary: Send OTP
+      description: Generate and send OTP to phone number (Public endpoint - Rate limited to 3 requests per 10 minutes)
+      tags:
+        - OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendOtpRequest"
+      responses:
+        "200":
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      phone:
+                        type: string
+                      expiresAt:
+                        type: string
+                        format: date-time
+        "429":
+          description: Too many OTP requests (rate limited)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  retryAfter:
+                    type: integer
+
+  /api/otp/verify:
+    post:
+      summary: Verify OTP
+      description: Verify OTP for phone number (Public endpoint - Max 3 attempts, then 15-minute phone block)
+      tags:
+        - OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyOtpRequest"
+      responses:
+        "200":
+          description: OTP verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      verified:
+                        type: boolean
+        "400":
+          description: Invalid or expired OTP
+        "429":
+          description: Phone blocked due to too many failed attempts
+
+  # ============================================
+  # STAFF MODULE (CLEAN)
+  # ============================================
+  /api/staff:
+    post:
+      summary: Create staff member
+      description: Create new staff (ADMIN, MANAGER only). MANAGER can only create for own franchise.
+      tags:
+        - Staff Management
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStaffRequest"
+      responses:
+        "201":
+          description: Staff created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/StaffClean"
+        "403":
+          description: Forbidden (insufficient permissions)
+        "400":
+          description: Validation error
+    get:
+      summary: List staff members
+      description: List all staff (ADMIN sees all, MANAGER sees own franchise only)
+      tags:
+        - Staff Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: franchiseId
+          schema:
+            type: string
+            format: uuid
+          description: Filter by franchise (ADMIN only)
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - SUSPENDED
+              - FIRED
+              - BLOCKED
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by name or phone
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Staff list retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/StaffClean"
+                  pagination:
+                    type: object
+
+  /api/staff/me:
+    get:
+      summary: Get my profile
+      description: Get authenticated staff member's profile
+      tags:
+        - Staff Management
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Profile retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/StaffClean"
+
+  /api/staff/{id}/status:
+    patch:
+      summary: Update staff status
+      description: Update staff status (ADMIN, MANAGER only). Can suspend, fire, or block staff.
+      tags:
+        - Staff Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStaffStatusRequest"
+      responses:
+        "200":
+          description: Status updated successfully
+        "403":
+          description: Forbidden
+
+  # ============================================
+  # REPORTS MODULE
+  # ============================================
+  /api/reports/revenue:
+    get:
+      summary: Revenue analytics report
+      description: Generate revenue analytics (ADMIN sees global, MANAGER sees own franchise only)
+      tags:
+        - Reports & Analytics
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: franchiseId
+          schema:
+            type: string
+            format: uuid
+          description: Filter by franchise (ADMIN only)
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          example: "2026-01-01"
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          example: "2026-02-12"
+        - in: query
+          name: groupBy
+          schema:
+            type: string
+            enum:
+              - day
+              - week
+              - month
+            default: month
+        - in: query
+          name: export
+          schema:
+            type: string
+            enum:
+              - csv
+              - excel
+          description: Export format (future feature)
+      responses:
+        "200":
+          description: Revenue report generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevenueReport"
+        "403":
+          description: Forbidden (insufficient permissions)
+
+  /api/reports/trips:
+    get:
+      summary: Trip analytics report
+      description: Generate trip analytics with completion/cancellation metrics (ADMIN, MANAGER only)
+      tags:
+        - Reports & Analytics
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: franchiseId
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Trip report generated
+
+  /api/reports/drivers:
+    get:
+      summary: Driver analytics report
+      description: Generate driver performance analytics with rankings
+      tags:
+        - Reports & Analytics
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: franchiseId
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: month
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: metricType
+          schema:
+            type: string
+            enum:
+              - revenue
+              - trips
+              - rating
+              - complaints
+            default: revenue
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+      responses:
+        "200":
+          description: Driver report generated
+
+  /api/reports/franchises:
+    get:
+      summary: Franchise comparison report
+      description: Compare franchise performance (ADMIN only)
+      tags:
+        - Reports & Analytics
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: month
+          schema:
+            type: integer
+        - in: query
+          name: year
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Franchise report generated
+        "403":
+          description: Forbidden (ADMIN only)
         
 components:
   schemas:
@@ -9688,6 +10344,50 @@ components:
             - hasNext
             - hasPrev
 
+    FranchiseListItem:
+      type: object
+      description: Simplified franchise item for list responses
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Franchise ID (UUID)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        code:
+          type: string
+          description: Auto-generated unique franchise code (format: FRN-XXXXXX)
+          example: "FRN-A1B2C3"
+        name:
+          type: string
+          description: Franchise name
+          example: "Downtown Branch"
+        city:
+          type: string
+          description: City where franchise is located
+          example: "New York"
+        status:
+          type: string
+          enum: [ACTIVE, BLOCKED, TEMPORARILY_CLOSED]
+          description: Franchise status
+          example: "ACTIVE"
+        isActive:
+          type: boolean
+          description: Whether the franchise is active
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2026-01-20T10:30:00Z"
+      required:
+        - id
+        - code
+        - name
+        - city
+        - status
+        - isActive
+        - createdAt
+
     Franchise:
       type: object
       properties:
@@ -9721,13 +10421,30 @@ components:
         phone:
           type: string
           nullable: true
-          description: Contact number
+          description: Franchise contact number
           example: "+1234567890"
+        email:
+          type: string
+          format: email
+          nullable: true
+          description: Franchise email address
+          example: "downtown@drybros.com"
         inchargeName:
           type: string
           nullable: true
-          description: Name of the person in charge
+          description: Name of the person in charge (manager)
           example: "John Smith"
+        managerEmail:
+          type: string
+          format: email
+          nullable: true
+          description: Manager's email address
+          example: "john.smith@drybros.com"
+        managerPhone:
+          type: string
+          nullable: true
+          description: Manager's phone number
+          example: "+1234567891"
         storeImage:
           type: string
           nullable: true
@@ -9750,12 +10467,24 @@ components:
           type: string
           format: date-time
           description: Creation timestamp
-          example: "2024-01-20T10:30:00Z"
+          example: "2026-01-20T10:30:00Z"
         updatedAt:
           type: string
           format: date-time
           description: Last update timestamp
-          example: "2024-01-20T10:30:00Z"
+          example: "2026-01-20T10:30:00Z"
+        driverCount:
+          type: integer
+          description: Number of drivers in this franchise
+          example: 15
+        staffCount:
+          type: integer
+          description: Number of staff members in this franchise
+          example: 5
+        monthlyRevenue:
+          type: number
+          description: Monthly revenue for this franchise
+          example: 25000
 
     CreateFranchiseRequest:
       type: object
@@ -11917,6 +12646,259 @@ components:
           type: string
           format: date-time
           example: "2024-01-20T10:00:00Z"
+
+  # ============================================
+  # NOTIFICATION SCHEMAS
+  # ============================================
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+          nullable: true
+        driverId:
+          type: string
+          format: uuid
+          nullable: true
+        staffId:
+          type: string
+          format: uuid
+          nullable: true
+        franchiseId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+            - TRIP_ASSIGNED
+            - TRIP_REASSIGNED
+            - TRIP_CANCELLED
+            - TRIP_STARTED
+            - TRIP_COMPLETED
+            - PAYMENT_RECEIVED
+            - COMPLAINT_CREATED
+            - COMPLAINT_RESOLVED
+            - WARNING_ISSUED
+            - LEAVE_REQUEST_SUBMITTED
+            - LEAVE_APPROVED
+            - LEAVE_REJECTED
+            - PAYROLL_GENERATED
+            - PAYROLL_PAID
+            - SYSTEM_ALERT
+        title:
+          type: string
+        message:
+          type: string
+        metadata:
+          type: object
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    # ============================================
+    # OTP SCHEMAS
+    # ============================================
+    SendOtpRequest:
+      type: object
+      required:
+        - phone
+        - purpose
+      properties:
+        phone:
+          type: string
+          minLength: 10
+          maxLength: 15
+          example: "9876543210"
+        purpose:
+          type: string
+          enum:
+            - TRIP_START
+            - TRIP_END
+            - LOGIN
+            - PASSWORD_RESET
+        tripId:
+          type: string
+          format: uuid
+          description: Required for TRIP_START/TRIP_END purposes
+
+    VerifyOtpRequest:
+      type: object
+      required:
+        - phone
+        - otp
+        - purpose
+      properties:
+        phone:
+          type: string
+        otp:
+          type: string
+          minLength: 6
+          maxLength: 6
+          example: "123456"
+        purpose:
+          type: string
+          enum:
+            - TRIP_START
+            - TRIP_END
+            - LOGIN
+            - PASSWORD_RESET
+        tripId:
+          type: string
+          format: uuid
+
+    # ============================================
+    # STAFF SCHEMAS (CLEAN MODULE)
+    # ============================================
+    CreateStaffRequest:
+      type: object
+      required:
+        - name
+        - phone
+        - email
+        - password
+        - monthlySalary
+      properties:
+        franchiseId:
+          type: string
+          format: uuid
+          description: Required for ADMIN. Auto-assigned for MANAGER
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        phone:
+          type: string
+          minLength: 10
+          maxLength: 15
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        monthlySalary:
+          type: number
+          minimum: 0
+        address:
+          type: string
+          maxLength: 500
+        emergencyContact:
+          type: string
+          maxLength: 100
+        emergencyContactRelation:
+          type: string
+          maxLength: 50
+        role:
+          type: string
+          enum:
+            - OFFICE_STAFF
+            - STAFF
+          default: OFFICE_STAFF
+
+    UpdateStaffStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - SUSPENDED
+            - FIRED
+            - BLOCKED
+        suspendedUntil:
+          type: string
+          format: date-time
+          description: Required when status is SUSPENDED
+
+    StaffClean:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        franchiseId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - SUSPENDED
+            - FIRED
+            - BLOCKED
+        warningCount:
+          type: integer
+        complaintCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    # ============================================
+    # REPORTS SCHEMAS
+    # ============================================
+    RevenueReport:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            summary:
+              type: object
+              properties:
+                totalRevenue:
+                  type: number
+                totalTrips:
+                  type: integer
+                averageRevenuePerTrip:
+                  type: number
+                period:
+                  type: string
+            breakdown:
+              type: array
+              items:
+                type: object
+                properties:
+                  label:
+                    type: string
+                  revenue:
+                    type: number
+                  trips:
+                    type: integer
+                  percentage:
+                    type: number
+            chartData:
+              type: array
+              items:
+                type: object
+                properties:
+                  date:
+                    type: string
+                  revenue:
+                    type: number
+                  trips:
+                    type: integer
+        generatedAt:
+          type: string
+          format: date-time
 
   securitySchemes:
     bearerAuth:

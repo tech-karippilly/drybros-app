@@ -70,7 +70,7 @@ function mapAttendanceToResponse(attendance: any): AttendanceResponseDTO {
     clockOut: attendance.clockOut,
     status: attendance.status,
     notes: attendance.notes,
-    sessions: (attendance.sessions ?? []).map((s: any) => ({
+    Sessions: (attendance.Sessions ?? []).map((s: any) => ({
       id: s.id,
       clockIn: s.clockIn,
       clockOut: s.clockOut ?? null,
@@ -165,6 +165,11 @@ export async function clockIn(
   input: ClockInDTO
 ): Promise<{ message: string; data: ClockAttendanceResponseDTO }> {
   const { id } = input;
+
+  // Validate that ID is provided
+  if (!id) {
+    throw new BadRequestError("ID is required for clock-in");
+  }
 
   // Check if ID belongs to driver, staff, or user (manager) - check all in parallel
   const [driver, staff, user] = await Promise.all([
@@ -319,6 +324,11 @@ export async function clockOut(
   input: ClockOutDTO
 ): Promise<{ message: string; data: ClockAttendanceResponseDTO }> {
   const { id } = input;
+
+  // Validate that ID is provided
+  if (!id) {
+    throw new BadRequestError("ID is required for clock-out");
+  }
 
   // Check if ID belongs to driver, staff, or user (manager) - check all in parallel
   const [driver, staff, user] = await Promise.all([
@@ -504,6 +514,8 @@ export async function listAttendancesPaginated(
   const hasPrev = page > 1;
 
   return {
+    success: true,
+    message: "Attendances retrieved successfully",
     data: data.map(mapAttendanceToResponse),
     pagination: {
       page,
@@ -737,8 +749,11 @@ export async function getMonitorData(userRole: string, userId: string): Promise<
     roleTypes = ["DRIVER"];
   } else {
     return {
-      stats: { activeStaffCount: 0, activeDriverCount: 0, activeManagerCount: 0 },
-      logs: []
+      online: 0,
+      offline: 0,
+      present: 0,
+      absent: 0,
+      rows: []
     };
   }
 
@@ -750,63 +765,36 @@ export async function getMonitorData(userRole: string, userId: string): Promise<
 
   const mappedLogs: AttendanceMonitorRow[] = logs.map((log: any) => {
     let name = "Unknown";
-    let role = "Unknown";
-    let personId = "";
 
     if (log.Driver) {
       name = `${log.Driver.firstName} ${log.Driver.lastName}`;
-      role = "Driver";
-      personId = log.Driver.id;
     } else if (log.Staff) {
       name = log.Staff.name;
-      role = "Staff";
-      personId = log.Staff.id;
     } else if (log.User) {
       name = log.User.fullName;
-      role = log.User.role;
-      personId = log.User.id;
-    }
-
-    let timeWorked = "00:00";
-    if (log.clockIn) {
-        const endTime = log.clockOut ? new Date(log.clockOut).getTime() : Date.now();
-        const startTime = new Date(log.clockIn).getTime();
-        const diffMs = endTime - startTime;
-        
-        if (diffMs > 0) {
-            const diffHrs = Math.floor(diffMs / 3600000);
-            const diffMins = Math.floor((diffMs % 3600000) / 60000);
-            timeWorked = `${diffHrs.toString().padStart(2, '0')}:${diffMins.toString().padStart(2, '0')}`;
-        }
     }
 
     return {
       id: log.id,
-      personId,
+      driverId: log.driverId,
+      staffId: log.staffId,
+      userId: log.userId,
       name,
-      role,
-      loginTime: log.loginTime,
-      clockInTime: log.clockIn,
-      clockOutTime: log.clockOut,
-      logoutTime: log.clockOut, 
-      timeWorked,
       status: log.status,
-      sessions: (log.sessions ?? []).map((s: any) => ({
-        id: s.id,
-        clockIn: s.clockIn,
-        clockOut: s.clockOut ?? null,
-        notes: s.notes ?? null,
-      })),
+      clockIn: log.clockIn,
+      clockOut: log.clockOut,
+      totalDuration: null, // Calculate if needed
+      onlineStatus: 'online', // Determine based on actual online status
+      lastSeen: log.updatedAt,
     };
   });
 
   return {
-    stats: {
-      activeStaffCount: stats.activeStaff,
-      activeDriverCount: stats.activeDriver,
-      activeManagerCount: stats.activeManager,
-    },
-    logs: mappedLogs
+    online: stats.activeDriver + stats.activeStaff + stats.activeManager,
+    offline: 0, // Calculate based on total vs active if needed
+    present: mappedLogs.filter(log => log.status === 'PRESENT').length,
+    absent: mappedLogs.filter(log => log.status === 'ABSENT').length,
+    rows: mappedLogs
   };
 }
 
@@ -822,7 +810,7 @@ export async function getPersonAttendanceStatus(personId: string): Promise<Atten
       clockedIn: false,
       clockInTime: null,
       lastClockOutTime: null,
-      status: AttendanceStatus.ABSENT,
+      status: "ABSENT",
       attendanceId: null,
     };
   }
@@ -845,7 +833,7 @@ export async function getPersonAttendanceStatus(personId: string): Promise<Atten
     clockedIn: isClockedIn,
     clockInTime: attendance.clockIn, // First clock in of the day
     lastClockOutTime: attendance.clockOut, // Last clock out (or null if currently in)
-    status: attendance.status,
+    status: attendance.status.toString(),
     attendanceId: attendance.id,
   };
 }

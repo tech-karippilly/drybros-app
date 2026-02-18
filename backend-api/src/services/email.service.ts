@@ -359,14 +359,21 @@ export async function sendWelcomeEmail({ to, name, loginLink }: SendWelcomeEmail
 interface SendPasswordResetEmailParams {
   to: string;
   name: string;
-  resetLink: string;
+  resetLink?: string;  // Optional for backward compatibility
+  otp?: string;       // Optional for OTP-based reset
+  loginLink?: string; // Optional for OTP-based reset
 }
 
 /**
  * Send password reset email
  */
-export async function sendPasswordResetEmail({ to, name, resetLink }: SendPasswordResetEmailParams): Promise<void> {
-  const htmlContent = `
+export async function sendPasswordResetEmail({ to, name, resetLink, otp, loginLink }: SendPasswordResetEmailParams): Promise<void> {
+  let htmlContent = '';
+  let textContent = '';
+
+  if (otp) {
+    // OTP-based reset
+    htmlContent = `
     <!DOCTYPE html>
     <html>
       <head>
@@ -381,7 +388,7 @@ export async function sendPasswordResetEmail({ to, name, resetLink }: SendPasswo
             padding: 20px;
           }
           .header {
-            background-color: #FF9800;
+            background-color: #4CAF50;
             color: white;
             padding: 20px;
             text-align: center;
@@ -392,14 +399,21 @@ export async function sendPasswordResetEmail({ to, name, resetLink }: SendPasswo
             padding: 30px;
             border-radius: 0 0 5px 5px;
           }
-          .button {
-            display: inline-block;
-            padding: 12px 30px;
-            background-color: #FF9800;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
+          .otp-container {
+            background-color: #e8f5e9;
+            border: 2px dashed #4CAF50;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
             margin: 20px 0;
+          }
+          .otp-code {
+            font-size: 32px;
+            font-weight: bold;
+            letter-spacing: 8px;
+            color: #2E7D32;
+            margin: 10px 0;
+            text-align: center;
           }
           .warning {
             background-color: #fff3cd;
@@ -421,20 +435,24 @@ export async function sendPasswordResetEmail({ to, name, resetLink }: SendPasswo
       </head>
       <body>
         <div class="header">
-          <h1>Password Reset Request</h1>
+          <h1>Password Reset Verification</h1>
         </div>
         <div class="content">
           <h2>Hello ${name},</h2>
           <p>We received a request to reset your password for your Drybros account.</p>
-          <p>Click the button below to reset your password:</p>
-          <p style="text-align: center;">
-            <a href="${resetLink}" class="button">Reset Password</a>
-          </p>
-          <p>If the button doesn't work, copy and paste this link into your browser:</p>
-          <p style="word-break: break-all; color: #FF9800;">${resetLink}</p>
-          <div class="warning">
-            <strong>⚠️ Security Notice:</strong> This link will expire in 1 hour. If you didn't request a password reset, please ignore this email or contact support if you have concerns.
+          
+          <div class="otp-container">
+            <p>Your verification code is:</p>
+            <div class="otp-code">${otp}</div>
+            <p>Please enter this code on the password reset page.</p>
           </div>
+          
+          <p>If you did not request a password reset, please ignore this email or contact support immediately.</p>
+          
+          <div class="warning">
+            <strong>⚠️ Security Notice:</strong> This OTP will expire in 10 minutes. Do not share this code with anyone.
+          </div>
+          
           <p>Best regards,<br>The Drybros Team</p>
         </div>
         <div class="footer">
@@ -445,24 +463,127 @@ export async function sendPasswordResetEmail({ to, name, resetLink }: SendPasswo
     </html>
   `;
 
-  const textContent = `
-    Password Reset Request
-    
-    Hello ${name},
-    
-    We received a request to reset your password for your Drybros account.
-    
-    Click the link below to reset your password:
-    ${resetLink}
-    
-    ⚠️ Security Notice: This link will expire in 1 hour. If you didn't request a password reset, please ignore this email or contact support if you have concerns.
-    
-    Best regards,
-    The Drybros Team
-    
-    ---
-    This is an automated email. Please do not reply to this message.
-  `;
+    textContent = `
+      Password Reset Verification
+      
+      Hello ${name},
+      
+      We received a request to reset your password for your Drybros account.
+      
+      Your verification code is: ${otp}
+      
+      Please enter this code on the password reset page.
+      
+      ⚠️ Security Notice: This OTP will expire in 10 minutes. Do not share this code with anyone.
+      
+      If you did not request a password reset, please ignore this email or contact support immediately.
+      
+      Best regards,
+      The Drybros Team
+      
+      ---
+      This is an automated email. Please do not reply to this message.
+    `;
+  } else {
+    // Link-based reset (legacy)
+    htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .header {
+              background-color: #FF9800;
+              color: white;
+              padding: 20px;
+              text-align: center;
+              border-radius: 5px 5px 0 0;
+            }
+            .content {
+              background-color: #f9f9f9;
+              padding: 30px;
+              border-radius: 0 0 5px 5px;
+            }
+            .button {
+              display: inline-block;
+              padding: 12px 30px;
+              background-color: #FF9800;
+              color: white;
+              text-decoration: none;
+              border-radius: 5px;
+              margin: 20px 0;
+            }
+            .warning {
+              background-color: #fff3cd;
+              border: 1px solid #ffc107;
+              border-radius: 5px;
+              padding: 15px;
+              margin: 20px 0;
+              color: #856404;
+            }
+            .footer {
+              margin-top: 20px;
+              padding-top: 20px;
+              border-top: 1px solid #ddd;
+              font-size: 12px;
+              color: #666;
+              text-align: center;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Password Reset Request</h1>
+          </div>
+          <div class="content">
+            <h2>Hello ${name},</h2>
+            <p>We received a request to reset your password for your Drybros account.</p>
+            <p>Click the button below to reset your password:</p>
+            <p style="text-align: center;">
+              <a href="${resetLink}" class="button">Reset Password</a>
+            </p>
+            <p>If the button doesn't work, copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; color: #FF9800;">${resetLink}</p>
+            <div class="warning">
+              <strong>⚠️ Security Notice:</strong> This link will expire in 1 hour. If you didn't request a password reset, please ignore this email or contact support if you have concerns.
+            </div>
+            <p>Best regards,<br>The Drybros Team</p>
+          </div>
+          <div class="footer">
+            <p>This is an automated email. Please do not reply to this message.</p>
+            <p>&copy; ${new Date().getFullYear()} Drybros. All rights reserved.</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    textContent = `
+      Password Reset Request
+      
+      Hello ${name},
+      
+      We received a request to reset your password for your Drybros account.
+      
+      Click the link below to reset your password:
+      ${resetLink}
+      
+      ⚠️ Security Notice: This link will expire in 1 hour. If you didn't request a password reset, please ignore this email or contact support if you have concerns.
+      
+      Best regards,
+      The Drybros Team
+      
+      ---
+      This is an automated email. Please do not reply to this message.
+    `;
+  }
 
   // Check if email config is properly set up
   if (!emailConfig.auth.user || !emailConfig.auth.pass) {
@@ -475,13 +596,13 @@ export async function sendPasswordResetEmail({ to, name, resetLink }: SendPasswo
     await transporter.sendMail({
       from: emailConfig.from,
       to: to,
-      subject: "Drybros - Password Reset Request",
+      subject: otp ? "Drybros - Password Reset OTP" : "Drybros - Password Reset Request",
       text: textContent,
       html: htmlContent,
     });
-    console.log("Password reset email sent successfully to:", to);
+    console.log(otp ? "Password reset OTP email sent successfully to:" : "Password reset email sent successfully to:", to);
   } catch (error) {
-    console.error("Failed to send password reset email:", error);
+    console.error(otp ? "Failed to send password reset OTP email:" : "Failed to send password reset email:", error);
     // Log detailed error information
     if (error instanceof Error) {
       console.error("Error details:", {

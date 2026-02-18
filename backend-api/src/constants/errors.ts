@@ -22,6 +22,7 @@ export const ERROR_MESSAGES = {
   // Driver errors
   DRIVER_NOT_FOUND: "Driver not found",
   DRIVER_BLACKLISTED: "This driver is blacklisted (fired due to complaint) and cannot register or login",
+  DRIVER_BANNED_GLOBALLY: "This driver is globally banned and cannot login",
 
   // Staff errors
   STAFF_NOT_FOUND: "Staff not found",

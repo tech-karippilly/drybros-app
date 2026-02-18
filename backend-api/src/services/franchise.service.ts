@@ -1,5 +1,4 @@
 // src/services/franchise.service.ts
-import bcrypt from "bcryptjs";
 import {
   getAllFranchises,
   getFranchisesPaginated,
@@ -7,27 +6,50 @@ import {
   createFranchise as repoCreateFranchise,
   getFranchiseByCode,
   updateFranchise as repoUpdateFranchise,
-  softDeleteFranchise as repoSoftDeleteFranchise,
   updateFranchiseStatus as repoUpdateFranchiseStatus,
-  getStaffByFranchiseId as repoGetStaffByFranchiseId,
-  getDriversByFranchiseId as repoGetDriversByFranchiseId,
-  getFranchisePersonnel,
+  deleteFranchise as repoDeleteFranchise,
 } from "../repositories/franchise.repository";
-import { getRoleByName } from "../repositories/role.repository";
-import { CreateFranchiseDTO, CreateFranchiseResponseDTO, FranchiseResponseDTO, UpdateFranchiseDTO, UpdateFranchiseStatusDTO, PaginationQueryDTO, PaginatedFranchiseResponseDTO } from "../types/franchise.dto";
+import {
+  CreateFranchiseDTO,
+  UpdateFranchiseDTO,
+  UpdateFranchiseStatusDTO,
+  ListFranchisesQueryDTO,
+  PaginatedFranchiseResponseDTO,
+  CreateFranchiseResponseDTO,
+  SingleFranchiseResponseDTO,
+  UpdateFranchiseResponseDTO,
+  SuccessResponseDTO,
+  ErrorResponseDTO,
+  FranchiseListItemDTO,
+  FranchiseResponseDTO,
+} from "../types/franchise.dto";
 import { NotFoundError, ConflictError, BadRequestError } from "../utils/errors";
 import { ERROR_MESSAGES } from "../constants/errors";
 import logger from "../config/logger";
+import { logActivity } from "./activity.service";
+import { ActivityAction, ActivityEntityType, UserRole } from "@prisma/client";
 import prisma from "../config/prismaClient";
-import { UserRole } from "@prisma/client";
-import { generatePassword } from "../utils/password";
+import bcrypt from "bcryptjs";
 import { sendManagerWelcomeEmail } from "./email.service";
 import { emailConfig } from "../config/emailConfig";
-import { logActivity } from "./activity.service";
-import { ActivityAction, ActivityEntityType } from "@prisma/client";
 
 /**
- * Map franchise to response format
+ * Map franchise to list item response format
+ */
+function mapFranchiseToListItem(franchise: any): FranchiseListItemDTO {
+  return {
+    id: franchise.id,
+    code: franchise.code,
+    name: franchise.name,
+    city: franchise.city,
+    status: franchise.status,
+    isActive: franchise.isActive,
+    createdAt: franchise.createdAt,
+  };
+}
+
+/**
+ * Map franchise to full response format
  */
 function mapFranchiseToResponse(franchise: any): FranchiseResponseDTO {
   return {
@@ -36,43 +58,55 @@ function mapFranchiseToResponse(franchise: any): FranchiseResponseDTO {
     name: franchise.name,
     city: franchise.city,
     region: franchise.region,
-    averageRating: franchise.averageRating ?? null,
     address: franchise.address,
     phone: franchise.phone,
-    email: franchise.email ?? null,
+    email: franchise.email,
     inchargeName: franchise.inchargeName,
+    managerEmail: franchise.managerEmail,
+    managerPhone: franchise.managerPhone,
     storeImage: franchise.storeImage,
     legalDocumentsCollected: franchise.legalDocumentsCollected,
     status: franchise.status,
     isActive: franchise.isActive,
     createdAt: franchise.createdAt,
     updatedAt: franchise.updatedAt,
+    // Computed fields (will be populated by the repository)
+    driverCount: franchise.driverCount,
+    staffCount: franchise.staffCount,
+    monthlyRevenue: franchise.monthlyRevenue,
   };
 }
 
-export async function listFranchises(): Promise<FranchiseResponseDTO[]> {
+/**
+ * List all franchises (without pagination)
+ */
+export async function listFranchises(): Promise<{ data: FranchiseListItemDTO[] }> {
   const franchises = await getAllFranchises();
-  return franchises.map(mapFranchiseToResponse);
+  return {
+    data: franchises.map(mapFranchiseToListItem),
+  };
 }
 
 /**
- * List franchises with pagination
+ * List franchises with pagination, search, and filter
  */
 export async function listFranchisesPaginated(
-  pagination: PaginationQueryDTO
+  query: ListFranchisesQueryDTO
 ): Promise<PaginatedFranchiseResponseDTO> {
-  const { page, limit } = pagination;
+  const { page, limit, search, status } = query;
   const skip = (page - 1) * limit;
 
-  const { data, total } = await getFranchisesPaginated(skip, limit);
-  
-  // Calculate pagination metadata efficiently
+  const { data, total } = await getFranchisesPaginated(skip, limit, search, status);
+
+  // Calculate pagination metadata
   const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
   const hasNext = page < totalPages;
   const hasPrev = page > 1;
 
   return {
-    data: data.map(mapFranchiseToResponse),
+    success: true,
+    message: "Franchises retrieved successfully",
+    data: data.map(mapFranchiseToListItem),
     pagination: {
       page,
       limit,
@@ -85,277 +119,154 @@ export async function listFranchisesPaginated(
 }
 
 /**
- * Franchise details response including statistics and personnel
+ * Get franchise by ID
  */
-export interface FranchiseDetailsResponseDTO extends FranchiseResponseDTO {
-  statistics: {
-    totalStaff: number;
-    totalDrivers: number;
-    totalTrips: number;
-    totalComplaints: number;
-    totalRevenue: number;
-  };
-  staff: Array<{
-    id: string;
-    name: string;
-    phone: string;
-    email: string;
-    joinDate: Date;
-    status: string;
-    isActive: boolean;
-  }>;
-  drivers: Array<{
-    id: string;
-    firstName: string;
-    lastName: string;
-    phone: string;
-    email: string;
-    driverCode: string;
-    status: string;
-    currentRating: number | null;
-    isActive: boolean;
-  }>;
-}
-
-export async function getFranchise(id: string): Promise<FranchiseDetailsResponseDTO> {
+export async function getFranchise(id: string): Promise<SingleFranchiseResponseDTO> {
   const franchise = await getFranchiseById(id);
   if (!franchise) {
     throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
   }
 
-  const franchiseId = franchise.id;
-
-  const [
-    totalStaffCount,
-    totalDriversCount,
-    totalTripsCount,
-    totalComplaintsCount,
-    totalRevenueResult,
-    staffList,
-    driversList,
-  ] = await Promise.all([
-    prisma.staff.count({
-      where: { franchiseId, isActive: true },
-    }),
-    prisma.driver.count({
-      where: { franchiseId, isActive: true },
-    }),
-    prisma.trip.count({
-      where: { franchiseId },
-    }),
-    prisma.complaint.count({
-      where: {
-        OR: [
-          { Driver: { franchiseId } },
-          { Staff: { franchiseId } },
-        ],
-      },
-    }),
-    prisma.trip.aggregate({
-      where: { franchiseId },
-      _sum: { finalAmount: true },
-    }),
-    prisma.staff.findMany({
-      where: { franchiseId, isActive: true },
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        email: true,
-        joinDate: true,
-        status: true,
-        isActive: true,
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.driver.findMany({
-      where: { franchiseId, isActive: true },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        email: true,
-        driverCode: true,
-        status: true,
-        currentRating: true,
-        isActive: true,
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
-
   return {
-    ...mapFranchiseToResponse(franchise),
-    statistics: {
-      totalStaff: totalStaffCount,
-      totalDrivers: totalDriversCount,
-      totalTrips: totalTripsCount,
-      totalComplaints: totalComplaintsCount,
-      totalRevenue: totalRevenueResult._sum.finalAmount ?? 0,
-    },
-    staff: staffList,
-    drivers: driversList,
+    success: true,
+    message: "Franchise retrieved successfully",
+    data: mapFranchiseToResponse(franchise),
   };
 }
 
 /**
- * Create a new franchise and manager user
+ * Get franchise by franchiseId from JWT (for manager access)
+ */
+export async function getMyFranchise(franchiseId: string): Promise<SingleFranchiseResponseDTO> {
+  const franchise = await getFranchiseById(franchiseId);
+  if (!franchise) {
+    throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
+  }
+
+  return {
+    success: true,
+    message: "Franchise retrieved successfully",
+    data: mapFranchiseToResponse(franchise),
+  };
+}
+
+/**
+ * Generate a random password for manager
+ */
+function generateManagerPassword(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+  let password = "";
+  for (let i = 0; i < 12; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
+
+/**
+ * Create a new franchise
  */
 export async function createFranchise(
   input: CreateFranchiseDTO
 ): Promise<CreateFranchiseResponseDTO> {
-  // Fetch MANAGER role from Role table
-  const managerRole = await getRoleByName("MANAGER");
-  if (!managerRole) {
-    throw new NotFoundError(
-      "MANAGER role not found. Please create the MANAGER role first."
-    );
-  }
-  if (!managerRole.isActive) {
-    throw new BadRequestError(ERROR_MESSAGES.ROLE_INACTIVE);
+  // Check if franchise code already exists
+  const existing = await getFranchiseByCode(input.code);
+  if (existing) {
+    throw new ConflictError("Franchise code already exists");
   }
 
-  // Generate password for manager
-  const plainPassword = generatePassword(12);
-  const hashedPassword = await bcrypt.hash(plainPassword, 10);
+  // Create franchise
+  const franchise = await repoCreateFranchise(input);
 
-  // Validate emails are different
-  if (input.franchiseEmail && input.managerEmail && input.franchiseEmail === input.managerEmail) {
-    throw new BadRequestError("Franchise email and manager email must be different");
-  }
+  logger.info("Franchise created successfully", {
+    franchiseId: franchise.id,
+    franchiseCode: franchise.code,
+    name: franchise.name,
+    city: franchise.city,
+  });
 
-  // Generate unique franchise code first (outside transaction to avoid deadlocks)
-  const franchiseCode = await getUniqueFranchiseCode();
-
-  // Create franchise and manager user in a transaction
-  const result = await prisma.$transaction(async (tx) => {
-    // Create franchise
-    const franchise = await tx.franchise.create({
-      data: {
-        code: franchiseCode,
-        name: input.name,
-        city: input.region, // Store region in city field for backward compatibility
-        region: input.region,
-        address: input.address,
-        phone: input.phone,
-        email: input.franchiseEmail || null,
-        inchargeName: input.managerName,
-        storeImage: input.storeImage || null,
-        legalDocumentsCollected: input.legalDocumentsCollected ?? false,
-      },
+  // Create manager user if manager email is provided
+  let managerPassword: string | undefined;
+  if (input.managerEmail && input.inchargeName) {
+    // Check if user with this email already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email: input.managerEmail.toLowerCase() },
     });
 
-    // Create manager user
-    const managerUser = await tx.user.create({
-      data: {
-        fullName: input.managerName,
+    if (!existingUser) {
+      // Generate a random password
+      managerPassword = generateManagerPassword();
+      const hashedPassword = await bcrypt.hash(managerPassword, 10);
+
+      // Create manager user
+      const managerUser = await prisma.user.create({
+        data: {
+          email: input.managerEmail.toLowerCase(),
+          password: hashedPassword,
+          fullName: input.inchargeName,
+          role: UserRole.MANAGER,
+          franchiseId: franchise.id,
+          phone: input.managerPhone || null,
+          isActive: true,
+        },
+      });
+
+      logger.info("Manager user created successfully", {
+        userId: managerUser.id,
+        email: managerUser.email,
+        franchiseId: franchise.id,
+      });
+
+      // Send welcome email to manager
+      await sendManagerWelcomeEmail({
+        to: input.managerEmail,
+        managerName: input.inchargeName,
+        franchiseName: franchise.name,
         email: input.managerEmail,
-        phone: input.managerPhone,
-        password: hashedPassword,
-        role: UserRole.MANAGER,
-        franchiseId: franchise.id, // Link manager to franchise
-      },
-    });
+        password: managerPassword,
+        loginLink: emailConfig.loginLink,
+      });
 
-    return { franchise, managerUser, plainPassword };
-  });
-
-  // Send welcome email to manager (non-blocking)
-  sendManagerWelcomeEmail({
-    to: input.managerEmail,
-    managerName: input.managerName,
-    franchiseName: input.name,
-    email: input.managerEmail,
-    password: result.plainPassword,
-    loginLink: emailConfig.loginLink,
-  }).catch((err) => {
-    logger.error("Failed to send manager welcome email", {
-      error: err instanceof Error ? err.message : String(err),
-      franchiseId: result.franchise.id,
-      email: input.managerEmail,
-    });
-  });
-
-  logger.info("Franchise and manager created successfully", {
-    franchiseId: result.franchise.id,
-    franchiseCode: result.franchise.code,
-    name: result.franchise.name,
-    region: result.franchise.region,
-    managerEmail: input.managerEmail,
-    managerUserId: result.managerUser.id,
-  });
+      // Log manager creation activity
+      logActivity({
+        action: ActivityAction.CUSTOMER_CREATED,
+        entityType: ActivityEntityType.USER,
+        entityId: managerUser.id,
+        franchiseId: franchise.id,
+        description: `Manager ${input.inchargeName} created for franchise ${franchise.name}`,
+        metadata: {
+          managerName: input.inchargeName,
+          managerEmail: input.managerEmail,
+          franchiseName: franchise.name,
+        },
+      });
+    } else {
+      logger.warn("Manager email already exists, skipping user creation", {
+        email: input.managerEmail,
+        franchiseId: franchise.id,
+      });
+    }
+  }
 
   // Log franchise creation activity
   logActivity({
     action: ActivityAction.FRANCHISE_CREATED,
     entityType: ActivityEntityType.FRANCHISE,
-    entityId: result.franchise.id,
-    franchiseId: result.franchise.id,
-    userId: result.managerUser.id,
-    description: `Franchise ${result.franchise.name} (${result.franchise.code}) created`,
+    entityId: franchise.id,
+    franchiseId: franchise.id,
+    description: `Franchise ${franchise.name} (${franchise.code}) created`,
     metadata: {
-      franchiseName: result.franchise.name,
-      franchiseCode: result.franchise.code,
-      city: result.franchise.city,
-      region: result.franchise.region,
-    },
-  });
-
-  // Log manager creation activity
-  logActivity({
-    action: ActivityAction.FRANCHISE_CREATED, // Using FRANCHISE_CREATED as manager is part of franchise creation
-    entityType: ActivityEntityType.FRANCHISE,
-    entityId: result.franchise.id,
-    franchiseId: result.franchise.id,
-    userId: result.managerUser.id,
-    description: `Manager ${input.managerName} added to franchise ${result.franchise.name}`,
-    metadata: {
-      managerName: input.managerName,
-      managerEmail: input.managerEmail,
-      franchiseName: result.franchise.name,
+      franchiseName: franchise.name,
+      franchiseCode: franchise.code,
+      city: franchise.city,
+      region: franchise.region,
     },
   });
 
   return {
+    success: true,
     message: "Franchise created successfully",
-    data: mapFranchiseToResponse(result.franchise),
+    data: mapFranchiseToResponse(franchise),
   };
-}
-
-/**
- * Generate unique franchise code
- */
-async function getUniqueFranchiseCode(): Promise<string> {
-  const prefix = "FRN";
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  const maxAttempts = 20;
-  let attempts = 0;
-  const checkedCodes = new Set<string>();
-
-  while (attempts < maxAttempts) {
-    let code = prefix;
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    const franchiseCode = `${code}`;
-
-    if (checkedCodes.has(franchiseCode)) {
-      attempts++;
-      continue;
-    }
-
-    checkedCodes.add(franchiseCode);
-    const existing = await getFranchiseByCode(franchiseCode);
-
-    if (!existing) {
-      return franchiseCode;
-    }
-
-    attempts++;
-  }
-
-  throw new Error("Failed to generate unique franchise code after multiple attempts");
 }
 
 /**
@@ -364,7 +275,7 @@ async function getUniqueFranchiseCode(): Promise<string> {
 export async function updateFranchise(
   id: string,
   input: UpdateFranchiseDTO
-): Promise<CreateFranchiseResponseDTO> {
+): Promise<UpdateFranchiseResponseDTO> {
   const existingFranchise = await getFranchiseById(id);
   if (!existingFranchise) {
     throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
@@ -392,28 +303,9 @@ export async function updateFranchise(
   });
 
   return {
+    success: true,
     message: "Franchise updated successfully",
     data: mapFranchiseToResponse(updatedFranchise),
-  };
-}
-
-/**
- * Soft delete franchise (set isActive to false)
- */
-export async function softDeleteFranchise(id: string): Promise<{ message: string }> {
-  const existingFranchise = await getFranchiseById(id);
-  if (!existingFranchise) {
-    throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
-  }
-
-  await repoSoftDeleteFranchise(id);
-
-  logger.info("Franchise soft deleted successfully", {
-    franchiseId: id,
-  });
-
-  return {
-    message: "Franchise deleted successfully",
   };
 }
 
@@ -423,7 +315,7 @@ export async function softDeleteFranchise(id: string): Promise<{ message: string
 export async function updateFranchiseStatus(
   id: string,
   input: UpdateFranchiseStatusDTO
-): Promise<CreateFranchiseResponseDTO> {
+): Promise<UpdateFranchiseResponseDTO> {
   const existingFranchise = await getFranchiseById(id);
   if (!existingFranchise) {
     throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
@@ -452,79 +344,51 @@ export async function updateFranchiseStatus(
   });
 
   return {
+    success: true,
     message: "Franchise status updated successfully",
     data: mapFranchiseToResponse(updatedFranchise),
   };
 }
 
 /**
- * Get staff details by franchise ID
- * @deprecated Use getFranchisePersonnel instead
+ * Delete a franchise and all related data
  */
-export async function getStaffByFranchiseId(franchiseId: string) {
-  const franchise = await getFranchiseById(franchiseId);
-  if (!franchise) {
+export async function deleteFranchise(id: string): Promise<SuccessResponseDTO> {
+  // Check if franchise exists
+  const existingFranchise = await getFranchiseById(id);
+  if (!existingFranchise) {
     throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
   }
 
-  const staff = await repoGetStaffByFranchiseId(franchiseId);
-  return { data: staff };
-}
+  // Store franchise details for logging before deletion
+  const franchiseDetails = {
+    id: existingFranchise.id,
+    name: existingFranchise.name,
+    code: existingFranchise.code,
+    city: existingFranchise.city,
+  };
 
-/**
- * Get driver details by franchise ID
- * @deprecated Use getFranchisePersonnel instead
- */
-export async function getDriversByFranchiseId(franchiseId: string) {
-  const franchise = await getFranchiseById(franchiseId);
-  if (!franchise) {
-    throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
-  }
+  // Perform cascading delete
+  await repoDeleteFranchise(id);
 
-  const drivers = await repoGetDriversByFranchiseId(franchiseId);
-  return { data: drivers };
-}
+  logger.info("Franchise deleted successfully with all related data", franchiseDetails);
 
-/**
- * Get staff, drivers, and manager details by franchise ID (combined)
- */
-export async function getFranchisePersonnelDetails(franchiseId: string) {
-  const franchise = await getFranchiseById(franchiseId);
-  if (!franchise) {
-    throw new NotFoundError(ERROR_MESSAGES.FRANCHISE_NOT_FOUND);
-  }
-
-  const { staff, drivers, manager } = await getFranchisePersonnel(franchiseId);
-  
-  // Map to simplified DTO format
-  const staffDTO = staff.map((s) => ({
-    id: s.id,
-    name: s.name,
-    email: s.email,
-    phone: s.phone,
-  }));
-
-  const driversDTO = drivers.map((d) => ({
-    id: d.id,
-    name: `${d.firstName} ${d.lastName}`,
-    email: d.email,
-    phone: d.phone,
-  }));
-
-  const managerDTO = manager
-    ? {
-        id: manager.id,
-        name: manager.fullName,
-        email: manager.email,
-        phone: manager.phone || null,
-      }
-    : null;
-  
-  return {
-    data: {
-      staff: staffDTO,
-      drivers: driversDTO,
-      manager: managerDTO,
+  // Log franchise deletion activity
+  logActivity({
+    action: ActivityAction.FRANCHISE_UPDATED, // Using FRANCHISE_UPDATED as there's no FRANCHISE_DELETED action
+    entityType: ActivityEntityType.FRANCHISE,
+    entityId: id,
+    description: `Franchise ${franchiseDetails.name} (${franchiseDetails.code}) deleted with all related data`,
+    metadata: {
+      franchiseName: franchiseDetails.name,
+      franchiseCode: franchiseDetails.code,
+      city: franchiseDetails.city,
+      deletedAt: new Date().toISOString(),
     },
+  });
+
+  return {
+    success: true,
+    message: "Franchise and all related data deleted successfully",
   };
 }

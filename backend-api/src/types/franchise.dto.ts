@@ -6,82 +6,88 @@ import { FranchiseStatus } from "@prisma/client";
  * Zod schema for creating a franchise
  */
 export const createFranchiseSchema = z.object({
+  code: z
+    .string()
+    .min(1, "Code is required")
+    .max(50, "Code must be less than 50 characters")
+    .trim(),
   name: z
     .string()
     .min(1, "Name is required")
     .max(100, "Name must be less than 100 characters")
     .trim(),
+  city: z
+    .string()
+    .min(1, "City is required")
+    .max(100, "City must be less than 100 characters")
+    .trim(),
   region: z
     .string()
-    .min(1, "Region is required")
     .max(100, "Region must be less than 100 characters")
-    .trim(),
+    .trim()
+    .optional(),
   address: z
     .string()
-    .min(1, "Physical address is required")
     .max(500, "Address must be less than 500 characters")
-    .trim(),
+    .trim()
+    .optional(),
   phone: z
     .string()
-    .min(10, "Franchise phone is required")
-    .max(20, "Franchise phone must be less than 20 characters")
-    .regex(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/, "Invalid phone number format")
-    .trim(),
-  franchiseEmail: z
-    .string()
-    .email("Invalid franchise email format")
-    .max(255, "Franchise email must be less than 255 characters")
-    .toLowerCase()
-    .trim(),
-  managerName: z
-    .string()
-    .min(1, "Manager name is required")
-    .max(100, "Manager name must be less than 100 characters")
-    .trim(),
-  managerEmail: z
+    .max(20, "Phone must be less than 20 characters")
+    .regex(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,4}[-\s.]?[0-9]{1,9}$/, "Invalid phone number format")
+    .trim()
+    .optional(),
+  email: z
     .string()
     .email("Invalid email format")
     .max(255, "Email must be less than 255 characters")
     .toLowerCase()
-    .trim(),
+    .trim()
+    .optional(),
+  inchargeName: z
+    .string()
+    .max(100, "Incharge name must be less than 100 characters")
+    .trim()
+    .optional(),
+  managerEmail: z
+    .string()
+    .email("Invalid manager email format")
+    .max(255, "Manager email must be less than 255 characters")
+    .toLowerCase()
+    .trim()
+    .optional(),
   managerPhone: z
     .string()
-    .min(10, "Manager phone number must be at least 10 characters")
-    .max(20, "Manager phone number must be less than 20 characters")
-    .regex(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/, "Invalid phone number format")
-    .trim(),
+    .max(20, "Manager phone must be less than 20 characters")
+    .regex(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,4}[-\s.]?[0-9]{1,9}$/, "Invalid manager phone number format")
+    .trim()
+    .optional(),
   storeImage: z
     .string()
     .url("Store image must be a valid URL")
     .max(500, "Store image URL must be less than 500 characters")
     .optional()
     .nullable(),
-  legalDocumentsCollected: z
-    .boolean()
-    .optional()
-    .default(false),
+  legalDocumentsCollected: z.boolean().optional().default(false),
 });
 
-// Ensure franchise email and manager email are different
-export const createFranchiseSchemaWithValidation = createFranchiseSchema.superRefine((data, ctx) => {
-  if (data.franchiseEmail && data.managerEmail && data.franchiseEmail === data.managerEmail) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Franchise email and manager email must be different",
-      path: ["managerEmail"],
-    });
-  }
-});
-
-export type CreateFranchiseDTO = z.infer<typeof createFranchiseSchemaWithValidation>;
-
-/**
- * DTO for creating a franchise (inferred from Zod schema)
- */
 export type CreateFranchiseDTO = z.infer<typeof createFranchiseSchema>;
 
 /**
- * DTO for franchise response
+ * DTO for franchise response (list view)
+ */
+export interface FranchiseListItemDTO {
+  id: string;
+  code: string;
+  name: string;
+  city: string;
+  status: FranchiseStatus;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+/**
+ * DTO for franchise response (full details)
  */
 export interface FranchiseResponseDTO {
   id: string;
@@ -89,17 +95,22 @@ export interface FranchiseResponseDTO {
   name: string;
   city: string;
   region: string | null;
-  averageRating: number | null;
   address: string | null;
   phone: string | null;
   email: string | null;
   inchargeName: string | null;
+  managerEmail: string | null;
+  managerPhone: string | null;
   storeImage: string | null;
   legalDocumentsCollected: boolean;
   status: FranchiseStatus;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+  // Computed fields
+  driverCount?: number;
+  staffCount?: number;
+  monthlyRevenue?: number;
 }
 
 /**
@@ -112,36 +123,51 @@ export const updateFranchiseSchema = z.object({
     .max(100, "Name must be less than 100 characters")
     .trim()
     .optional(),
+  city: z
+    .string()
+    .min(1, "City is required")
+    .max(100, "City must be less than 100 characters")
+    .trim()
+    .optional(),
   region: z
     .string()
-    .min(1, "Region is required")
     .max(100, "Region must be less than 100 characters")
     .trim()
     .optional(),
   address: z
     .string()
-    .min(1, "Physical address is required")
     .max(500, "Address must be less than 500 characters")
     .trim()
     .optional(),
   phone: z
     .string()
-    .min(10, "Contact number must be at least 10 characters")
-    .max(20, "Contact number must be less than 20 characters")
-    .regex(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/, "Invalid phone number format")
+    .max(20, "Phone must be less than 20 characters")
+    .regex(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,4}[-\s.]?[0-9]{1,9}$/, "Invalid phone number format")
     .trim()
     .optional(),
-  managerName: z
+  email: z
     .string()
-    .min(1, "Manager name is required")
-    .max(100, "Manager name must be less than 100 characters")
-    .trim()
-    .optional(),
-  franchiseEmail: z
-    .string()
-    .email("Invalid franchise email format")
-    .max(255, "Franchise email must be less than 255 characters")
+    .email("Invalid email format")
+    .max(255, "Email must be less than 255 characters")
     .toLowerCase()
+    .trim()
+    .optional(),
+  inchargeName: z
+    .string()
+    .max(100, "Incharge name must be less than 100 characters")
+    .trim()
+    .optional(),
+  managerEmail: z
+    .string()
+    .email("Invalid manager email format")
+    .max(255, "Manager email must be less than 255 characters")
+    .toLowerCase()
+    .trim()
+    .optional(),
+  managerPhone: z
+    .string()
+    .max(20, "Manager phone must be less than 20 characters")
+    .regex(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,4}[-\s.]?[0-9]{1,9}$/, "Invalid manager phone number format")
     .trim()
     .optional(),
   storeImage: z
@@ -150,32 +176,50 @@ export const updateFranchiseSchema = z.object({
     .max(500, "Store image URL must be less than 500 characters")
     .optional()
     .nullable(),
-  legalDocumentsCollected: z
-    .boolean()
-    .optional(),
+  legalDocumentsCollected: z.boolean().optional(),
+  isActive: z.boolean().optional(),
 });
 
-/**
- * DTO for updating a franchise (inferred from Zod schema)
- */
 export type UpdateFranchiseDTO = z.infer<typeof updateFranchiseSchema>;
 
 /**
  * Zod schema for updating franchise status
  */
 export const updateFranchiseStatusSchema = z.object({
-  status: z.enum(["ACTIVE", "BLOCKED", "TEMPORARILY_CLOSED"], {
-    errorMap: () => ({ message: "Status must be ACTIVE, BLOCKED, or TEMPORARILY_CLOSED" }),
-  }),
+  status: z.enum(["ACTIVE", "BLOCKED", "TEMPORARILY_CLOSED"]),
 });
 
-/**
- * DTO for updating franchise status
- */
 export type UpdateFranchiseStatusDTO = z.infer<typeof updateFranchiseStatusSchema>;
 
 /**
- * Zod schema for pagination query parameters
+ * Zod schema for list query parameters with search and filter
+ */
+export const listFranchisesQuerySchema = z.object({
+  page: z
+    .string()
+    .optional()
+    .default("1")
+    .transform((val) => parseInt(val, 10))
+    .pipe(z.number().int().positive()),
+  limit: z
+    .string()
+    .optional()
+    .default("10")
+    .transform((val) => parseInt(val, 10))
+    .pipe(z.number().int().positive().max(100)),
+  search: z
+    .string()
+    .trim()
+    .optional(),
+  status: z
+    .enum(["ACTIVE", "BLOCKED", "TEMPORARILY_CLOSED"])
+    .optional(),
+});
+
+export type ListFranchisesQueryDTO = z.infer<typeof listFranchisesQuerySchema>;
+
+/**
+ * Zod schema for pagination query parameters (backward compatibility)
  */
 export const paginationQuerySchema = z.object({
   page: z
@@ -192,16 +236,15 @@ export const paginationQuerySchema = z.object({
     .pipe(z.number().int().positive().max(100)),
 });
 
-/**
- * DTO for pagination query parameters
- */
 export type PaginationQueryDTO = z.infer<typeof paginationQuerySchema>;
 
 /**
  * Paginated response DTO
  */
 export interface PaginatedFranchiseResponseDTO {
-  data: FranchiseResponseDTO[];
+  success: true;
+  message: string;
+  data: FranchiseListItemDTO[];
   pagination: {
     page: number;
     limit: number;
@@ -213,9 +256,44 @@ export interface PaginatedFranchiseResponseDTO {
 }
 
 /**
- * DTO for create franchise response
+ * Single franchise response DTO
  */
-export interface CreateFranchiseResponseDTO {
+export interface SingleFranchiseResponseDTO {
+  success: true;
   message: string;
   data: FranchiseResponseDTO;
+}
+
+/**
+ * Create franchise response DTO
+ */
+export interface CreateFranchiseResponseDTO {
+  success: true;
+  message: string;
+  data: FranchiseResponseDTO;
+}
+
+/**
+ * Update franchise response DTO
+ */
+export interface UpdateFranchiseResponseDTO {
+  success: true;
+  message: string;
+  data: FranchiseResponseDTO;
+}
+
+/**
+ * Standard success response DTO
+ */
+export interface SuccessResponseDTO {
+  success: true;
+  message: string;
+}
+
+/**
+ * Standard error response DTO
+ */
+export interface ErrorResponseDTO {
+  success: false;
+  message: string;
 }

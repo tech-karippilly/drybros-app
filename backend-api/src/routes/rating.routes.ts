@@ -1,35 +1,26 @@
-// src/routes/rating.routes.ts
 import express from "express";
-import {
-  createRatingPublicHandler,
-  createRatingHandler,
-  getRatingsHandler,
-  getRatingByIdHandler,
-} from "../controllers/rating.controller";
 import { authMiddleware } from "../middlewares/auth";
-import { validate, validateQuery, validateParams } from "../middlewares/validation";
-import { createDriverRatingSchema, ratingPaginationQuerySchema } from "../types/rating.dto";
-import { z } from "zod";
+import { validate } from "../middlewares/validation";
+import {
+  submitDriverRatingSchema,
+} from "../types/review.dto";
+import {
+  submitDriverRatingHandler,
+} from "../controllers/review.controller";
 
 const router = express.Router();
 
-// Public route - no authentication required
-router.post("/public", validate(createDriverRatingSchema), createRatingPublicHandler);
-
-// Authenticated routes
+// All routes require authentication
 router.use(authMiddleware);
 
-// GET /ratings (with optional pagination and filters)
-router.get("/", validateQuery(ratingPaginationQuerySchema), getRatingsHandler);
-
-// GET /ratings/:id
-router.get(
-  "/:id",
-  validateParams(z.object({ id: z.string().uuid("Invalid rating ID format") })),
-  getRatingByIdHandler
+// ============================================
+// POST /api/ratings - Submit Driver Rating
+// Access: CUSTOMER only (authenticated via JWT)
+// ============================================
+router.post(
+  "/",
+  validate(submitDriverRatingSchema),
+  submitDriverRatingHandler
 );
-
-// POST /ratings (with authentication)
-router.post("/", validate(createDriverRatingSchema), createRatingHandler);
 
 export default router;

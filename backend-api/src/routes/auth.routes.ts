@@ -2,7 +2,10 @@ import express from "express";
 import {
   registerAdminHandler,
   loginHandler,
+  loginDriverHandler,
+  loginStaffHandler,
   forgotPasswordHandler,
+  verifyOTPHandler,
   resetPasswordHandler,
   refreshTokenHandler,
   logoutHandler,
@@ -13,7 +16,10 @@ import { validate } from "../middlewares/validation";
 import {
   registerAdminSchema,
   loginSchema,
+  driverLoginSchema,
+  staffLoginSchema,
   forgotPasswordSchema,
+  verifyOTPSchema,
   resetPasswordSchema,
   refreshTokenSchema,
   changePasswordSchema,
@@ -25,25 +31,26 @@ const router = express.Router();
 // Register admin
 router.post("/register-admin", validate(registerAdminSchema), registerAdminHandler);
 
-// Login for all users (admin, office, driver later)
+// User login (Admin, Manager, Office Staff)
 router.post("/login", validate(loginSchema), loginHandler);
 
-// Forgot password - send reset link
-router.post("/forgot-password", validate(forgotPasswordSchema), forgotPasswordHandler);
+// Driver login
+router.post("/login/driver", validate(driverLoginSchema), loginDriverHandler);
 
-// Reset password with token
+// Staff login
+router.post("/login/staff", validate(staffLoginSchema), loginStaffHandler);
+
+// Password reset flow
+router.post("/forgot-password", validate(forgotPasswordSchema), forgotPasswordHandler);
+router.post("/verify-otp", validate(verifyOTPSchema), verifyOTPHandler);
 router.post("/reset-password", validate(resetPasswordSchema), resetPasswordHandler);
 
 // Refresh access token
 router.post("/refresh-token", validate(refreshTokenSchema), refreshTokenHandler);
 
-// Logout (requires authentication)
+// Authenticated routes
 router.post("/logout", authMiddleware, logoutHandler);
-
-// Get current user (requires authentication)
 router.get("/me", authMiddleware, getCurrentUserHandler);
-
-// Change password (requires authentication)
 router.post("/change-password", authMiddleware, validate(changePasswordSchema), changePasswordHandler);
 
 export default router;

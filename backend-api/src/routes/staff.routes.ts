@@ -10,7 +10,7 @@ import {
   getStaffHistoryHandler,
 } from "../controllers/staff.controller";
 import { validate, validateQuery } from "../middlewares/validation";
-import { createStaffSchema, updateStaffSchema, updateStaffStatusSchema, paginationQuerySchema } from "../types/staff.dto";
+import { createStaffSchema, updateStaffSchema, updateStaffStatusSchema, listStaffQuerySchema } from "../types/staff.dto";
 import { authMiddleware } from "../middlewares/auth";
 import { z } from "zod";
 import { validateParams } from "../middlewares/validation";
@@ -21,7 +21,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 // GET /staff (with optional pagination)
-router.get("/", validateQuery(paginationQuerySchema), getStaffList);
+router.get("/", validateQuery(listStaffQuerySchema), getStaffList);
 
 // GET /staff/:id
 router.get(

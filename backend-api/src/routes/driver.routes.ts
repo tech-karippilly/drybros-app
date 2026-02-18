@@ -5,7 +5,7 @@ import { getDriverDailyStatsHandler, getDriverMonthlyStatsHandler, getDriverSett
 import { authMiddleware, requireRole } from "../middlewares/auth";
 import { UserRole } from "@prisma/client";
 import { validate, validateParams, validateQuery } from "../middlewares/validation";
-import { createDriverSchema, driverLoginSchema, updateDriverSchema, updateDriverStatusSchema, paginationQuerySchema, submitCashForSettlementSchema } from "../types/driver.dto";
+import { createDriverSchema, driverLoginSchema, updateDriverSchema, updateDriverStatusSchema, listDriversQuerySchema, submitCashForSettlementSchema } from "../types/driver.dto";
 import { updateDriverLocationSchema } from "../types/driverLocation.dto";
 import { z } from "zod";
 
@@ -41,7 +41,7 @@ router.get(
 );
 
 // GET /drivers (with optional pagination and performance)
-router.get("/", validateQuery(paginationQuerySchema), getDrivers);
+router.get("/", validateQuery(listDriversQuerySchema), getDrivers);
 router.get(
   "/available/green",
   validateQuery(z.object({ franchiseId: z.string().uuid("Invalid franchise ID format").optional() })),

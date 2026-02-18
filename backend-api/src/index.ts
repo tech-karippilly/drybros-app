@@ -31,6 +31,8 @@ import reviewRoutes from "./routes/review.routes";
 import driverTransactionRoutes from "./routes/driverTransaction.routes";
 import distanceRoutes from "./routes/distance.routes";
 import reportRoutes from "./routes/report.routes";
+import holidayRoutes from "./routes/holiday.routes";
+import workingTimeRoutes from "./routes/workingTime.routes";
 
 import cors from "cors";
 import path from "path";
@@ -43,6 +45,7 @@ import { socketService } from "./services/socket.service";
 import { offerExpirationService } from "./services/offerExpiration.service";
 import { pickupMonitoringService } from "./services/pickupMonitoring.service";
 import { attendanceAggregationService } from "./services/attendanceAggregation.service";
+import { initializeEarningsCronJobs } from "./services/driverEarningsCron.service";
 
 const app = express();
 
@@ -200,6 +203,8 @@ app.use("/reviews", reviewRoutes);
 app.use("/driver-transactions", driverTransactionRoutes);
 app.use("/distance", distanceRoutes);
 app.use("/reports", reportRoutes);
+app.use("/holidays", holidayRoutes);
+app.use("/working-time-config", workingTimeRoutes);
 
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Drybros backend root 🚗" });
@@ -226,6 +231,9 @@ socketService.initialize(httpServer);
 offerExpirationService.start();
 pickupMonitoringService.start();
 attendanceAggregationService.start();
+
+// Initialize earnings cron jobs
+initializeEarningsCronJobs();
 
 // Start server
 httpServer.listen(port, () => {

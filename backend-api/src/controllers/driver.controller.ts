@@ -36,11 +36,15 @@ export async function getDrivers(
         { ...validatedQuery, franchiseId, employmentType },
         includePerformance
       );
-      res.json(result);
+      res.json({
+        success: true,
+        message: "Drivers retrieved successfully",
+        ...result
+      });
     } else {
       // Backward compatibility: return all drivers if no pagination params
       const data = await listDrivers(franchiseId, includePerformance, employmentType);
-      res.json({ data });
+      res.json({ success: true, message: "Drivers retrieved successfully", data });
     }
   } catch (err) {
     next(err);

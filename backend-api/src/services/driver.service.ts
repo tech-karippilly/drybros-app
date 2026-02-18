@@ -1,6 +1,8 @@
 // src/services/driver.service.ts
 import bcrypt from "bcryptjs";
 import jwt, { SignOptions, Secret } from "jsonwebtoken";
+import prisma from "../config/prismaClient";
+import { Prisma } from "@prisma/client";
 import {
   getAllDrivers,
   getDriverById,
@@ -16,8 +18,8 @@ import {
   getDriverDailyLimitInfo,
 } from "../repositories/driver.repository";
 import { getFranchiseById } from "../repositories/franchise.repository";
-import { CreateDriverDTO, CreateDriverResponseDTO, DriverResponseDTO, DriverLoginDTO, DriverLoginResponseDTO, UpdateDriverDTO, UpdateDriverResponseDTO, UpdateDriverStatusDTO, UpdateDriverStatusResponseDTO, PaginationQueryDTO, PaginatedDriverResponseDTO } from "../types/driver.dto";
-import { DriverEmploymentType, TransmissionType, CarCategory } from "@prisma/client";
+import { CreateDriverDTO, CreateDriverResponseDTO, DriverResponseDTO, DriverLoginDTO, DriverLoginResponseDTO, UpdateDriverDTO, UpdateDriverResponseDTO, UpdateDriverStatusDTO, UpdateDriverStatusResponseDTO, PaginatedDriverResponseDTO } from "../types/driver.dto";
+import { DriverEmploymentType } from "@prisma/client";
 import { toPrismaEmploymentType, toApiEmploymentType } from "../utils/employmentType";
 import { ConflictError, NotFoundError, BadRequestError } from "../utils/errors";
 import { sendDriverWelcomeEmail } from "./email.service";
@@ -37,6 +39,11 @@ import {
   DriverWithPerformance,
   DriverPerformanceMetrics,
 } from "./driver-performance.service";
+import {
+  getDriverEarningsConfig,
+  getDriverEarningsConfigByFranchise,
+  getDriverEarningsConfigByDriver,
+} from "../repositories/earningsConfig.repository";
 
 /**
  * Generate unique driver code
@@ -178,7 +185,7 @@ export async function listDrivers(
  * List drivers with pagination
  */
 export async function listDriversPaginated(
-  pagination: PaginationQueryDTO,
+  pagination: { page?: number; limit?: number; franchiseId?: string; employmentType?: DriverEmploymentType; search?: string; status?: string },
   includePerformance: boolean = false
 ): Promise<PaginatedDriverResponseDTO | (PaginatedDriverResponseDTO & { data: (DriverResponseDTO & { performance: DriverPerformanceMetrics })[] })> {
   const { page = 1, limit = 10, franchiseId, employmentType } = pagination;
@@ -284,6 +291,15 @@ export async function createDriver(
   //   throw new NotFoundError(`Franchise with ID ${input.franchiseId} not found`);
   // }
 
+  // Check if franchise has driver earnings config before allowing driver creation
+  const franchiseConfig = await getDriverEarningsConfigByFranchise(input.franchiseId);
+  if (!franchiseConfig) {
+    throw new BadRequestError(
+      `Cannot create driver: Franchise does not have driver earnings configuration. ` +
+      `Please configure driver earnings settings in Driver Config > Daily Earnings first.`
+    );
+  }
+
   // Blacklisted drivers (fired due to complaint) cannot register
   const blacklisted = await findBlacklistedDriverByPhoneOrEmail(input.phone, input.email);
   if (blacklisted) {
@@ -339,12 +355,52 @@ export async function createDriver(
     license: input.license,
     educationCert: input.educationCert,
     previousExp: input.previousExp,
-    transmissionTypes: input.transmissionTypes || [],
-    carCategories: input.carCategories || [],
-    carTypes: JSON.stringify(input.carTypes || []), // Legacy field - default to empty array
     createdBy: createdBy || null,
     currentRating: 5.0, // Set default rating to 5 for new drivers
   });
+
+  // Initialize remainingDailyLimit with earnings config (if available)
+  // Priority: driver-specific config > franchise config > global config > default 1250
+  try {
+    // Check driver-specific config (shouldn't exist for new driver, but checking for completeness)
+    let dailyTarget = 1250; // Default fallback
+    const driverConfig = await getDriverEarningsConfigByDriver(driver.id);
+    if (driverConfig?.dailyTargetDefault) {
+      dailyTarget = driverConfig.dailyTargetDefault;
+    } else {
+      // Check franchise config
+      const franchiseConfig = await getDriverEarningsConfigByFranchise(driver.franchiseId);
+      if (franchiseConfig?.dailyTargetDefault) {
+        dailyTarget = franchiseConfig.dailyTargetDefault;
+      } else {
+        // Check global config
+        const globalConfig = await getDriverEarningsConfig();
+        if (globalConfig?.dailyTargetDefault) {
+          dailyTarget = globalConfig.dailyTargetDefault;
+        }
+      }
+    }
+
+    // Update driver's remainingDailyLimit using prisma directly
+    await prisma.driver.update({
+      where: { id: driver.id },
+      data: { remainingDailyLimit: dailyTarget },
+    });
+
+    // Update the driver object for response (convert to Decimal for type safety)
+    driver.remainingDailyLimit = new Prisma.Decimal(dailyTarget);
+
+    logger.info("Initialized driver's daily limit from earnings config", {
+      driverId: driver.id,
+      dailyTarget,
+    });
+  } catch (error) {
+    logger.error("Failed to initialize driver's daily limit from config", {
+      error: error instanceof Error ? error.message : String(error),
+      driverId: driver.id,
+    });
+    // Don't fail driver creation if config initialization fails
+  }
 
   // Send welcome email with credentials (non-blocking)
   const webLoginLink = emailConfig.loginLink;
@@ -533,9 +589,7 @@ export async function updateDriver(
   if (input.license !== undefined) updateData.license = input.license;
   if (input.educationCert !== undefined) updateData.educationCert = input.educationCert;
   if (input.previousExp !== undefined) updateData.previousExp = input.previousExp;
-  if (input.transmissionTypes !== undefined) updateData.transmissionTypes = input.transmissionTypes;
-  if (input.carCategories !== undefined) updateData.carCategories = input.carCategories;
-  if (input.carTypes !== undefined) updateData.carTypes = JSON.stringify(input.carTypes);
+  // Note: transmissionTypes, carCategories, carTypes don't exist in Driver model - they're handled via DriverCar
   if (input.franchiseId !== undefined) updateData.franchiseId = input.franchiseId;
   if (input.status !== undefined) updateData.status = input.status;
   if (input.dailyTargetAmount !== undefined) updateData.dailyTargetAmount = input.dailyTargetAmount;

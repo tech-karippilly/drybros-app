@@ -1,79 +1,214 @@
-// src/types/trip.dto.ts
 import { z } from "zod";
+import { TripStatus, PaymentMode } from "@prisma/client";
 
-/**
- * Zod schema for creating a trip
- */
+// Define enums locally until Prisma client is regenerated
+export enum CarType {
+  HATCHBACK = "HATCHBACK",
+  SEDAN = "SEDAN",
+  SUV = "SUV",
+  LUXURY = "LUXURY",
+}
+
+export enum Transmission {
+  MANUAL = "MANUAL",
+  AUTOMATIC = "AUTOMATIC",
+}
+
+// ============================================
+// CREATE TRIP DTO
+// ============================================
+
 export const createTripSchema = z.object({
-  franchiseId: z.number().int("Franchise ID must be an integer"),
-  driverId: z.number().int("Driver ID must be an integer"),
-  customerId: z.string().uuid("Customer ID must be a valid UUID"),
-  tripType: z.string().min(1, "Trip type is required"),
+  franchiseId: z.string().uuid("Invalid franchise ID format").optional(), // Required for ADMIN only
+  customerId: z.string().uuid("Invalid customer ID format").optional(),
+  customerName: z.string().min(1, "Customer name is required"),
+  customerPhone: z.string().min(10, "Customer phone must be at least 10 characters"),
+  customerEmail: z.string().email("Invalid email format").optional(),
+  tripType: z.string().min(1, "Trip type is required"), // From TripTypeConfig name
   pickupLocation: z.string().min(1, "Pickup location is required"),
-  pickupLat: z.number().optional().nullable(),
-  pickupLng: z.number().optional().nullable(),
-  dropLocation: z.string().optional().nullable(),
-  dropLat: z.number().optional().nullable(),
-  dropLng: z.number().optional().nullable(),
-  destinationLat: z.number().optional().nullable(),
-  destinationLng: z.number().optional().nullable(),
-  scheduledAt: z.string().optional().nullable(),
-  baseAmount: z.number().int("Base amount must be an integer"),
-  extraAmount: z.number().int("Extra amount must be an integer").optional(),
+  pickupAddress: z.string().optional(),
+  pickupLat: z.number(),
+  pickupLng: z.number(),
+  pickupLocationNote: z.string().optional(),
+  dropLocation: z.string().min(1, "Drop location is required"),
+  dropAddress: z.string().optional(),
+  dropLat: z.number(),
+  dropLng: z.number(),
+  dropLocationNote: z.string().optional(),
+  scheduledAt: z.string().datetime("Invalid datetime format").optional(),
+  requiredCarType: z.nativeEnum(CarType),
+  requiredTransmission: z.nativeEnum(Transmission),
 });
 
 export type CreateTripDTO = z.infer<typeof createTripSchema>;
 
-/**
- * Zod schema for rescheduling a trip
- */
-export const rescheduleTripSchema = z.object({
-  tripDate: z
-    .string()
-    .min(1, "tripDate is required")
-    .trim(),
-  tripTime: z
-    .string()
-    .min(1, "tripTime is required")
-    .trim(),
+// ============================================
+// ASSIGN DRIVER DTO
+// ============================================
+
+export const assignDriverSchema = z.object({
+  driverId: z.string().uuid("Invalid driver ID format"),
 });
 
-export type RescheduleTripDTO = z.infer<typeof rescheduleTripSchema>;
+export type AssignDriverDTO = z.infer<typeof assignDriverSchema>;
 
-/**
- * Zod schema for cancelling a trip
- */
-export const cancelTripSchema = z.object({
-  cancelledBy: z.enum(["OFFICE", "CUSTOMER"], {
-    message: "cancelledBy must be OFFICE or CUSTOMER",
-  }),
-  reason: z
-    .string()
-    .max(500, "Reason must be less than 500 characters")
-    .trim()
-    .optional()
-    .nullable(),
-});
+// ============================================
+// REASSIGN DRIVER DTO
+// ============================================
 
-export type CancelTripDTO = z.infer<typeof cancelTripSchema>;
-
-/**
- * Zod schema for reassigning driver to a trip
- */
 export const reassignDriverSchema = z.object({
-  driverId: z.string().uuid("Driver ID must be a valid UUID"),
-  franchiseId: z.string().uuid("Franchise ID must be a valid UUID").optional(),
+  newDriverId: z.string().uuid("Invalid driver ID format"),
+  reason: z.string().max(500, "Reason must be less than 500 characters").optional(),
 });
 
 export type ReassignDriverDTO = z.infer<typeof reassignDriverSchema>;
 
-/**
- * Zod schema for assigning a driver to a trip (POST /trips/assign-driver).
- * Franchise is derived from the trip; only tripId and driverId are required.
- */
-export const assignDriverSchema = z.object({
-  tripId: z.string().uuid("Trip ID must be a valid UUID"),
-  driverId: z.string().uuid("Driver ID must be a valid UUID"),
+// ============================================
+// RESCHEDULE TRIP DTO
+// ============================================
+
+export const rescheduleTripSchema = z.object({
+  newDate: z.string().datetime("Invalid datetime format"),
+  reason: z.string().max(500, "Reason must be less than 500 characters").optional(),
 });
 
-export type AssignDriverDTO = z.infer<typeof assignDriverSchema>;
+export type RescheduleTripDTO = z.infer<typeof rescheduleTripSchema>;
+
+// ============================================
+// CANCEL TRIP DTO
+// ============================================
+
+export const cancelTripSchema = z.object({
+  reason: z.string().min(1, "Cancellation reason is required").max(500, "Reason must be less than 500 characters"),
+});
+
+export type CancelTripDTO = z.infer<typeof cancelTripSchema>;
+
+// ============================================
+// START TRIP DTO
+// ============================================
+
+export const startTripSchema = z.object({
+  startOtp: z.string().length(6, "OTP must be exactly 6 characters"),
+  startOdometer: z.number().positive("Start odometer must be a positive number"),
+  driverSelfieUrl: z.string().url("Invalid driver selfie URL"),
+  odometerStartImageUrl: z.string().url("Invalid odometer image URL"),
+});
+
+export type StartTripDTO = z.infer<typeof startTripSchema>;
+
+// ============================================
+// END TRIP DTO
+// ============================================
+
+export const endTripSchema = z.object({
+  endOtp: z.string().length(6, "OTP must be exactly 6 characters"),
+  endOdometer: z.number().positive("End odometer must be a positive number"),
+  odometerEndImageUrl: z.string().url("Invalid odometer image URL"),
+});
+
+export type EndTripDTO = z.infer<typeof endTripSchema>;
+
+// ============================================
+// COLLECT PAYMENT DTO
+// ============================================
+
+export const collectPaymentSchema = z.object({
+  paymentMode: z.enum(["UPI", "CASH"]),
+  paymentReference: z.string().optional(),
+});
+
+export type CollectPaymentDTO = z.infer<typeof collectPaymentSchema>;
+
+// ============================================
+// LIST TRIPS QUERY DTO
+// ============================================
+
+export const listTripsQuerySchema = z.object({
+  franchiseId: z.string().uuid("Invalid franchise ID format").optional(),
+  driverId: z.string().uuid("Invalid driver ID format").optional(),
+  status: z.nativeEnum(TripStatus).optional(),
+  dateFrom: z.string().optional(), // ISO date string or simple date
+  dateTo: z.string().optional(),
+  page: z.string().optional().transform(val => val ? parseInt(val, 10) : 1),
+  limit: z.string().optional().transform(val => val ? Math.min(parseInt(val, 10), 100) : 10),
+});
+
+export type ListTripsQueryDTO = z.infer<typeof listTripsQuerySchema>;
+
+// ============================================
+// RESPONSE DTOs
+// ============================================
+
+export interface PaginationDTO {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+export interface TripResponseDTO {
+  id: string;
+  franchiseId: string;
+  driverId: string | null;
+  customerId: string | null;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string | null;
+  tripType: string;
+  status: TripStatus;
+  pickupLocation: string;
+  pickupAddress: string | null;
+  pickupLat: number | null;
+  pickupLng: number | null;
+  pickupLocationNote: string | null;
+  dropLocation: string | null;
+  dropAddress: string | null;
+  dropLat: number | null;
+  dropLng: number | null;
+  dropLocationNote: string | null;
+  requiredCarType: CarType | null;
+  requiredTransmission: Transmission | null;
+  assignedCarId: string | null;
+  scheduledAt: Date | null;
+  startedAt: Date | null;
+  endedAt: Date | null;
+  startTime: Date | null;
+  endTime: Date | null;
+  startOtp: string | null;
+  endOtp: string | null;
+  startOdometer: number | null;
+  endOdometer: number | null;
+  driverSelfieUrl: string | null;
+  odometerStartImageUrl: string | null;
+  odometerEndImageUrl: string | null;
+  baseAmount: number;
+  extraAmount: number;
+  totalAmount: number;
+  finalAmount: number;
+  paymentStatus: string;
+  paymentMode: PaymentMode | null;
+  paymentReference: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  // Relations (optional)
+  Driver?: any;
+  Customer?: any;
+  Franchise?: any;
+  AssignedCar?: any;
+}
+
+export interface SingleTripResponseDTO {
+  success: true;
+  message: string;
+  data: TripResponseDTO;
+}
+
+export interface TripListResponseDTO {
+  success: true;
+  message: string;
+  data: TripResponseDTO[];
+  pagination?: PaginationDTO;
+}

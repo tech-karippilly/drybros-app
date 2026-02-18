@@ -2,14 +2,14 @@ import api from '@/lib/axios';
 
 export const leaveService = {
   // List & search
-  getLeaves: (params?: any) => api.get('/leaves', { params }),
+  getLeaveRequests: (params?: any) => api.get('/leave-requests', { params }),
   
   // Leave details
-  getLeaveById: (id: string) => api.get(`/leaves/${id}`),
+  getLeaveRequestById: (id: string) => api.get(`/leave-requests/${id}`),
   
   // CRUD operations
-  createLeave: (data: any) => api.post('/leaves', data),
-  updateLeave: (id: string, data: any) => api.patch(`/leaves/${id}`, data),
-  updateLeaveStatus: (id: string, data: any) => api.patch(`/leaves/${id}/status`, data),
-  deleteLeave: (id: string) => api.delete(`/leaves/${id}`),
+  createLeaveRequest: (data: any) => api.post('/leave-requests', data),
+  updateLeaveRequest: (id: string, data: any) => api.patch(`/leave-requests/${id}`, data),
+  updateLeaveRequestStatus: (id: string, data: any) => api.patch(`/leave-requests/${id}/status`, data),
+  deleteLeaveRequest: (id: string) => api.delete(`/leave-requests/${id}`),
 };

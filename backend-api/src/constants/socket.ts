@@ -52,6 +52,9 @@ export const SOCKET_EVENTS = {
   
   // Error events
   ERROR: "error",
+  
+  // Your new event
+  YOUR_NEW_EVENT: "your_new_event",
 } as const;
 
 export const SOCKET_ROOMS = {

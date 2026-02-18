@@ -11,8 +11,9 @@ export enum LeaveStatus {
 export enum LeaveType {
   SICK_LEAVE = "SICK_LEAVE",
   CASUAL_LEAVE = "CASUAL_LEAVE",
-  ANNUAL_LEAVE = "ANNUAL_LEAVE",
+  EARNED_LEAVE = "EARNED_LEAVE",
   EMERGENCY_LEAVE = "EMERGENCY_LEAVE",
+  OTHER = "OTHER",
 }
 
 // ============================================
@@ -43,6 +44,46 @@ export const createLeaveRequestSchema = z.object({
 export type CreateLeaveRequestDTO = z.infer<typeof createLeaveRequestSchema>;
 
 // ============================================
+// UPDATE LEAVE REQUEST STATUS DTO
+// ============================================
+
+export const updateLeaveRequestStatusSchema = z.object({
+  status: z.nativeEnum(LeaveStatus),
+  rejectionReason: z.string().min(1, "Rejection reason is required").max(500, "Reason too long").optional(),
+}).refine(
+  (data) => {
+    if (data.status === "REJECTED" && !data.rejectionReason) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: "Rejection reason is required when rejecting",
+    path: ["rejectionReason"],
+  }
+);
+
+export type UpdateLeaveRequestStatusDTO = z.infer<typeof updateLeaveRequestStatusSchema>;
+
+// ============================================
+// LIST LEAVE REQUESTS PAGINATION QUERY DTO
+// ============================================
+
+export const leaveRequestPaginationQuerySchema = z.object({
+  status: z.nativeEnum(LeaveStatus).optional(),
+  franchiseId: z.string().uuid("Invalid franchise ID format").optional(),
+  driverId: z.string().uuid("Invalid driver ID format").optional(),
+  staffId: z.string().uuid("Invalid staff ID format").optional(),
+  userId: z.string().uuid("Invalid user ID format").optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  page: z.string().optional().transform(val => val ? parseInt(val, 10) : 1),
+  limit: z.string().optional().transform(val => val ? Math.min(parseInt(val, 10), 100) : 10),
+});
+
+export type LeaveRequestPaginationQueryDTO = z.infer<typeof leaveRequestPaginationQuerySchema>;
+
+// ============================================
 // APPROVE LEAVE DTO
 // ============================================
 
@@ -71,6 +112,7 @@ export const listLeaveRequestsQuerySchema = z.object({
   franchiseId: z.string().uuid("Invalid franchise ID format").optional(),
   driverId: z.string().uuid("Invalid driver ID format").optional(),
   staffId: z.string().uuid("Invalid staff ID format").optional(),
+  userId: z.string().uuid("Invalid user ID format").optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
   page: z.string().optional().transform(val => val ? parseInt(val, 10) : 1),
@@ -102,10 +144,9 @@ export interface LeaveRequestResponseDTO {
   endDate: Date;
   reason: string;
   status: LeaveStatus;
+  requestedBy: string | null;
   approvedBy: string | null;
   approvedAt: Date | null;
-  rejectedBy: string | null;
-  rejectedAt: Date | null;
   rejectionReason: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -114,7 +155,6 @@ export interface LeaveRequestResponseDTO {
   Staff?: any;
   User?: any;
   ApprovedByUser?: any;
-  RejectedByUser?: any;
 }
 
 export interface SingleLeaveRequestResponseDTO {
@@ -128,4 +168,9 @@ export interface LeaveRequestListResponseDTO {
   message: string;
   data: LeaveRequestResponseDTO[];
   pagination?: PaginationDTO;
+}
+
+export interface PaginatedLeaveRequestResponseDTO {
+  data: LeaveRequestResponseDTO[];
+  pagination: PaginationDTO;
 }

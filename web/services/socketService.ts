@@ -266,6 +266,11 @@ class SocketService {
     this.socket.on(SOCKET_EVENTS.ATTENDANCE_LOGOUT, (payload: any) => {
       this.emitEvent(SOCKET_EVENTS.ATTENDANCE_LOGOUT, payload);
     });
+
+    // Your new event
+    this.socket.on(SOCKET_EVENTS.YOUR_NEW_EVENT, (payload: any) => {
+      this.emitEvent(SOCKET_EVENTS.YOUR_NEW_EVENT, payload);
+    });
   }
 
   disconnect() {

@@ -76,6 +76,7 @@ function mapAttendanceToResponse(attendance: any): AttendanceResponseDTO {
       clockOut: s.clockOut ?? null,
       notes: s.notes ?? null,
     })),
+    totalSessions: (attendance.Sessions ?? []).length,
     totalWorkHours,
     firstOnlineAt: attendance.firstOnlineAt ?? null,
     lastOfflineAt: attendance.lastOfflineAt ?? null,
@@ -827,7 +828,7 @@ export async function updateAttendanceStatus(
 
   const attendance = await updateAttendance(id, {
     status: input.status,
-    notes: input.description || existing.notes,
+    notes: input.notes || existing.notes,
   });
 
   logger.info("Attendance status updated", {
@@ -860,12 +861,12 @@ export async function updateAttendanceStatus(
     driverId: existing.driverId || null,
     staffId: existing.staffId || null,
     userId: existing.userId || updatedBy || null,
-    description: `Attendance status updated to ${input.status}${input.description ? ` - ${input.description}` : ""}`,
+    description: `Attendance status updated to ${input.status}${input.notes ? ` - ${input.notes}` : ""}`,
     metadata: {
       attendanceId: id,
       oldStatus: existing.status,
       newStatus: input.status,
-      description: input.description,
+      description: input.notes,
     },
   }).catch((err) => {
     logger.error("Failed to log attendance status update activity", { error: err });

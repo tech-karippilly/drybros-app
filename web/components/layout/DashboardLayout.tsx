@@ -289,7 +289,7 @@ const DashboardLayout = ({
   React.useEffect(() => {
     const fetchFranchises = async () => {
       try {
-        if (pathname?.startsWith('/admin')) {
+        if (pathname?.startsWith('/admin') && currentUser?.role === 'ADMIN') {
           const response = await franchiseService.getFranchises();
           const data = response.data?.data || response.data || [];
           setFranchises(data);
@@ -301,11 +301,14 @@ const DashboardLayout = ({
         }
       } catch (error) {
         console.error('Error fetching franchises:', error);
+        // Silently handle the error to prevent UI crashes
+        // Could be due to network issues or user permissions
+        setFranchises([]);
       }
     };
 
     fetchFranchises();
-  }, [pathname]);
+  }, [pathname, currentUser]);
 
   // Close dropdown when clicking outside
   React.useEffect(() => {
@@ -532,7 +535,7 @@ const DashboardLayout = ({
             {/* Right Section */}
             <div className="flex items-center gap-2 sm:gap-4 ml-4">
               {/* Franchise Dropdown - Admin only */}
-              {pathname?.startsWith('/admin') && franchises.length > 0 && (
+              {pathname?.startsWith('/admin') && currentUser?.role === 'ADMIN' && franchises.length > 0 && (
                 <div className="relative">
                   <button
                     onClick={() => setFranchiseDropdownOpen(!franchiseDropdownOpen)}

@@ -43,7 +43,11 @@ function mapLeaveRequestToResponse(leaveRequest: any): LeaveRequestResponseDTO {
 }
 
 export async function createLeaveRequest(
-  input: CreateLeaveRequestDTO,
+  input: Omit<CreateLeaveRequestDTO, 'driverId' | 'staffId' | 'userId'> & {
+    driverId?: string;
+    staffId?: string;
+    userId?: string;
+  },
   requestedBy?: string
 ): Promise<{ message: string; data: LeaveRequestResponseDTO }> {
   if (!input.driverId && !input.staffId && !input.userId) {
@@ -79,8 +83,12 @@ export async function createLeaveRequest(
     franchiseId = user.franchiseId || undefined;
   }
 
+  // Convert string dates to Date objects
+  const startDate = new Date(input.startDate);
+  const endDate = new Date(input.endDate);
+  
   // Validate date range
-  if (input.endDate < input.startDate) {
+  if (endDate < startDate) {
     throw new BadRequestError(LEAVE_ERROR_MESSAGES.INVALID_DATE_RANGE);
   }
 
@@ -88,10 +96,10 @@ export async function createLeaveRequest(
     driverId: input.driverId,
     staffId: input.staffId,
     userId: input.userId,
-    startDate: input.startDate,
-    endDate: input.endDate,
+    startDate,
+    endDate,
     reason: input.reason,
-    leaveType: input.leaveType,
+    leaveType: input.leaveType as any,
     requestedBy: requestedBy || null,
   });
 
@@ -102,6 +110,74 @@ export async function createLeaveRequest(
     userId: input.userId,
   });
 
+  // Emit notification for leave request
+  try {
+    const { socketService } = require('./socket.service');
+    const { notificationService } = require('./notification.service');
+    
+    // Get the requesting person's name
+    let personName = "Unknown";
+    if (input.driverId) {
+      const driver = await getDriverById(input.driverId);
+      personName = driver ? `${driver.firstName} ${driver.lastName}`.trim() || "Driver" : "Driver";
+    } else if (input.staffId) {
+      const staff = await getStaffById(input.staffId);
+      personName = staff ? staff.name || "Staff" : "Staff";
+    } else if (input.userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: input.userId },
+        select: { fullName: true },
+      });
+      personName = user ? user.fullName || "Manager" : "Manager";
+    }
+    
+    // Create notification for franchise managers
+    if (franchiseId) {
+      // Notify all managers in the franchise
+      const managers = await prisma.user.findMany({
+        where: {
+          franchiseId,
+          role: UserRole.MANAGER,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      
+      for (const manager of managers) {
+        await notificationService.createNotification({
+          userId: manager.id,
+          franchiseId,
+          type: "LEAVE_REQUEST",
+          title: "New Leave Request",
+          message: `${personName} has requested ${(input.leaveType as any)} leave from ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
+          metadata: {
+            leaveRequestId: leaveRequest.id,
+            driverId: input.driverId,
+            staffId: input.staffId,
+            userId: input.userId,
+            personName,
+            leaveType: (input.leaveType as any),
+            startDate,
+            endDate,
+          },
+        });
+      }
+      
+      // Also emit real-time socket notification
+      socketService.emitNotification({
+        id: leaveRequest.id,
+        title: "New Leave Request",
+        message: `${personName} has requested leave`,
+        type: "LEAVE_REQUEST",
+        franchiseId,
+        read: false,
+        createdAt: new Date(),
+      });
+    }
+  } catch (notificationErr) {
+    logger.error("Failed to send leave request notification", { error: notificationErr });
+  }
+
   // Log activity (non-blocking)
   logActivity({
     action: ActivityAction.LEAVE_REQUESTED,
@@ -111,12 +187,12 @@ export async function createLeaveRequest(
     driverId: input.driverId || null,
     staffId: input.staffId || null,
     userId: input.userId || requestedBy || null,
-    description: `Leave request created: ${input.leaveType} from ${input.startDate.toISOString().split('T')[0]} to ${input.endDate.toISOString().split('T')[0]}`,
+    description: `Leave request created: ${(input.leaveType as any)} from ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
     metadata: {
       leaveRequestId: leaveRequest.id,
-      leaveType: input.leaveType,
-      startDate: input.startDate,
-      endDate: input.endDate,
+      leaveType: (input.leaveType as any),
+      startDate,
+      endDate,
       reason: input.reason,
     },
   }).catch((err) => {
@@ -139,7 +215,7 @@ export async function listLeaveRequests(
 export async function listLeaveRequestsPaginated(
   pagination: LeaveRequestPaginationQueryDTO
 ): Promise<PaginatedLeaveRequestResponseDTO> {
-  const { page, limit, driverId, staffId, userId, status, startDate, endDate } = pagination;
+  const { page, limit, driverId, staffId, userId, status, dateFrom, dateTo } = pagination;
   const skip = (page - 1) * limit;
 
   const filters: any = {};
@@ -147,8 +223,8 @@ export async function listLeaveRequestsPaginated(
   if (staffId) filters.staffId = staffId;
   if (userId) filters.userId = userId;
   if (status) filters.status = status;
-  if (startDate) filters.startDate = new Date(startDate);
-  if (endDate) filters.endDate = new Date(endDate);
+  if (dateFrom) filters.startDate = new Date(dateFrom);
+  if (dateTo) filters.endDate = new Date(dateTo);
 
   const { data, total } = await getLeaveRequestsPaginated(skip, limit, filters);
 
@@ -275,6 +351,67 @@ export async function updateLeaveRequestStatus(
   }).catch((err) => {
     logger.error("Failed to log leave request status change activity", { error: err });
   });
+
+  // Send notification to the person who requested the leave
+  try {
+    const { socketService } = require('./socket.service');
+    const { notificationService } = require('./notification.service');
+    
+    // Get the requesting person's ID to send notification to
+    let targetUserId: string | null = null;
+    if (leaveRequest.driverId) {
+      targetUserId = leaveRequest.driverId;
+    } else if (leaveRequest.staffId) {
+      targetUserId = leaveRequest.staffId;
+    } else if (leaveRequest.userId) {
+      targetUserId = leaveRequest.userId;
+    }
+    
+    if (targetUserId) {
+      // Get the approver's name
+      let approverName = "Administrator";
+      if (approvedBy) {
+        const approver = await prisma.user.findUnique({
+          where: { id: approvedBy },
+          select: { fullName: true },
+        });
+        approverName = approver?.fullName || "Admin";
+      }
+      
+      // Create notification for the person who requested the leave
+      await notificationService.createNotification({
+        userId: targetUserId,
+        franchiseId,
+        type: "LEAVE_STATUS_UPDATE",
+        title: `Leave Request ${input.status}`,
+        message: `Your leave request from ${leaveRequest.startDate.toISOString().split('T')[0]} to ${leaveRequest.endDate.toISOString().split('T')[0]} has been ${input.status.toLowerCase()}. ${
+          input.status === "REJECTED" && input.rejectionReason ? `Reason: ${input.rejectionReason}` : ""
+        }`,
+        metadata: {
+          leaveRequestId: id,
+          driverId: leaveRequest.driverId,
+          staffId: leaveRequest.staffId,
+          userId: leaveRequest.userId,
+          status: input.status,
+          approverName,
+          rejectionReason: input.rejectionReason,
+        },
+      });
+      
+      // Emit real-time socket notification
+      socketService.emitNotification({
+        id: id,
+        title: `Leave Request ${input.status}`,
+        message: `Your leave request has been ${input.status.toLowerCase()}`,
+        type: "LEAVE_STATUS_UPDATE",
+        franchiseId: franchiseId || undefined,
+        read: false,
+        createdAt: new Date(),
+      });
+    }
+  } catch (notificationErr) {
+    logger.error("Failed to send leave status update notification", { error: notificationErr });
+  }
 
   return {
     message: "Leave request status updated successfully",

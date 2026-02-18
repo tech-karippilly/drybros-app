@@ -18,6 +18,9 @@ export const SOCKET_EVENTS = {
    */
   TRIP_ACCEPTED_BY_DRIVER: 'trip_accepted_by_driver',
   TRIP_REJECTED_BY_DRIVER: 'trip_rejected_by_driver',
+  
+  // Your new event
+  YOUR_NEW_EVENT: 'your_new_event',
 } as const;
 
 export const SOCKET_TIMINGS_MS = {

@@ -1,5 +1,6 @@
 // src/controllers/leave.controller.ts
 import { Request, Response, NextFunction } from "express";
+import { UserRole } from "@prisma/client";
 import {
   createLeaveRequest,
   listLeaveRequests,
@@ -15,7 +16,29 @@ export async function createLeaveRequestHandler(
 ) {
   try {
     const requestedBy = req.user?.userId;
-    const result = await createLeaveRequest(req.body, requestedBy);
+    const userRole = req.user?.role;
+    const driverId = req.driver?.driverId;
+    
+    // Prepare the input data for the service
+    let input = { ...req.body };
+    
+    // If it's a driver making the request, auto-populate driverId
+    if (driverId) {
+      input.driverId = driverId;
+    } else if (req.user) {
+      // If it's a user making the request, check if they're requesting for themselves
+      // Only allow self-requests unless the user is admin/manager
+      if (userRole === UserRole.MANAGER) {
+        // Manager can request leave for themselves
+        input.userId = req.user.userId;
+      } else if (userRole === UserRole.STAFF) {
+        // Staff can request leave for themselves
+        input.staffId = req.user.userId;
+      }
+      // For admins, they can request for others, so they need to specify the ID in the body
+    }
+    
+    const result = await createLeaveRequest(input, requestedBy);
     res.status(201).json(result);
   } catch (err) {
     next(err);

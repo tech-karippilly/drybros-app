@@ -79,6 +79,14 @@ export type TripAssignedPayload = {
   tripId: string;
 };
 
+// Your new event payload
+export interface YourNewEventPayload {
+  id: string;
+  message: string;
+  timestamp: Date;
+  // Add your fields here
+}
+
 type TripsMyAssignedAck =
   | { data: any[] }
   | { error: string; message: string };
@@ -665,6 +673,41 @@ class SocketService {
         }
       });
 
+      // Handle your new event
+      socket.on(SOCKET_EVENTS.YOUR_NEW_EVENT, async (payload: YourNewEventPayload) => {
+        try {
+          this.consoleLog("your_new_event_received", {
+            socketId: socket.id,
+            payload,
+            ...SocketService.getSocketIdentity(socket)
+          });
+                  
+          // Handle your event logic here
+          // Example: Process the payload and emit response
+                  
+          // Emit response to relevant rooms
+          if (userData.franchiseId) {
+            this.io?.to(`${SOCKET_ROOMS.FRANCHISE_PREFIX}${userData.franchiseId}`).emit(
+              SOCKET_EVENTS.YOUR_NEW_EVENT,
+              {
+                ...payload,
+                processed: true,
+                processedAt: new Date().toISOString()
+              }
+            );
+          }
+                  
+          logger.debug("Your new event processed", { eventId: payload.id });
+        } catch (error) {
+          logger.error("Error processing your new event", {
+            error: error instanceof Error ? error.message : String(error),
+            socketId: socket.id,
+            payload
+          });
+          socket.emit(SOCKET_EVENTS.ERROR, { message: "Failed to process your event" });
+        }
+      });
+      
       // Handle disconnection
       socket.on(SOCKET_EVENTS.DISCONNECT, (reason: string) => {
         this.connectedUsers.delete(socket.id);
@@ -1090,6 +1133,27 @@ class SocketService {
    */
   getConnectedUsersCount(): number {
     return this.connectedUsers.size;
+  }
+
+  /**
+   * Emit your new event
+   */
+  emitYourNewEvent(franchiseId: string, payload: YourNewEventPayload): void {
+    if (!this.io) return;
+    
+    // Emit to franchise room
+    this.io.to(`${SOCKET_ROOMS.FRANCHISE_PREFIX}${franchiseId}`).emit(
+      SOCKET_EVENTS.YOUR_NEW_EVENT,
+      payload
+    );
+    
+    // Emit to admins for monitoring
+    this.io.to(SOCKET_ROOMS.ALL_ADMINS).emit(SOCKET_EVENTS.YOUR_NEW_EVENT, payload);
+    
+    logger.debug("Your new event emitted", { 
+      eventId: payload.id,
+      franchiseId 
+    });
   }
 
   /**

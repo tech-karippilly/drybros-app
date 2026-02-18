@@ -1528,6 +1528,44 @@ export async function logout(
         driverId
       }
     });
+
+    // Emit socket event for logout
+    try {
+      const socketServiceModule = await import('./socket.service');
+      const socketService = socketServiceModule.socketService;
+      let personName = "Unknown";
+      
+      // Get person name based on role
+      if (role === UserRole.DRIVER && driverId) {
+        const driver = await prisma.driver.findUnique({
+          where: { id: driverId },
+          select: { firstName: true, lastName: true }
+        });
+        personName = `${driver?.firstName || ''} ${driver?.lastName || ''}`.trim() || 'Driver';
+      } else if ((role === UserRole.STAFF || role === UserRole.OFFICE_STAFF) && userId) {
+        const staff = await prisma.staff.findUnique({
+          where: { id: userId },
+          select: { name: true }
+        });
+        personName = staff?.name || 'Staff';
+      } else if ((role === UserRole.MANAGER || role === UserRole.ADMIN) && userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { fullName: true }
+        });
+        personName = user?.fullName || 'User';
+      }
+      
+      socketService.emitAttendanceLogout(
+        userId || driverId || "unknown",
+        personName,
+        new Date(),
+        franchiseId,
+        role
+      );
+    } catch (err) {
+      logger.error("Failed to emit attendance logout socket event", { error: err });
+    }
   } catch (error) {
     logger.error("Failed to log logout activity", { error });
   }

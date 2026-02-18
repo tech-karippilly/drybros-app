@@ -227,6 +227,13 @@ class SocketService {
         }
 
         try {
+          // Log token verification attempt
+          this.consoleLog("auth_token_verification", {
+            socketId: socket.id,
+            tokenLength: token.length,
+            tokenStart: token.substring(0, 20) + '...'
+          });
+
           const payload = jwt.verify(token, authConfig.jwtSecret) as any;
 
           // Attach user info to socket
@@ -614,9 +621,9 @@ class SocketService {
           const onlineStaff = await getOnlineStaff(franchiseId);
           
           if (typeof ack === "function") {
-            ack({ data: onlineStaff });
+            ack({ staff: onlineStaff });
           } else {
-            socket.emit(SOCKET_EVENTS.ONLINE_STAFF_LIST, { data: onlineStaff });
+            socket.emit(SOCKET_EVENTS.ONLINE_STAFF_LIST, { staff: onlineStaff });
           }
         } catch (error) {
           logger.error("Failed to get online staff", {
@@ -643,9 +650,9 @@ class SocketService {
           const onlineDrivers = await getOnlineDrivers(franchiseId);
           
           if (typeof ack === "function") {
-            ack({ data: onlineDrivers });
+            ack({ drivers: onlineDrivers });
           } else {
-            socket.emit(SOCKET_EVENTS.ONLINE_DRIVERS_LIST, { data: onlineDrivers });
+            socket.emit(SOCKET_EVENTS.ONLINE_DRIVERS_LIST, { drivers: onlineDrivers });
           }
         } catch (error) {
           logger.error("Failed to get online drivers", {
@@ -889,6 +896,193 @@ class SocketService {
     // Emit to all connected clients (franchise, admins, staff)
     this.io.emit(SOCKET_EVENTS.TRIP_REJECTED_BY_DRIVER, payload);
     logger.debug("Trip rejection emitted via socket", { tripId, driverId: payload.driverId });
+  }
+
+  /**
+   * Emit attendance clock-in event
+   */
+  emitAttendanceClockIn(personId: string, personName: string, clockInTime: Date, franchiseId?: string, roleType?: string): void {
+    if (!this.io) return;
+
+    const payload = {
+      personId,
+      personName,
+      clockInTime: clockInTime.toISOString(),
+      franchiseId,
+      roleType,
+      timestamp: new Date().toISOString()
+    };
+
+    // Emit to franchise room if franchiseId exists
+    if (franchiseId) {
+      this.io.to(`${SOCKET_ROOMS.FRANCHISE_PREFIX}${franchiseId}`).emit(
+        SOCKET_EVENTS.ATTENDANCE_CLOCK_IN,
+        payload
+      );
+    }
+
+    // Emit to all admins for monitoring
+    this.io.to(SOCKET_ROOMS.ALL_ADMINS).emit(SOCKET_EVENTS.ATTENDANCE_CLOCK_IN, payload);
+
+    // Emit to managers of the franchise
+    if (franchiseId) {
+      this.io.to(SOCKET_ROOMS.ALL_MANAGERS).emit(SOCKET_EVENTS.ATTENDANCE_CLOCK_IN, payload);
+    }
+
+    logger.debug("Attendance clock-in emitted", { personId, clockInTime: payload.clockInTime });
+  }
+
+  /**
+   * Emit attendance clock-out event
+   */
+  emitAttendanceClockOut(personId: string, personName: string, clockOutTime: Date, franchiseId?: string, roleType?: string): void {
+    if (!this.io) return;
+
+    const payload = {
+      personId,
+      personName,
+      clockOutTime: clockOutTime.toISOString(),
+      franchiseId,
+      roleType,
+      timestamp: new Date().toISOString()
+    };
+
+    // Emit to franchise room if franchiseId exists
+    if (franchiseId) {
+      this.io.to(`${SOCKET_ROOMS.FRANCHISE_PREFIX}${franchiseId}`).emit(
+        SOCKET_EVENTS.ATTENDANCE_CLOCK_OUT,
+        payload
+      );
+    }
+
+    // Emit to all admins for monitoring
+    this.io.to(SOCKET_ROOMS.ALL_ADMINS).emit(SOCKET_EVENTS.ATTENDANCE_CLOCK_OUT, payload);
+
+    // Emit to managers of the franchise
+    if (franchiseId) {
+      this.io.to(SOCKET_ROOMS.ALL_MANAGERS).emit(SOCKET_EVENTS.ATTENDANCE_CLOCK_OUT, payload);
+    }
+
+    logger.debug("Attendance clock-out emitted", { personId, clockOutTime: payload.clockOutTime });
+  }
+
+  /**
+   * Emit attendance login event
+   */
+  emitAttendanceLogin(personId: string, personName: string, loginTime: Date, franchiseId?: string, roleType?: string): void {
+    if (!this.io) return;
+
+    const payload = {
+      personId,
+      personName,
+      loginTime: loginTime.toISOString(),
+      franchiseId,
+      roleType,
+      timestamp: new Date().toISOString()
+    };
+
+    // Emit to franchise room if franchiseId exists
+    if (franchiseId) {
+      this.io.to(`${SOCKET_ROOMS.FRANCHISE_PREFIX}${franchiseId}`).emit(
+        SOCKET_EVENTS.ATTENDANCE_LOGIN,
+        payload
+      );
+    }
+
+    // Emit to all admins for monitoring
+    this.io.to(SOCKET_ROOMS.ALL_ADMINS).emit(SOCKET_EVENTS.ATTENDANCE_LOGIN, payload);
+
+    // Emit to managers of the franchise
+    if (franchiseId) {
+      this.io.to(SOCKET_ROOMS.ALL_MANAGERS).emit(SOCKET_EVENTS.ATTENDANCE_LOGIN, payload);
+    }
+
+    logger.debug("Attendance login emitted", { personId, loginTime: payload.loginTime });
+  }
+
+  /**
+   * Emit attendance logout event
+   */
+  emitAttendanceLogout(personId: string, personName: string, logoutTime: Date, franchiseId?: string, roleType?: string): void {
+    if (!this.io) return;
+
+    const payload = {
+      personId,
+      personName,
+      logoutTime: logoutTime.toISOString(),
+      franchiseId,
+      roleType,
+      timestamp: new Date().toISOString()
+    };
+
+    // Emit to franchise room if franchiseId exists
+    if (franchiseId) {
+      this.io.to(`${SOCKET_ROOMS.FRANCHISE_PREFIX}${franchiseId}`).emit(
+        SOCKET_EVENTS.ATTENDANCE_LOGOUT,
+        payload
+      );
+    }
+
+    // Emit to all admins for monitoring
+    this.io.to(SOCKET_ROOMS.ALL_ADMINS).emit(SOCKET_EVENTS.ATTENDANCE_LOGOUT, payload);
+
+    // Emit to managers of the franchise
+    if (franchiseId) {
+      this.io.to(SOCKET_ROOMS.ALL_MANAGERS).emit(SOCKET_EVENTS.ATTENDANCE_LOGOUT, payload);
+    }
+
+    logger.debug("Attendance logout emitted", { personId, logoutTime: payload.logoutTime });
+  }
+
+  /**
+   * Emit online status change event
+   */
+  emitOnlineStatusChange(payload: {
+    userId?: string;
+    staffId?: string;
+    driverId?: string;
+    onlineStatus: boolean;
+    lastStatusChange: Date;
+    franchiseId?: string;
+  }): void {
+    if (!this.io) return;
+
+    // Emit to individual user/employee room
+    if (payload.staffId) {
+      this.io.to(`${SOCKET_ROOMS.STAFF_PREFIX}${payload.staffId}`).emit(
+        SOCKET_EVENTS.STAFF_STATUS_CHANGED,
+        payload
+      );
+    } else if (payload.driverId) {
+      this.io.to(`${SOCKET_ROOMS.DRIVER_PREFIX}${payload.driverId}`).emit(
+        SOCKET_EVENTS.DRIVER_STATUS_CHANGED,
+        payload
+      );
+    } else if (payload.userId) {
+      this.io.to(`${SOCKET_ROOMS.USER_PREFIX}${payload.userId}`).emit(
+        "user:status-changed",
+        payload
+      );
+    }
+
+    // Emit to franchise room
+    if (payload.franchiseId) {
+      this.io.to(`${SOCKET_ROOMS.FRANCHISE_PREFIX}${payload.franchiseId}`).emit(
+        "online:status-changed",
+        payload
+      );
+    }
+
+    // Emit to all admins and managers for monitoring
+    this.io.to(SOCKET_ROOMS.ALL_ADMINS).emit("online:status-changed", payload);
+    this.io.to(SOCKET_ROOMS.ALL_MANAGERS).emit("online:status-changed", payload);
+
+    logger.debug("Online status change emitted", { 
+      userId: payload.userId,
+      staffId: payload.staffId,
+      driverId: payload.driverId,
+      onlineStatus: payload.onlineStatus 
+    });
   }
 
   /**

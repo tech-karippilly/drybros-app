@@ -29,6 +29,12 @@ export const SOCKET_EVENTS = {
   GET_ONLINE_STAFF: "/online/staff",
   GET_ONLINE_DRIVERS: "/online/drivers",
 
+  // Attendance events
+  ATTENDANCE_CLOCK_IN: "attendance:clock-in",
+  ATTENDANCE_CLOCK_OUT: "attendance:clock-out",
+  ATTENDANCE_LOGIN: "attendance:login",
+  ATTENDANCE_LOGOUT: "attendance:logout",
+
   // Activity log events
   ACTIVITY_LOG_CREATED: "activity_log_created",
   ACTIVITY_LOG_UPDATED: "activity_log_updated",

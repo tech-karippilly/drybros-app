@@ -60,19 +60,35 @@ const StaffDriverCounts = ({ className = '' }: StaffDriverCountsProps) => {
 
       // Handle different data formats
       if (data?.staff) {
-        // Online staff list payload
-        staff = data.staff.filter((s: any) => s.onlineStatus).length;
+        // Online staff list payload - filter by franchise if applicable
+        staff = data.staff.filter((s: any) => {
+          // If user has a franchise, only include staff from that franchise
+          if (currentUser?.franchiseId) {
+            return s.onlineStatus && s.franchiseId === currentUser.franchiseId;
+          }
+          return s.onlineStatus;
+        }).length;
       }
       
       if (data?.drivers) {
-        // Online drivers list payload
-        drivers = data.drivers.filter((d: any) => d.onlineStatus).length;
+        // Online drivers list payload - filter by franchise if applicable
+        drivers = data.drivers.filter((d: any) => {
+          // If user has a franchise, only include drivers from that franchise
+          if (currentUser?.franchiseId) {
+            return d.onlineStatus && d.franchiseId === currentUser.franchiseId;
+          }
+          return d.onlineStatus;
+        }).length;
       }
       
       if (data?.onlineStatus !== undefined) {
         // Individual status change payload
         if (data.staffId) {
           // This is a staff member
+          if (currentUser?.franchiseId && data.franchiseId !== currentUser.franchiseId) {
+            // If this is franchise-specific and the staff member doesn't belong to this franchise, ignore
+            return;
+          }
           if (data.onlineStatus) {
             staff = displayCounts.staff + 1;
           } else {
@@ -80,6 +96,10 @@ const StaffDriverCounts = ({ className = '' }: StaffDriverCountsProps) => {
           }
         } else if (data.driverId) {
           // This is a driver
+          if (currentUser?.franchiseId && data.franchiseId !== currentUser.franchiseId) {
+            // If this is franchise-specific and the driver doesn't belong to this franchise, ignore
+            return;
+          }
           if (data.onlineStatus) {
             drivers = displayCounts.drivers + 1;
           } else {
@@ -106,15 +126,35 @@ const StaffDriverCounts = ({ className = '' }: StaffDriverCountsProps) => {
       setIsLoading(true);
       setError(null);
       
+      // Check if user is authenticated before connecting
+      if (!socketService.isAuthenticated()) {
+        setError('User not authenticated. Please log in again.');
+        setIsLoading(false);
+        return;
+      }
+      
       // Connect to socket
       await socketService.connect();
       
-      // Request initial online data
-      socketService.requestOnlineStaff();
-      socketService.requestOnlineDrivers();
+      // Only request data if socket is successfully connected
+      if (socketService.isConnected()) {
+        // Request data for user's franchise only
+        const franchiseId = currentUser?.franchiseId;
+        socketService.requestOnlineStaff(franchiseId);
+        socketService.requestOnlineDrivers(franchiseId);
+      } else {
+        throw new Error('Socket connection established but not connected');
+      }
       
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error connecting to socket:', err);
+      
+      // Handle specific error cases
+      if (err.message === 'Invalid authentication token') {
+        setError('Authentication failed. Please refresh the page and log in again.');
+        return;
+      }
+      
       setError('Failed to connect to real-time updates');
     } finally {
       setIsLoading(false);
@@ -181,7 +221,7 @@ const StaffDriverCounts = ({ className = '' }: StaffDriverCountsProps) => {
           <div className="text-red-400 font-medium mb-2">Connection Error</div>
           <div className="text-sm text-red-300">{error}</div>
           <button 
-            onClick={fetchInitialData}
+            onClick={() => fetchInitialData()}
             className="mt-3 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition-colors"
           >
             Retry Connection

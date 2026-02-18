@@ -221,3 +221,46 @@ export interface UpdateAttendanceDTO {
   notes?: string;
 
 }
+
+// ============================================
+// CREATE ATTENDANCE SCHEMA
+// ============================================
+
+export const createAttendanceSchema = z.object({
+  driverId: z.string().uuid("Invalid driver ID format").optional(),
+  staffId: z.string().uuid("Invalid staff ID format").optional(),
+  userId: z.string().uuid("Invalid user ID format").optional(),
+  date: z.string().transform((val) => new Date(val)),
+  loginTime: z.string().transform((val) => new Date(val)).optional(),
+  clockIn: z.string().transform((val) => new Date(val)).optional(),
+  clockOut: z.string().transform((val) => new Date(val)).optional(),
+  status: z.nativeEnum(AttendanceStatus),
+  notes: z.string().optional(),
+});
+
+export type CreateAttendanceDTOType = z.infer<typeof createAttendanceSchema>;
+
+// ============================================
+// UPDATE ATTENDANCE SCHEMA
+// ============================================
+
+export const updateAttendanceSchema = z.object({
+  loginTime: z.string().transform((val) => new Date(val)).optional(),
+  clockIn: z.string().transform((val) => new Date(val)).optional(),
+  clockOut: z.string().transform((val) => new Date(val)).optional(),
+  status: z.nativeEnum(AttendanceStatus).optional(),
+  notes: z.string().optional(),
+});
+
+export type UpdateAttendanceDTOType = z.infer<typeof updateAttendanceSchema>;
+
+// ============================================
+// UPDATE ATTENDANCE STATUS SCHEMA
+// ============================================
+
+export const updateAttendanceStatusSchema = z.object({
+  status: z.nativeEnum(AttendanceStatus),
+  notes: z.string().optional(),
+});
+
+export type UpdateAttendanceStatusDTOType = z.infer<typeof updateAttendanceStatusSchema>;

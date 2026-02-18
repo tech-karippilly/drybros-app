@@ -95,6 +95,383 @@ const options: swaggerJsdoc.Options = {
             },
           },
         },
+        AttendanceResponse: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440000',
+            },
+            driverId: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440001',
+            },
+            staffId: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440002',
+            },
+            userId: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440003',
+            },
+            date: {
+              type: 'string',
+              format: 'date',
+              example: '2023-12-01',
+            },
+            loginTime: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T09:00:00Z',
+            },
+            clockIn: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T09:15:00Z',
+            },
+            clockOut: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T18:00:00Z',
+            },
+            status: {
+              type: 'string',
+              enum: ['PRESENT', 'ABSENT', 'LEAVE'],
+              example: 'PRESENT',
+            },
+            notes: {
+              type: 'string',
+              example: 'Regular shift',
+            },
+            firstOnlineAt: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T09:00:00Z',
+            },
+            lastOfflineAt: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T18:00:00Z',
+            },
+            totalOnlineMinutes: {
+              type: 'number',
+              example: 480,
+            },
+            totalSessions: {
+              type: 'number',
+              example: 1,
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T00:00:00Z',
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T18:00:00Z',
+            },
+          },
+        },
+        AttendanceSession: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440004',
+            },
+            clockIn: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T09:15:00Z',
+            },
+            clockOut: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T18:00:00Z',
+            },
+            durationMinutes: {
+              type: 'number',
+              example: 480,
+            },
+            clockInLat: {
+              type: 'number',
+              example: 12.9716,
+            },
+            clockInLng: {
+              type: 'number',
+              example: 77.5946,
+            },
+            clockOutLat: {
+              type: 'number',
+              example: 12.9716,
+            },
+            clockOutLng: {
+              type: 'number',
+              example: 77.5946,
+            },
+          },
+        },
+        AttendanceMonitorRow: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440005',
+            },
+            driverId: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440001',
+            },
+            staffId: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440002',
+            },
+            userId: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440003',
+            },
+            name: {
+              type: 'string',
+              example: 'John Doe',
+            },
+            status: {
+              type: 'string',
+              example: 'Present',
+            },
+            clockIn: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T09:15:00Z',
+            },
+            clockOut: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T18:00:00Z',
+            },
+            totalDuration: {
+              type: 'number',
+              example: 480,
+            },
+            onlineStatus: {
+              type: 'string',
+              enum: ['online', 'offline'],
+              example: 'online',
+            },
+            lastSeen: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T18:00:00Z',
+            },
+          },
+        },
+        AttendanceStatus: {
+          type: 'object',
+          properties: {
+            clockedIn: {
+              type: 'boolean',
+              example: true,
+            },
+            clockInTime: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T09:15:00Z',
+            },
+            lastClockOutTime: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T18:00:00Z',
+            },
+            status: {
+              type: 'string',
+              example: 'Present',
+            },
+            attendanceId: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440000',
+            },
+          },
+        },
+        SingleAttendanceResponse: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: true,
+            },
+            message: {
+              type: 'string',
+              example: 'Operation successful',
+            },
+            data: {
+              $ref: '#/components/schemas/AttendanceResponse',
+            },
+          },
+        },
+        PaginatedAttendanceResponse: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: true,
+            },
+            message: {
+              type: 'string',
+              example: 'Operation successful',
+            },
+            data: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/AttendanceResponse',
+              },
+            },
+            pagination: {
+              $ref: '#/components/schemas/Pagination',
+            },
+          },
+        },
+        ClockAttendanceResponse: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440000',
+            },
+            date: {
+              type: 'string',
+              format: 'date',
+              example: '2023-12-01',
+            },
+            loginTime: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T09:00:00Z',
+            },
+            clockIn: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T09:15:00Z',
+            },
+            clockOut: {
+              type: 'string',
+              format: 'date-time',
+              example: '2023-12-01T18:00:00Z',
+            },
+            status: {
+              type: 'string',
+              enum: ['PRESENT', 'ABSENT', 'LEAVE'],
+              example: 'PRESENT',
+            },
+            driverId: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440001',
+            },
+            staffId: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440002',
+            },
+            userId: {
+              type: 'string',
+              format: 'uuid',
+              example: '550e8400-e29b-41d4-a716-446655440003',
+            },
+          },
+        },
+        CreateAttendanceRequest: {
+          type: 'object',
+          properties: {
+            driverId: {
+              type: 'string',
+              format: 'uuid',
+            },
+            staffId: {
+              type: 'string',
+              format: 'uuid',
+            },
+            userId: {
+              type: 'string',
+              format: 'uuid',
+            },
+            date: {
+              type: 'string',
+              format: 'date',
+              example: '2023-12-01',
+            },
+            loginTime: {
+              type: 'string',
+              format: 'date-time',
+            },
+            clockIn: {
+              type: 'string',
+              format: 'date-time',
+            },
+            clockOut: {
+              type: 'string',
+              format: 'date-time',
+            },
+            status: {
+              type: 'string',
+              enum: ['PRESENT', 'ABSENT', 'LEAVE'],
+              example: 'PRESENT',
+            },
+            notes: {
+              type: 'string',
+            },
+          },
+          required: ['date', 'status'],
+        },
+        UpdateAttendanceRequest: {
+          type: 'object',
+          properties: {
+            loginTime: {
+              type: 'string',
+              format: 'date-time',
+            },
+            clockIn: {
+              type: 'string',
+              format: 'date-time',
+            },
+            clockOut: {
+              type: 'string',
+              format: 'date-time',
+            },
+            status: {
+              type: 'string',
+              enum: ['PRESENT', 'ABSENT', 'LEAVE'],
+            },
+            notes: {
+              type: 'string',
+            },
+          },
+        },
+        UpdateAttendanceStatusRequest: {
+          type: 'object',
+          properties: {
+            status: {
+              type: 'string',
+              enum: ['PRESENT', 'ABSENT', 'LEAVE'],
+              example: 'PRESENT',
+            },
+            notes: {
+              type: 'string',
+              example: 'Updated status',
+            },
+          },
+          required: ['status'],
+        },
       },
     },
     security: [
@@ -126,6 +503,10 @@ const options: swaggerJsdoc.Options = {
       {
         name: 'Security',
         description: 'Security and audit endpoints',
+      },
+      {
+        name: 'Attendance',
+        description: 'Attendance tracking and management',
       },
     ],
   },

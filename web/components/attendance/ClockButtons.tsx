@@ -212,7 +212,9 @@ export default function ClockButtons({ userId, userName, userRole, staffId, driv
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-lg font-semibold text-white mb-1">Attendance Clock</h3>
-          <p className="text-sm text-gray-400">{userName}</p>
+          <p className="text-sm text-gray-400" suppressHydrationWarning>
+            {mounted ? userName : 'Loading...'}
+          </p>
         </div>
         <ClockIcon className="w-8 h-8 text-blue-400" />
       </div>

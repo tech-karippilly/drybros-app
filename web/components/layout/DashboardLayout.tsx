@@ -7,6 +7,7 @@ import { useDispatch } from 'react-redux';
 import { logout, selectCurrentUser } from '@/lib/features/auth/authSlice';
 import { authService } from '@/services/authService';
 import { useAppSelector } from '@/lib/hooks';
+import { franchiseService } from '@/services/franchiseService';
 
 // Icon Components
 const SearchIcon = ({ className = '' }: { className?: string }) => (
@@ -276,10 +277,52 @@ const DashboardLayout = ({
   const [mounted, setMounted] = React.useState(false);
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
   const [expandedMenus, setExpandedMenus] = React.useState<string[]>([]);
+  const [franchises, setFranchises] = React.useState<any[]>([]);
+  const [selectedFranchise, setSelectedFranchise] = React.useState<string>('');
+  const [franchiseDropdownOpen, setFranchiseDropdownOpen] = React.useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const dispatch = useDispatch();
   const currentUser = useAppSelector(selectCurrentUser);
+
+  // Fetch franchises for admin
+  React.useEffect(() => {
+    const fetchFranchises = async () => {
+      try {
+        if (pathname?.startsWith('/admin')) {
+          const response = await franchiseService.getFranchises();
+          const data = response.data?.data || response.data || [];
+          setFranchises(data);
+          
+          // Set first franchise as default if available
+          if (data.length > 0 && !selectedFranchise) {
+            setSelectedFranchise(data[0].id);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching franchises:', error);
+      }
+    };
+
+    fetchFranchises();
+  }, [pathname]);
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (franchiseDropdownOpen) {
+        setFranchiseDropdownOpen(false);
+      }
+    };
+
+    if (franchiseDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [franchiseDropdownOpen]);
 
   // Prevent hydration mismatch by waiting for client mount
   React.useEffect(() => {
@@ -488,6 +531,47 @@ const DashboardLayout = ({
 
             {/* Right Section */}
             <div className="flex items-center gap-2 sm:gap-4 ml-4">
+              {/* Franchise Dropdown - Admin only */}
+              {pathname?.startsWith('/admin') && franchises.length > 0 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setFranchiseDropdownOpen(!franchiseDropdownOpen)}
+                    className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900/50 px-3 py-2 text-sm text-white hover:bg-gray-800 transition-colors"
+                  >
+                    <BuildingIcon className="h-4 w-4 text-gray-400" />
+                    <span className="max-w-[120px] truncate">
+                      {franchises.find(f => f.id === selectedFranchise)?.name || 'Select Franchise'}
+                    </span>
+                    <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${franchiseDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  
+                  {/* Dropdown Menu */}
+                  {franchiseDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-2 z-50 w-64 rounded-xl border border-gray-800 bg-gray-900 shadow-2xl">
+                      <div className="max-h-60 overflow-y-auto py-2">
+                        {franchises.map((franchise) => (
+                          <button
+                            key={franchise.id}
+                            onClick={() => {
+                              setSelectedFranchise(franchise.id);
+                              setFranchiseDropdownOpen(false);
+                            }}
+                            className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                              selectedFranchise === franchise.id
+                                ? 'bg-blue-500/10 text-blue-400 border-l-2 border-blue-500'
+                                : 'text-gray-300 hover:bg-gray-800/50 hover:text-white'
+                            }`}
+                          >
+                            <div className="font-medium">{franchise.name}</div>
+                            <div className="text-xs text-gray-500 mt-0.5">{franchise.code}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Live System Badge - Hidden on small screens */}
               {liveStatus && (
                 <div className="hidden sm:flex items-center gap-2 rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1.5">

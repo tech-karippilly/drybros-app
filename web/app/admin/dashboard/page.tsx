@@ -8,7 +8,8 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import Button from '@/components/ui/Button';
 import DatePicker from '@/components/ui/DatePicker';
 import { adminRoutes } from '@/lib/constants/routes';
-import ClockButtons from '@/components/attendance/ClockButtons';
+import OnlineMembersCount from '@/components/attendance/OnlineMembersCount';
+
 
 // Icon Components
 const CalendarIcon = ({ className = '' }: { className?: string }) => (
@@ -74,6 +75,12 @@ const StarIcon = ({ className = '' }: { className?: string }) => (
 const ClockIcon = ({ className = '' }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
+const OnlineIcon = ({ className = '' }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
   </svg>
 );
 
@@ -261,6 +268,13 @@ export default function AdminDashboardPage() {
       icon: <UsersIcon className="h-5 w-5 text-purple-400" />,
       iconBg: 'bg-purple-500/10',
     },
+    {
+      title: 'Online Members',
+      value: '-',
+      change: undefined,
+      icon: <OnlineIcon className="h-5 w-5 text-green-400" />,
+      iconBg: 'bg-green-500/10',
+    },
   ];
 
   // Franchises table data
@@ -283,15 +297,6 @@ export default function AdminDashboardPage() {
           <p className="mt-1 text-sm text-gray-400">Real-time performance metrics across all global branches.</p>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <ClockButtons
-            userId={currentUser?.id || ''}
-            userName={currentUser?.fullName || 'Admin'}
-            userRole={currentUser?.role}
-            staffId={currentUser?.staffId}
-            onStatusChange={() => {
-              // Refresh dashboard data if needed
-            }}
-          />
           {/* Date Range Picker */}
           <div className="relative" ref={datePickerRef}>
             <button 
@@ -387,10 +392,15 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Stats Row */}
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {stats.map((stat, index) => (
           <StatCard key={index} {...stat} />
         ))}
+      </div>
+
+      {/* Online Members Count Section */}
+      <div className="mb-8">
+        <OnlineMembersCount />
       </div>
 
       {/* Main Content Grid */}

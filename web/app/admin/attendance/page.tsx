@@ -5,6 +5,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import OnlineMembersCount from "@/components/attendance/OnlineMembersCount";
 import AttendanceSummary from "@/components/attendance/AttendanceSummary";
 import AttendanceList from "@/components/attendance/AttendanceList";
+import AttendanceMonitor from "@/components/attendance/AttendanceMonitor";
 import { useAppSelector } from "@/lib/hooks";
 import { selectCurrentUser } from "@/lib/features/auth/authSlice";
 import { attendanceService } from "@/services/attendanceService";
@@ -18,6 +19,7 @@ export default function AdminAttendancePage() {
   const [franchises, setFranchises] = useState<any[]>([]);
   const [selectedFranchise, setSelectedFranchise] = useState<string>('');
   const currentUser = useAppSelector(selectCurrentUser);
+  const franchiseId = selectedFranchise || undefined;
 
   // Fetch franchises
   useEffect(() => {
@@ -50,23 +52,56 @@ export default function AdminAttendancePage() {
       try {
         setLoading(true);
         // Fetch actual attendance data from API
-        const response = await attendanceService.getAllAttendances({
+        const params: any = {
           dateFrom: new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString(),
           dateTo: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString(),
-        });
+        };
+        
+        // Only add franchiseId if it's a valid UUID and not an empty string
+        if (selectedFranchise && selectedFranchise.trim() !== '') {
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+          if (uuidRegex.test(selectedFranchise)) {
+            params.franchiseId = selectedFranchise;
+          }
+        }
+        
+        const response = await attendanceService.getAllAttendances(params);
         
         // Process the response to match our expected format
         const processedData: Record<number, { present: number; absent: number; leave: number }> = {};
         
-        // For demo purposes, we'll use mock data
-        // In real implementation, this would process the API response
-        const mockData: Record<number, { present: number; absent: number; leave: number }> = {
-          1: { present: 45, absent: 3, leave: 2 },
-          5: { present: 47, absent: 2, leave: 1 },
-          10: { present: 46, absent: 3, leave: 1 },
-          15: { present: 48, absent: 1, leave: 1 },
-        };
-        setAttendanceData(mockData);
+        // Process actual API response data and remove duplicates
+        if (response.data?.data) {
+          // Use a Map to track unique person-date combinations
+          const uniqueRecords = new Map<string, any>();
+          
+          response.data.data.forEach((record: any) => {
+            const personId = record.staffId || record.driverId || record.userId || 'unknown';
+            const recordDate = new Date(record.date).toDateString();
+            const uniqueKey = `${personId}-${recordDate}`;
+            
+            // Only keep one record per person per date (the first one)
+            if (!uniqueRecords.has(uniqueKey)) {
+              uniqueRecords.set(uniqueKey, record);
+            }
+          });
+          
+          // Process the deduplicated records
+          Array.from(uniqueRecords.values()).forEach((record: any) => {
+            const day = new Date(record.date).getDate();
+            if (!processedData[day]) {
+              processedData[day] = { present: 0, absent: 0, leave: 0 };
+            }
+            if (record.status === 'PRESENT') {
+              processedData[day].present += 1;
+            } else if (record.status === 'ABSENT') {
+              processedData[day].absent += 1;
+            } else if (record.status === 'LEAVE') {
+              processedData[day].leave += 1;
+            }
+          });
+        }
+        setAttendanceData(processedData);
       } catch (error: any) {
         console.error('Error fetching attendance data:', error);
         
@@ -75,14 +110,8 @@ export default function AdminAttendancePage() {
           console.error('Authentication failed. Please refresh the page or log in again.');
         }
         
-        // Fallback to mock data on error
-        const mockData: Record<number, { present: number; absent: number; leave: number }> = {
-          1: { present: 45, absent: 3, leave: 2 },
-          5: { present: 47, absent: 2, leave: 1 },
-          10: { present: 46, absent: 3, leave: 1 },
-          15: { present: 48, absent: 1, leave: 1 },
-        };
-        setAttendanceData(mockData);
+        // Set empty data on error
+        setAttendanceData({});
       } finally {
         setLoading(false);
       }
@@ -176,7 +205,7 @@ export default function AdminAttendancePage() {
 
         {/* Online Members Count */}
         <div className="mb-6">
-          <OnlineMembersCount franchiseId={selectedFranchise} />
+          <OnlineMembersCount franchiseId={franchiseId} />
         </div>
         
         {/* Attendance Summary */}
@@ -188,8 +217,13 @@ export default function AdminAttendancePage() {
         <div className="mb-6">
           <AttendanceList 
             date={selectedDate || new Date()} 
-            franchiseId={selectedFranchise} 
+            franchiseId={selectedFranchise || undefined} 
           />
+        </div>
+
+        {/* Real-time Attendance Monitor */}
+        <div className="mb-6">
+          <AttendanceMonitor franchiseId={selectedFranchise || undefined} />
         </div>
 
 

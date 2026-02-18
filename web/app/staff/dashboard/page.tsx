@@ -127,7 +127,7 @@ export default function StaffDashboardPage() {
     try {
       const response = await attendanceService.getAttendanceStatus(currentUser?.id || '');
       if (response.data) {
-        setIsClockedIn(response.data.isClockedIn || false);
+        setIsClockedIn(response.data.clockedIn || false);
         if (response.data.clockInTime) {
           setClockInTime(new Date(response.data.clockInTime));
         }

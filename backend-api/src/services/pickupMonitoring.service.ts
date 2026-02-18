@@ -2,7 +2,7 @@
 import prisma from "../config/prismaClient";
 import { TripStatus } from "@prisma/client";
 import { tripDispatchService } from "./tripDispatch.service";
-import { emitNotification } from "./notification.service";
+import { socketService } from "./socket.service";
 import { haversineDistanceKm } from "../utils/geo";
 import logger from "../config/logger";
 import { PICKUP_MONITORING_CONFIG } from "../constants/dispatch";
@@ -258,17 +258,15 @@ class PickupMonitoringService {
     });
 
     // Notify driver that trip was reassigned
-    await emitNotification({
+    socketService.emitNotification({
+      id: `notification-${Date.now()}-${Math.random()}`,
       title: "Trip Reassigned",
       message: `Trip ${tripId} was reassigned due to no pickup progress. Please contact support if this was an error.`,
       type: "warning",
       driverId,
       franchiseId,
-      metadata: {
-        tripId,
-        reason,
-        action: "auto_reassignment",
-      },
+      read: false,
+      createdAt: new Date(),
     });
 
     // Notify admins
@@ -281,18 +279,15 @@ class PickupMonitoringService {
     });
 
     for (const admin of admins) {
-      await emitNotification({
+      socketService.emitNotification({
+        id: `notification-${Date.now()}-${Math.random()}`,
         title: "Trip Auto-Reassigned",
         message: `Trip ${tripId} was auto-reassigned from driver ${driver?.driverCode || driverId} due to ${reason.replace(/_/g, " ")}.`,
         type: "warning",
         userId: admin.id,
         franchiseId,
-        metadata: {
-          tripId,
-          driverId,
-          reason,
-          action: "auto_reassignment",
-        },
+        read: false,
+        createdAt: new Date(),
       });
     }
 

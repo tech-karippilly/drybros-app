@@ -53,14 +53,14 @@ const AttendanceSummary = ({ className = '', date }: AttendanceSummaryProps) => 
       console.error('Error fetching attendance stats:', err);
       setError(err.message || 'Failed to fetch attendance data');
       
-      // Fallback to mock data
+      // Set empty stats on error
       setStats({
-        present: 45,
-        absent: 3,
-        leave: 2,
-        late: 8,
-        onTime: 37,
-        total: 50
+        present: 0,
+        absent: 0,
+        leave: 0,
+        late: 0,
+        onTime: 0,
+        total: 0
       });
     } finally {
       setIsLoading(false);

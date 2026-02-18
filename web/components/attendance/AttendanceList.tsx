@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { attendanceService } from '@/services/attendanceService';
 
 interface AttendanceRecord {
@@ -22,12 +22,21 @@ interface AttendanceListProps {
   franchiseId?: string;
 }
 
+// Helper function to validate UUID format
+const isValidUUID = (uuid: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+};
+
 const AttendanceList = ({ className = '', date = new Date(), franchiseId }: AttendanceListProps) => {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'name' | 'loginTime' | 'clockInTime' | 'timeWorked'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  
+  // Ref for cleanup
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Format time for display
   const formatTime = (dateString: string | null) => {
@@ -83,28 +92,87 @@ const AttendanceList = ({ className = '', date = new Date(), franchiseId }: Atte
       setError(null);
       
       // For admin, use the /all endpoint to get all attendance records
-      const response = await attendanceService.getAllAttendances({
+      const params: any = {
         startDate: date.toISOString().split('T')[0],
         endDate: date.toISOString().split('T')[0],
         page: 1,
         limit: 100
-      });
+      };
+      
+      // Only add franchiseId if it's a valid UUID and not an empty string
+      if (franchiseId && franchiseId.trim() !== '' && isValidUUID(franchiseId)) {
+        params.franchiseId = franchiseId;
+      }
+      
+      const response = await attendanceService.getAllAttendances(params);
       
       const data = response.data?.data || response.data || [];
       
-      // Transform data to match our interface
-      const transformedData: AttendanceRecord[] = data.map((record: any) => ({
-        id: record.id,
-        name: record.Staff?.name || record.Driver?.firstName + ' ' + record.Driver?.lastName || record.User?.fullName || 'Unknown',
-        loginTime: record.loginTime,
-        clockInTime: record.clockIn,
-        clockOutTime: record.clockOut,
-        logoutTime: record.logoutTime || null,
-        timeWorked: calculateTimeWorked(record.clockIn, record.clockOut),
-        date: record.date,
-        status: record.status,
-        role: record.Staff ? 'Staff' : record.Driver ? 'Driver' : record.User ? 'Manager' : 'Unknown'
-      }));
+      // Transform data to match our interface and remove duplicates
+      const processedRecords = new Map<string, AttendanceRecord>();
+      
+      data.forEach((record: any) => {
+        // Create a unique key for each person on a specific date
+        const personId = record.staffId || record.driverId || record.userId || 'unknown';
+        const recordDate = new Date(record.date).toDateString();
+        const uniqueKey = `${personId}-${recordDate}`;
+        
+        // Get person name
+        const name = record.Staff?.name || 
+                    (record.Driver ? `${record.Driver.firstName} ${record.Driver.lastName}` : '') || 
+                    record.User?.fullName || 'Unknown';
+        
+        const role = record.Staff ? 'Staff' : record.Driver ? 'Driver' : record.User ? 'Manager' : 'Unknown';
+        
+        // If this person already has a record for this date, merge the data
+        if (processedRecords.has(uniqueKey)) {
+          const existingRecord = processedRecords.get(uniqueKey)!;
+          
+          // Keep the earliest login time
+          if (record.loginTime && (!existingRecord.loginTime || 
+              new Date(record.loginTime) < new Date(existingRecord.loginTime))) {
+            existingRecord.loginTime = record.loginTime;
+          }
+          
+          // Keep the earliest clock-in time
+          if (record.clockIn && (!existingRecord.clockInTime || 
+              new Date(record.clockIn) < new Date(existingRecord.clockInTime))) {
+            existingRecord.clockInTime = record.clockIn;
+          }
+          
+          // Keep the latest clock-out time
+          if (record.clockOut && (!existingRecord.clockOutTime || 
+              new Date(record.clockOut) > new Date(existingRecord.clockOutTime))) {
+            existingRecord.clockOutTime = record.clockOut;
+          }
+          
+          // Keep the latest logout time
+          if (record.logoutTime && (!existingRecord.logoutTime || 
+              new Date(record.logoutTime) > new Date(existingRecord.logoutTime))) {
+            existingRecord.logoutTime = record.logoutTime;
+          }
+          
+          // Recalculate time worked with the merged times
+          existingRecord.timeWorked = calculateTimeWorked(existingRecord.clockInTime, existingRecord.clockOutTime);
+        } else {
+          // Create new record
+          processedRecords.set(uniqueKey, {
+            id: record.id,
+            name,
+            loginTime: record.loginTime,
+            clockInTime: record.clockIn,
+            clockOutTime: record.clockOut,
+            logoutTime: record.logoutTime || null,
+            timeWorked: calculateTimeWorked(record.clockIn, record.clockOut),
+            date: record.date,
+            status: record.status,
+            role
+          });
+        }
+      });
+      
+      // Convert map values to array
+      const transformedData: AttendanceRecord[] = Array.from(processedRecords.values());
       
       setAttendanceRecords(transformedData);
     } catch (err: any) {
@@ -167,6 +235,19 @@ const AttendanceList = ({ className = '', date = new Date(), franchiseId }: Atte
 
   useEffect(() => {
     fetchAttendanceData();
+    
+    // Set up interval for periodic sync (every 5 seconds)
+    const syncInterval = setInterval(() => {
+      fetchAttendanceData();
+    }, 5000);
+    
+    // Cleanup interval on unmount
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+      clearInterval(syncInterval);
+    };
   }, [date, franchiseId]);
 
   if (loading) {

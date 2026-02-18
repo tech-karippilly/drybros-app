@@ -5,7 +5,6 @@ import { socketService } from "./socket.service";
 import { haversineDistanceKm } from "../utils/geo";
 import { updateDriverTripStatus } from "../repositories/driver.repository";
 import { updateTrip } from "../repositories/trip.repository";
-import { emitNotification } from "./notification.service";
 import logger from "../config/logger";
 
 type DispatchState = {
@@ -232,21 +231,15 @@ class TripDispatchService {
     });
 
     for (const user of usersToNotify) {
-      await emitNotification({
+      socketService.emitNotification({
+        id: `notification-${Date.now()}-${Math.random()}`,
         title: "🚨 No Drivers Available - Manual Assignment Required",
         message: notificationMessage,
         type: "error",
         userId: user.id,
         franchiseId,
-        metadata: {
-          tripId,
-          attemptCount,
-          reason: "exhausted_driver_attempts",
-          pickupLocation,
-          customerName,
-          scheduledTime,
-          requiresManualAssignment: true,
-        },
+        read: false,
+        createdAt: new Date(),
       });
     }
 

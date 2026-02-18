@@ -479,7 +479,7 @@ export default function AdminHolidaysPage() {
             <div className="flex justify-end gap-3 pt-4">
               <Button
                 type="button"
-                variant="secondary"
+                variant="outlined"
                 onClick={() => setIsKeralaModalOpen(false)}
               >
                 Cancel

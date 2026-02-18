@@ -6,7 +6,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAppSelector } from '@/lib/hooks';
 import { selectCurrentUser } from '@/lib/features/auth/authSlice';
 import ClockButtons from '@/components/attendance/ClockButtons';
-import StaffDriverCounts from '@/components/attendance/StaffDriverCounts';
+import OnlineMembersCount from '@/components/attendance/OnlineMembersCount';
 
 // Icons
 const UsersIcon = ({ className = '' }: { className?: string }) => (
@@ -184,6 +184,7 @@ const StaffAvailabilityItem = ({ staff }: { staff: StaffMember }) => {
 export default function ManagerDashboardPage() {
   const router = useRouter();
   const currentUser = useAppSelector(selectCurrentUser);
+  const franchiseId = currentUser?.franchiseId;
   
   const [currentTime, setCurrentTime] = useState(new Date());
   const [stats, setStats] = useState<DashboardStats>({
@@ -292,7 +293,7 @@ export default function ManagerDashboardPage() {
               
       {/* Staff/Driver Counts */}
       <div className="mb-8">
-        <StaffDriverCounts />
+        <OnlineMembersCount franchiseId={franchiseId} />
       </div>
 
       {/* Stats Cards */}

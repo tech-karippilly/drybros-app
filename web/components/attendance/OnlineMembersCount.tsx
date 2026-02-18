@@ -44,6 +44,7 @@ const OnlineMembersCount = ({ franchiseId, className = '' }: OnlineCountProps) =
 
   // Debounced handler for updating counts
   const debouncedUpdateCounts = useSocketEventDebounce((data: any) => {
+    console.log('Received socket data:', data);
     updateOnlineCounts(data);
   }, 500);
 
@@ -63,23 +64,44 @@ const OnlineMembersCount = ({ franchiseId, className = '' }: OnlineCountProps) =
       let drivers = 0;
 
       // Handle different data formats
-      if (data?.staff) {
-        // Online staff list payload
-        const onlineStaff = data.staff.filter((s: any) => s.onlineStatus);
+      // Handle both new format { staff: [...] } and old format { data: [...] }
+      let staffData = data?.staff || data?.data || [];
+      let driversData = data?.drivers || data?.data || [];
+      
+      if (Array.isArray(staffData) && staffData.length > 0) {
+        // Online staff list payload - filter by franchise if applicable
+        const onlineStaff = staffData.filter((s: any) => {
+          // If franchiseId is specified, only include staff from that franchise
+          if (franchiseId) {
+            return s.onlineStatus && s.franchiseId === franchiseId;
+          }
+          return s.onlineStatus;
+        });
         staff = onlineStaff.length;
         // Count managers (assuming managers have a specific role or property)
         managers = onlineStaff.filter((s: any) => s.role === 'MANAGER' || s.isManager).length;
       }
       
-      if (data?.drivers) {
-        // Online drivers list payload
-        drivers = data.drivers.filter((d: any) => d.onlineStatus).length;
+      if (Array.isArray(driversData) && driversData.length > 0) {
+        // Online drivers list payload - filter by franchise if applicable
+        const onlineDrivers = driversData.filter((d: any) => {
+          // If franchiseId is specified, only include drivers from that franchise
+          if (franchiseId) {
+            return d.onlineStatus && d.franchiseId === franchiseId;
+          }
+          return d.onlineStatus;
+        });
+        drivers = onlineDrivers.length;
       }
       
       if (data?.onlineStatus !== undefined) {
         // Individual status change payload
         if (data.staffId) {
           // This is a staff member
+          if (franchiseId && data.franchiseId !== franchiseId) {
+            // If this is franchise-specific and the staff member doesn't belong to this franchise, ignore
+            return;
+          }
           if (data.onlineStatus) {
             staff = displayCounts.staff + 1;
           } else {
@@ -87,6 +109,10 @@ const OnlineMembersCount = ({ franchiseId, className = '' }: OnlineCountProps) =
           }
         } else if (data.driverId) {
           // This is a driver
+          if (franchiseId && data.franchiseId !== franchiseId) {
+            // If this is franchise-specific and the driver doesn't belong to this franchise, ignore
+            return;
+          }
           if (data.onlineStatus) {
             drivers = displayCounts.drivers + 1;
           } else {
@@ -108,57 +134,114 @@ const OnlineMembersCount = ({ franchiseId, className = '' }: OnlineCountProps) =
     }
   };
 
-  // Fetch initial data
-  const fetchInitialData = async () => {
+  // Fetch initial data with retry logic
+  const fetchInitialData = async (retryCount = 0) => {
+    const maxRetries = 3;
+    
     try {
       setIsLoading(true);
       setError(null);
       
+      // Check if user is authenticated before connecting
+      if (!socketService.isAuthenticated()) {
+        setError('User not authenticated. Please log in again.');
+        setIsLoading(false);
+        return;
+      }
+      
       // Connect to socket
       await socketService.connect();
       
-      // Request initial online data
-      socketService.requestOnlineStaff();
-      socketService.requestOnlineDrivers();
+      // Only request data if socket is successfully connected
+      if (socketService.isConnected()) {
+        // Use the franchiseId from props if available, otherwise get from current user
+        // Admins see all franchises (undefined), others see only their franchise
+        const requestFranchiseId = franchiseId;
+              
+        // Wait a bit to ensure socket is fully connected before requesting data
+        setTimeout(() => {
+          socketService.requestOnlineStaff(requestFranchiseId);
+          socketService.requestOnlineDrivers(requestFranchiseId);
+        }, 100);
+      } else {
+        throw new Error('Socket connection established but not connected');
+      }
       
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error connecting to socket:', err);
-      setError('Failed to connect to real-time updates');
+      
+      // Handle specific error cases
+      if (err.message === 'Invalid authentication token') {
+        setError('Authentication failed. Please refresh the page and log in again.');
+        return;
+      }
+      
+      if (err.message === 'Failed to connect to socket after maximum attempts') {
+        setError('Unable to establish real-time connection. Please check your internet connection.');
+        return;
+      }
+      
+      // Retry logic for other errors
+      if (retryCount < maxRetries) {
+        console.log(`Retrying socket connection (${retryCount + 1}/${maxRetries})...`);
+        setTimeout(() => {
+          fetchInitialData(retryCount + 1);
+        }, 2000 * (retryCount + 1)); // Exponential backoff
+        return;
+      }
+      
+      setError('Failed to connect to real-time updates after multiple attempts');
     } finally {
-      setIsLoading(false);
+      if (retryCount >= maxRetries || !error) {
+        setIsLoading(false);
+      }
     }
   };
 
   // Setup socket listeners
   useEffect(() => {
-    // Listen for staff status changes
-    socketService.on('staff:status-changed', debouncedUpdateCounts);
+    let isMounted = true;
     
-    // Listen for driver status changes
-    socketService.on('driver:status-changed', debouncedUpdateCounts);
-    
-    // Listen for online staff list
-    socketService.on('online:staff-list', debouncedUpdateCounts);
-    
-    // Listen for online drivers list
-    socketService.on('online:drivers-list', debouncedUpdateCounts);
+    const setupSocket = async () => {
+      if (!isMounted) return;
+      
+      try {
+        // Listen for staff status changes
+        socketService.on('staff:status-changed', debouncedUpdateCounts);
+        
+        // Listen for driver status changes
+        socketService.on('driver:status-changed', debouncedUpdateCounts);
+        
+        // Listen for online staff list
+        socketService.on('online:staff-list', debouncedUpdateCounts);
+        
+        // Listen for online drivers list
+        socketService.on('online:drivers-list', debouncedUpdateCounts);
 
-    // Fetch initial data
-    fetchInitialData();
+        // Fetch initial data
+        await fetchInitialData();
+      } catch (error) {
+        console.error('Error setting up socket:', error);
+      }
+    };
+    
+    setupSocket();
 
     // Cleanup on unmount
     return () => {
+      isMounted = false;
       socketService.off('staff:status-changed', debouncedUpdateCounts);
       socketService.off('driver:status-changed', debouncedUpdateCounts);
       socketService.off('online:staff-list', debouncedUpdateCounts);
       socketService.off('online:drivers-list', debouncedUpdateCounts);
+      // Disconnect socket when component unmounts
+      socketService.disconnect();
     };
-  }, [franchiseId]);
+  }, []);
 
-  // Reconnect if franchise changes
+  // Join franchise room if user has franchise
   useEffect(() => {
     if (franchiseId) {
-      // Join franchise-specific room
       socketService.joinRoom(`franchise:${franchiseId}`);
     }
     
@@ -192,7 +275,7 @@ const OnlineMembersCount = ({ franchiseId, className = '' }: OnlineCountProps) =
           <div className="text-red-400 font-medium mb-2">Connection Error</div>
           <div className="text-sm text-red-300">{error}</div>
           <button 
-            onClick={fetchInitialData}
+            onClick={() => fetchInitialData()}
             className="mt-3 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition-colors"
           >
             Retry Connection

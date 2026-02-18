@@ -159,6 +159,47 @@ export async function trackLogin(
     staffId,
     userId,
   });
+
+  // Emit socket event for login
+  try {
+    const { socketService } = require('./socket.service');
+    let personName = "Unknown";
+    let franchiseId: string | undefined;
+    let roleType: string | undefined;
+
+    if (driverId) {
+      const driver = await getDriverById(driverId);
+      if (driver) {
+        personName = `${driver.firstName} ${driver.lastName}`.trim() || "Driver";
+        franchiseId = driver.franchiseId;
+        roleType = "DRIVER";
+      }
+    } else if (staffId) {
+      const staff = await getStaffById(staffId);
+      if (staff) {
+        personName = staff.name || "Staff";
+        franchiseId = staff.franchiseId;
+        roleType = "STAFF";
+      }
+    } else if (userId) {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { fullName: true, franchiseId: true, role: true } });
+      if (user) {
+        personName = user.fullName || "User";
+        franchiseId = user.franchiseId;
+        roleType = user.role;
+      }
+    }
+
+    socketService.emitAttendanceLogin(
+      driverId || staffId || userId || "unknown",
+      personName,
+      new Date(),
+      franchiseId,
+      roleType
+    );
+  } catch (err) {
+    logger.error("Failed to emit attendance login socket event", { error: err });
+  }
 }
 
 export async function clockIn(
@@ -270,6 +311,53 @@ export async function clockIn(
     id,
   });
 
+  // Update online status
+  if (driverId) {
+    await prisma.driver.update({
+      where: { id: driverId },
+      data: {
+        onlineStatus: true,
+        lastStatusChange: new Date(),
+      },
+    });
+  } else if (staffId) {
+    await prisma.staff.update({
+      where: { id: staffId },
+      data: {
+        onlineStatus: true,
+        lastStatusChange: new Date(),
+      },
+    });
+  } else if (userId) {
+    // For managers, we can update the User model if needed
+    // Currently, User model doesn't have onlineStatus field
+    // This can be added if required
+  }
+
+  // Emit socket event for clock-in
+  try {
+    const { socketService } = require('./socket.service');
+    socketService.emitAttendanceClockIn(
+      id,
+      personName,
+      session.clockIn,
+      driver?.franchiseId || staff?.franchiseId || user?.franchiseId || undefined,
+      entityType?.toUpperCase()
+    );
+    
+    // Emit online status change
+    socketService.emitOnlineStatusChange({
+      userId: userId || undefined,
+      staffId: staffId || undefined,
+      driverId: driverId || undefined,
+      onlineStatus: true,
+      lastStatusChange: new Date(),
+      franchiseId: driver?.franchiseId || staff?.franchiseId || user?.franchiseId || undefined,
+    });
+  } catch (err) {
+    logger.error("Failed to emit attendance clock-in socket event", { error: err });
+  }
+
   // Log activity (non-blocking); description includes person name for real-time activity logs
   const activityMetadata = {
     attendanceId: attendance.id,
@@ -336,7 +424,7 @@ export async function clockOut(
     getStaffById(id),
     prisma.user.findUnique({
       where: { id },
-      select: { id: true, role: true, franchiseId: true },
+      select: { id: true, role: true, franchiseId: true, fullName: true },
     }),
   ]);
 
@@ -413,6 +501,60 @@ export async function clockOut(
     entityType,
     id,
   });
+
+  // Update online status
+  if (driverId) {
+    await prisma.driver.update({
+      where: { id: driverId },
+      data: {
+        onlineStatus: false,
+        lastStatusChange: new Date(),
+      },
+    });
+  } else if (staffId) {
+    await prisma.staff.update({
+      where: { id: staffId },
+      data: {
+        onlineStatus: false,
+        lastStatusChange: new Date(),
+      },
+    });
+  } else if (userId) {
+    // For managers, we can update the User model if needed
+    // Currently, User model doesn't have onlineStatus field
+    // This can be added if required
+  }
+
+  // Emit socket event for clock-out
+  try {
+    const { socketService } = require('./socket.service');
+    const personName = driver
+      ? [driver.firstName, driver.lastName].filter(Boolean).join(" ").trim() || "Driver"
+      : staff
+        ? staff.name || "Staff"
+        : user
+          ? user.fullName || "Manager"
+          : "Unknown";
+    socketService.emitAttendanceClockOut(
+      id,
+      personName,
+      closedSession.clockOut,
+      driver?.franchiseId || staff?.franchiseId || user?.franchiseId || undefined,
+      entityType?.toUpperCase()
+    );
+    
+    // Emit online status change
+    socketService.emitOnlineStatusChange({
+      userId: userId || undefined,
+      staffId: staffId || undefined,
+      driverId: driverId || undefined,
+      onlineStatus: false,
+      lastStatusChange: new Date(),
+      franchiseId: driver?.franchiseId || staff?.franchiseId || user?.franchiseId || undefined,
+    });
+  } catch (err) {
+    logger.error("Failed to emit attendance clock-out socket event", { error: err });
+  }
 
   // Log activity (non-blocking)
   if (driverId) {

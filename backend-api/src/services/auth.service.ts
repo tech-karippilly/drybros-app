@@ -43,6 +43,8 @@ import {
   UserResponseDTO,
   ChangePasswordDTO,
   ChangePasswordResponseDTO,
+  RegisterSuperAdminDTO,
+  RegisterSuperAdminResponseDTO,
 } from "../types/auth.dto";
 import { getRoleByName } from "../repositories/role.repository";
 import {
@@ -257,6 +259,67 @@ async function sendEmailSafely(
     });
     // Don't throw - email failures shouldn't break the flow
   }
+}
+
+export async function registerSuperAdmin(input: RegisterSuperAdminDTO):Promise<RegisterSuperAdminResponseDTO>{
+  // Validate input
+  if (!input.email || typeof input.email !== 'string') {
+    throw new BadRequestError("Email is required and must be a string");
+  }
+  
+  if (!input.name || typeof input.name !== 'string') {
+    throw new BadRequestError("Name is required and must be a string");
+  }
+  
+  if (!input.password || typeof input.password !== 'string') {
+    throw new BadRequestError("Password is required and must be a string");
+  }
+
+  const existing = await prisma.user.findUnique({
+    where: { email: input.email },
+  });
+  if (existing){
+    throw new ConflictError(ERROR_MESSAGES.EMAIL_ALREADY_EXISTS);
+  }
+
+  const superAdminRole = await getRoleByName("SUPER ADMIN");
+  if (!superAdminRole) {
+    throw new NotFoundError(
+      "SUPER ADMIN role not found. Please create the SUPER ADMIN role first."
+    );
+  }
+    if (!superAdminRole.isActive) {
+    throw new BadRequestError(ERROR_MESSAGES.ROLE_INACTIVE);
+  }
+  const hashedPassword = await bcrypt.hash(input.password, 10);
+
+    const user = await prisma.user.create({
+    data: {
+      fullName: input.name,
+      email: input.email,
+      password: hashedPassword,
+      role: UserRole.ADMIN,
+      phone: input.phone || null,
+    },
+  });
+
+  await sendEmailSafely(
+    () =>
+      sendWelcomeEmail({
+        to: input.email,
+        name: input.name,
+        loginLink: emailConfig.loginLink,
+      }),
+    "Welcome email sent successfully",
+    "Failed to send welcome email after Super Admin registration",
+    { email: input.email }
+  );
+
+  return {
+    status:201,
+    message: "Admin registered successfully",
+  };
+
 }
 
 /**
@@ -1078,6 +1141,7 @@ export async function loginDriver(input: DriverLoginDTO): Promise<AuthResponseDT
       blacklisted: true,
       failedAttempts: true,
       lockedUntil: true,
+      driverCode: true,
     },
   });
 
@@ -1222,7 +1286,7 @@ export async function loginStaff(input: StaffLoginDTO): Promise<AuthResponseDTO>
     throw new BadRequestError(ERROR_MESSAGES.STAFF_FIRED);
   }
   if (staff.status === "SUSPENDED" && staff.suspendedUntil && new Date(staff.suspendedUntil) > new Date()) {
-    throw new BadRequestError(ERROR_MESSAGES.STAFF_SUSPENDED);
+    throw new BadRequestError("Staff account is suspended. Please contact administrator.");
   }
 
   // Check if account is locked

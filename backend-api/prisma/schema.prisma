@@ -17,29 +17,10 @@ model Customer {
   franchiseId String       @db.Uuid
   createdAt   DateTime     @default(now())
   updatedAt   DateTime
+  Complaints  Complaint[]
   Franchise   Franchise    @relation(fields: [franchiseId], references: [id])
   Trip        Trip[]
   TripReviews TripReview[]
-  Complaints  Complaint[]
-}
-
-enum CarType {
-  HATCHBACK
-  SEDAN
-  SUV
-  LUXURY
-}
-
-enum Transmission {
-  MANUAL
-  AUTOMATIC
-}
-
-enum CarCategory {
-  NORMAL
-  PREMIUM
-  LUXURY
-  SPORTS
 }
 
 model Driver {
@@ -51,7 +32,7 @@ model Driver {
   email                    String                     @unique
   altPhone                 String?
   driverCode               String                     @unique
-  password                 String // hashed password for web login
+  password                 String
   emergencyContactName     String
   emergencyContactPhone    String
   emergencyContactRelation String
@@ -62,7 +43,7 @@ model Driver {
   licenseNumber            String
   licenseExpDate           DateTime
   licenseType              String?
-  employmentType           DriverEmploymentType? // New field for employment type
+  employmentType           DriverEmploymentType?
   bankAccountName          String
   bankAccountNumber        String
   bankIfscCode             String
@@ -73,44 +54,43 @@ model Driver {
   status                   DriverStatus               @default(ACTIVE)
   driverTripStatus         DriverTripStatus           @default(AVAILABLE)
   complaintCount           Int                        @default(0)
-  warningCount             Int                        @default(0) // Complaints resolved with WARNING; 2+ triggers auto-fire
-  blacklisted              Boolean                    @default(false) // Fired due to complaint; cannot register or login
+  warningCount             Int                        @default(0)
+  blacklisted              Boolean                    @default(false)
   bannedGlobally           Boolean                    @default(false)
   dailyTargetAmount        Int?
-  remainingDailyLimit      Decimal?                   @db.Decimal(10, 2) // Remaining daily limit (reduces as trips complete)
-  cashInHand               Decimal                    @default(0) @db.Decimal(10, 2) // Cash amount in driver's hand
-  incentive                Decimal?                   @db.Decimal(10, 2) // Incentive amount (e.g. daily/monthly)
-  bonus                    Decimal?                   @db.Decimal(10, 2) // Bonus amount
+  remainingDailyLimit      Decimal?                   @db.Decimal(10, 2)
+  cashInHand               Decimal                    @default(0) @db.Decimal(10, 2)
+  incentive                Decimal?                   @db.Decimal(10, 2)
+  bonus                    Decimal?                   @db.Decimal(10, 2)
   currentRating            Float?
-  // Live driver location (updated by driver mobile app while on-duty)
   currentLat               Float?
   currentLng               Float?
   locationAccuracyM        Float?
   locationUpdatedAt        DateTime?
-  onlineStatus             Boolean                    @default(false)
-  lastStatusChange         DateTime?
   isActive                 Boolean                    @default(true)
-  failedAttempts           Int                        @default(0) // Failed login attempts counter
-  lockedUntil              DateTime? // Account lock expiry time
-  createdBy                String?                    @db.Uuid // User ID who created this driver
+  createdBy                String?                    @db.Uuid
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime                   @updatedAt
+  lastStatusChange         DateTime?
+  onlineStatus             Boolean                    @default(false)
+  failedAttempts           Int                        @default(0)
+  lockedUntil              DateTime?
+  ActivityLogs             ActivityLog[]
+  Attendances              Attendance[]
+  Complaints               Complaint[]
+  Cars                     DriverCar[]
+  DriverDailyMetrics       DriverDailyMetrics[]
+  DriverMonthlyPerformance DriverMonthlyPerformance[]
+  DriverPayroll            DriverPayroll[]
+  DriverRatings            DriverRating[]
+  DriverTransactions       DriverTransaction[]
+  LeaveRequests            LeaveRequest[]
+  PickupRequest            PickupRequest[]
   Trip                     Trip[]
   TripOffers               TripOffer[]
-  Complaints               Complaint[]
-  Warnings                 Warning[]
-  Attendances              Attendance[]
-  LeaveRequests            LeaveRequest[]
-  DriverRatings            DriverRating[]
   TripReviews              TripReview[]
-  ActivityLogs             ActivityLog[]
-  DriverDailyMetrics       DriverDailyMetrics[]
   TripStatusHistories      TripStatusHistory[]
-  DriverTransactions       DriverTransaction[]
-  Cars                     DriverCar[]
-  DriverMonthlyPerformance DriverMonthlyPerformance[]
-  PickupRequest            PickupRequest[]
-  DriverPayroll            DriverPayroll[]
+  Warnings                 Warning[]
 }
 
 model DriverCar {
@@ -124,12 +104,10 @@ model DriverCar {
   color          String?
   isPrimary      Boolean      @default(false)
   isActive       Boolean      @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  Driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  Trips  Trip[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  Driver         Driver       @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Trips          Trip[]
 
   @@index([driverId])
   @@index([carType])
@@ -140,34 +118,32 @@ model Franchise {
   id                          String                        @id @default(uuid()) @db.Uuid
   code                        String                        @unique
   name                        String
-  city                        String // Keep for backward compatibility
-  region                      String? // New field
+  city                        String
+  region                      String?
   averageRating               Float?
-  address                     String? // Physical address
-  phone                       String? // Franchise contact number
-  email                       String? // Franchise contact email
-  inchargeName                String? // Manager name (stored for backward compatibility)
-  managerEmail                String? // Manager email contact
-  managerPhone                String? // Manager phone contact
-  storeImage                  String? // Store image URL (optional)
-  legalDocumentsCollected     Boolean                       @default(false) // Legal documents collected flag
-  status                      FranchiseStatus               @default(ACTIVE) // Franchise status
+  address                     String?
+  phone                       String?
+  email                       String?
+  inchargeName                String?
+  storeImage                  String?
+  legalDocumentsCollected     Boolean                       @default(false)
+  status                      FranchiseStatus               @default(ACTIVE)
   isActive                    Boolean                       @default(true)
   createdAt                   DateTime                      @default(now())
   updatedAt                   DateTime                      @updatedAt
+  managerEmail                String?
+  managerPhone                String?
+  ActivityLogs                ActivityLog[]
   Customer                    Customer[]
-  // Driver relation commented out temporarily to allow dummy UUIDs
-  // Driver    Driver[]
+  DriverMonthlyPerformance    DriverMonthlyPerformance[]
+  DriverPayroll               DriverPayroll[]
+  FranchiseMonthlyPerformance FranchiseMonthlyPerformance[]
+  Holidays                    Holiday[]
+  ManagerMonthlyPerformance   ManagerMonthlyPerformance[]
+  Staff                       Staff[]
+  StaffMonthlyPerformance     StaffMonthlyPerformance[]
   Trip                        Trip[]
   TripReviews                 TripReview[]
-  ActivityLogs                ActivityLog[]
-  Staff                       Staff[]
-  DriverMonthlyPerformance    DriverMonthlyPerformance[]
-  StaffMonthlyPerformance     StaffMonthlyPerformance[]
-  ManagerMonthlyPerformance   ManagerMonthlyPerformance[]
-  FranchiseMonthlyPerformance FranchiseMonthlyPerformance[]
-  DriverPayroll               DriverPayroll[]
-  Holidays                    Holiday[]
   WorkingTimeConfigs          WorkingTimeConfig[]
 }
 
@@ -200,23 +176,23 @@ model Staff {
   previousExperienceCert   Boolean                   @default(false)
   email                    String                    @unique
   status                   StaffStatus               @default(ACTIVE)
-  warningCount             Int                       @default(0) // Complaints resolved with WARNING; 2+ triggers auto-fire
+  warningCount             Int                       @default(0)
   suspendedUntil           DateTime?
-  onlineStatus             Boolean                   @default(false)
-  lastStatusChange         DateTime?
-  failedAttempts           Int                       @default(0) // Failed login attempts counter
-  lockedUntil              DateTime? // Account lock expiry time
   joinDate                 DateTime                  @default(now())
   relieveDate              DateTime?
   relieveReason            RelieveReason?
-  StaffHistory             StaffHistory[]
-  Complaints               Complaint[]
-  Warnings                 Warning[]
-  Attendances              Attendance[]
-  LeaveRequests            LeaveRequest[]
+  lastStatusChange         DateTime?
+  onlineStatus             Boolean                   @default(false)
+  failedAttempts           Int                       @default(0)
+  lockedUntil              DateTime?
   ActivityLog              ActivityLog[]
+  Attendances              Attendance[]
+  Complaints               Complaint[]
+  LeaveRequests            LeaveRequest[]
   Franchise                Franchise                 @relation(fields: [franchiseId], references: [id])
+  StaffHistory             StaffHistory[]
   StaffMonthlyPerformance  StaffMonthlyPerformance[]
+  Warnings                 Warning[]
 
   @@index([franchiseId, isActive])
   @@index([franchiseId, status])
@@ -243,7 +219,7 @@ model Trip {
   customerId            String?             @db.Uuid
   customerName          String
   customerPhone         String
-  tripType              String // Changed from TripType enum to String to support dynamic trip types from TripTypeConfig
+  tripType              String
   status                TripStatus          @default(NOT_ASSIGNED)
   pickupLocation        String
   pickupLat             Float?
@@ -251,14 +227,11 @@ model Trip {
   dropLocation          String?
   dropLat               Float?
   dropLng               Float?
-  // Destination coordinates (alias for dropLat/dropLng for clarity)
   destinationLat        Float?
   destinationLng        Float?
   scheduledAt           DateTime?
   startedAt             DateTime?
   endedAt               DateTime?
-  startTime             DateTime? // Time when driver initiated trip start
-  endTime               DateTime? // Time when driver initiated trip end
   startOtp              String?
   endOtp                String?
   baseAmount            Int
@@ -284,48 +257,37 @@ model Trip {
   createdBy             String?             @db.Uuid
   dropAddress           String?
   pickupAddress         String?
-  // Odometer and car images for trip start/end
   startOdometer         Float?
   endOdometer           Float?
-  carImageFront         String? // URL to front car image
-  carImageBack          String? // URL to back car image
-  // Driver selfie and odometer images
-  driverSelfieUrl       String? // URL to driver selfie image
-  odometerStartImageUrl String? // URL to odometer start image
-  odometerEndImageUrl   String? // URL to odometer end image
-  // Live location coordinates
-  liveLocationLat       Float? // Live location latitude
-  liveLocationLng       Float? // Live location longitude
-  // Required car specifications
+  carImageFront         String?
+  carImageBack          String?
+  driverSelfieUrl       String?
+  endTime               DateTime?
+  liveLocationLat       Float?
+  liveLocationLng       Float?
+  odometerEndImageUrl   String?
+  odometerStartImageUrl String?
+  startTime             DateTime?
+  assignedCarId         String?             @db.Uuid
   requiredCarType       CarType?
   requiredTransmission  Transmission?
-  // Assigned car
-  assignedCarId         String?             @db.Uuid
+  ActivityLogs          ActivityLog[]
+  Complaints            Complaint[]
+  DriverRatings         DriverRating[]
+  DriverTransactions    DriverTransaction[]
+  PickupRequest         PickupRequest[]
+  AssignedCar           DriverCar?          @relation(fields: [assignedCarId], references: [id])
   User                  User?               @relation(fields: [createdBy], references: [id])
   Customer              Customer?           @relation(fields: [customerId], references: [id])
   Driver                Driver?             @relation(fields: [driverId], references: [id])
   Franchise             Franchise           @relation(fields: [franchiseId], references: [id])
-  AssignedCar           DriverCar?          @relation(fields: [assignedCarId], references: [id], onDelete: SetNull)
-  DriverRatings         DriverRating[]
-  ActivityLogs          ActivityLog[]
-  TripStatusHistories   TripStatusHistory[]
   TripOffers            TripOffer[]
-  TripReviews           TripReview[]
-  DriverTransactions    DriverTransaction[]
-  Complaints            Complaint[]
-  PickupRequest         PickupRequest[]
   TripReassignment      TripReassignment[]
   TripReschedule        TripReschedule[]
+  TripReviews           TripReview[]
+  TripStatusHistories   TripStatusHistory[]
 
   @@index([assignedCarId])
-}
-
-enum TripOfferStatus {
-  OFFERED
-  ACCEPTED
-  REJECTED
-  EXPIRED
-  CANCELLED
 }
 
 model TripOffer {
@@ -339,9 +301,8 @@ model TripOffer {
   rejectedAt DateTime?
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
-
-  Trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  Driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Driver     Driver          @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Trip       Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   @@unique([tripId, driverId])
   @@index([driverId, status, expiresAt])
@@ -350,31 +311,21 @@ model TripOffer {
 }
 
 model TripTypeConfig {
-  id          String          @id @default(uuid()) @db.Uuid
-  name        String // Trip type name (e.g., "City Round Trip", "Long Distance")
-  description String? // Optional description
-  type        TripPricingType // DISTANCE, TIME, SLAB
-  carCategory CarCategory // NORMAL, PREMIUM, LUXURY, SPORTS
-
-  // Base pricing fields
-  baseAmount       Float // Base amount
-  baseHour         Float? // Base hours included (nullable for slab type)
-  baseDistance     Float? // Base distance in km (nullable for time/slab type)
-  extraPerHour     Float? // Extra charge per hour
-  extraPerHalfHour Float? // Extra charge per 30 minutes
-  extraPerDistance Float? // Extra charge per km
-
-  // Slab pricing arrays
-  // distanceSlab: [{from: 0, to: 50, price: 1000}, {from: 51, to: 100, price: 1500}, ...]
-  // from and to are in km
-  distanceSlab Json? // Array of distance slab objects
-
-  // timeSlab: [{from: "00:00", to: "06:00", price: 500}, {from: "06:00", to: "12:00", price: 800}, ...]
-  // from and to are time strings
-  timeSlab Json? // Array of time slab objects
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String          @id @default(uuid()) @db.Uuid
+  baseDistance     Float?
+  extraPerHour     Float?
+  extraPerHalfHour Float?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  baseHour         Float?
+  baseAmount       Float
+  carCategory      CarCategory
+  distanceSlab     Json?
+  extraPerDistance Float?
+  timeSlab         Json?
+  type             TripPricingType
+  description      String?
+  name             String
 
   @@unique([name, carCategory])
   @@index([type])
@@ -394,16 +345,16 @@ model User {
   id                        String                      @id @default(uuid()) @db.Uuid
   failedAttempts            Int                         @default(0)
   lockedUntil               DateTime?
-  franchiseId               String?                     @db.Uuid // For MANAGER role to associate with franchise
-  Trip                      Trip[]
+  franchiseId               String?                     @db.Uuid
   ActivityLogs              ActivityLog[]
   Attendances               Attendance[]
-  LeaveRequests             LeaveRequest[]
-  TripStatusHistories       TripStatusHistory[]
-  CreatedWarnings           Warning[] // Warnings created by this user
   AppliedTransactions       DriverTransaction[]         @relation("AppliedTransactions")
-  ManagerMonthlyPerformance ManagerMonthlyPerformance[]
   Holidays                  Holiday[]
+  LeaveRequests             LeaveRequest[]
+  ManagerMonthlyPerformance ManagerMonthlyPerformance[]
+  Trip                      Trip[]
+  TripStatusHistories       TripStatusHistory[]
+  CreatedWarnings           Warning[]
   WorkingTimeConfigs        WorkingTimeConfig[]
 
   @@index([lockedUntil])
@@ -413,25 +364,20 @@ model User {
 
 model DriverEarningsConfig {
   id                    String   @id @default(uuid()) @db.Uuid
-  // Scope: null = global, franchiseId set = franchise-level, driverId set = driver-level
   franchiseId           String?  @db.Uuid
   driverId              String?  @db.Uuid
-  // Daily incentive config
-  dailyTargetDefault    Int      @default(1250) // Default daily target
-  incentiveTier1Min     Int      @default(1250) // Min amount for tier 1
-  incentiveTier1Max     Int      @default(1550) // Max amount for tier 1
-  incentiveTier1Type    String   @default("full_extra") // "full_extra" or "percent"
-  incentiveTier2Min     Int      @default(1550) // Min amount for tier 2
-  incentiveTier2Percent Int      @default(20) // Percentage for tier 2 (e.g., 20%)
-  // Monthly bonus config (stored as JSON array)
-  monthlyBonusTiers     Json? // [{ minEarnings: 25000, bonus: 3000 }, { minEarnings: 28000, bonus: 500 }, ...]
-  // Monthly deduction policy (stored as JSON array)
-  monthlyDeductionTiers Json? // [{ maxEarnings: 26000, cutPercent: 25 }, { maxEarnings: 22000, cutPercent: 20 }, ...]
-  // Metadata
+  dailyTargetDefault    Int      @default(1250)
+  incentiveTier1Min     Int      @default(1250)
+  incentiveTier1Max     Int      @default(1550)
+  incentiveTier1Type    String   @default("full_extra")
+  incentiveTier2Min     Int      @default(1550)
+  incentiveTier2Percent Int      @default(20)
+  monthlyBonusTiers     Json?
+  monthlyDeductionTiers Json?
   isActive              Boolean  @default(true)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
-  updatedBy             String?  @db.Uuid // User ID who last updated
+  updatedBy             String?  @db.Uuid
 
   @@index([franchiseId])
   @@index([driverId])
@@ -442,25 +388,25 @@ model Complaint {
   id               String                     @id @default(uuid()) @db.Uuid
   driverId         String?                    @db.Uuid
   staffId          String?                    @db.Uuid
-  customerId       String?                    @db.Uuid // Customer who raised the complaint
-  customerName     String // Customer name who registered the complaint
-  tripId           String?                    @db.Uuid // Optional: Trip related to complaint (for drivers)
+  customerId       String?                    @db.Uuid
   title            String
   description      String
-  reportedBy       String?                    @db.Uuid // User ID who reported the complaint (createdBy)
+  reportedBy       String?                    @db.Uuid
   status           ComplaintStatus            @default(RECEIVED)
-  priority         ComplaintPriority          @default(MEDIUM) // Changed from severity to priority
   createdAt        DateTime                   @default(now())
   updatedAt        DateTime                   @updatedAt
   resolvedAt       DateTime?
-  resolvedBy       String?                    @db.Uuid // User ID who resolved the complaint
+  resolvedBy       String?                    @db.Uuid
   resolution       String?
-  resolutionAction ComplaintResolutionAction? // WARNING or FIRE when resolved
-  resolutionReason String? // Reason for the action taken
+  resolutionAction ComplaintResolutionAction?
+  resolutionReason String?
+  customerName     String
+  priority         ComplaintPriority          @default(MEDIUM)
+  tripId           String?                    @db.Uuid
+  Customer         Customer?                  @relation(fields: [customerId], references: [id])
   Driver           Driver?                    @relation(fields: [driverId], references: [id], onDelete: Cascade)
   Staff            Staff?                     @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  Customer         Customer?                  @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  Trip             Trip?                      @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  Trip             Trip?                      @relation(fields: [tripId], references: [id])
 
   @@index([driverId])
   @@index([staffId])
@@ -476,12 +422,12 @@ model Warning {
   staffId       String?         @db.Uuid
   reason        String
   priority      WarningPriority @default(MEDIUM)
-  createdBy     String?         @db.Uuid // User ID who created the warning
+  createdBy     String?         @db.Uuid
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
+  CreatedByUser User?           @relation(fields: [createdBy], references: [id])
   Driver        Driver?         @relation(fields: [driverId], references: [id], onDelete: Cascade)
   Staff         Staff?          @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  CreatedByUser User?           @relation(fields: [createdBy], references: [id], onDelete: SetNull)
 
   @@index([driverId])
   @@index([staffId])
@@ -489,41 +435,36 @@ model Warning {
 }
 
 model Attendance {
-  id        String           @id @default(uuid()) @db.Uuid
-  driverId  String?          @db.Uuid
-  staffId   String?          @db.Uuid
-  userId    String?          @db.Uuid // For managers (User table)
-  date      DateTime         @db.Date
-  loginTime DateTime? // Time when user logged in
-  clockIn   DateTime? // Time when user clocked in
-  clockOut  DateTime? // Time when user clocked out
-  status    AttendanceStatus @default(PRESENT)
-  notes     String?
-
-  // Auto-calculated fields for daily aggregation
-  firstOnlineAt      DateTime? // First clock-in time of the day
-  lastOfflineAt      DateTime? // Last clock-out time of the day
-  totalOnlineMinutes Int? // Total minutes online (sum of all sessions)
-  tripsCompleted     Int       @default(0) // Number of trips completed that day
-
-  // Enhanced tracking fields
-  logoutTime         DateTime? // When user logged out
-  totalWorkMinutes   Int?      // Total working time (excluding breaks)
-  lunchBreakStart    DateTime? // Lunch break start
-  lunchBreakEnd      DateTime? // Lunch break end
-  snackBreakStart    DateTime? // Snack break start
-  snackBreakEnd      DateTime? // Snack break end
-  lateByMinutes      Int       @default(0) // How late they were
-  earlyDepartureMinutes Int    @default(0) // Early departure
-  isLate             Boolean   @default(false)
-  isHalfDay          Boolean   @default(false)
-
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
-  Driver    Driver?             @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  Staff     Staff?              @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  User      User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessions  AttendanceSession[]
+  id                    String              @id @default(uuid()) @db.Uuid
+  driverId              String?             @db.Uuid
+  staffId               String?             @db.Uuid
+  userId                String?             @db.Uuid
+  date                  DateTime            @db.Date
+  loginTime             DateTime?
+  clockIn               DateTime?
+  clockOut              DateTime?
+  status                AttendanceStatus    @default(PRESENT)
+  notes                 String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  firstOnlineAt         DateTime?
+  lastOfflineAt         DateTime?
+  totalOnlineMinutes    Int?
+  tripsCompleted        Int                 @default(0)
+  earlyDepartureMinutes Int                 @default(0)
+  isHalfDay             Boolean             @default(false)
+  isLate                Boolean             @default(false)
+  lateByMinutes         Int                 @default(0)
+  logoutTime            DateTime?
+  lunchBreakEnd         DateTime?
+  lunchBreakStart       DateTime?
+  snackBreakEnd         DateTime?
+  snackBreakStart       DateTime?
+  totalWorkMinutes      Int?
+  Driver                Driver?             @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Staff                 Staff?              @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  User                  User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions              AttendanceSession[]
 
   @@unique([driverId, date])
   @@unique([staffId, date])
@@ -535,15 +476,14 @@ model Attendance {
 }
 
 model AttendanceSession {
-  id           String    @id @default(uuid()) @db.Uuid
-  attendanceId String    @db.Uuid
-  clockIn      DateTime  @default(now())
+  id           String     @id @default(uuid()) @db.Uuid
+  attendanceId String     @db.Uuid
+  clockIn      DateTime   @default(now())
   clockOut     DateTime?
   notes        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  Attendance Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  Attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
 
   @@index([attendanceId, clockIn])
   @@index([attendanceId, clockOut])
@@ -553,14 +493,14 @@ model LeaveRequest {
   id              String             @id @default(uuid()) @db.Uuid
   driverId        String?            @db.Uuid
   staffId         String?            @db.Uuid
-  userId          String?            @db.Uuid // For managers (User table)
+  userId          String?            @db.Uuid
   startDate       DateTime           @db.Date
   endDate         DateTime           @db.Date
   reason          String
   leaveType       LeaveType
   status          LeaveRequestStatus @default(PENDING)
-  requestedBy     String?            @db.Uuid // User ID who requested leave
-  approvedBy      String?            @db.Uuid // User ID who approved/rejected
+  requestedBy     String?            @db.Uuid
+  approvedBy      String?            @db.Uuid
   approvedAt      DateTime?
   rejectionReason String?
   createdAt       DateTime           @default(now())
@@ -574,6 +514,418 @@ model LeaveRequest {
   @@index([userId])
   @@index([status])
   @@index([startDate])
+}
+
+model Holiday {
+  id          String      @id @default(uuid()) @db.Uuid
+  franchiseId String?     @db.Uuid
+  name        String
+  date        DateTime    @db.Date
+  type        HolidayType @default(PUBLIC)
+  description String?
+  isRecurring Boolean     @default(false)
+  createdBy   String      @db.Uuid
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  User        User        @relation(fields: [createdBy], references: [id])
+  Franchise   Franchise?  @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
+
+  @@unique([franchiseId, date])
+  @@index([date])
+  @@index([franchiseId])
+}
+
+model WorkingTimeConfig {
+  id                 String    @id @default(uuid()) @db.Uuid
+  franchiseId        String    @db.Uuid
+  roleType           String
+  minimumWorkHours   Int       @default(8)
+  lunchBreakMinutes  Int       @default(60)
+  snackBreakMinutes  Int       @default(15)
+  gracePeriodMinutes Int       @default(15)
+  isActive           Boolean   @default(true)
+  createdBy          String    @db.Uuid
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  User               User      @relation(fields: [createdBy], references: [id])
+  Franchise          Franchise @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
+
+  @@unique([franchiseId, roleType])
+  @@index([franchiseId])
+}
+
+model DriverRating {
+  id                 String   @id @default(uuid()) @db.Uuid
+  driverId           String   @db.Uuid
+  tripId             String?  @db.Uuid
+  customerName       String
+  customerPhone      String
+  customerEmail      String?
+  overallRating      Float
+  experience         String?
+  drivingSafety      Float
+  drivingSmoothness  Float
+  behaviorPoliteness Float
+  isVerified         Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  Driver             Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Trip               Trip?    @relation(fields: [tripId], references: [id])
+
+  @@index([driverId])
+  @@index([tripId])
+  @@index([createdAt])
+}
+
+model TripReview {
+  id            String    @id @default(uuid()) @db.Uuid
+  tripId        String    @db.Uuid
+  driverId      String    @db.Uuid
+  franchiseId   String    @db.Uuid
+  customerId    String    @db.Uuid
+  tripRating    Int
+  overallRating Int
+  driverRating  Int
+  comment       String
+  createdAt     DateTime  @default(now())
+  Customer      Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  Driver        Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Franchise     Franchise @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
+  Trip          Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@index([driverId])
+  @@index([customerId])
+  @@index([franchiseId])
+}
+
+model ActivityLog {
+  id          String             @id @default(uuid()) @db.Uuid
+  action      ActivityAction
+  entityType  ActivityEntityType
+  entityId    String?
+  franchiseId String?            @db.Uuid
+  driverId    String?            @db.Uuid
+  staffId     String?            @db.Uuid
+  tripId      String?            @db.Uuid
+  userId      String?            @db.Uuid
+  description String
+  metadata    Json?
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime           @default(now())
+  Driver      Driver?            @relation(fields: [driverId], references: [id])
+  Franchise   Franchise?         @relation(fields: [franchiseId], references: [id])
+  Staff       Staff?             @relation(fields: [staffId], references: [id])
+  Trip        Trip?              @relation(fields: [tripId], references: [id])
+  User        User?              @relation(fields: [userId], references: [id])
+
+  @@index([franchiseId, createdAt])
+  @@index([driverId, createdAt])
+  @@index([staffId, createdAt])
+  @@index([tripId, createdAt])
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+  @@index([createdAt])
+}
+
+model Penalty {
+  id                 String              @id @default(uuid()) @db.Uuid
+  name               String
+  description        String?
+  amount             Int
+  type               PenaltyType         @default(PENALTY)
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  blockDriver        Boolean             @default(false)
+  category           PenaltyCategory     @default(OPERATIONAL)
+  isAutomatic        Boolean             @default(false)
+  notifyAdmin        Boolean             @default(true)
+  notifyDriver       Boolean             @default(false)
+  notifyManager      Boolean             @default(true)
+  severity           PenaltySeverity     @default(MEDIUM)
+  triggerConfig      Json?
+  triggerType        PenaltyTriggerType  @default(MANUAL)
+  DriverTransactions DriverTransaction[]
+
+  @@index([isActive])
+  @@index([type])
+  @@index([triggerType])
+  @@index([category])
+  @@index([severity])
+}
+
+model DriverDailyMetrics {
+  id                  String   @id @default(uuid()) @db.Uuid
+  driverId            String   @db.Uuid
+  date                DateTime @db.Date
+  numberOfTrips       Int      @default(0)
+  numberOfComplaints  Int      @default(0)
+  distanceTraveled    Decimal  @default(0) @db.Decimal(10, 2)
+  tripAverageRating   Float?
+  overallRating       Float?
+  dailyLimit          Decimal? @db.Decimal(10, 2)
+  remainingLimit      Decimal? @db.Decimal(10, 2)
+  incentive           Decimal? @db.Decimal(10, 2)
+  bonus               Decimal? @db.Decimal(10, 2)
+  cashInHand          Decimal  @default(0) @db.Decimal(10, 2)
+  cashSubmittedOnDate Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  Driver              Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([driverId, date])
+  @@index([driverId, date])
+  @@index([date])
+}
+
+model TripStatusHistory {
+  id          String        @id @default(uuid()) @db.Uuid
+  tripId      String        @db.Uuid
+  driverId    String?       @db.Uuid
+  eventType   TripEventType
+  status      TripStatus?
+  description String?
+  metadata    Json?
+  occurredAt  DateTime      @default(now())
+  createdBy   String?       @db.Uuid
+  User        User?         @relation(fields: [createdBy], references: [id])
+  Driver      Driver?       @relation(fields: [driverId], references: [id])
+  Trip        Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, occurredAt])
+  @@index([driverId, occurredAt])
+  @@index([eventType, occurredAt])
+  @@index([occurredAt])
+}
+
+model DriverTransaction {
+  id              String                @id @default(uuid()) @db.Uuid
+  driverId        String                @db.Uuid
+  amount          Decimal               @db.Decimal(10, 2)
+  transactionType TransactionType
+  tripId          String?               @db.Uuid
+  type            DriverTransactionType
+  description     String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  appliedBy       String?               @db.Uuid
+  metadata        Json?
+  penaltyId       String?               @db.Uuid
+  AppliedByUser   User?                 @relation("AppliedTransactions", fields: [appliedBy], references: [id])
+  Driver          Driver                @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Penalty         Penalty?              @relation(fields: [penaltyId], references: [id])
+  Trip            Trip?                 @relation(fields: [tripId], references: [id])
+
+  @@index([driverId, createdAt])
+  @@index([transactionType])
+  @@index([type])
+  @@index([tripId])
+  @@index([penaltyId])
+  @@index([appliedBy])
+}
+
+model DriverMonthlyPerformance {
+  id                   String    @id @default(uuid()) @db.Uuid
+  driverId             String    @db.Uuid
+  franchiseId          String    @db.Uuid
+  month                Int
+  year                 Int
+  totalTrips           Int       @default(0)
+  acceptedTrips        Int       @default(0)
+  cancelledTrips       Int       @default(0)
+  totalDistance        Decimal   @default(0) @db.Decimal(10, 2)
+  totalEarnings        Decimal   @default(0) @db.Decimal(14, 2)
+  totalIncentive       Decimal   @default(0) @db.Decimal(14, 2)
+  totalPenalty         Decimal   @default(0) @db.Decimal(14, 2)
+  monthlyDeduction     Decimal   @default(0) @db.Decimal(14, 2)
+  avgRating            Float?
+  complaintCount       Int       @default(0)
+  warningCount         Int       @default(0)
+  attendancePercentage Float?
+  performanceScore     Float?
+  grade                String?
+  isFinalized          Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  Driver               Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  Franchise            Franchise @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
+
+  @@unique([driverId, month, year])
+  @@index([franchiseId, month, year])
+}
+
+model StaffMonthlyPerformance {
+  id                   String    @id @default(uuid()) @db.Uuid
+  staffId              String    @db.Uuid
+  franchiseId          String    @db.Uuid
+  month                Int
+  year                 Int
+  totalBookingsCreated Int       @default(0)
+  totalAssignments     Int       @default(0)
+  reassignmentCount    Int       @default(0)
+  complaintsHandled    Int       @default(0)
+  unresolvedComplaints Int       @default(0)
+  attendancePercentage Float?
+  warningCount         Int       @default(0)
+  performanceScore     Float?
+  grade                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  Franchise            Franchise @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
+  Staff                Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, month, year])
+  @@index([franchiseId, month, year])
+}
+
+model ManagerMonthlyPerformance {
+  id                  String    @id @default(uuid()) @db.Uuid
+  managerId           String    @db.Uuid
+  franchiseId         String    @db.Uuid
+  month               Int
+  year                Int
+  totalRevenue        Decimal   @default(0) @db.Decimal(14, 2)
+  totalTrips          Int       @default(0)
+  driverRetentionRate Float?
+  staffRetentionRate  Float?
+  totalComplaints     Int       @default(0)
+  resolvedComplaints  Int       @default(0)
+  avgDriverRating     Float?
+  payrollAccuracy     Float?
+  performanceScore    Float?
+  grade               String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  Franchise           Franchise @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
+  User                User      @relation(fields: [managerId], references: [id], onDelete: Cascade)
+
+  @@unique([managerId, month, year])
+  @@index([franchiseId, month, year])
+}
+
+model FranchiseMonthlyPerformance {
+  id               String    @id @default(uuid()) @db.Uuid
+  franchiseId      String    @db.Uuid
+  month            Int
+  year             Int
+  totalRevenue     Decimal   @default(0) @db.Decimal(14, 2)
+  totalTrips       Int       @default(0)
+  activeDrivers    Int       @default(0)
+  activeStaff      Int       @default(0)
+  totalComplaints  Int       @default(0)
+  avgRating        Float?
+  netProfit        Decimal?  @db.Decimal(14, 2)
+  performanceScore Float?
+  grade            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  Franchise        Franchise @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
+
+  @@unique([franchiseId, month, year])
+}
+
+model PickupRequest {
+  id             String       @id @default(uuid()) @db.Uuid
+  originalTripId String       @db.Uuid
+  pickupDriverId String?      @db.Uuid
+  distanceKm     Decimal?     @db.Decimal(10, 2)
+  payoutAmount   Decimal?     @db.Decimal(10, 2)
+  status         PickupStatus @default(PENDING)
+  createdAt      DateTime     @default(now())
+  acceptedAt     DateTime?
+  completedAt    DateTime?
+  Trip           Trip         @relation(fields: [originalTripId], references: [id], onDelete: Cascade)
+  Driver         Driver?      @relation(fields: [pickupDriverId], references: [id])
+
+  @@index([status])
+}
+
+model TripReassignment {
+  id           String   @id @default(uuid()) @db.Uuid
+  tripId       String   @db.Uuid
+  oldDriverId  String?
+  newDriverId  String?
+  reason       String?
+  reassignedBy String?  @db.Uuid
+  createdAt    DateTime @default(now())
+  Trip         Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+}
+
+model TripReschedule {
+  id            String   @id @default(uuid()) @db.Uuid
+  tripId        String   @db.Uuid
+  oldDate       DateTime
+  newDate       DateTime
+  reason        String?
+  rescheduledBy String?  @db.Uuid
+  createdAt     DateTime @default(now())
+  Trip          Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+}
+
+model DriverPayroll {
+  id               String    @id @default(uuid()) @db.Uuid
+  driverId         String    @db.Uuid
+  franchiseId      String    @db.Uuid
+  month            Int
+  year             Int
+  totalTrips       Int
+  totalEarnings    Decimal   @db.Decimal(14, 2)
+  totalIncentives  Decimal   @db.Decimal(14, 2)
+  totalPenalties   Decimal   @db.Decimal(14, 2)
+  monthlyDeduction Decimal   @db.Decimal(14, 2)
+  finalPayout      Decimal   @db.Decimal(14, 2)
+  isPaid           Boolean   @default(false)
+  paidAt           DateTime?
+  createdAt        DateTime  @default(now())
+  Driver           Driver    @relation(fields: [driverId], references: [id])
+  Franchise        Franchise @relation(fields: [franchiseId], references: [id])
+
+  @@unique([driverId, month, year])
+}
+
+model PasswordResetOTP {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String
+  otp       String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email, expiresAt])
+}
+
+enum CarType {
+  HATCHBACK
+  SEDAN
+  SUV
+  LUXURY
+}
+
+enum Transmission {
+  MANUAL
+  AUTOMATIC
+}
+
+enum CarCategory {
+  NORMAL
+  PREMIUM
+  LUXURY
+  SPORTS
+}
+
+enum TripOfferStatus {
+  OFFERED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
 }
 
 enum TripPricingType {
@@ -603,7 +955,6 @@ enum DriverTripStatus {
 enum PaymentMode {
   UPI
   IN_HAND
-  // Legacy payment modes for backward compatibility
   CASH
   CARD
   OTHER
@@ -612,7 +963,6 @@ enum PaymentMode {
 enum PaymentStatus {
   PENDING
   COMPLETED
-  // Legacy statuses for backward compatibility
   PAID
   PARTIALLY_PAID
 }
@@ -642,7 +992,6 @@ enum TripStatus {
   TRIP_ENDED
   COMPLETED
   PAYMENT_DONE
-  // Legacy statuses for backward compatibility
   REQUESTED
   DRIVER_ON_THE_WAY
   IN_PROGRESS
@@ -675,9 +1024,9 @@ enum FranchiseStatus {
 }
 
 enum ComplaintStatus {
-  RECEIVED // Newly registered complaint
-  IN_PROCESS // Complaint being processed
-  RESOLVED // Complaint resolved
+  RECEIVED
+  IN_PROCESS
+  RESOLVED
 }
 
 enum ComplaintPriority {
@@ -687,8 +1036,8 @@ enum ComplaintPriority {
 }
 
 enum ComplaintResolutionAction {
-  WARNING // Issued warning; 3+ warnings auto-fire
-  FIRE // Fired; cannot login or register
+  WARNING
+  FIRE
 }
 
 enum WarningPriority {
@@ -699,11 +1048,11 @@ enum WarningPriority {
 
 enum AttendanceStatus {
   PRESENT
-  PARTIAL
   ABSENT
   LATE
   HALF_DAY
   ON_LEAVE
+  PARTIAL
 }
 
 enum LeaveType {
@@ -722,132 +1071,12 @@ enum LeaveRequestStatus {
 }
 
 enum HolidayType {
-  PUBLIC      // Government/public holidays
-  COMPANY     // Company-specific holidays
-  OPTIONAL    // Optional holidays staff can opt-in
-}
-
-model Holiday {
-  id          String   @id @default(uuid()) @db.Uuid
-  franchiseId String?  @db.Uuid // null = global holiday
-  name        String
-  date        DateTime @db.Date
-  type        HolidayType @default(PUBLIC)
-  description String?
-  isRecurring Boolean  @default(false) // For yearly recurring holidays
-  createdBy   String   @db.Uuid
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  Franchise Franchise? @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
-  User      User       @relation(fields: [createdBy], references: [id])
-
-  @@unique([franchiseId, date])
-  @@index([date])
-  @@index([franchiseId])
-}
-
-model WorkingTimeConfig {
-  id                String   @id @default(uuid()) @db.Uuid
-  franchiseId       String   @db.Uuid
-  roleType          String   // DRIVER, STAFF, MANAGER
-  minimumWorkHours  Int      @default(8) // Minimum hours required
-  lunchBreakMinutes Int      @default(60) // Lunch break duration
-  snackBreakMinutes Int      @default(15) // Snack break duration
-  gracePeriodMinutes Int    @default(15) // Late arrival grace period
-  isActive          Boolean  @default(true)
-  createdBy         String   @db.Uuid
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  Franchise Franchise @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
-  User      User      @relation(fields: [createdBy], references: [id])
-
-  @@unique([franchiseId, roleType])
-  @@index([franchiseId])
-}
-
-model DriverRating {
-  id                 String   @id @default(uuid()) @db.Uuid
-  driverId           String   @db.Uuid
-  tripId             String?  @db.Uuid
-  customerName       String
-  customerPhone      String
-  customerEmail      String?
-  // Rating fields
-  overallRating      Float // Overall rating (1-5)
-  experience         String? // How was experience (text feedback)
-  drivingSafety      Float // Safety rating (1-5)
-  drivingSmoothness  Float // Smoothness rating (1-5)
-  behaviorPoliteness Float // Politeness rating (1-5)
-  // Metadata
-  isVerified         Boolean  @default(false) // Whether rating is verified
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  Driver             Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  Trip               Trip?    @relation(fields: [tripId], references: [id], onDelete: SetNull)
-
-  @@index([driverId])
-  @@index([tripId])
-  @@index([createdAt])
-}
-
-model TripReview {
-  id            String   @id @default(uuid()) @db.Uuid
-  tripId        String   @db.Uuid
-  driverId      String   @db.Uuid
-  franchiseId   String   @db.Uuid
-  customerId    String   @db.Uuid
-  tripRating    Int
-  overallRating Int
-  driverRating  Int
-  comment       String
-  createdAt     DateTime @default(now())
-
-  Trip      Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  Driver    Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  Franchise Franchise @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
-  Customer  Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-
-  @@index([tripId])
-  @@index([driverId])
-  @@index([customerId])
-  @@index([franchiseId])
-}
-
-model ActivityLog {
-  id          String             @id @default(uuid()) @db.Uuid
-  action      ActivityAction
-  entityType  ActivityEntityType
-  entityId    String? // ID of the related entity (trip, driver, staff, etc.)
-  franchiseId String?            @db.Uuid
-  driverId    String?            @db.Uuid
-  staffId     String?            @db.Uuid
-  tripId      String?            @db.Uuid
-  userId      String?            @db.Uuid // User who performed the action
-  description String
-  metadata    Json? // Additional data (old values, new values, etc.)
-  latitude    Float?
-  longitude   Float?
-  createdAt   DateTime           @default(now())
-  User        User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
-  Franchise   Franchise?         @relation(fields: [franchiseId], references: [id], onDelete: SetNull)
-  Driver      Driver?            @relation(fields: [driverId], references: [id], onDelete: SetNull)
-  Staff       Staff?             @relation(fields: [staffId], references: [id], onDelete: SetNull)
-  Trip        Trip?              @relation(fields: [tripId], references: [id], onDelete: SetNull)
-
-  @@index([franchiseId, createdAt])
-  @@index([driverId, createdAt])
-  @@index([staffId, createdAt])
-  @@index([tripId, createdAt])
-  @@index([userId, createdAt])
-  @@index([entityType, entityId])
-  @@index([action, createdAt])
-  @@index([createdAt])
+  PUBLIC
+  COMPANY
+  OPTIONAL
 }
 
 enum ActivityAction {
-  // Trip actions
   TRIP_CREATED
   TRIP_ASSIGNED
   TRIP_ACCEPTED
@@ -857,43 +1086,35 @@ enum ActivityAction {
   TRIP_CANCELLED
   TRIP_STATUS_CHANGED
   TRIP_UPDATED
-  // Driver actions
   DRIVER_CREATED
   DRIVER_UPDATED
   DRIVER_STATUS_CHANGED
   DRIVER_CLOCK_IN
   DRIVER_CLOCK_OUT
-  // Staff actions
   STAFF_CREATED
   STAFF_UPDATED
   STAFF_STATUS_CHANGED
   STAFF_CLOCK_IN
   STAFF_CLOCK_OUT
-  // Complaint actions
   COMPLAINT_CREATED
   COMPLAINT_RESOLVED
   COMPLAINT_STATUS_CHANGED
-  // Warning actions
-  WARNING_ISSUED
-  // Leave actions
   LEAVE_REQUESTED
   LEAVE_APPROVED
   LEAVE_REJECTED
   LEAVE_CANCELLED
-  // Rating actions
   RATING_SUBMITTED
-  // Attendance actions
   ATTENDANCE_RECORDED
   LOGIN
   LOGOUT
   CHECK_IN
   CHECK_OUT
-  // Other
   CUSTOMER_CREATED
   CUSTOMER_UPDATED
   FRANCHISE_CREATED
   FRANCHISE_UPDATED
   FRANCHISE_STATUS_CHANGED
+  WARNING_ISSUED
 }
 
 enum ActivityEntityType {
@@ -910,46 +1131,9 @@ enum ActivityEntityType {
   USER
 }
 
-model Penalty {
-  id          String      @id @default(uuid()) @db.Uuid
-  name        String
-  description String?
-  amount      Int // Default penalty amount
-  type        PenaltyType @default(PENALTY)
-  isActive    Boolean     @default(true)
-
-  // Auto-trigger configuration
-  isAutomatic   Boolean            @default(false)
-  triggerType   PenaltyTriggerType @default(MANUAL)
-  triggerConfig Json? // Store conditions like {"delayMinutes": 5, "complaintCount": 3}
-
-  // Categorization
-  category PenaltyCategory @default(OPERATIONAL)
-  severity PenaltySeverity @default(MEDIUM)
-
-  // Notification settings
-  notifyAdmin   Boolean @default(true)
-  notifyManager Boolean @default(true)
-  notifyDriver  Boolean @default(false)
-
-  // Action settings
-  blockDriver Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  DriverTransactions DriverTransaction[]
-
-  @@index([isActive])
-  @@index([type])
-  @@index([triggerType])
-  @@index([category])
-  @@index([severity])
-}
-
 enum PenaltyType {
-  PENALTY // Deduction for violations
-  DEDUCTION // Standard deductions (fuel, maintenance, etc.)
+  PENALTY
+  DEDUCTION
 }
 
 enum PenaltyTriggerType {
@@ -975,41 +1159,6 @@ enum PenaltySeverity {
   HIGH
 }
 
-// Driver Daily Metrics - Historical daily snapshots of driver performance
-model DriverDailyMetrics {
-  id       String   @id @default(uuid()) @db.Uuid
-  driverId String   @db.Uuid
-  date     DateTime @db.Date // Date for which metrics are recorded
-
-  // Trip metrics
-  numberOfTrips      Int     @default(0)
-  numberOfComplaints Int     @default(0)
-  distanceTraveled   Decimal @default(0) @db.Decimal(10, 2) // in km
-
-  // Rating metrics
-  tripAverageRating Float? // Average rating for trips on this date
-  overallRating     Float? // Overall driver rating at end of day
-
-  // Financial metrics
-  dailyLimit          Decimal? @db.Decimal(10, 2)
-  remainingLimit      Decimal? @db.Decimal(10, 2)
-  incentive           Decimal? @db.Decimal(10, 2)
-  bonus               Decimal? @db.Decimal(10, 2)
-  cashInHand          Decimal  @default(0) @db.Decimal(10, 2)
-  cashSubmittedOnDate Decimal  @default(0) @db.Decimal(10, 2) // Cash submitted to branch on this date
-
-  // Metadata
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  Driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
-
-  @@unique([driverId, date]) // One record per driver per day
-  @@index([driverId, date])
-  @@index([date])
-}
-
-// Trip Status History - Complete lifecycle tracking for trips
 enum TripEventType {
   ARRIVED_ON_LOCATION
   TRIP_INITIATED
@@ -1024,28 +1173,6 @@ enum TripEventType {
   STATUS_CHANGED
 }
 
-model TripStatusHistory {
-  id          String        @id @default(uuid()) @db.Uuid
-  tripId      String        @db.Uuid
-  driverId    String?       @db.Uuid
-  eventType   TripEventType
-  status      TripStatus? // Trip status at time of event
-  description String? // Additional details
-  metadata    Json? // Additional data (location, amount, coordinates, etc.)
-  occurredAt  DateTime      @default(now())
-  createdBy   String?       @db.Uuid // User/driver who triggered the event
-
-  Trip   Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  Driver Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
-  User   User?   @relation(fields: [createdBy], references: [id], onDelete: SetNull)
-
-  @@index([tripId, occurredAt])
-  @@index([driverId, occurredAt])
-  @@index([eventType, occurredAt])
-  @@index([occurredAt])
-}
-
-// Driver Transactions - Track all earnings and deductions for drivers
 enum TransactionType {
   CREDIT
   DEBIT
@@ -1057,247 +1184,9 @@ enum DriverTransactionType {
   GIFT
 }
 
-model DriverTransaction {
-  id              String                @id @default(uuid()) @db.Uuid
-  driverId        String                @db.Uuid
-  amount          Decimal               @db.Decimal(10, 2)
-  transactionType TransactionType // CREDIT or DEBIT
-  tripId          String?               @db.Uuid // Optional, null for penalties
-  type            DriverTransactionType // PENALTY, TRIP, or GIFT
-  description     String? // Optional description
-
-  // Penalty tracking fields
-  penaltyId String? @db.Uuid // Reference to Penalty master
-  appliedBy String? @db.Uuid // User who applied manual penalty
-  metadata  Json? // Store trigger details, before/after balance
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  Driver        Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  Trip          Trip?    @relation(fields: [tripId], references: [id], onDelete: SetNull)
-  Penalty       Penalty? @relation(fields: [penaltyId], references: [id], onDelete: SetNull)
-  AppliedByUser User?    @relation("AppliedTransactions", fields: [appliedBy], references: [id], onDelete: SetNull)
-
-  @@index([driverId, createdAt])
-  @@index([transactionType])
-  @@index([type])
-  @@index([tripId])
-  @@index([penaltyId])
-  @@index([appliedBy])
-}
-
-model DriverMonthlyPerformance {
-  id          String @id @default(uuid()) @db.Uuid
-  driverId    String @db.Uuid
-  franchiseId String @db.Uuid
-  month       Int
-  year        Int
-
-  totalTrips     Int     @default(0)
-  acceptedTrips  Int     @default(0)
-  cancelledTrips Int     @default(0)
-  totalDistance  Decimal @default(0) @db.Decimal(10, 2)
-
-  totalEarnings    Decimal @default(0) @db.Decimal(14, 2)
-  totalIncentive   Decimal @default(0) @db.Decimal(14, 2)
-  totalPenalty     Decimal @default(0) @db.Decimal(14, 2)
-  monthlyDeduction Decimal @default(0) @db.Decimal(14, 2)
-
-  avgRating            Float?
-  complaintCount       Int    @default(0)
-  warningCount         Int    @default(0)
-  attendancePercentage Float?
-
-  performanceScore Float?
-  grade            String?
-
-  isFinalized Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  Driver    Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  Franchise Franchise @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
-
-  @@unique([driverId, month, year])
-  @@index([franchiseId, month, year])
-}
-
-model StaffMonthlyPerformance {
-  id          String @id @default(uuid()) @db.Uuid
-  staffId     String @db.Uuid
-  franchiseId String @db.Uuid
-  month       Int
-  year        Int
-
-  totalBookingsCreated Int @default(0)
-  totalAssignments     Int @default(0)
-  reassignmentCount    Int @default(0)
-
-  complaintsHandled    Int @default(0)
-  unresolvedComplaints Int @default(0)
-
-  attendancePercentage Float?
-  warningCount         Int    @default(0)
-
-  performanceScore Float?
-  grade            String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  Staff     Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  Franchise Franchise @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
-
-  @@unique([staffId, month, year])
-  @@index([franchiseId, month, year])
-}
-
-model ManagerMonthlyPerformance {
-  id          String @id @default(uuid()) @db.Uuid
-  managerId   String @db.Uuid
-  franchiseId String @db.Uuid
-  month       Int
-  year        Int
-
-  totalRevenue Decimal @default(0) @db.Decimal(14, 2)
-  totalTrips   Int     @default(0)
-
-  driverRetentionRate Float?
-  staffRetentionRate  Float?
-
-  totalComplaints    Int @default(0)
-  resolvedComplaints Int @default(0)
-
-  avgDriverRating Float?
-  payrollAccuracy Float?
-
-  performanceScore Float?
-  grade            String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  User      User      @relation(fields: [managerId], references: [id], onDelete: Cascade)
-  Franchise Franchise @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
-
-  @@unique([managerId, month, year])
-  @@index([franchiseId, month, year])
-}
-
-model FranchiseMonthlyPerformance {
-  id          String @id @default(uuid()) @db.Uuid
-  franchiseId String @db.Uuid
-  month       Int
-  year        Int
-
-  totalRevenue  Decimal @default(0) @db.Decimal(14, 2)
-  totalTrips    Int     @default(0)
-  activeDrivers Int     @default(0)
-  activeStaff   Int     @default(0)
-
-  totalComplaints Int    @default(0)
-  avgRating       Float?
-
-  netProfit Decimal? @db.Decimal(14, 2)
-
-  performanceScore Float?
-  grade            String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  Franchise Franchise @relation(fields: [franchiseId], references: [id], onDelete: Cascade)
-
-  @@unique([franchiseId, month, year])
-}
-
-model PickupRequest {
-  id             String       @id @default(uuid()) @db.Uuid
-  originalTripId String       @db.Uuid
-  pickupDriverId String?      @db.Uuid
-  distanceKm     Decimal?     @db.Decimal(10, 2)
-  payoutAmount   Decimal?     @db.Decimal(10, 2)
-  status         PickupStatus @default(PENDING)
-
-  createdAt   DateTime  @default(now())
-  acceptedAt  DateTime?
-  completedAt DateTime?
-
-  Trip   Trip    @relation(fields: [originalTripId], references: [id], onDelete: Cascade)
-  Driver Driver? @relation(fields: [pickupDriverId], references: [id], onDelete: SetNull)
-
-  @@index([status])
-}
-
 enum PickupStatus {
   PENDING
   ACCEPTED
   COMPLETED
   CANCELLED
-}
-
-model TripReassignment {
-  id           String   @id @default(uuid()) @db.Uuid
-  tripId       String   @db.Uuid
-  oldDriverId  String?
-  newDriverId  String?
-  reason       String?
-  reassignedBy String?  @db.Uuid
-  createdAt    DateTime @default(now())
-
-  Trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
-
-  @@index([tripId])
-}
-
-model TripReschedule {
-  id            String   @id @default(uuid()) @db.Uuid
-  tripId        String   @db.Uuid
-  oldDate       DateTime
-  newDate       DateTime
-  reason        String?
-  rescheduledBy String?  @db.Uuid
-  createdAt     DateTime @default(now())
-
-  Trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
-
-  @@index([tripId])
-}
-
-model DriverPayroll {
-  id          String @id @default(uuid()) @db.Uuid
-  driverId    String @db.Uuid
-  franchiseId String @db.Uuid
-  month       Int
-  year        Int
-
-  totalTrips       Int
-  totalEarnings    Decimal @db.Decimal(14, 2)
-  totalIncentives  Decimal @db.Decimal(14, 2)
-  totalPenalties   Decimal @db.Decimal(14, 2)
-  monthlyDeduction Decimal @db.Decimal(14, 2)
-  finalPayout      Decimal @db.Decimal(14, 2)
-
-  isPaid Boolean   @default(false)
-  paidAt DateTime?
-
-  createdAt DateTime @default(now())
-
-  Driver    Driver    @relation(fields: [driverId], references: [id])
-  Franchise Franchise @relation(fields: [franchiseId], references: [id])
-
-  @@unique([driverId, month, year])
-}
-
-model PasswordResetOTP {
-  id        String   @id @default(uuid()) @db.Uuid
-  email     String
-  otp       String
-  expiresAt DateTime
-  verified  Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  @@index([email, expiresAt])
 }

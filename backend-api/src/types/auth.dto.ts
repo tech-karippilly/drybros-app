@@ -34,6 +34,36 @@ export const registerAdminSchema = z.object({
     .transform((val) => (!val || val === "" ? null : val)),
 });
 
+export const registerSuperAdminSchema = z.object({
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .max(100, "Name must be less than 100 characters")
+    .trim(),
+  email: z
+    .string()
+    .email("Invalid email format")
+    .max(255, "Email must be less than 255 characters")
+    .toLowerCase()
+    .trim(),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(100, "Password must be less than 100 characters"),
+  phone: z
+    .union([
+      z
+        .string()
+        .max(20, "Phone number must be less than 20 characters")
+        .regex(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/, "Invalid phone number format")
+        .trim(),
+      z.literal(""),
+      z.null(),
+    ])
+    .optional()
+    .transform((val) => (!val || val === "" ? null : val)),
+});
+
 /**
  * Zod schema for login
  */
@@ -62,6 +92,8 @@ export const staffLoginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+
+export type RegisterSuperAdminDTO = z.infer<typeof registerSuperAdminSchema>;
 /**
  * DTO for registering an admin (inferred from Zod schema)
  */
@@ -101,6 +133,11 @@ export interface UserResponseDTO {
  */
 export interface RegisterAdminResponseDTO {
   message: string;
+}
+
+export interface RegisterSuperAdminResponseDTO{
+status:number;
+message:string;
 }
 
 /**

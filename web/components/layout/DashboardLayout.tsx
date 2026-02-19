@@ -145,6 +145,18 @@ const AlertIcon = ({ className = '' }: { className?: string }) => (
   </svg>
 );
 
+const TripIcon = ({ className = '' }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+  </svg>
+);
+
+const BookingIcon = ({ className = '' }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+  </svg>
+);
+
 interface MenuItem {
   icon: ({ className }: { className?: string }) => React.ReactElement;
   label: string;
@@ -168,6 +180,14 @@ const adminMenuItems: MenuItem[] = [
   { icon: DashboardIcon, label: 'Dashboard', href: '/admin/dashboard' },
   { icon: BuildingIcon, label: 'Franchises', href: '/admin/franchises' },
   { icon: UsersIcon, label: 'Staff', href: '/admin/staff' },
+  { 
+    icon: TripIcon, 
+    label: 'Trips', 
+    href: '/admin/trips',
+    children: [
+      { icon: BookingIcon, label: 'Booking', href: '/admin/trips/booking' },
+    ]
+  },
   { 
     icon: ConfigIcon, 
     label: 'Driver Config', 
@@ -200,6 +220,14 @@ const managerMenuItems: MenuItem[] = [
   { icon: BuildingIcon, label: 'My Franchise', href: '/manager/franchise' },
   { icon: UsersIcon, label: 'Staff Management', href: '/manager/staff' },
   { 
+    icon: TripIcon, 
+    label: 'Trips', 
+    href: '/manager/trips',
+    children: [
+      { icon: BookingIcon, label: 'Booking', href: '/manager/trips/booking' },
+    ]
+  },
+  { 
     icon: ConfigIcon, 
     label: 'Driver Config', 
     href: '/manager/driver-config',
@@ -226,12 +254,6 @@ const managerMenuItems: MenuItem[] = [
   { icon: ReportIcon, label: 'Reports', href: '/manager/reports' },
 ];
 
-const TripIcon = ({ className = '' }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-  </svg>
-);
-
 const CustomerIcon = ({ className = '' }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -241,7 +263,14 @@ const CustomerIcon = ({ className = '' }: { className?: string }) => (
 const staffMenuItems: MenuItem[] = [
   { icon: DashboardIcon, label: 'Dashboard', href: '/staff/dashboard' },
   { icon: BuildingIcon, label: 'My Franchise', href: '/staff/franchise' },
-  { icon: TripIcon, label: 'Trips', href: '/staff/trips' },
+  { 
+    icon: TripIcon, 
+    label: 'Trips', 
+    href: '/staff/trips',
+    children: [
+      { icon: BookingIcon, label: 'Booking', href: '/staff/trips/booking' },
+    ]
+  },
   { icon: DriverIcon, label: 'Drivers', href: '/staff/drivers' },
   { icon: CustomerIcon, label: 'Customers', href: '/staff/customers' },
   { 

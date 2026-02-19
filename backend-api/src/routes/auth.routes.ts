@@ -11,6 +11,7 @@ import {
   logoutHandler,
   getCurrentUserHandler,
   changePasswordHandler,
+  registerSuperAdminHandler,
 } from "../controllers/auth.controller";
 import { validate } from "../middlewares/validation";
 import {
@@ -23,11 +24,14 @@ import {
   resetPasswordSchema,
   refreshTokenSchema,
   changePasswordSchema,
+  registerSuperAdminSchema,
 } from "../types/auth.dto";
 import { authMiddleware } from "../middlewares/auth";
+import { registerSuperAdmin } from "../services/auth.service";
 
 const router = express.Router();
 
+router.post("/register-super-admin", validate(registerSuperAdminSchema), registerSuperAdminHandler);
 // Register admin
 router.post("/register-admin", validate(registerAdminSchema), registerAdminHandler);
 

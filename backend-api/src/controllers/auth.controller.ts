@@ -12,9 +12,35 @@ import {
   loginDriver,
   loginStaff,
   verifyOTP,
+  registerSuperAdmin,
 } from "../services/auth.service";
 import { authMiddleware } from "../middlewares/auth";
 import { ERROR_MESSAGES } from "../constants/errors";
+
+
+export async function registerSuperAdminHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    // Validate input
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({ error: "Invalid request body" });
+    }
+    
+    const { name, email, password, phone } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Name, email, and password are required" });
+    }
+    
+    const result = await registerSuperAdmin({ name, email, password, phone });
+    res.status(201).json({ message: result.message });
+  } catch (err) {
+    next(err);
+  }
+}
 
 export async function registerAdminHandler(
   req: Request,

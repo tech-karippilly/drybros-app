@@ -38,6 +38,7 @@ export const adminRoutes = {
   STAFF: '/admin/staff',
   DRIVERS: '/admin/drivers',
   TRIPS: '/admin/trips',
+  TRIP_TYPES: '/admin/trip-types',
   REPORTS: '/admin/reports',
   SETTINGS: '/admin/settings',
 } as const;
@@ -55,6 +56,7 @@ export const managerRoutes = {
   DRIVER_CREATE: '/manager/drivers/create',
   TRIPS: '/manager/trips',
   TRIP_DETAIL: (id: string) => `/manager/trips/${id}`,
+  TRIP_TYPES: '/manager/trip-types',
   BOOKINGS: '/manager/bookings',
   ATTENDANCE: '/manager/attendance',
   FLEET: '/manager/fleet',
